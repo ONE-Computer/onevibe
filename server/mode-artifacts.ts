@@ -47,7 +47,7 @@ const writeSlides = async (task: Task, store: TaskStore) => {
 
 const writeScaffold = async (task: Task, store: TaskStore) => {
   const files: Record<string, string> = {
-    'app/package.json': `${JSON.stringify({ private: true, scripts: { dev: 'vite', build: 'tsc -b && vite build' }, dependencies: { '@vitejs/plugin-react': 'latest', vite: 'latest', typescript: 'latest', react: 'latest', 'react-dom': 'latest' }, devDependencies: {} }, null, 2)}\n`,
+    'app/package.json': `${JSON.stringify({ private: true, scripts: { dev: 'vite', build: 'tsc -b && vite build', preview: 'vite preview' }, dependencies: { react: '^19.2.7', 'react-dom': '^19.2.7' }, devDependencies: { '@types/react': '^19.2.17', '@types/react-dom': '^19.2.3', '@vitejs/plugin-react': '^6.0.3', typescript: '~6.0.2', vite: '^8.1.1' } }, null, 2)}\n`,
     'app/vite.config.ts': "import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nexport default defineConfig({ plugins: [react()] })\n",
     'app/tsconfig.json': `${JSON.stringify({ compilerOptions: { target: 'ES2022', jsx: 'react-jsx', strict: true, module: 'ESNext', moduleResolution: 'Bundler' }, include: ['src'] }, null, 2)}\n`,
     'app/src/main.tsx': "import React from 'react'\nimport { createRoot } from 'react-dom/client'\nimport './styles.css'\nimport App from './App'\ncreateRoot(document.getElementById('root')!).render(<App />)\n",

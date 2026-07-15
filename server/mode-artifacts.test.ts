@@ -43,6 +43,10 @@ describe('mode artifacts', () => {
     expect(await store.readWorkspaceFile(task.id, 'app/src/App.tsx')).toContain('useState')
     expect(await store.readWorkspaceFile(task.id, 'app/vite.config.ts')).toContain('defineConfig')
     expect((await store.listWorkspaceFiles(task.id)).map((file) => file.path)).toContain('app/.gitignore')
+    expect(JSON.parse(await store.readWorkspaceFile(task.id, 'app/package.json'))).toMatchObject({
+      scripts: { build: 'tsc -b && vite build', preview: 'vite preview' },
+      devDependencies: { '@types/react': expect.any(String), '@types/react-dom': expect.any(String), '@vitejs/plugin-react': expect.any(String) },
+    })
   })
 
   it('writes an explicit static validation report without claiming runtime verification', async () => {
