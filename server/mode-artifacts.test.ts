@@ -27,6 +27,7 @@ describe('mode artifacts', () => {
     expect(files).toContain('deck.pptx')
     expect(pptx.subarray(0, 2).toString()).toBe('PK')
     expect(outline).toHaveLength(8)
+    expect(JSON.stringify(outline)).toContain('Brief senior management on ONEVibe')
     expect(await store.readWorkspaceFile(task.id, 'index.html')).toContain('id="next"')
   })
 

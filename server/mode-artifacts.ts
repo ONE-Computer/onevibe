@@ -6,18 +6,23 @@ const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll(
 
 const shell = (title: string, body: string, script = '') => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>:root{font-family:Inter,system-ui;background:#090b0a;color:#f3f6f4}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 75% 10%,#143523,transparent 35%),#090b0a}main{width:min(1060px,92vw);margin:auto;padding:56px 0}.eyebrow{font:11px ui-monospace;color:#42db82;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(42px,7vw,82px);line-height:.94;letter-spacing:-.06em;margin:20px 0}p{color:#9aa59e;line-height:1.65}.card{border:1px solid #29332d;background:#101411;border-radius:14px;padding:22px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:30px}button{border:1px solid #375241;background:#15251b;color:#a5e3bd;border-radius:8px;padding:9px 12px;cursor:pointer}</style></head><body><main>${body}</main>${script ? `<script>${script}</script>` : ''}</body></html>`
 
-const slides = [
-  ['A governed place for capable agents', 'ONEVibe pairs an agent workspace with ONEComputer isolation and OpenVTC approvals.'],
-  ['The enterprise tension', 'Teams want agent speed without giving every model ambient access to corporate systems.'],
-  ['One task, one boundary', 'Each assignment receives a visible workspace, explicit tools, and durable evidence.'],
-  ['Policy follows intent', 'Actions are evaluated against company policy before tools or data are reached.'],
-  ['Approval leaves the workload', 'Sensitive actions move to a separate VTI Wallet instead of trusting the browser session.'],
-  ['Source remains portable', 'Teams retain generated source, version history, and evidence rather than a provider-only artifact.'],
-  ['Built for agent choice', 'Claude, Codex, and future runtimes can share the same enterprise control plane.'],
-  ['The next milestone', 'Run the complete admin-to-employee-to-wallet journey on ONEComputer infrastructure.'],
-]
+const slideOutlineFor = (task: Task): Array<[string, string]> => {
+  const brief = task.prompt.replace(/\s+/g, ' ').trim()
+  const focus = brief.length > 280 ? `${brief.slice(0, 277)}…` : brief
+  return [
+    [task.title, `Executive briefing prepared from the requested outcome: ${focus}`],
+    ['The decision in view', `What the audience needs to understand, decide, or align on: ${focus}`],
+    ['Context and opportunity', 'Frame the operating environment, the people affected, and why acting now matters. Separate established facts from assumptions requiring validation.'],
+    ['Proposed approach', 'Describe the recommended path in concrete terms: scope, user experience, operating boundary, and what is intentionally out of scope.'],
+    ['How the work will happen', 'Lay out the delivery sequence, accountable owners, dependencies, and the evidence needed at each meaningful checkpoint.'],
+    ['Risk, policy, and controls', 'Identify material risks, policy constraints, and actions that require a separate accountable decision before execution or release.'],
+    ['Measures of progress', 'Define observable outcomes, leading indicators, and review points. Avoid treating unverified activity as proof of value or safety.'],
+    ['Recommended next step', 'Confirm the immediate owner, decision required, and the smallest governed action that moves the work forward.'],
+  ]
+}
 
 const writeSlides = async (task: Task, store: TaskStore) => {
+  const slides = slideOutlineFor(task)
   const moduleValue: unknown = PptxGenJS
   const PptxConstructor = typeof moduleValue === 'function' ? moduleValue : (moduleValue as { default: unknown }).default
   // PptxGenJS has different default-import shapes under native Node and TSX/Vitest transforms; both expose this constructor.
