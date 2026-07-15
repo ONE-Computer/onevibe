@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, evidenceItemId, formatDuration, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, evidenceItemId, formatDuration, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -86,5 +86,10 @@ describe('Computer timeline terminal inspection', () => {
   it('keeps unpaired result events visible instead of silently discarding audit evidence', () => {
     const result: ComputerItem = { id: 'orphan-result', kind: 'terminal', eventType: 'tool_call_completed', title: 'Recovered result', createdAt: '2026-07-16T00:00:00.000Z', eventHash: 'result-hash', payload: { toolUseId: 'unknown' } }
     expect(artifactRailItems([result]).map((item) => item.id)).toEqual(['orphan-result'])
+  })
+
+  it('windows a long rail while retaining an overscan buffer for smooth scrolling', () => {
+    expect(virtualRailRange(10_000, 68 * 500, 340)).toEqual({ start: 488, end: 517 })
+    expect(virtualRailRange(3, 0, 340)).toEqual({ start: 0, end: 3 })
   })
 })

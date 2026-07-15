@@ -46,6 +46,13 @@ export const formatDuration = (milliseconds: number | undefined) => {
   return `${Math.floor(milliseconds / 60_000)}m ${Math.round((milliseconds % 60_000) / 1_000)}s`
 }
 
+export const virtualRailRange = (count: number, scrollTop: number, viewportHeight: number, rowHeight = 68, overscan = 12) => {
+  if (count <= 0) return { start: 0, end: 0 }
+  const visibleStart = Math.floor(Math.max(0, scrollTop) / rowHeight)
+  const visibleEnd = Math.ceil((Math.max(0, scrollTop) + Math.max(rowHeight, viewportHeight)) / rowHeight)
+  return { start: Math.max(0, visibleStart - overscan), end: Math.min(count, visibleEnd + overscan) }
+}
+
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
   const items = task.events.flatMap((event): ComputerItem[] => {
     const presentation = event.payload.presentation as PresentationDescriptor | undefined
