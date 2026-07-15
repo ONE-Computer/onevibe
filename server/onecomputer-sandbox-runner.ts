@@ -148,12 +148,12 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       await store.setPlanStep(task.id, 'verify', 'completed')
       await store.setPlanStep(task.id, 'deliver', 'running')
       await destroy()
+      await store.setPlanStep(task.id, 'deliver', 'completed')
       await store.appendEvent(task.id, {
         type: 'run_completed', lane: 'control', status: 'completed', label: 'ONEComputer sandbox task completed',
         content: `${paths.length} portable artifacts delivered with the sandbox lifecycle recorded in evidence.`,
         payload: { sandboxId: sandbox.id, sandboxRetained: this.options.retainSandbox, gatewayEnforced: this.options.gatewayEnforced },
       })
-      await store.setPlanStep(task.id, 'deliver', 'completed')
       await store.updateTask(task.id, { status: 'completed' })
     } catch (error) {
       await destroy().catch(() => undefined)

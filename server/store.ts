@@ -172,9 +172,22 @@ export class TaskStore {
 
   async setPlanStep(taskId: string, stepId: string, status: Task['plan'][number]['status']) {
     const task = this.getTask(taskId)
-    return this.updateTask(taskId, {
-      plan: task.plan.map((step) => (step.id === stepId ? { ...step, status } : step)),
+    const current = task.plan.find((step) => step.id === stepId)
+    if (!current) throw new Error('Plan step not found')
+    if (current.status === status) return task
+    const now = new Date().toISOString()
+    const step = {
+      ...current,
+      status,
+      startedAt: status === 'running' ? current.startedAt ?? now : current.startedAt,
+      completedAt: status === 'completed' || status === 'blocked' ? now : current.completedAt,
+    }
+    const updated = await this.updateTask(taskId, { plan: task.plan.map((candidate) => candidate.id === stepId ? step : candidate) })
+    await this.appendEvent(taskId, {
+      type: 'activity_delta', lane: 'control', label: `Plan step ${status}`,
+      content: step.title, payload: { stepId, status, startedAt: step.startedAt, completedAt: step.completedAt },
     })
+    return updated
   }
 
   async appendEvent(taskId: string, input: EventInput) {

@@ -25,6 +25,24 @@ describe('TaskStore', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('records durable plan-step timing and transition evidence', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-plan-timing-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Time a governed task', 'demo')
+    await store.setPlanStep(task.id, 'scope', 'running')
+    await store.setPlanStep(task.id, 'scope', 'completed')
+    const step = store.getTask(task.id).plan.find((candidate) => candidate.id === 'scope')
+
+    expect(step).toMatchObject({ status: 'completed' })
+    expect(step?.startedAt).toBeTruthy()
+    expect(step?.completedAt).toBeTruthy()
+    expect(store.listEvents(task.id).at(-1)?.payload).toMatchObject({ stepId: 'scope', status: 'completed' })
+    expect(store.verifyChain(task.id)).toBe(true)
+  })
+
   it('rejects workspace traversal', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-store-'))
     temporaryRoots.push(root)

@@ -43,6 +43,8 @@ export type PlanStep = {
   id: string
   title: string
   status: PlanStepStatus
+  startedAt?: string
+  completedAt?: string
 }
 
 export type RuntimeEvent = {

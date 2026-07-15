@@ -10,7 +10,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 2. **I** Automatic task naming — deterministic persisted title.
 3. **P** Automatic multi-step planning — five persisted steps; not yet agent-generated.
 4. **P** Live plan progress — live statuses exist; per-run reset and richer progress are pending.
-5. **M** Per-step elapsed time.
+5. **P** Per-step elapsed time — plan transitions now persist start/completion timestamps, render elapsed duration, and append timing evidence. Native-agent-derived granular step mapping remains pending.
 6. **I** Narrated execution — typed transcript deltas from demo, SDK, or remote runtime.
 7. **P** Interruptible follow-up chat — resumable same-session follow-ups work after a turn; mid-run steering is pending.
 8. **I** Expandable task messages — long user and grouped assistant turns collapse and expand in place.

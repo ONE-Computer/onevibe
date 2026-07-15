@@ -122,12 +122,12 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
 
     await store.setPlanStep(task.id, 'deliver', 'running')
     await pause(320, signal)
+    await store.setPlanStep(task.id, 'deliver', 'completed')
     await store.appendEvent(task.id, {
       type: 'run_completed', lane: 'control', status: 'completed', label: 'Task completed safely',
       content: 'The artifact is ready locally. Publication is still pending in the separate wallet.',
       payload: { published: false, evidenceChainValid: store.verifyChain(task.id) },
     })
-    await store.setPlanStep(task.id, 'deliver', 'completed')
     await store.updateTask(task.id, { status: 'completed' })
   }
 }
