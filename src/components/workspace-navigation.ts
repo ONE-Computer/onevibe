@@ -13,6 +13,7 @@ export const workspaceLocationForTab = (href: string, tab: WorkspaceTab) => {
   if (tab !== 'computer') {
     url.searchParams.delete('event')
     url.searchParams.delete('rail')
+    url.searchParams.delete('run')
   }
   return `${url.pathname}${url.search}${url.hash}`
 }

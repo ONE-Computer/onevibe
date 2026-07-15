@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, defaultComputerItem, evidenceItemId, formatDuration, matchesRailQuery, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, matchesRailQuery, runIdsFor, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -106,5 +106,15 @@ describe('Computer timeline terminal inspection', () => {
     expect(matchesRailQuery(item, 'navigate')).toBe(true)
     expect(matchesRailQuery(item, 'example.com')).toBe(true)
     expect(matchesRailQuery(item, 'unrelated')).toBe(false)
+  })
+
+  it('filters a multi-run rail without including an unbound live surface', () => {
+    const items: ComputerItem[] = [
+      { id: 'one', kind: 'terminal', title: 'First', createdAt: '2026-07-16T00:00:00.000Z', runId: 'run-first' },
+      { id: 'live', kind: 'screenshot', title: 'Live X11', createdAt: '2026-07-16T00:00:01.000Z', live: true },
+      { id: 'two', kind: 'preview', title: 'Second', createdAt: '2026-07-16T00:00:02.000Z', runId: 'run-second' },
+    ]
+    expect(runIdsFor(items)).toEqual(['run-first', 'run-second'])
+    expect(filterItemsByRun(items, 'run-second').map((item) => item.id)).toEqual(['two'])
   })
 })

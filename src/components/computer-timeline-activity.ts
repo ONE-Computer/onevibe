@@ -59,6 +59,10 @@ export const matchesRailQuery = (item: ComputerItem, query: string) => {
   return [item.title, item.detail, item.activityPreview, item.kind, item.runId, item.sequence?.toString()].some((value) => value?.toLocaleLowerCase().includes(normalized))
 }
 
+export const runIdsFor = (items: ComputerItem[]) => [...new Set(items.map((item) => item.runId).filter((runId): runId is string => Boolean(runId)))].sort((a, b) => a.localeCompare(b))
+
+export const filterItemsByRun = (items: ComputerItem[], runId: string) => runId === 'all' ? items : items.filter((item) => item.runId === runId)
+
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
   const items = task.events.flatMap((event): ComputerItem[] => {
     const presentation = event.payload.presentation as PresentationDescriptor | undefined
