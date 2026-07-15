@@ -86,6 +86,21 @@ describe('mode artifacts', () => {
     }
   })
 
+  it('uses app task intent for storefront and operations interactions', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-app-intent-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const storefront = await store.createTask('Create an e-commerce storefront', 'demo', 'app')
+    await writeModeArtifacts(storefront, store)
+    expect(await store.readWorkspaceFile(storefront.id, 'app/src/App.tsx')).toContain('Add to cart')
+    const dashboard = await store.createTask('Build an operations dashboard', 'demo', 'app')
+    await writeModeArtifacts(dashboard, store)
+    expect(await store.readWorkspaceFile(dashboard.id, 'app/src/App.tsx')).toContain('Focus review queue')
+  })
+
   it('generates a playable interaction loop for game mode', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-game-mode-'))
     temporaryRoots.push(root)
