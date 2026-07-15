@@ -149,6 +149,7 @@ export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
     return ['index.html', 'data.csv', 'analysis.json']
   }
   if (task.mode === 'design') {
+    const monogram = (task.title.match(/[A-Za-z0-9]/)?.[0] ?? 'O').toUpperCase()
     const directions = [
       { id: 'secure-signal', name: 'Secure Signal', rationale: 'Evidence-forward enterprise interface with clear operational status and decisive hierarchy.', confidence: 0.72, selected: true },
       { id: 'quiet-infrastructure', name: 'Quiet Infrastructure', rationale: 'Calm, sparse operational canvas that makes policy and infrastructure feel understandable.', confidence: 0.18, selected: false },
@@ -157,7 +158,8 @@ export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
     await store.writeWorkspaceFile(task.id, 'ideas.md', `# Design directions\n\n${directions.map((direction, index) => `${index + 1}. ${direction.name} — ${direction.rationale}`).join('\n')}\n\nSelected: Secure Signal.\n\nSelection confidence is a deterministic starter heuristic, not a model probability or user-research finding.\n`)
     await store.writeWorkspaceFile(task.id, 'design-directions.json', `${JSON.stringify({ title: task.title, selectionMethod: 'deterministic starter heuristic', philosophy: { name: 'Secure Signal', description: 'Evidence-forward enterprise interfaces: calm infrastructure, decisive status, and human approval at consequential boundaries.' }, directions }, null, 2)}\n`)
     await store.writeWorkspaceFile(task.id, 'design-tokens.json', `${JSON.stringify({ color: { background: '#090b0a', verified: '#38dc7d', pending: '#f1b84b' }, radius: { panel: 14 }, motion: { standard: 180 } }, null, 2)}\n`)
-    return ['ideas.md', 'design-directions.json', 'design-tokens.json']
+    await store.writeWorkspaceFile(task.id, 'brand-mark.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Generated brand mark"><rect width="512" height="512" rx="112" fill="#090b0a"/><rect x="72" y="72" width="368" height="368" rx="80" fill="#111a14" stroke="#38dc7d" stroke-width="12"/><path d="M156 160v192l100-96 100 96V160l-100 96z" fill="#38dc7d"/><circle cx="256" cy="256" r="48" fill="#090b0a"/><text x="256" y="278" text-anchor="middle" fill="#e9f3ec" font-family="Arial, sans-serif" font-size="56" font-weight="700">${monogram}</text></svg>\n`)
+    return ['ideas.md', 'design-directions.json', 'design-tokens.json', 'brand-mark.svg']
   }
   if (task.mode === 'website' || task.mode === 'app' || task.mode === 'game') return writeScaffold(task, store)
   return []

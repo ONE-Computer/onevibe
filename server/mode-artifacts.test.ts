@@ -129,6 +129,7 @@ describe('mode artifacts', () => {
     const directions = JSON.parse(await store.readWorkspaceFile(task.id, 'design-directions.json')) as { selectionMethod: string; directions: unknown[] }
     expect(directions.selectionMethod).toContain('heuristic')
     expect(directions.directions).toHaveLength(3)
+    expect(await store.readWorkspaceFile(task.id, 'brand-mark.svg')).toContain('<svg')
   })
 
   it('generates a responsive website with an accessible FAQ interaction', async () => {

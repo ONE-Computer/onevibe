@@ -67,7 +67,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 48. **I** Named design philosophy — Design artifacts declare and render the “Secure Signal” philosophy: evidence-forward enterprise interfaces, calm infrastructure, decisive status, and human approval at consequential boundaries.
 49. **I** Design-principle documentation — Design mode retains `ideas.md`.
 50. **I** Semantic color planning — generated tokens distinguish verified and pending states.
-51. **M** Generated brand artwork.
+51. **P** Generated brand artwork — Design mode emits and renders a portable `brand-mark.svg` aligned to the selected Secure Signal direction. Rich visual exploration, image generation, and brand-research grounding remain pending.
 52. **P** Responsive-layout intent — shell is responsive; generated-project validation is pending.
 53. **P** Restrained-motion intent — shell uses Framer Motion and reduced-motion handling.
 54. **P** Typography-system selection — shell has a deliberate stack; generated selection is pending.
