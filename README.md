@@ -7,6 +7,7 @@ The first vertical slice already supports:
 - natural-language task creation and automatic planning;
 - server-owned cancellation that retains partial source and evidence;
 - multi-turn follow-up instructions that resume the same task workspace and Claude SDK session;
+- immutable workspace version history and evidence-recorded restore;
 - a typed Server-Sent Events task timeline;
 - activity, tool, artifact, approval, and control lanes;
 - a path-confined local workspace with generated files and live preview;

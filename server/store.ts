@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
-import type { EventInput, RuntimeEvent, Task, TaskSnapshot, WorkspaceFile } from './types.js'
+import type { EventInput, RuntimeEvent, Task, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -24,18 +24,21 @@ export class TaskStore {
   private tasksRoot: string
   private workspacesRoot: string
   private runtimeRoot: string
+  private versionsRoot: string
 
   constructor(dataRoot = DEFAULT_DATA_ROOT) {
     const resolvedRoot = path.resolve(dataRoot)
     this.tasksRoot = path.join(resolvedRoot, 'tasks')
     this.workspacesRoot = path.join(resolvedRoot, 'workspaces')
     this.runtimeRoot = path.join(resolvedRoot, 'runtime')
+    this.versionsRoot = path.join(resolvedRoot, 'versions')
   }
 
   async initialize() {
     await mkdir(this.tasksRoot, { recursive: true })
     await mkdir(this.workspacesRoot, { recursive: true })
     await mkdir(this.runtimeRoot, { recursive: true })
+    await mkdir(this.versionsRoot, { recursive: true })
     const entries = await readdir(this.tasksRoot, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
@@ -184,6 +187,45 @@ export class TaskStore {
     }
     await walk(root)
     return results.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  async createWorkspaceVersion(taskId: string, label: string) {
+    const files = await this.listWorkspaceFiles(taskId)
+    if (!files.length) return null
+    const id = `version_${Date.now()}_${randomUUID().slice(0, 8)}`
+    const root = path.join(this.versionsRoot, taskId, id)
+    assertWithin(this.versionsRoot, root)
+    await mkdir(root, { recursive: true })
+    await cp(this.workspacePath(taskId), path.join(root, 'files'), { recursive: true })
+    const version: WorkspaceVersion = {
+      id, taskId, label: label.slice(0, 120), createdAt: new Date().toISOString(), fileCount: files.length,
+      evidenceHash: this.listEvents(taskId).at(-1)?.eventHash ?? 'GENESIS',
+    }
+    await writeJson(path.join(root, 'version.json'), version)
+    return version
+  }
+
+  async listWorkspaceVersions(taskId: string): Promise<WorkspaceVersion[]> {
+    this.getTask(taskId)
+    const root = path.join(this.versionsRoot, taskId)
+    await mkdir(root, { recursive: true })
+    const versions: WorkspaceVersion[] = []
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      try { versions.push(JSON.parse(await readFile(path.join(root, entry.name, 'version.json'), 'utf8')) as WorkspaceVersion) } catch { /* ignore incomplete snapshots */ }
+    }
+    return versions.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }
+
+  async restoreWorkspaceVersion(taskId: string, versionId: string) {
+    const versionRoot = path.resolve(this.versionsRoot, taskId, versionId)
+    assertWithin(path.join(this.versionsRoot, taskId), versionRoot)
+    const version = JSON.parse(await readFile(path.join(versionRoot, 'version.json'), 'utf8')) as WorkspaceVersion
+    if (version.taskId !== taskId || version.id !== versionId) throw new Error('Invalid workspace version')
+    const workspace = this.workspacePath(taskId)
+    await rm(workspace, { recursive: true, force: true })
+    await cp(path.join(versionRoot, 'files'), workspace, { recursive: true })
+    return version
   }
 
   async exportWorkspaceZip(taskId: string) {

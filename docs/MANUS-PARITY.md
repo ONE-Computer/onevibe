@@ -120,7 +120,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 94. **P** Publish control — external approval is required and publication is withheld; approved deployment is pending.
 95. **M** GitHub handoff action.
 96. **I** Download-as-ZIP source handoff with evidence manifest.
-97. **P** Artifact reuse controls — follow-up editing and ZIP exist; history, copy, share, and fullscreen are pending.
+97. **P** Artifact reuse controls — follow-up editing, immutable version history/restore, ZIP, and fullscreen work; copy and governed sharing are pending.
 98. **M** Multi-format slide export.
 99. **M** Interactive deck viewer with notes.
 100. **M** Cross-device clients.

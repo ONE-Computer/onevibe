@@ -49,4 +49,22 @@ describe('TaskStore', () => {
     const evidence = JSON.parse(strFromU8(archive['ONEVIBE-EVIDENCE.json']!)) as { chainValid: boolean }
     expect(evidence.chainValid).toBe(true)
   })
+
+  it('captures and restores immutable workspace versions', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-versions-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Version a generated artifact', 'demo')
+    await store.writeWorkspaceFile(task.id, 'index.html', '<h1>Version one</h1>')
+    const version = await store.createWorkspaceVersion(task.id, 'Initial version')
+    await store.writeWorkspaceFile(task.id, 'index.html', '<h1>Version two</h1>')
+
+    expect(version).not.toBeNull()
+    await store.restoreWorkspaceVersion(task.id, version!.id)
+
+    expect(await store.readWorkspaceFile(task.id, 'index.html')).toContain('Version one')
+    expect(await store.listWorkspaceVersions(task.id)).toHaveLength(1)
+  })
 })

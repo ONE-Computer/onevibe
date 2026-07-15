@@ -70,6 +70,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean) => {
       payload: { continuation },
     })
     await adapter.run({ task: store.getTask(task.id), store, signal: controller.signal, prompt, continuation })
+    if (store.getTask(task.id).status === 'completed') await store.createWorkspaceVersion(task.id, prompt)
   }
   run().catch(async (error: unknown) => {
     if (controller.signal.aborted) {
@@ -162,6 +163,19 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     }
     if (request.method === 'GET' && segments[3] === 'files' && segments.length === 4) {
       return json(response, 200, { files: await store.listWorkspaceFiles(taskId) })
+    }
+    if (request.method === 'GET' && segments[3] === 'versions' && segments.length === 4) {
+      return json(response, 200, { versions: await store.listWorkspaceVersions(taskId) })
+    }
+    if (request.method === 'POST' && segments[3] === 'versions' && segments[4] && segments[5] === 'restore') {
+      if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before restoring a version' })
+      const version = await store.restoreWorkspaceVersion(taskId, segments[4])
+      await store.appendEvent(taskId, {
+        type: 'artifact_updated', lane: 'artifact', label: 'Workspace version restored',
+        content: version.label, payload: { versionId: version.id, evidenceHash: version.evidenceHash },
+      })
+      await store.updateTask(taskId, { previewPath: `/api/tasks/${taskId}/preview` })
+      return json(response, 200, { version })
     }
     if (request.method === 'GET' && segments[3] === 'file') {
       const filePath = url.searchParams.get('path')

@@ -18,3 +18,4 @@
 - Added user cancellation across local demo, native Claude SDK, and remote SSE execution. Cancellation is server-owned, preserves partial files, and records a terminal `run_cancelled` evidence event.
 - Added multi-turn task continuation. Follow-up messages remain in the same evidence chain and workspace; native Claude turns resume the retained SDK session instead of starting a disconnected conversation.
 - Added durable `/tasks/:id` navigation, grouped and expandable transcript turns, and a keyboard-dismissible fullscreen workspace.
+- Added immutable per-turn workspace snapshots with evidence-head references, a History surface, and safe restore that records an `artifact_updated` event.

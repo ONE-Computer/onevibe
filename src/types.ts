@@ -18,6 +18,7 @@ export type RuntimeEvent = {
 
 export type PlanStep = { id: string; title: string; status: 'pending' | 'running' | 'completed' | 'blocked' }
 export type WorkspaceFile = { path: string; size: number; updatedAt: string }
+export type WorkspaceVersion = { id: string; taskId: string; label: string; createdAt: string; fileCount: number; evidenceHash: string }
 
 export type Task = {
   id: string

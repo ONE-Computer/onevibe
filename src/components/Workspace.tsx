@@ -1,10 +1,10 @@
 import { Check, Code2, Download, File, Files, Globe2, History, Maximize2, Minimize2, Network, RefreshCw, ShieldCheck } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { getEvidence, getFile, getFiles } from '../lib/api'
-import type { TaskSnapshot, WorkspaceFile } from '../types'
+import { getEvidence, getFile, getFiles, getVersions, restoreVersion } from '../lib/api'
+import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 
-type Tab = 'preview' | 'code' | 'files' | 'evidence'
+type Tab = 'preview' | 'code' | 'files' | 'history' | 'evidence'
 
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
 
@@ -14,6 +14,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [selectedFile, setSelectedFile] = useState<string | null>(task.files[0]?.path ?? null)
   const [content, setContent] = useState('')
   const [chainValid, setChainValid] = useState<boolean | null>(null)
+  const [versions, setVersions] = useState<WorkspaceVersion[]>([])
   const [fullscreen, setFullscreen] = useState(false)
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
     void getFile(task.id, selectedFile).then((result) => setContent(result.content))
   }, [selectedFile, task.id])
   useEffect(() => { if (tab === 'evidence') void getEvidence(task.id).then((result) => setChainValid(result.valid)) }, [tab, task.id, task.events.length])
+  useEffect(() => { if (tab === 'history') void getVersions(task.id).then((result) => setVersions(result.versions)) }, [tab, task.id, task.events.length])
   useEffect(() => {
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setFullscreen(false) }
     window.addEventListener('keydown', close)
@@ -43,6 +45,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           <button className={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}><Globe2 size={14} /> Preview</button>
           <button className={tab === 'code' ? 'active' : ''} onClick={() => setTab('code')}><Code2 size={14} /> Code</button>
           <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><Files size={14} /> Files</button>
+          <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}><History size={14} /> History</button>
           <button className={tab === 'evidence' ? 'active' : ''} onClick={() => setTab('evidence')}><ShieldCheck size={14} /> Evidence</button>
         </div>
         <div className="workspace-tools"><a title="Download source and evidence" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
@@ -65,6 +68,13 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
             <motion.div key="files" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="files-pane">
               <div className="files-heading"><div><strong>Workspace files</strong><span>Portable source · no ambient credentials</span></div><span>{files.length} files</span></div>
               {files.map((file) => <button key={file.path} onClick={() => { setSelectedFile(file.path); setTab('code') }}><File size={15} /><span><strong>{file.path}</strong><small>{new Date(file.updatedAt).toLocaleTimeString()}</small></span><em>{formatBytes(file.size)}</em></button>)}
+            </motion.div>
+          )}
+          {tab === 'history' && (
+            <motion.div key="history" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="history-pane">
+              <div className="files-heading"><div><strong>Workspace history</strong><span>Immutable local snapshots after completed turns</span></div><span>{versions.length} versions</span></div>
+              {versions.length === 0 && <div className="workspace-placeholder"><History size={20} /><strong>No snapshots yet</strong><span>A version is captured after each completed turn.</span></div>}
+              {versions.map((version) => <div className="version-row" key={version.id}><History size={15} /><div><strong>{version.label}</strong><span>{new Date(version.createdAt).toLocaleString()} · {version.fileCount} files · {version.evidenceHash.slice(0, 10)}</span></div><button onClick={() => void restoreVersion(task.id, version.id)}>Restore</button></div>)}
             </motion.div>
           )}
           {tab === 'evidence' && (

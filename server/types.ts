@@ -57,6 +57,15 @@ export type WorkspaceFile = {
   updatedAt: string
 }
 
+export type WorkspaceVersion = {
+  id: string
+  taskId: string
+  label: string
+  createdAt: string
+  fileCount: number
+  evidenceHash: string
+}
+
 export type Task = {
   id: string
   title: string

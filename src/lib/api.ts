@@ -1,4 +1,4 @@
-import type { Task, TaskSnapshot, WorkspaceFile } from '../types'
+import type { Task, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 
 const parse = async <T>(response: Response): Promise<T> => {
   const body = await response.json() as T & { error?: string }
@@ -35,3 +35,9 @@ export const sendFollowUp = async (taskId: string, prompt: string) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt }),
   }))
+
+export const getVersions = async (taskId: string) =>
+  parse<{ versions: WorkspaceVersion[] }>(await fetch(`/api/tasks/${taskId}/versions`))
+
+export const restoreVersion = async (taskId: string, versionId: string) =>
+  parse<{ version: WorkspaceVersion }>(await fetch(`/api/tasks/${taskId}/versions/${versionId}/restore`, { method: 'POST' }))
