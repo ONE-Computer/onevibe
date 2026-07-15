@@ -22,3 +22,4 @@
 - Added seven persisted creation modes with mode-specific plans. Slides now produce an eight-slide outline, speaker notes, isolated interactive viewer, and valid PPTX; Website/App/Game produce React-TypeScript-Vite scaffolds; Research and Design retain evidence/rationale artifacts.
 - Made workspace export binary-safe and added direct binary artifact downloads without attempting to render PPTX bytes as source text.
 - Added independent task copies with copied source, a fresh evidence chain, and a provenance pointer to the source task's terminal evidence hash.
+- Added embedded source editing with Original/Modified/Diff views. Saves require the originally-read SHA-256, reject stale writes, snapshot the workspace first, and record before/after hashes in evidence.

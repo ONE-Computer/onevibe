@@ -1,7 +1,7 @@
-import { Check, Code2, Copy, Download, File, Files, Globe2, History, Maximize2, Minimize2, Network, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Check, Code2, Copy, Download, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, RefreshCw, Save, ShieldCheck } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion } from '../lib/api'
+import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
 import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 
 type Tab = 'preview' | 'code' | 'files' | 'history' | 'evidence'
@@ -14,6 +14,10 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [files, setFiles] = useState<WorkspaceFile[]>(task.files)
   const [selectedFile, setSelectedFile] = useState<string | null>(task.files[0]?.path ?? null)
   const [content, setContent] = useState('')
+  const [draft, setDraft] = useState('')
+  const [contentHash, setContentHash] = useState('')
+  const [codeView, setCodeView] = useState<'original' | 'modified' | 'diff'>('original')
+  const [editing, setEditing] = useState(false)
   const [chainValid, setChainValid] = useState<boolean | null>(null)
   const [versions, setVersions] = useState<WorkspaceVersion[]>([])
   const [fullscreen, setFullscreen] = useState(false)
@@ -26,8 +30,10 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   }, [task.events.length, task.id])
   useEffect(() => {
     if (!selectedFile) return
-    if (isBinary(selectedFile)) { setContent(''); return }
-    void getFile(task.id, selectedFile).then((result) => setContent(result.content))
+    if (isBinary(selectedFile)) { setContent(''); setDraft(''); return }
+    void getFile(task.id, selectedFile).then((result) => {
+      setContent(result.content); setDraft(result.content); setContentHash(result.contentHash); setCodeView('original'); setEditing(false)
+    })
   }, [selectedFile, task.id])
   useEffect(() => { if (tab === 'evidence') void getEvidence(task.id).then((result) => setChainValid(result.valid)) }, [tab, task.id, task.events.length])
   useEffect(() => { if (tab === 'history') void getVersions(task.id).then((result) => setVersions(result.versions)) }, [tab, task.id, task.events.length])
@@ -38,6 +44,20 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   }, [])
 
   const activePreview = useMemo(() => `${task.previewPath ?? `/api/tasks/${task.id}/preview`}?v=${task.events.length}`, [task.events.length, task.id, task.previewPath])
+  const diff = useMemo(() => {
+    const before = content.split('\n'); const after = draft.split('\n'); const lines: string[] = []
+    for (let index = 0; index < Math.max(before.length, after.length); index += 1) {
+      if (before[index] === after[index]) lines.push(`  ${before[index] ?? ''}`)
+      else { if (before[index] !== undefined) lines.push(`- ${before[index]}`); if (after[index] !== undefined) lines.push(`+ ${after[index]}`) }
+    }
+    return lines.join('\n')
+  }, [content, draft])
+
+  const save = async () => {
+    if (!selectedFile || !contentHash) return
+    const result = await updateFile(task.id, selectedFile, draft, contentHash)
+    setContent(result.content); setDraft(result.content); setContentHash(result.contentHash); setEditing(false); setCodeView('original')
+  }
 
   return (
     <section className={`workspace ${fullscreen ? 'workspace-fullscreen' : ''}`}>
@@ -63,7 +83,10 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           {tab === 'code' && (
             <motion.div key="code" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="code-pane">
               <aside>{files.map((file) => <button key={file.path} className={selectedFile === file.path ? 'active' : ''} onClick={() => setSelectedFile(file.path)}><File size={13} />{file.path}</button>)}</aside>
-              <pre><code>{selectedFile && isBinary(selectedFile) ? `Binary artifact: ${selectedFile}\n\nDownload it from the Files tab.` : content || '// Select a generated file'}</code></pre>
+              <div className="editor-surface">
+                <div className="editor-toolbar"><span>{selectedFile ?? 'No file selected'}</span>{selectedFile && !isBinary(selectedFile) && <><div className="view-switch"><button className={codeView === 'original' ? 'active' : ''} onClick={() => setCodeView('original')}>Original</button><button className={codeView === 'modified' ? 'active' : ''} onClick={() => setCodeView('modified')}>Modified</button><button className={codeView === 'diff' ? 'active' : ''} onClick={() => setCodeView('diff')}>Diff</button></div>{editing ? <button className="save-source" onClick={() => void save()} disabled={draft === content}><Save size={12} /> Save</button> : <button className="edit-source" onClick={() => { setEditing(true); setCodeView('modified') }}><Pencil size={12} /> Edit</button>}</>}</div>
+                {selectedFile && isBinary(selectedFile) ? <pre><code>{`Binary artifact: ${selectedFile}\n\nDownload it from the Files tab.`}</code></pre> : editing && codeView === 'modified' ? <textarea className="source-editor" value={draft} onChange={(event) => setDraft(event.target.value)} spellCheck={false} /> : <pre className={codeView === 'diff' ? 'diff-view' : ''}><code>{codeView === 'diff' ? diff : codeView === 'modified' ? draft : content || '// Select a generated file'}</code></pre>}
+              </div>
             </motion.div>
           )}
           {tab === 'files' && (

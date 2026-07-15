@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { z } from 'zod'
 import { DemoRuntimeAdapter } from './demo-runner.js'
@@ -40,6 +41,9 @@ const createTaskInput = z.object({
   mode: z.enum(['general', 'website', 'slides', 'research', 'design', 'app', 'game']).default('general'),
 })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
+const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
+const textFilePattern = /\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|ya?ml|toml|xml|svg|gitignore|prettierrc)$/i
+const contentHash = (content: string) => createHash('sha256').update(content).digest('hex')
 
 const adapterFor = (provider: 'demo' | 'claude_sdk' | 'remote'): RuntimeAdapter => provider === 'remote'
   ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN)
@@ -212,7 +216,26 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
         response.end(bytes)
         return
       }
-      return json(response, 200, { path: filePath, content: await store.readWorkspaceFile(taskId, filePath) })
+      const content = await store.readWorkspaceFile(taskId, filePath)
+      return json(response, 200, { path: filePath, content, contentHash: contentHash(content) })
+    }
+    if (request.method === 'PUT' && segments[3] === 'file') {
+      const filePath = url.searchParams.get('path')
+      if (!filePath) return json(response, 400, { error: 'Missing path' })
+      if (!textFilePattern.test(filePath)) return json(response, 415, { error: 'Only recognized text artifacts can be edited' })
+      if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before editing source' })
+      const input = editFileInput.parse(await readBody(request))
+      const current = await store.readWorkspaceFile(taskId, filePath)
+      const beforeHash = contentHash(current)
+      if (beforeHash !== input.expectedHash) return json(response, 409, { error: 'File changed since it was opened; reload before saving' })
+      await store.createWorkspaceVersion(taskId, `Before editing ${filePath}`)
+      await store.writeWorkspaceFile(taskId, filePath, input.content)
+      const afterHash = contentHash(input.content)
+      await store.appendEvent(taskId, {
+        type: 'artifact_updated', lane: 'artifact', label: 'Source file edited', content: filePath,
+        payload: { path: filePath, beforeHash, afterHash, editor: 'embedded_workspace' },
+      })
+      return json(response, 200, { path: filePath, content: input.content, contentHash: afterHash })
     }
     if (request.method === 'GET' && segments[3] === 'preview') {
       const html = await store.readWorkspaceFile(taskId, 'index.html')

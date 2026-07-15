@@ -21,7 +21,12 @@ export const getFiles = async (taskId: string) =>
   parse<{ files: WorkspaceFile[] }>(await fetch(`/api/tasks/${taskId}/files`))
 
 export const getFile = async (taskId: string, filePath: string) =>
-  parse<{ path: string; content: string }>(await fetch(`/api/tasks/${taskId}/file?path=${encodeURIComponent(filePath)}`))
+  parse<{ path: string; content: string; contentHash: string }>(await fetch(`/api/tasks/${taskId}/file?path=${encodeURIComponent(filePath)}`))
+
+export const updateFile = async (taskId: string, filePath: string, content: string, expectedHash: string) =>
+  parse<{ path: string; content: string; contentHash: string }>(await fetch(`/api/tasks/${taskId}/file?path=${encodeURIComponent(filePath)}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, expectedHash }),
+  }))
 
 export const getEvidence = async (taskId: string) =>
   parse<{ valid: boolean }>(await fetch(`/api/tasks/${taskId}/evidence`))

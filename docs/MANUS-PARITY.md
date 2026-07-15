@@ -81,8 +81,8 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 61. **I** Embedded code workspace.
 62. **I** Project file tree.
 63. **P** Syntax-highlighted code viewer — line-numbered source exists; token highlighting is pending.
-64. **M** Editable code surface.
-65. **M** Diff mode.
+64. **I** Editable code surface — embedded text editor saves with optimistic hash protection, pre-edit snapshot, and evidence event.
+65. **I** Diff mode — Original, Modified, and line-oriented Diff views are available before save.
 66. **M** Dashboard workspace tab.
 67. **M** Database workspace tab.
 68. **I** Files workspace tab.
