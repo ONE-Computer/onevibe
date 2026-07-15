@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { OneComputerClient } from './onecomputer-client.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 import { validateModeArtifacts } from './artifact-validation.js'
+import { skillPacksFor } from './skill-packs.js'
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
@@ -278,12 +279,15 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       await store.setPlanStep(task.id, 'workspace', 'completed')
       await store.setPlanStep(task.id, 'build', 'running')
 
+      const selectedSkills = skillPacksFor(task.skills)
+
       const agentPrompt = [
         'You are ONEVibe operating inside a disposable ONEComputer sandbox.',
         `Creation mode: ${task.mode}.`,
         'Work only in the current directory. Create portable source, README.md, and mode-appropriate artifacts.',
         'Before substantive workspace work, write .onevibe-plan.json containing {"steps":[{"id":"scope","title":"…"},{"id":"workspace","title":"…"},{"id":"build","title":"…"},{"id":"verify","title":"…"},{"id":"deliver","title":"…"}]}. Use concise task-specific titles, keep this control file free of secrets, and do not reorder or omit stages.',
         'For visual output create a self-contained index.html. Do not publish or expose credentials.',
+        ...(selectedSkills.length ? [`Use only the selected versioned task skills materialized under .claude/skills: ${selectedSkills.map((skill) => skill.id).join(', ')}.`] : []),
         ...(browserAutomationEnabled ? ['A governed Playwright MCP browser is available inside the sandbox. For Website, App, or Game output, inspect the local or approved task-relevant page with browser_snapshot before delivery. Do not log in, save credentials, upload files, or perform external write actions.'] : []),
         prompt,
       ].join('\n\n')
@@ -294,11 +298,15 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'set -eu',
         `mkdir -p ${shellQuote(workspace)}`,
         `cd ${shellQuote(workspace)}`,
+        ...selectedSkills.flatMap((skill) => [
+          `mkdir -p ${shellQuote(`.claude/skills/${skill.id}`)}`,
+          `printf %s ${shellQuote(Buffer.from(skill.content).toString('base64'))} | base64 -d > ${shellQuote(`.claude/skills/${skill.id}/SKILL.md`)}`,
+        ]),
         `printf %s ${shellQuote(encodedPrompt)} | base64 -d > .onevibe-prompt`,
         'rm -f .onevibe-events.jsonl .onevibe-exitcode .onevibe-pid',
         '(',
         '  set +e',
-        `  claude --print --output-format stream-json --verbose --permission-mode bypassPermissions --allowedTools ${shellQuote(allowedTools.join(','))} "$(cat .onevibe-prompt)" > .onevibe-events.jsonl 2>&1`,
+        `  claude --print --output-format stream-json --verbose --permission-mode bypassPermissions --setting-sources project --allowedTools ${shellQuote(allowedTools.join(','))} "$(cat .onevibe-prompt)" > .onevibe-events.jsonl 2>&1`,
         '  printf %s "$?" > .onevibe-exitcode',
         ') < /dev/null > /dev/null 2>&1 &',
         'printf %s "$!" > .onevibe-pid',
@@ -307,7 +315,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const agentExecution = await store.appendEvent(task.id, {
         type: 'tool_call_started', lane: 'activity', label: 'Execute Claude inside ONEComputer',
         content: 'Prompt is base64-transferred to avoid shell interpretation and the agent receives no Bash tool.',
-        payload: { sandboxId: sandbox.id, toolName: 'onecomputer.sandbox.exec', allowedTools, browserAutomation: browserAutomationEnabled },
+        payload: { sandboxId: sandbox.id, toolName: 'onecomputer.sandbox.exec', allowedTools, browserAutomation: browserAutomationEnabled, skills: selectedSkills.map(({ id, version, title, sha256 }) => ({ id, version, title, sha256 })) },
       })
       await captureVisualFrame('before_agent', agentExecution.id)
       const spawned = await this.client.exec(sandbox.id, command, signal)

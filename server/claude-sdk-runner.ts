@@ -4,6 +4,7 @@ import { createSdkMcpServer, query, tool, type PermissionResult, type SDKMessage
 import { z } from 'zod'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 import { validateModeArtifacts } from './artifact-validation.js'
+import { materializeTaskSkills } from './skill-packs.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
@@ -47,11 +48,17 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     const runtimeState = store.runtimeStatePath(task.id)
     await mkdir(workspace, { recursive: true })
     await mkdir(runtimeState, { recursive: true })
+    const materializedSkills = await materializeTaskSkills(task, store)
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'Claude Agent SDK started',
       content: 'Native SDK messages are preserved and projected into the ONEVibe task timeline.',
       payload: { executionRoute: 'claude_agent_sdk', model: process.env.ONEVIBE_CLAUDE_MODEL ?? 'claude-sonnet-5' },
+    })
+    if (materializedSkills.length) await store.appendEvent(task.id, {
+      type: 'activity_delta', lane: 'control', label: 'Claude skill packs materialized',
+      content: `${materializedSkills.length} selected versioned skill pack${materializedSkills.length === 1 ? '' : 's'} materialized in this task workspace.`,
+      payload: { executionRoute: 'claude_agent_sdk', skills: materializedSkills, path: '.claude/skills', permissionChange: false },
     })
     await store.setPlanStep(task.id, 'scope', 'completed')
     await store.setPlanStep(task.id, 'workspace', 'running')
@@ -127,7 +134,8 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         promptSuggestions: true,
         agentProgressSummaries: true,
         enableFileCheckpointing: true,
-        settingSources: [],
+        settingSources: ['project'],
+        skills: task.skills,
         maxTurns: Number(process.env.ONEVIBE_CLAUDE_MAX_TURNS ?? 24),
         maxBudgetUsd: Number(process.env.ONEVIBE_CLAUDE_MAX_BUDGET_USD ?? 5),
         persistSession: true,
