@@ -9,11 +9,13 @@ afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recur
 
 describe('OneComputerSandboxRuntimeAdapter', () => {
   it('only exposes browser MCP controls when the governed runtime explicitly enables them', async () => {
-    const { GOVERNED_BROWSER_TOOLS, governedClaudeTools } = await import('./onecomputer-sandbox-runner.js')
+    const { GOVERNED_BROWSER_TOOLS, governedClaudeTools, isGovernedBrowserTool } = await import('./onecomputer-sandbox-runner.js')
     expect(governedClaudeTools(false)).toEqual(['Read', 'Write', 'Edit', 'Glob', 'Grep'])
     expect(governedClaudeTools(true)).toEqual(expect.arrayContaining([...GOVERNED_BROWSER_TOOLS]))
     expect(GOVERNED_BROWSER_TOOLS).toEqual(expect.arrayContaining(['mcp__playwright__browser_select_option', 'mcp__playwright__browser_wait_for']))
     expect(GOVERNED_BROWSER_TOOLS).not.toEqual(expect.arrayContaining(['mcp__playwright__browser_evaluate', 'mcp__playwright__browser_file_upload', 'mcp__playwright__browser_cookie_list', 'mcp__playwright__browser_route']))
+    expect(isGovernedBrowserTool('mcp__playwright__browser_snapshot')).toBe(true)
+    expect(isGovernedBrowserTool('mcp__playwright__browser_evaluate')).toBe(false)
   })
 
   it('projects a bounded, redacted Claude stream journal into timeline events', async () => {
@@ -97,6 +99,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.listEvents(task.id).some((event) => event.label === 'Task plan refined by runtime' && event.payload.source === 'onecomputer')).toBe(true)
     expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'destroyed', gatewayEnforced: true })
     expect(store.listEvents(task.id).some((event) => event.label === 'Governed browser automation ready')).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.label === 'Sandbox browser review not observed' && event.payload.observed === false)).toBe(true)
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)
   })

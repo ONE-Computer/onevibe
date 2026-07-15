@@ -47,6 +47,8 @@ export const governedClaudeTools = (browserAutomation: boolean) => [
   ...(browserAutomation ? GOVERNED_BROWSER_TOOLS : []),
 ]
 
+export const isGovernedBrowserTool = (name: string) => (GOVERNED_BROWSER_TOOLS as readonly string[]).includes(name)
+
 export const parseClaudeStreamJournal = (raw: string) => {
   const entries: ClaudeJournalEntry[] = []
   let result: string | undefined
@@ -204,7 +206,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'Work only in the current directory. Create portable source, README.md, and mode-appropriate artifacts.',
         'Before substantive workspace work, write .onevibe-plan.json containing {"steps":[{"id":"scope","title":"…"},{"id":"workspace","title":"…"},{"id":"build","title":"…"},{"id":"verify","title":"…"},{"id":"deliver","title":"…"}]}. Use concise task-specific titles, keep this control file free of secrets, and do not reorder or omit stages.',
         'For visual output create a self-contained index.html. Do not publish or expose credentials.',
-        ...(browserAutomationEnabled ? ['A governed Playwright MCP browser is available inside the sandbox. Use it only for task-relevant browsing; do not log in, save credentials, or perform external write actions.'] : []),
+        ...(browserAutomationEnabled ? ['A governed Playwright MCP browser is available inside the sandbox. For Website, App, or Game output, inspect the local or approved task-relevant page with browser_snapshot before delivery. Do not log in, save credentials, upload files, or perform external write actions.'] : []),
         prompt,
       ].join('\n\n')
       const encodedPrompt = Buffer.from(agentPrompt).toString('base64')
@@ -234,6 +236,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       if (spawned.exitCode !== 0) throw new Error(`Unable to start sandbox Claude process: ${spawned.output.slice(-2_000)}`)
       let projectedEntries = 0
       let latestJournal = parseClaudeStreamJournal('')
+      const browserReviewTools = new Set<string>()
       let planApplied = false
       let planExamined = false
       const projectSandboxPlan = async () => {
@@ -267,6 +270,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
             content: 'Claude requested a governed workspace tool inside the ONEComputer sandbox.',
             payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, input: entry.input },
           })).id
+          if (entry.kind === 'tool_started' && isGovernedBrowserTool(entry.name)) browserReviewTools.add(entry.name)
           if (entry.kind === 'tool_completed') timelineEventId = (await store.appendEvent(task.id, {
             type: 'tool_call_completed', lane: 'activity', label: 'Tool result', content: entry.content,
             payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, isError: entry.isError },
@@ -297,6 +301,14 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       await visualLoop
       await captureVisualFrame('after_agent', agentExecution.id)
       if (agentExitCode !== 0) throw new Error(`Sandbox Claude process exited ${agentExitCode}`)
+      if (browserAutomationEnabled) await store.appendEvent(task.id, {
+        type: 'activity_delta', lane: 'control',
+        label: browserReviewTools.size ? 'Sandbox browser review observed' : 'Sandbox browser review not observed',
+        content: browserReviewTools.size
+          ? `The sandbox used ${[...browserReviewTools].map((tool) => tool.replace('mcp__playwright__', '')).join(', ')}; related X11 checkpoints remain in task evidence.`
+          : 'Browser capability was enabled, but no allowlisted browser tool appeared in the bounded Claude journal. Treat browser validation as incomplete.',
+        payload: { sandboxId: sandbox.id, browserAutomation: true, observed: browserReviewTools.size > 0, tools: [...browserReviewTools] },
+      })
       const parsedJournal = latestJournal
       if (parsedJournal.result && !parsedJournal.entries.some((entry) => entry.kind === 'text' && entry.content === parsedJournal.result)) await store.appendEvent(task.id, {
         type: 'assistant_text_delta', lane: 'transcript', content: parsedJournal.result,
