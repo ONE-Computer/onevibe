@@ -77,6 +77,33 @@ export const runIdsFor = (items: ComputerItem[]) => [...new Set(items.map((item)
 
 export const filterItemsByRun = (items: ComputerItem[], runId: string) => runId === 'all' ? items : items.filter((item) => item.runId === runId)
 
+export type RunEvidenceSummary = {
+  runId: string
+  cards: number
+  toolCards: number
+  visualFrames: number
+  deliverables: number
+  durationMs?: number
+}
+
+/**
+ * Compare run-level evidence only. It deliberately does not inspect file
+ * contents or replay controls, so the review surface stays within the same
+ * server-projected evidence boundary as the rail.
+ */
+export const summarizeRunEvidence = (items: ComputerItem[], runId: string): RunEvidenceSummary => {
+  const runItems = filterItemsByRun(items, runId)
+  const times = runItems.map((item) => Date.parse(item.createdAt)).filter(Number.isFinite)
+  return {
+    runId,
+    cards: runItems.length,
+    toolCards: runItems.filter((item) => item.kind === 'terminal').length,
+    visualFrames: runItems.filter((item) => item.kind === 'screenshot' && !item.live).length,
+    deliverables: runItems.filter((item) => ['file', 'diff', 'preview', 'slide'].includes(item.kind)).length,
+    durationMs: times.length > 1 ? Math.max(...times) - Math.min(...times) : undefined,
+  }
+}
+
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
   const items = task.events.flatMap((event): ComputerItem[] => {
     const presentation = event.payload.presentation as PresentationDescriptor | undefined

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, matchesRailQuery, runIdsFor, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, matchesRailQuery, runIdsFor, summarizeRunEvidence, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -124,5 +124,15 @@ describe('Computer timeline terminal inspection', () => {
     ]
     expect(runIdsFor(items)).toEqual(['run-first', 'run-second'])
     expect(filterItemsByRun(items, 'run-second').map((item) => item.id)).toEqual(['two'])
+  })
+
+  it('summarizes bounded evidence for one immutable run without inspecting its content', () => {
+    const items: ComputerItem[] = [
+      { id: 'command', kind: 'terminal', title: 'Bash', createdAt: '2026-07-16T00:00:00.000Z', runId: 'run-a' },
+      { id: 'frame', kind: 'screenshot', title: 'X11', createdAt: '2026-07-16T00:00:01.200Z', runId: 'run-a' },
+      { id: 'page', kind: 'preview', title: 'Preview', createdAt: '2026-07-16T00:00:02.000Z', runId: 'run-a' },
+      { id: 'other', kind: 'file', title: 'Later', createdAt: '2026-07-16T00:00:03.000Z', runId: 'run-b' },
+    ]
+    expect(summarizeRunEvidence(items, 'run-a')).toEqual({ runId: 'run-a', cards: 3, toolCards: 1, visualFrames: 1, deliverables: 1, durationMs: 2_000 })
   })
 })
