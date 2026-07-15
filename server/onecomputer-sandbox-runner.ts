@@ -28,9 +28,17 @@ type ClaudeJournalEntry =
 /** Browser control stays inside the sandbox through the preconfigured MCP. */
 export const GOVERNED_BROWSER_TOOLS = [
   'mcp__playwright__browser_navigate',
+  'mcp__playwright__browser_navigate_back',
+  'mcp__playwright__browser_navigate_forward',
+  'mcp__playwright__browser_reload',
   'mcp__playwright__browser_snapshot',
   'mcp__playwright__browser_click',
+  'mcp__playwright__browser_hover',
   'mcp__playwright__browser_type',
+  'mcp__playwright__browser_select_option',
+  'mcp__playwright__browser_check',
+  'mcp__playwright__browser_uncheck',
+  'mcp__playwright__browser_wait_for',
   'mcp__playwright__browser_take_screenshot',
 ] as const
 

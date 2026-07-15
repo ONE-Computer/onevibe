@@ -12,6 +12,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const { GOVERNED_BROWSER_TOOLS, governedClaudeTools } = await import('./onecomputer-sandbox-runner.js')
     expect(governedClaudeTools(false)).toEqual(['Read', 'Write', 'Edit', 'Glob', 'Grep'])
     expect(governedClaudeTools(true)).toEqual(expect.arrayContaining([...GOVERNED_BROWSER_TOOLS]))
+    expect(GOVERNED_BROWSER_TOOLS).toEqual(expect.arrayContaining(['mcp__playwright__browser_select_option', 'mcp__playwright__browser_wait_for']))
+    expect(GOVERNED_BROWSER_TOOLS).not.toEqual(expect.arrayContaining(['mcp__playwright__browser_evaluate', 'mcp__playwright__browser_file_upload', 'mcp__playwright__browser_cookie_list', 'mcp__playwright__browser_route']))
   })
 
   it('projects a bounded, redacted Claude stream journal into timeline events', async () => {
