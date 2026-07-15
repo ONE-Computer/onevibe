@@ -11,7 +11,7 @@ import { Schedules } from './components/Schedules'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
 import { cancelTask, createProject, createSchedule, createTask, listProjects, listSchedules, listTasks, requestShare, sendFollowUp, setScheduleEnabled } from './lib/api'
-import type { Project, Task, TaskMode, TaskSchedule } from './types'
+import type { Project, Task, TaskAttachment, TaskMode, TaskSchedule } from './types'
 import './index.css'
 
 const starterPrompts = [
@@ -50,10 +50,10 @@ export default function App() {
     setTasks((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))
   }, [snapshot])
 
-  const startTask = async (prompt: string, provider: Task['provider'], mode: TaskMode = 'general') => {
+  const startTask = async (prompt: string, provider: Task['provider'], mode: TaskMode = 'general', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) => {
     setCreating(true)
     try {
-      const task = await createTask(prompt, provider, mode, activeProjectId)
+      const task = await createTask(prompt, provider, mode, activeProjectId, references, attachments)
       setTasks((current) => [task, ...current])
       setActiveTaskId(task.id)
       window.history.pushState({}, '', `/tasks/${task.id}`)

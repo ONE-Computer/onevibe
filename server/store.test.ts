@@ -165,6 +165,23 @@ describe('TaskStore', () => {
     expect(reloaded.getTask(task.id).references).toEqual(['https://example.com/product'])
   })
 
+  it('persists metadata for path-confined task attachments', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-attachments-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const attachments = [{ name: 'brief.txt', path: 'inputs/01-brief.txt', size: 5, mimeType: 'text/plain' }]
+    const task = await store.createTask('Review attached brief', 'demo', 'document', 'project_onevibe', undefined, [], attachments)
+    await store.writeWorkspaceBytes(task.id, attachments[0]!.path, Buffer.from('hello'))
+
+    expect(task.attachments).toEqual(attachments)
+    expect(await store.readWorkspaceFile(task.id, attachments[0]!.path)).toBe('hello')
+    const reloaded = new TaskStore(root)
+    await reloaded.initialize()
+    expect(reloaded.getTask(task.id).attachments).toEqual(attachments)
+  })
+
   it('claims due schedules once and advances their next governed run', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-schedules-'))
     temporaryRoots.push(root)

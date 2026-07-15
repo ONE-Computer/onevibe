@@ -85,6 +85,8 @@ export type WorkspaceFile = {
   updatedAt: string
 }
 
+export type TaskAttachment = { name: string; path: string; size: number; mimeType: string }
+
 export type WorkspaceVersion = {
   id: string
   taskId: string
@@ -115,6 +117,7 @@ export type Task = {
   projectId: string
   scheduleId?: string
   references: string[]
+  attachments: TaskAttachment[]
   status: RunStatus
   plan: PlanStep[]
   createdAt: string

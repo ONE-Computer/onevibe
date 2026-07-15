@@ -24,6 +24,7 @@
 - Visual-runtime capture is pull-only: ONEVibe requests a sandbox-owned headless X11 PNG over the authenticated service channel, stores the resulting frame as evidence, and proxies it to the browser. It does not expose VNC, X11, Chrome DevTools Protocol, or sandbox tokens to the browser.
 - Schedules are constrained to a 15-minute minimum and only dispatch ordinary task creation. They do not carry approval authority, bypass policy, or gain direct publication/connector credentials.
 - Website references are user-supplied context, not server-side fetch instructions. Inputs are bounded and reject embedded userinfo and common secret query parameters; evidence records only origin/path while retaining the full reference in task storage for the user-authorized agent context.
+- Task attachments are capped at four files/256 KiB each/1 MiB total, receive sanitized names, and are written only under the task `inputs/` directory. Evidence records names, paths, MIME types, and sizes—not file bytes. Agents are instructed to treat them as untrusted input.
 
 ## Promotion gates
 

@@ -28,7 +28,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 17. **I** Synthetic-data constraints — accepted as ordinary task instructions.
 18. **P** Local-computer selector — control exists; context mounting is not wired.
 19. **P** Cloud-computer selector — runtime providers exist; computer inventory is missing.
-20. **M** Local-folder attachment.
+20. **P** Local-file attachment — the composer stages up to four bounded files in a path-confined `inputs/` directory and records metadata-only evidence. Folder selection, large-file/object storage, and connector mounts remain pending.
 21. **M** Computer management.
 22. **M** Connected-app context indicators.
 23. **M** GitHub connector.
