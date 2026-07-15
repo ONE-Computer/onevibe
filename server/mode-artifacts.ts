@@ -112,6 +112,14 @@ export default function App(){const [approved,setApproved]=useState(false);retur
     'app/server/README.md': '# Generated app server\n\nRun `npm run server:dev` for the local typed HTTP foundation. It intentionally has no credentials, connectors, or external side effects.\n',
   })
   for (const [file, content] of Object.entries(files)) await store.writeWorkspaceFile(task.id, file, content)
+  const preview = storefront
+    ? shell(task.title, `<div class="eyebrow">Generated storefront preview</div><h1>${escapeHtml(task.title)}</h1><p>${escapeHtml(task.prompt)}</p><div class="grid">${['Signal desk · $320', 'Atlas lamp · $185', 'Field notebook · $28'].map((product) => `<article class="card"><strong>${product}</strong><p>Fictional product data for prototype review.</p><button data-cart>Add to cart</button></article>`).join('')}</div><p id="cart" class="eyebrow">Cart · 0 items</p>`, `let count=0;document.querySelectorAll('[data-cart]').forEach(button=>button.addEventListener('click',()=>{count+=1;document.querySelector('#cart').textContent='Cart · '+count+' items'}))`)
+    : dashboard
+      ? shell(task.title, `<div class="eyebrow">Generated operations preview</div><h1>${escapeHtml(task.title)}</h1><p>${escapeHtml(task.prompt)}</p><p><button data-filter="all">All</button> <button data-filter="review">Needs review</button></p><div id="queue" class="grid"><article class="card" data-status="review"><strong>OPS-124 · Review workspace request</strong><p>Needs review · Nadia</p></article><article class="card" data-status="active"><strong>OPS-123 · Confirm delivery evidence</strong><p>In progress · Luca</p></article><article class="card" data-status="complete"><strong>OPS-119 · Archive completed brief</strong><p>Complete · Mina</p></article></div>`, `document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{const filter=button.dataset.filter;document.querySelectorAll('[data-status]').forEach(item=>item.hidden=filter==='review'&&item.dataset.status!=='review')}))`)
+      : website
+        ? shell(task.title, `<div class="eyebrow">Generated website preview</div><h1>${escapeHtml(task.title)}</h1><p>${escapeHtml(task.prompt)}</p><div class="grid"><article class="card"><strong>Clear operating boundary</strong><p>Workspaces, policy, and evidence are visible by design.</p></article><article class="card"><strong>Reviewable delivery</strong><p>Portable source is available beside this preview.</p></article><article class="card"><strong>Human decision point</strong><p>Consequential actions remain outside the browser.</p></article></div>`)
+        : undefined
+  if (preview) await store.writeWorkspaceFile(task.id, 'index.html', preview)
   return Object.keys(files)
 }
 

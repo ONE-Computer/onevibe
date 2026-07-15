@@ -96,9 +96,11 @@ describe('mode artifacts', () => {
     const storefront = await store.createTask('Create an e-commerce storefront', 'demo', 'app')
     await writeModeArtifacts(storefront, store)
     expect(await store.readWorkspaceFile(storefront.id, 'app/src/App.tsx')).toContain('Add to cart')
+    expect(await store.readWorkspaceFile(storefront.id, 'index.html')).toContain('Generated storefront preview')
     const dashboard = await store.createTask('Build an operations dashboard', 'demo', 'app')
     await writeModeArtifacts(dashboard, store)
     expect(await store.readWorkspaceFile(dashboard.id, 'app/src/App.tsx')).toContain('Focus review queue')
+    expect(await store.readWorkspaceFile(dashboard.id, 'index.html')).toContain('Generated operations preview')
   })
 
   it('generates a playable interaction loop for game mode', async () => {
