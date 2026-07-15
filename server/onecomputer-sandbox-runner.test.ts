@@ -55,7 +55,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
       startVisualRuntime: vi.fn(async () => ({ display: ':99', width: 1440, height: 900, browserReady: true })),
       getVisualScreenshot: vi.fn(async () => ({ png: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]), capturedAt: '2026-07-16T00:00:00.000Z' })),
     } as unknown as OneComputerClient
-    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: false, visualRuntime: true, pollMilliseconds: 1 })
+    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: false, visualRuntime: true, pollMilliseconds: 1, visualCheckpointMilliseconds: 100_000 })
 
     await adapter.run({
       task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false,

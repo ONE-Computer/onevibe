@@ -52,7 +52,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
   constructor(
     private readonly client: OneComputerClient,
-    private readonly options: { gatewayEnforced: boolean; retainSandbox: boolean; visualRuntime?: boolean; pollMilliseconds?: number } = { gatewayEnforced: false, retainSandbox: false },
+    private readonly options: { gatewayEnforced: boolean; retainSandbox: boolean; visualRuntime?: boolean; pollMilliseconds?: number; visualCheckpointMilliseconds?: number } = { gatewayEnforced: false, retainSandbox: false },
   ) {}
 
   async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
@@ -69,6 +69,8 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
     const sandbox = await this.client.createSandbox(`onevibe-${task.id.slice(-8)}`, signal)
     let destroyed = false
+    let visualLoop: Promise<void> | undefined
+    let stopVisualLoop: (() => void) | undefined
     const destroy = async () => {
       if (destroyed || this.options.retainSandbox) return
       await this.client.deleteSandbox(sandbox.id)
@@ -136,6 +138,25 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
           payload: { sandboxId: sandbox.id, transport: 'authenticated_png', ...visual },
         })
         await captureVisualFrame('runtime_ready')
+        const interval = Math.max(this.options.visualCheckpointMilliseconds ?? 5_000, 1_000)
+        visualLoop = (async () => {
+          try {
+            while (!signal.aborted) {
+              const stopped = await Promise.race([
+                wait(interval, signal).then(() => false),
+                new Promise<boolean>((resolve) => { stopVisualLoop = () => resolve(true) }),
+              ])
+              if (stopped || signal.aborted) return
+              await captureVisualFrame('live')
+            }
+          } catch (error) {
+            if (!signal.aborted) await store.appendEvent(task.id, {
+              type: 'activity_delta', lane: 'activity', label: 'Live visual checkpoints stopped',
+              content: error instanceof Error ? error.message.slice(0, 300) : 'Live visual checkpoint loop stopped unexpectedly.',
+              payload: { sandboxId: sandbox.id, visualCapture: 'live_loop_failed' },
+            })
+          }
+        })()
       }
       await store.setPlanStep(task.id, 'workspace', 'completed')
       await store.setPlanStep(task.id, 'build', 'running')
@@ -207,6 +228,8 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         await projectJournal(Buffer.from(encodedJournal.trim(), 'base64').toString('utf8'))
         if (status?.startsWith('done:')) agentExitCode = Number(status.slice('done:'.length))
       }
+      stopVisualLoop?.()
+      await visualLoop
       await captureVisualFrame('after_agent', agentExecution.id)
       if (agentExitCode !== 0) throw new Error(`Sandbox Claude process exited ${agentExitCode}`)
       const parsedJournal = latestJournal
@@ -257,6 +280,8 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       })
       await store.updateTask(task.id, { status: 'completed' })
     } catch (error) {
+      stopVisualLoop?.()
+      await visualLoop?.catch(() => undefined)
       await destroy().catch(() => undefined)
       throw error
     }
