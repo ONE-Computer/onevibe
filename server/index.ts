@@ -400,6 +400,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'GET' && segments[3] === 'versions' && segments.length === 4) {
       return json(response, 200, { versions: await store.listWorkspaceVersions(taskId) })
     }
+    if (request.method === 'GET' && segments[3] === 'versions' && segments[4] && segments[5] === 'compare') {
+      return json(response, 200, await store.compareWorkspaceVersion(taskId, segments[4]))
+    }
     if (request.method === 'GET' && segments[3] === 'visual' && segments[4] === 'screenshot') {
       const task = store.getTask(taskId)
       const sandboxId = task.securityContext?.sandboxId

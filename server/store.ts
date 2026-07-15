@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
-import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
+import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -565,6 +565,42 @@ export class TaskStore {
     await rm(workspace, { recursive: true, force: true })
     await cp(path.join(versionRoot, 'files'), workspace, { recursive: true })
     return version
+  }
+
+  async compareWorkspaceVersion(taskId: string, versionId: string): Promise<WorkspaceVersionComparison> {
+    const versionRoot = path.resolve(this.versionsRoot, taskId, versionId)
+    assertWithin(path.join(this.versionsRoot, taskId), versionRoot)
+    const version = JSON.parse(await readFile(path.join(versionRoot, 'version.json'), 'utf8')) as WorkspaceVersion
+    if (version.taskId !== taskId || version.id !== versionId) throw new Error('Invalid workspace version')
+    const describe = async (root: string) => {
+      const files = new Map<string, { size: number; hash: string }>()
+      const walk = async (directory: string) => {
+        for (const entry of await readdir(directory, { withFileTypes: true })) {
+          const full = path.join(directory, entry.name)
+          if (entry.isDirectory()) await walk(full)
+          if (entry.isFile()) {
+            const details = await stat(full)
+            const bytes = await readFile(full)
+            files.set(path.relative(root, full), { size: details.size, hash: createHash('sha256').update(bytes).digest('hex') })
+          }
+        }
+      }
+      await walk(root)
+      return files
+    }
+    const [before, after] = await Promise.all([describe(path.join(versionRoot, 'files')), describe(this.workspacePath(taskId))])
+    const paths = [...new Set([...before.keys(), ...after.keys()])].sort((a, b) => a.localeCompare(b))
+    const changes: WorkspaceVersionComparison['changes'] = []
+    let added = 0; let changed = 0; let removed = 0
+    for (const relativePath of paths) {
+      const prior = before.get(relativePath)
+      const current = after.get(relativePath)
+      if (!prior && current) { added += 1; changes.push({ path: relativePath, status: 'added', afterSize: current.size, afterHash: current.hash }); continue }
+      if (prior && !current) { removed += 1; changes.push({ path: relativePath, status: 'removed', beforeSize: prior.size, beforeHash: prior.hash }); continue }
+      if (prior && current && prior.hash !== current.hash) { changed += 1; changes.push({ path: relativePath, status: 'changed', beforeSize: prior.size, afterSize: current.size, beforeHash: prior.hash, afterHash: current.hash }) }
+    }
+    const limit = 200
+    return { version, comparedAt: new Date().toISOString(), summary: { added, changed, removed }, changes: changes.slice(0, limit), truncated: changes.length > limit }
   }
 
   async copyWorkspace(sourceTaskId: string, targetTaskId: string) {

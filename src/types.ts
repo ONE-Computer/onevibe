@@ -30,6 +30,7 @@ export type WorkspaceFile = { path: string; size: number; updatedAt: string }
 export type LibraryItem = { task: Task; files: WorkspaceFile[] }
 export type TaskAttachment = { name: string; path: string; size: number; mimeType: string }
 export type WorkspaceVersion = { id: string; taskId: string; label: string; createdAt: string; fileCount: number; evidenceHash: string }
+export type WorkspaceVersionComparison = { version: WorkspaceVersion; comparedAt: string; summary: { added: number; changed: number; removed: number }; changes: Array<{ path: string; status: 'added' | 'changed' | 'removed'; beforeSize?: number; afterSize?: number; beforeHash?: string; afterHash?: string }>; truncated: boolean }
 export type ChatMessage = { id: string; taskId: string; turnId: string; role: 'user' | 'assistant' | 'system'; content: string; status: 'streaming' | 'completed' | 'failed' | 'cancelled'; provider?: Task['provider']; createdAt: string; updatedAt: string }
 
 export type Task = {

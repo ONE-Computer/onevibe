@@ -103,6 +103,14 @@ export type WorkspaceVersion = {
   evidenceHash: string
 }
 
+export type WorkspaceVersionComparison = {
+  version: WorkspaceVersion
+  comparedAt: string
+  summary: { added: number; changed: number; removed: number }
+  changes: Array<{ path: string; status: 'added' | 'changed' | 'removed'; beforeSize?: number; afterSize?: number; beforeHash?: string; afterHash?: string }>
+  truncated: boolean
+}
+
 export type ChatMessage = {
   id: string
   taskId: string

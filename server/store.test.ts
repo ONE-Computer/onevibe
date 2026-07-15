@@ -176,6 +176,12 @@ describe('TaskStore', () => {
     await store.writeWorkspaceFile(task.id, 'index.html', '<h1>Version one</h1>')
     const version = await store.createWorkspaceVersion(task.id, 'Initial version')
     await store.writeWorkspaceFile(task.id, 'index.html', '<h1>Version two</h1>')
+    await store.writeWorkspaceFile(task.id, 'README.md', '# Added after version one')
+
+    const comparison = await store.compareWorkspaceVersion(task.id, version!.id)
+    expect(comparison.summary).toEqual({ added: 1, changed: 1, removed: 0 })
+    expect(comparison.changes.map((change) => `${change.status}:${change.path}`)).toEqual(['changed:index.html', 'added:README.md'])
+    expect(comparison.changes.every((change) => !('content' in change))).toBe(true)
 
     expect(version).not.toBeNull()
     await store.restoreWorkspaceVersion(task.id, version!.id)

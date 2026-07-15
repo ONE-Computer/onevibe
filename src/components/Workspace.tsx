@@ -1,8 +1,8 @@
 import { Activity, ArrowLeft, ArrowRight, Check, Code2, Copy, Download, Eye, File, Files, GitFork, Globe2, History, Image, Maximize2, Minimize2, Network, Palette, Pencil, Presentation, RefreshCw, Save, Settings2, ShieldCheck, Table2, TerminalSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
-import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
+import { compareVersion, copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
+import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
 import { workspaceLocationForTab, workspaceTabFromSearch, type WorkspaceTab } from './workspace-navigation'
@@ -27,6 +27,8 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [editing, setEditing] = useState(false)
   const [chainValid, setChainValid] = useState<boolean | null>(null)
   const [versions, setVersions] = useState<WorkspaceVersion[]>([])
+  const [comparison, setComparison] = useState<WorkspaceVersionComparison | null>(null)
+  const [comparisonError, setComparisonError] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [visualFrame, setVisualFrame] = useState(0)
   const [visualError, setVisualError] = useState(false)
@@ -85,7 +87,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
     })
   }, [selectedFile, task.id])
   useEffect(() => { if (tab === 'evidence') void getEvidence(task.id).then((result) => setChainValid(result.valid)) }, [tab, task.id, task.events.length])
-  useEffect(() => { if (tab === 'history') void getVersions(task.id).then((result) => setVersions(result.versions)) }, [tab, task.id, task.events.length])
+  useEffect(() => { if (tab === 'history') { setComparison(null); setComparisonError(null); void getVersions(task.id).then((result) => setVersions(result.versions)) } }, [tab, task.id, task.events.length])
   useEffect(() => {
     if (tab !== 'slides' || task.mode !== 'slides') return
     void Promise.all([getFile(task.id, 'outline.json'), getFile(task.id, 'speaker-notes.md')]).then(([outline, notes]) => {
@@ -194,7 +196,9 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
             <motion.div key="history" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="history-pane">
               <div className="files-heading"><div><strong>Workspace history</strong><span>Immutable local snapshots after completed turns</span></div><span>{versions.length} versions</span></div>
               {versions.length === 0 && <div className="workspace-placeholder"><History size={20} /><strong>No snapshots yet</strong><span>A version is captured after each completed turn.</span></div>}
-              {versions.map((version) => <div className="version-row" key={version.id}><History size={15} /><div><strong>{version.label}</strong><span>{new Date(version.createdAt).toLocaleString()} · {version.fileCount} files · {version.evidenceHash.slice(0, 10)}</span></div><button onClick={() => void restoreVersion(task.id, version.id)}>Restore</button></div>)}
+              {versions.map((version) => <div className="version-row" key={version.id}><History size={15} /><div><strong>{version.label}</strong><span>{new Date(version.createdAt).toLocaleString()} · {version.fileCount} files · {version.evidenceHash.slice(0, 10)}</span></div><aside><button onClick={() => { setComparisonError(null); void compareVersion(task.id, version.id).then(setComparison).catch((error: unknown) => setComparisonError(error instanceof Error ? error.message : 'Unable to compare this version')) }}>Compare</button><button onClick={() => void restoreVersion(task.id, version.id)}>Restore</button></aside></div>)}
+              {comparison && <section className="version-comparison"><header><div><span>Version comparison</span><strong>{comparison.version.label} → current workspace</strong></div><button onClick={() => setComparison(null)} aria-label="Close version comparison">×</button></header><div className="version-comparison-summary"><span>{comparison.summary.added} added</span><span>{comparison.summary.changed} changed</span><span>{comparison.summary.removed} removed</span></div>{comparison.changes.length === 0 ? <p>No file-content changes from this version.</p> : <ul>{comparison.changes.map((change) => <li key={change.path} className={change.status}><strong>{change.status}</strong><code>{change.path}</code><small>{change.beforeSize ?? 0} B → {change.afterSize ?? 0} B · {change.beforeHash?.slice(0, 8) ?? '—'} → {change.afterHash?.slice(0, 8) ?? '—'}</small></li>)}</ul>}{comparison.truncated && <p>Only the first 200 changed paths are shown.</p>}<footer><ShieldCheck size={12} /> Metadata and hashes only; source contents are not copied into comparison evidence.</footer></section>}
+              {comparisonError && <p className="version-comparison-error">{comparisonError}</p>}
             </motion.div>
           )}
           {tab === 'evidence' && (

@@ -1,4 +1,4 @@
-import type { ChatMessage, LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
+import type { ChatMessage, LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 const parse = async <T>(response: Response): Promise<T> => {
   const body = await response.json() as T & { error?: string }
@@ -67,6 +67,9 @@ export const getVersions = async (taskId: string) =>
 
 export const restoreVersion = async (taskId: string, versionId: string) =>
   parse<{ version: WorkspaceVersion }>(await fetch(`/api/tasks/${taskId}/versions/${versionId}/restore`, { method: 'POST' }))
+
+export const compareVersion = async (taskId: string, versionId: string) =>
+  parse<WorkspaceVersionComparison>(await fetch(`/api/tasks/${taskId}/versions/${versionId}/compare`))
 
 export const copyTask = async (taskId: string) =>
   parse<TaskSnapshot>(await fetch(`/api/tasks/${taskId}/copy`, { method: 'POST' }))
