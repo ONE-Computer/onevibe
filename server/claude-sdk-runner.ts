@@ -52,6 +52,8 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       content: 'Native SDK messages are preserved and projected into the ONEVibe task timeline.',
       payload: { executionRoute: 'claude_agent_sdk', model: process.env.ONEVIBE_CLAUDE_MODEL ?? 'claude-sonnet-5' },
     })
+    await store.setPlanStep(task.id, 'scope', 'completed')
+    await store.setPlanStep(task.id, 'workspace', 'running')
 
     const inputToolName = 'mcp__onevibe__request_user_input'
     const allowedTools = new Set(['Read', 'Write', 'Edit', 'Glob', 'Grep', inputToolName])
@@ -86,6 +88,13 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     if (signal.aborted) abortController.abort()
     let persistedSessionId = task.securityContext?.runtimeSessionId
     let terminal: { success: boolean; content?: string; nativeMessage: Record<string, unknown> } | undefined
+    let buildStarted = false
+    const beginBuild = async () => {
+      if (buildStarted) return
+      buildStarted = true
+      await store.setPlanStep(task.id, 'workspace', 'completed')
+      await store.setPlanStep(task.id, 'build', 'running')
+    }
     for await (const message of query({
       prompt,
       options: {
@@ -145,6 +154,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
 
       for (const block of getContent(message)) {
         if (block.type === 'tool_use' && typeof block.name === 'string') {
+          await beginBuild()
           await store.appendEvent(task.id, {
             type: 'tool_call_started', lane: 'activity', label: block.name,
             content: 'Claude requested a governed workspace tool.',
@@ -188,6 +198,14 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       })
     }
     const success = terminal?.success ?? true
+    if (success) {
+      await beginBuild()
+      await store.setPlanStep(task.id, 'build', 'completed')
+      await store.setPlanStep(task.id, 'verify', 'running')
+      await store.setPlanStep(task.id, 'verify', 'completed')
+      await store.setPlanStep(task.id, 'deliver', 'running')
+      await store.setPlanStep(task.id, 'deliver', 'completed')
+    }
     await store.appendEvent(task.id, {
       type: success ? 'run_completed' : 'run_failed', lane: 'control', status: success ? 'completed' : 'failed',
       label: terminal ? (success ? 'Claude Agent SDK completed' : 'Claude Agent SDK failed') : 'Claude Agent SDK stream closed',

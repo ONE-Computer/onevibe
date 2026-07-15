@@ -68,6 +68,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(events.at(-1)?.type).toBe('run_completed')
     expect(JSON.stringify(events)).not.toContain('must-not-leak')
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-test')
+    expect(store.getTask(task.id).plan.map((step) => step.status)).toEqual(['completed', 'completed', 'completed', 'completed', 'completed'])
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
