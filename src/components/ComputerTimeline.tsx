@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, Eye, FileCode2, Presentation, Radio, ShieldCheck, TerminalSquare, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { PresentationPanel, TaskSnapshot } from '../types'
-import { artifactRailItems, causalVisualItemsFor, evidenceItemId, formatDuration, formatInspectable, presentationItems, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { artifactRailItems, causalVisualItemsFor, evidenceItemId, formatDuration, formatInspectable, matchesRailQuery, presentationItems, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 
 const iconFor = (item: ComputerItem) => item.kind === 'terminal' ? <TerminalSquare size={13} /> : item.kind === 'screenshot' ? <Eye size={13} /> : item.kind === 'preview' ? <Radio size={13} /> : item.kind === 'slide' ? <Presentation size={13} /> : item.kind === 'approval' ? <ShieldCheck size={13} /> : <FileCode2 size={13} />
 const RAIL_ROW_HEIGHT = 68
@@ -16,7 +16,8 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   const allItems = useMemo(() => presentationItems(task), [task])
   const railItems = useMemo(() => artifactRailItems(allItems), [allItems])
   const [filter, setFilter] = useState<'all' | PresentationPanel>('all')
-  const items = filter === 'all' ? railItems : railItems.filter((item) => item.kind === filter)
+  const [railQuery, setRailQuery] = useState('')
+  const items = useMemo(() => (filter === 'all' ? railItems : railItems.filter((item) => item.kind === filter)).filter((item) => matchesRailQuery(item, railQuery)), [filter, railItems, railQuery])
   const [selectedId, setSelectedId] = useState<string>()
   const [follow, setFollow] = useState(true)
   const [newActivity, setNewActivity] = useState(0)
@@ -30,7 +31,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   const lastItemId = items.at(-1)?.id
   const selected = Math.max(0, items.findIndex((item) => item.id === selectedId))
   const visibleRange = virtualRailRange(items.length, railScrollTop, railViewportHeight, RAIL_ROW_HEIGHT)
-  useEffect(() => { setFollow(true); setNewActivity(0); setSelectedId(undefined); setFilter('all') }, [task.id])
+  useEffect(() => { setFollow(true); setNewActivity(0); setSelectedId(undefined); setFilter('all'); setRailQuery('') }, [task.id])
   useEffect(() => {
     if (previousFilter.current !== filter) { setFollow(false); setNewActivity(0); previousFilter.current = filter }
     if (follow && items.length) setSelectedId(items.at(-1)?.id)
@@ -104,7 +105,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   }
   if (!allItems.length) return <div className="workspace-placeholder"><Wrench size={20} /><strong>No computer activity yet</strong><span>Commands, screenshots, files, and previews will appear here as the agent works.</span></div>
   return <div className="computer-timeline" onKeyDown={onTimelineKeyDown} tabIndex={0} aria-label="Agent computer artifact timeline">
-    <aside className="computer-history"><div className="computer-history-heading"><span>Artifact rail</span><button className={follow ? 'active' : ''} onClick={resumeLive} aria-label="Resume live follow"><Radio size={10} /> {follow ? 'Live' : newActivity ? `${newActivity} new` : 'Resume'}</button></div><div className="computer-filters">{(['all', 'terminal', 'screenshot', 'file', 'preview', 'slide', 'approval', 'diff'] as const).filter((kind) => kind === 'all' || railItems.some((item) => item.kind === kind)).map((kind) => <button key={kind} className={filter === kind ? 'active' : ''} onClick={() => setFilter(kind)}>{kind === 'all' ? 'All' : kind}</button>)}</div><div className="computer-rail-scroll" ref={railScrollRef} onScroll={(event) => setRailScrollTop(event.currentTarget.scrollTop)}><div className="computer-rail-virtual" style={{ height: items.length * RAIL_ROW_HEIGHT }}><div style={{ transform: `translateY(${visibleRange.start * RAIL_ROW_HEIGHT}px)` }}>{items.slice(visibleRange.start, visibleRange.end).map((item, offset) => { const index = visibleRange.start + offset; return <ArtifactRailEntry key={item.id} item={item} previousRunId={items[index - 1]?.runId} index={index} selected={index === selected} total={items.length} events={task.events} onMove={move} /> })}</div></div></div></aside>
+    <aside className="computer-history"><div className="computer-history-heading"><span>Artifact rail</span><button className={follow ? 'active' : ''} onClick={resumeLive} aria-label="Resume live follow"><Radio size={10} /> {follow ? 'Live' : newActivity ? `${newActivity} new` : 'Resume'}</button></div><div className="computer-filters">{(['all', 'terminal', 'screenshot', 'file', 'preview', 'slide', 'approval', 'diff'] as const).filter((kind) => kind === 'all' || railItems.some((item) => item.kind === kind)).map((kind) => <button key={kind} className={filter === kind ? 'active' : ''} onClick={() => setFilter(kind)}>{kind === 'all' ? 'All' : kind}</button>)}</div><label className="computer-rail-search"><span>Find evidence</span><input value={railQuery} onChange={(event) => setRailQuery(event.target.value)} placeholder="Command, artifact, run…" aria-label="Find projected task evidence" /></label><div className="computer-rail-scroll" ref={railScrollRef} onScroll={(event) => setRailScrollTop(event.currentTarget.scrollTop)}>{items.length ? <div className="computer-rail-virtual" style={{ height: items.length * RAIL_ROW_HEIGHT }}><div style={{ transform: `translateY(${visibleRange.start * RAIL_ROW_HEIGHT}px)` }}>{items.slice(visibleRange.start, visibleRange.end).map((item, offset) => { const index = visibleRange.start + offset; return <ArtifactRailEntry key={item.id} item={item} previousRunId={items[index - 1]?.runId} index={index} selected={index === selected} total={items.length} events={task.events} onMove={move} /> })}</div></div> : <p className="computer-rail-empty">No projected evidence matches this search.</p>}</div></aside>
     <section className="computer-stage"><header><button disabled={selected === 0} onClick={() => move(selected - 1)} aria-label="Previous timeline event"><ArrowLeft size={13} /></button><button disabled={selected >= items.length - 1} onClick={() => move(selected + 1)} aria-label="Next timeline event"><ArrowRight size={13} /></button><div><strong>{active?.title}</strong><span>{active?.detail}</span></div><em>{active?.runId ? `run ${active.runId.slice(-6)} · ` : ''}{active?.sequence ? `#${active.sequence} · ` : ''}{selected + 1} / {items.length}{filter !== 'all' && ` · ${filter}`}{active?.eventHash && <code title="Immutable evidence hash">{active.eventHash.slice(0, 8)}</code>}{!follow && <b>paused</b>}</em></header>
       {active?.kind === 'screenshot' && active.uri && <div className="computer-visual"><img src={`${active.uri}?v=${frame}`} alt={active.title} /></div>}
       {active?.kind === 'preview' && active.uri && <iframe title={active.title} sandbox="allow-scripts" src={active.uri} />}

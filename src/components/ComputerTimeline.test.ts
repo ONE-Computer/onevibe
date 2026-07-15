@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, evidenceItemId, formatDuration, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, evidenceItemId, formatDuration, matchesRailQuery, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -91,5 +91,12 @@ describe('Computer timeline terminal inspection', () => {
   it('windows a long rail while retaining an overscan buffer for smooth scrolling', () => {
     expect(virtualRailRange(10_000, 68 * 500, 340)).toEqual({ start: 488, end: 517 })
     expect(virtualRailRange(3, 0, 340)).toEqual({ start: 0, end: 3 })
+  })
+
+  it('searches only projected rail metadata', () => {
+    const item: ComputerItem = { id: 'browser-event', kind: 'terminal', title: 'browser_navigate', detail: 'Opened the approved reference', activityPreview: 'https://example.com/docs', createdAt: '2026-07-16T00:00:00.000Z' }
+    expect(matchesRailQuery(item, 'navigate')).toBe(true)
+    expect(matchesRailQuery(item, 'example.com')).toBe(true)
+    expect(matchesRailQuery(item, 'unrelated')).toBe(false)
   })
 })

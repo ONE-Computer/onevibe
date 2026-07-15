@@ -53,6 +53,12 @@ export const virtualRailRange = (count: number, scrollTop: number, viewportHeigh
   return { start: Math.max(0, visibleStart - overscan), end: Math.min(count, visibleEnd + overscan) }
 }
 
+export const matchesRailQuery = (item: ComputerItem, query: string) => {
+  const normalized = query.trim().toLocaleLowerCase()
+  if (!normalized) return true
+  return [item.title, item.detail, item.activityPreview, item.kind, item.runId, item.sequence?.toString()].some((value) => value?.toLocaleLowerCase().includes(normalized))
+}
+
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
   const items = task.events.flatMap((event): ComputerItem[] => {
     const presentation = event.payload.presentation as PresentationDescriptor | undefined
