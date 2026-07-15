@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { causalVisualItemsFor, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
+import { causalVisualItemsFor, evidenceItemId, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -35,5 +35,15 @@ describe('Computer timeline terminal inspection', () => {
     ]
 
     expect(causalVisualItemsFor('event-start', items).map((item) => item.id)).toEqual(['frame-one'])
+  })
+
+  it('only restores a URL reference for immutable evidence, never the live display', () => {
+    const items: ComputerItem[] = [
+      { id: 'recorded-frame', kind: 'screenshot', title: 'X11 frame', createdAt: '2026-07-16T00:00:00.000Z', eventHash: 'abc123' },
+      { id: 'live-x11', kind: 'screenshot', title: 'Live X11 display', createdAt: '2026-07-16T00:00:01.000Z', live: true },
+    ]
+
+    expect(evidenceItemId(items, 'recorded-frame')).toBe('recorded-frame')
+    expect(evidenceItemId(items, 'live-x11')).toBeUndefined()
   })
 })

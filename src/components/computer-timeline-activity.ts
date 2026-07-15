@@ -7,6 +7,8 @@ export type ComputerItem = {
   detail?: string
   runId?: string
   createdAt: string
+  sequence?: number
+  eventHash?: string
   uri?: string
   payload?: Record<string, unknown>
   live?: boolean
@@ -20,10 +22,10 @@ export const formatInspectable = (value: unknown, limit = 12_000) => {
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
   const items = task.events.flatMap((event): ComputerItem[] => {
     const presentation = event.payload.presentation as PresentationDescriptor | undefined
-    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff', 'slide', 'approval'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, uri: presentation.uri, payload: event.payload }]
+    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff', 'slide', 'approval'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, uri: presentation.uri, payload: event.payload }]
     // Compatibility for evidence created before the typed presentation contract.
-    if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', title: event.label ?? 'Tool call', detail: event.content, createdAt: event.createdAt, runId: event.runId, payload: event.payload }]
-    if (event.type === 'artifact_created' || event.type === 'artifact_updated') return [{ id: event.id, kind: event.type === 'artifact_updated' ? 'diff' : 'file', title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, payload: event.payload }]
+    if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', title: event.label ?? 'Tool call', detail: event.content, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
+    if (event.type === 'artifact_created' || event.type === 'artifact_updated') return [{ id: event.id, kind: event.type === 'artifact_updated' ? 'diff' : 'file', title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
     return []
   })
   if (task.securityContext?.visualRuntimeReady && task.securityContext.sandboxState !== 'destroyed') items.push({
@@ -43,3 +45,8 @@ export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) 
 }
 
 export const causalVisualItemsFor = (eventId: string, items: ComputerItem[]) => items.filter((item) => item.kind === 'screenshot' && item.payload?.causedByEventId === eventId)
+
+export const evidenceItemId = (items: ComputerItem[], eventId: string | null) => {
+  const item = eventId ? items.find((candidate) => candidate.id === eventId) : undefined
+  return item?.eventHash ? item.id : undefined
+}
