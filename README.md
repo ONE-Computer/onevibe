@@ -71,11 +71,14 @@ ONECOMPUTER_PROJECT_ID=...        # required when the key is organization-scoped
 ONECOMPUTER_GATEWAY_ENFORCED=false
 ONECOMPUTER_RETAIN_SANDBOX=false
 ONECOMPUTER_VISUAL_RUNTIME=true
+ONECOMPUTER_BROWSER_AUTOMATION=false # requires an attested gateway and sandbox-local Playwright MCP
 ```
 
 With the ONEComputer URL and API key present, the `onecomputer` runtime uses the real authenticated create, poll, exec, and delete sandbox routes. If the API key is organization-scoped, also set `ONECOMPUTER_PROJECT_ID`; the server sends it only as the ONEComputer `X-Project-Id` request header. Tokens and project keys are never serialized to task events or sent to the browser. `ONECOMPUTER_GATEWAY_ENFORCED` defaults to false and must only be enabled after the deployed sandbox's egress path has been independently verified.
 
 When `ONECOMPUTER_VISUAL_RUNTIME` is enabled (the default), ONEVibe asks the sandbox service to start a headless X11 runtime and records a PNG visual frame as task evidence. The browser receives only an authenticated, server-proxied screenshot; it never receives X11, VNC, Chrome DevTools, or sandbox credentials. This is designed for an attested microVM runtime, not as a claim that the local demo or any existing container provider is a microVM.
+
+`ONECOMPUTER_BROWSER_AUTOMATION=true` additionally permits a narrow sandbox-local Playwright MCP tool set **only** when `ONECOMPUTER_GATEWAY_ENFORCED=true` and the visual runtime confirms Chromium is ready. It is off by default. ONEVibe records whether browser automation was enabled or withheld, captures resulting X11 evidence, and never exposes CDP, browser session material, or browser controls to the web client. Deployments must independently attest the gateway's browser egress, domain policy, credential policy, and screenshot-redaction behavior before enabling it.
 
 The browser can request a share but cannot approve one. In local development, operate the separate wallet CLI from another terminal:
 

@@ -8,6 +8,12 @@ const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
 
 describe('OneComputerSandboxRuntimeAdapter', () => {
+  it('only exposes browser MCP controls when the governed runtime explicitly enables them', async () => {
+    const { GOVERNED_BROWSER_TOOLS, governedClaudeTools } = await import('./onecomputer-sandbox-runner.js')
+    expect(governedClaudeTools(false)).toEqual(['Read', 'Write', 'Edit', 'Glob', 'Grep'])
+    expect(governedClaudeTools(true)).toEqual(expect.arrayContaining([...GOVERNED_BROWSER_TOOLS]))
+  })
+
   it('projects a bounded, redacted Claude stream journal into timeline events', async () => {
     const { parseClaudeStreamJournal } = await import('./onecomputer-sandbox-runner.js')
     const journal = [
@@ -55,7 +61,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
       startVisualRuntime: vi.fn(async () => ({ display: ':99', width: 1440, height: 900, browserReady: true })),
       getVisualScreenshot: vi.fn(async () => ({ png: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]), capturedAt: '2026-07-16T00:00:00.000Z' })),
     } as unknown as OneComputerClient
-    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: false, visualRuntime: true, pollMilliseconds: 1, visualCheckpointMilliseconds: 100_000 })
+    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: true, retainSandbox: false, visualRuntime: true, browserAutomation: true, pollMilliseconds: 1, visualCheckpointMilliseconds: 100_000 })
 
     await adapter.run({
       task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false,
@@ -66,6 +72,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.join('\n')).not.toContain(task.prompt)
     expect(commands.some((command) => command.includes('claude --print'))).toBe(true)
     expect(commands.some((command) => command.includes('--output-format stream-json --verbose'))).toBe(true)
+    expect(commands.some((command) => command.includes('mcp__playwright__browser_navigate'))).toBe(true)
     expect(client.deleteSandbox).toHaveBeenCalledWith('sandbox-1')
     expect(client.startVisualRuntime).toHaveBeenCalledWith('sandbox-1', expect.any(AbortSignal))
     expect(client.getVisualScreenshot).toHaveBeenCalledTimes(5)
@@ -76,7 +83,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(frames.every((event) => event.payload.capturedAt === '2026-07-16T00:00:00.000Z')).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.label === 'Write' && event.payload.toolUseId === 'tool-1')).toBe(true)
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-1')
-    expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'destroyed', gatewayEnforced: false })
+    expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'destroyed', gatewayEnforced: true })
+    expect(store.listEvents(task.id).some((event) => event.label === 'Governed browser automation ready')).toBe(true)
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)
   })

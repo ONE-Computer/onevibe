@@ -24,6 +24,7 @@ const ONECOMPUTER_PROJECT_ID = process.env.ONECOMPUTER_PROJECT_ID
 const ONECOMPUTER_GATEWAY_ENFORCED = process.env.ONECOMPUTER_GATEWAY_ENFORCED === 'true'
 const ONECOMPUTER_RETAIN_SANDBOX = process.env.ONECOMPUTER_RETAIN_SANDBOX === 'true'
 const ONECOMPUTER_VISUAL_RUNTIME = process.env.ONECOMPUTER_VISUAL_RUNTIME !== 'false'
+const ONECOMPUTER_BROWSER_AUTOMATION = process.env.ONECOMPUTER_BROWSER_AUTOMATION === 'true'
 const WALLET_TOKEN = process.env.ONEVIBE_WALLET_TOKEN
 const store = new TaskStore()
 const activeRuns = new Map<string, AbortController>()
@@ -95,7 +96,7 @@ const adapterFor = (provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'):
   : provider === 'onecomputer'
     ? new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN!, projectId: ONECOMPUTER_PROJECT_ID }), {
       gatewayEnforced: ONECOMPUTER_GATEWAY_ENFORCED, retainSandbox: ONECOMPUTER_RETAIN_SANDBOX,
-      visualRuntime: ONECOMPUTER_VISUAL_RUNTIME,
+      visualRuntime: ONECOMPUTER_VISUAL_RUNTIME, browserAutomation: ONECOMPUTER_BROWSER_AUTOMATION,
     })
   : provider === 'claude_sdk'
     ? new ClaudeSdkRuntimeAdapter()

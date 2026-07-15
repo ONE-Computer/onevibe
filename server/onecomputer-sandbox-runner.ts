@@ -25,6 +25,20 @@ type ClaudeJournalEntry =
   | { kind: 'tool_completed'; toolUseId?: string; content?: string; isError?: boolean }
   | { kind: 'text'; content: string }
 
+/** Browser control stays inside the sandbox through the preconfigured MCP. */
+export const GOVERNED_BROWSER_TOOLS = [
+  'mcp__playwright__browser_navigate',
+  'mcp__playwright__browser_snapshot',
+  'mcp__playwright__browser_click',
+  'mcp__playwright__browser_type',
+  'mcp__playwright__browser_take_screenshot',
+] as const
+
+export const governedClaudeTools = (browserAutomation: boolean) => [
+  'Read', 'Write', 'Edit', 'Glob', 'Grep',
+  ...(browserAutomation ? GOVERNED_BROWSER_TOOLS : []),
+]
+
 export const parseClaudeStreamJournal = (raw: string) => {
   const entries: ClaudeJournalEntry[] = []
   let result: string | undefined
@@ -52,7 +66,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
   constructor(
     private readonly client: OneComputerClient,
-    private readonly options: { gatewayEnforced: boolean; retainSandbox: boolean; visualRuntime?: boolean; pollMilliseconds?: number; visualCheckpointMilliseconds?: number } = { gatewayEnforced: false, retainSandbox: false },
+    private readonly options: { gatewayEnforced: boolean; retainSandbox: boolean; visualRuntime?: boolean; browserAutomation?: boolean; pollMilliseconds?: number; visualCheckpointMilliseconds?: number } = { gatewayEnforced: false, retainSandbox: false },
   ) {}
 
   async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
@@ -91,6 +105,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
     try {
       let visualRuntimeReady = false
+      let browserAutomationEnabled = false
       const captureVisualFrame = async (phase: string, causedByEventId?: string) => {
         if (!visualRuntimeReady) return
         try {
@@ -140,6 +155,17 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
           content: `X11 ${visual.display} · ${visual.width}×${visual.height} · screenshot stream available without VNC.`,
           payload: { sandboxId: sandbox.id, transport: 'authenticated_png', ...visual },
         })
+        browserAutomationEnabled = this.options.browserAutomation === true && this.options.gatewayEnforced && visual.browserReady
+        if (this.options.browserAutomation && !browserAutomationEnabled) await store.appendEvent(task.id, {
+          type: 'activity_delta', lane: 'control', label: 'Governed browser automation withheld',
+          content: !this.options.gatewayEnforced ? 'Browser automation requires an explicitly attested ONEComputer gateway.' : 'The visual runtime did not report a local browser ready for the task.',
+          payload: { sandboxId: sandbox.id, requested: true, gatewayEnforced: this.options.gatewayEnforced, browserReady: visual.browserReady },
+        })
+        if (browserAutomationEnabled) await store.appendEvent(task.id, {
+          type: 'activity_delta', lane: 'control', label: 'Governed browser automation ready',
+          content: 'Playwright MCP actions run only inside the ONEComputer sandbox. The browser receives projected evidence, never CDP or browser credentials.',
+          payload: { sandboxId: sandbox.id, transport: 'sandbox_playwright_mcp', gatewayEnforced: true, browserReady: true, tools: GOVERNED_BROWSER_TOOLS },
+        })
         await captureVisualFrame('runtime_ready')
         const interval = Math.max(this.options.visualCheckpointMilliseconds ?? 5_000, 1_000)
         visualLoop = (async () => {
@@ -169,10 +195,12 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         `Creation mode: ${task.mode}.`,
         'Work only in the current directory. Create portable source, README.md, and mode-appropriate artifacts.',
         'For visual output create a self-contained index.html. Do not publish or expose credentials.',
+        ...(browserAutomationEnabled ? ['A governed Playwright MCP browser is available inside the sandbox. Use it only for task-relevant browsing; do not log in, save credentials, or perform external write actions.'] : []),
         prompt,
       ].join('\n\n')
       const encodedPrompt = Buffer.from(agentPrompt).toString('base64')
       const workspace = `/tmp/onevibe/${task.id}`
+      const allowedTools = governedClaudeTools(browserAutomationEnabled)
       const command = [
         'set -eu',
         `mkdir -p ${shellQuote(workspace)}`,
@@ -181,7 +209,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'rm -f .onevibe-events.jsonl .onevibe-exitcode .onevibe-pid',
         '(',
         '  set +e',
-        "  claude --print --output-format stream-json --verbose --permission-mode bypassPermissions --allowedTools 'Read,Write,Edit,Glob,Grep' \"$(cat .onevibe-prompt)\" > .onevibe-events.jsonl 2>&1",
+        `  claude --print --output-format stream-json --verbose --permission-mode bypassPermissions --allowedTools ${shellQuote(allowedTools.join(','))} "$(cat .onevibe-prompt)" > .onevibe-events.jsonl 2>&1`,
         '  printf %s "$?" > .onevibe-exitcode',
         ') < /dev/null > /dev/null 2>&1 &',
         'printf %s "$!" > .onevibe-pid',
@@ -190,7 +218,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const agentExecution = await store.appendEvent(task.id, {
         type: 'tool_call_started', lane: 'activity', label: 'Execute Claude inside ONEComputer',
         content: 'Prompt is base64-transferred to avoid shell interpretation and the agent receives no Bash tool.',
-        payload: { sandboxId: sandbox.id, toolName: 'onecomputer.sandbox.exec', allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep'] },
+        payload: { sandboxId: sandbox.id, toolName: 'onecomputer.sandbox.exec', allowedTools, browserAutomation: browserAutomationEnabled },
       })
       await captureVisualFrame('before_agent', agentExecution.id)
       const spawned = await this.client.exec(sandbox.id, command, signal)
