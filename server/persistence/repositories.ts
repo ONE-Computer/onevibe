@@ -15,6 +15,7 @@ import type {
   TurnStatus,
 } from './contracts.js'
 import { IdempotencyConflictError, InvalidCursorError, OptimisticConflictError, RecordNotFoundError } from './errors.js'
+import { SqliteRuntimeLeaseRepository } from './runtime-lease-repository.js'
 
 type ConversationRow = { id: string; title: string | null; status: ConversationRecord['status']; created_at: string; updated_at: string }
 type TurnRow = { id: string; conversation_id: string; client_request_id: string; ordinal: number; status: TurnStatus; created_at: string; started_at: string | null; completed_at: string | null }
@@ -247,5 +248,6 @@ export function createSqliteRepositories(database: Database.Database): Repositor
     messages: new SqliteMessageRepository(database),
     idempotency: new SqliteIdempotencyRepository(database),
     legacyImports: new SqliteLegacyImportRepository(database),
+    runtimeLeases: new SqliteRuntimeLeaseRepository(database),
   }
 }

@@ -1,6 +1,8 @@
 export type ConversationStatus = 'active' | 'archived' | 'deleted'
 export type TurnStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool'
+export type RuntimeLeaseStatus = 'allocating' | 'ready' | 'releasing' | 'released' | 'failed' | 'unknown'
+export type RuntimeLeaseErrorCategory = 'provider' | 'transient' | 'configuration' | 'capacity' | 'security' | 'unknown'
 
 export interface ConversationRecord {
   id: string
@@ -57,6 +59,36 @@ export interface LegacyImportRecord {
   importedAt: string
 }
 
+export interface RuntimeLeaseErrorMetadata {
+  code: string
+  category: RuntimeLeaseErrorCategory
+  retryable: boolean
+  occurredAt: string
+}
+
+export interface RuntimeLeaseRecord {
+  id: string
+  conversationId: string
+  generation: number
+  providerName: string
+  providerSandboxId: string | null
+  status: RuntimeLeaseStatus
+  allocationOperationId: string
+  allocationIdempotencyKey: string
+  createdAt: string
+  updatedAt: string
+  readyAt: string | null
+  releaseRequestedAt: string | null
+  releasedAt: string | null
+  lastError: RuntimeLeaseErrorMetadata | null
+}
+
+export interface RuntimeLeaseFence {
+  generation: number
+  status: RuntimeLeaseStatus
+  updatedAt: string
+}
+
 export interface ConversationRepository {
   findById(id: string): ConversationRecord | undefined
   insert(record: ConversationRecord): void
@@ -91,12 +123,22 @@ export interface LegacyImportRepository {
   record(record: LegacyImportRecord): void
 }
 
+export interface RuntimeLeaseRepository {
+  findById(id: string): RuntimeLeaseRecord | undefined
+  findActiveByConversation(conversationId: string): RuntimeLeaseRecord | undefined
+  findByProviderSandboxId(providerName: string, providerSandboxId: string): RuntimeLeaseRecord | undefined
+  listByConversation(conversationId: string): RuntimeLeaseRecord[]
+  insert(record: RuntimeLeaseRecord, expectedPreviousGeneration: number): void
+  transition(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord): void
+}
+
 export interface Repositories {
   conversations: ConversationRepository
   turns: TurnRepository
   messages: MessageRepository
   idempotency: IdempotencyRepository
   legacyImports: LegacyImportRepository
+  runtimeLeases: RuntimeLeaseRepository
 }
 
 /** Transactions are deliberately synchronous: better-sqlite3 cannot safely span an await. */

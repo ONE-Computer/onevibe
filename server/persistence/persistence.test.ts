@@ -55,7 +55,7 @@ describe('SQLite persistence foundation', () => {
       expect(database.pragma('journal_mode', { simple: true })).toBe('wal')
       expect(database.pragma('busy_timeout', { simple: true })).toBe(5_000)
       expect(database.pragma('synchronous', { simple: true })).toBe(2)
-      expect(database.prepare('SELECT version FROM schema_migrations').pluck().all()).toEqual([1, 2])
+      expect(database.prepare('SELECT version FROM schema_migrations').pluck().all()).toEqual([1, 2, 3])
     } finally {
       database.close()
     }
@@ -79,7 +79,7 @@ describe('SQLite persistence foundation', () => {
       runMigrations(database)
       const changedSql = `${migrations[0]!.sql}\n-- changed after release`
       const changed: Migration = { ...migrations[0]!, sql: changedSql, checksum: migrationChecksum(changedSql) }
-      expect(() => runMigrations(database, [changed, migrations[1]!])).toThrow(MigrationIntegrityError)
+      expect(() => runMigrations(database, [changed, migrations[1]!, migrations[2]!])).toThrow(MigrationIntegrityError)
     } finally {
       database.close()
     }
@@ -90,7 +90,7 @@ describe('SQLite persistence foundation', () => {
     try {
       runMigrations(database)
       database.prepare('INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)')
-        .run(3, 'future', 'a'.repeat(64), now)
+        .run(4, 'future', 'a'.repeat(64), now)
       expect(() => runMigrations(database)).toThrow(UnsupportedSchemaVersionError)
     } finally {
       database.close()
