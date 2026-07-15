@@ -86,7 +86,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 64. **I** Editable code surface — embedded text editor saves with optimistic hash protection, pre-edit snapshot, and evidence event.
 65. **I** Diff mode — Original, Modified, and line-oriented Diff views are available before save.
 66. **I** Dashboard workspace tab — task progress, artifact, evidence, boundary, and approval summaries are available in the workspace.
-67. **P** Database workspace tab — Data mode renders the portable generated CSV as an inspectable in-workspace table and can open the source; live data sources, edits, and query tooling remain pending.
+67. **P** Database workspace tab — Data mode renders the portable generated CSV as an inspectable in-workspace table, supports bounded local row filtering (up to 500 visible matches), and can open the source. Filters do not mutate data or call a connector; live data sources, edits, and query tooling remain pending.
 68. **I** Files workspace tab.
 69. **P** Settings workspace tab — read-only task runtime, security boundary, approval, artifact-contract, and context metadata are visible; organization-wide settings and permission management remain pending.
 70. **I** Workspace expansion — fullscreen overlay with explicit exit and Escape handling.
