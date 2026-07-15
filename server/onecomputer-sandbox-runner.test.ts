@@ -8,6 +8,23 @@ const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
 
 describe('OneComputerSandboxRuntimeAdapter', () => {
+  it('projects a bounded, redacted Claude stream journal into timeline events', async () => {
+    const { parseClaudeStreamJournal } = await import('./onecomputer-sandbox-runner.js')
+    const journal = [
+      JSON.stringify({ type: 'assistant', session_id: 'session-sandbox-1', message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Write', input: { file_path: 'index.html', api_key: 'never-show' } }] } }),
+      JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'Wrote index.html' }] } }),
+      JSON.stringify({ type: 'result', session_id: 'session-sandbox-1', result: 'Completed the page.' }),
+    ].join('\n')
+
+    expect(parseClaudeStreamJournal(journal)).toEqual({
+      sessionId: 'session-sandbox-1', result: 'Completed the page.',
+      entries: [
+        { kind: 'tool_started', toolUseId: 'tool-1', name: 'Write', input: { file_path: 'index.html', api_key: '[REDACTED]' } },
+        { kind: 'tool_completed', toolUseId: 'tool-1', content: 'Wrote index.html', isError: false },
+      ],
+    })
+  })
+
   it('executes Claude in the sandbox, extracts bounded artifacts, and destroys the boundary', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-'))
     roots.push(root)
@@ -20,7 +37,11 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const exec = vi.fn(async (_id: string, command: string) => {
       commands.push(command)
       if (command.includes('find .')) return { exitCode: 0, output: Buffer.from('index.html\0README.md\0').toString('base64') }
-      if (command.includes("base64 -w0 .onevibe-result.txt")) return { exitCode: 0, output: Buffer.from('Created safely.').toString('base64') }
+      if (command.includes("base64 -w0 .onevibe-events.jsonl")) return { exitCode: 0, output: Buffer.from([
+        JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Write', input: { file_path: 'index.html' } }] } }),
+        JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'Wrote index.html' }] } }),
+        JSON.stringify({ type: 'result', session_id: 'session-1', result: 'Created safely.' }),
+      ].join('\n')).toString('base64') }
       if (command.endsWith("'index.html'")) return { exitCode: 0, output: Buffer.from('<h1>Sandbox output</h1>').toString('base64') }
       if (command.endsWith("'README.md'")) return { exitCode: 0, output: Buffer.from('# Sandbox output').toString('base64') }
       return { exitCode: 0, output: '' }
@@ -43,6 +64,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(await store.readWorkspaceFile(task.id, 'index.html')).toContain('Sandbox output')
     expect(commands.join('\n')).not.toContain(task.prompt)
     expect(commands.some((command) => command.includes('claude --print'))).toBe(true)
+    expect(commands.some((command) => command.includes('--output-format stream-json --verbose'))).toBe(true)
     expect(client.deleteSandbox).toHaveBeenCalledWith('sandbox-1')
     expect(client.startVisualRuntime).toHaveBeenCalledWith('sandbox-1', expect.any(AbortSignal))
     expect(client.getVisualScreenshot).toHaveBeenCalledTimes(3)
@@ -51,6 +73,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(frames.map((event) => event.payload.capturePhase)).toEqual(['runtime_ready', 'before_agent', 'after_agent'])
     expect(frames.slice(1).every((event) => typeof event.payload.causedByEventId === 'string')).toBe(true)
     expect(frames.every((event) => event.payload.capturedAt === '2026-07-16T00:00:00.000Z')).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.label === 'Write' && event.payload.toolUseId === 'tool-1')).toBe(true)
+    expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-1')
     expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'destroyed', gatewayEnforced: false })
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)

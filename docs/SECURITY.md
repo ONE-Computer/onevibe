@@ -20,6 +20,7 @@
 - runtime mode and non-production limitations are visible in the UI.
 - local wallet decisions produce HMAC receipts for integration testing; the wallet secret is never serialized into task state or evidence.
 - ONEComputer mode executes Claude through the sandbox API, rejects unsafe artifact paths, caps extraction at 100 files/10 MiB, and deletes the sandbox by default.
+- ONEComputer-mode Claude journals remain in the disposable sandbox. ONEVibe stores only bounded projections of tool and transcript events after redacting credential-like fields; the raw `stream-json` journal is excluded from artifact extraction.
 - A ONEComputer sandbox is not presented as gateway-enforced unless `ONECOMPUTER_GATEWAY_ENFORCED=true` is explicitly configured after deployment verification.
 - Visual-runtime capture is pull-only: ONEVibe requests a sandbox-owned headless X11 PNG over the authenticated service channel, stores the resulting frame as evidence, and proxies it to the browser. It does not expose VNC, X11, Chrome DevTools Protocol, or sandbox tokens to the browser.
 - Schedules are constrained to a 15-minute minimum and only dispatch ordinary task creation. They do not carry approval authority, bypass policy, or gain direct publication/connector credentials.

@@ -10,6 +10,43 @@ const wait = (milliseconds: number, signal: AbortSignal) => new Promise<void>((r
   signal.addEventListener('abort', abort, { once: true })
 })
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+const sanitize = (value: unknown, depth = 0): unknown => {
+  if (depth > 6) return '[Max depth]'
+  if (typeof value === 'string') return value.length > 8_000 ? `${value.slice(0, 8_000)}…[truncated]` : value
+  if (Array.isArray(value)) return value.slice(0, 100).map((item) => sanitize(item, depth + 1))
+  if (!isRecord(value)) return value
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, /authorization|cookie|token|secret|api[_-]?key|password/i.test(key) ? '[REDACTED]' : sanitize(item, depth + 1)]))
+}
+
+type ClaudeJournalEntry =
+  | { kind: 'tool_started'; toolUseId?: string; name: string; input?: unknown }
+  | { kind: 'tool_completed'; toolUseId?: string; content?: string; isError?: boolean }
+  | { kind: 'text'; content: string }
+
+export const parseClaudeStreamJournal = (raw: string) => {
+  const entries: ClaudeJournalEntry[] = []
+  let result: string | undefined
+  let sessionId: string | undefined
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue
+    let parsed: unknown
+    try { parsed = JSON.parse(line) } catch { continue }
+    if (!isRecord(parsed)) continue
+    if (typeof parsed.session_id === 'string') sessionId = parsed.session_id
+    if (parsed.type === 'result' && typeof parsed.result === 'string') result = parsed.result.slice(0, 64_000)
+    const message = isRecord(parsed.message) ? parsed.message : undefined
+    const blocks = Array.isArray(message?.content) ? message.content.filter(isRecord) : []
+    for (const block of blocks) {
+      if (block.type === 'tool_use' && typeof block.name === 'string') entries.push({ kind: 'tool_started', toolUseId: typeof block.id === 'string' ? block.id : undefined, name: block.name, input: sanitize(block.input) })
+      if (block.type === 'tool_result') entries.push({ kind: 'tool_completed', toolUseId: typeof block.tool_use_id === 'string' ? block.tool_use_id : undefined, content: typeof block.content === 'string' ? block.content.slice(0, 8_000) : undefined, isError: block.is_error === true })
+      if (block.type === 'text' && typeof block.text === 'string') entries.push({ kind: 'text', content: block.text.slice(0, 16_000) })
+    }
+  }
+  return { entries, result, sessionId }
+}
+
 export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'onecomputer'
 
@@ -117,7 +154,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         `mkdir -p ${shellQuote(workspace)}`,
         `cd ${shellQuote(workspace)}`,
         `printf %s ${shellQuote(encodedPrompt)} | base64 -d > .onevibe-prompt`,
-        "claude --print --output-format text --permission-mode bypassPermissions --allowedTools 'Read,Write,Edit,Glob,Grep' \"$(cat .onevibe-prompt)\" > .onevibe-result.txt",
+        "claude --print --output-format stream-json --verbose --permission-mode bypassPermissions --allowedTools 'Read,Write,Edit,Glob,Grep' \"$(cat .onevibe-prompt)\" > .onevibe-events.jsonl",
         'rm -f .onevibe-prompt',
       ].join(' && ')
       const agentExecution = await store.appendEvent(task.id, {
@@ -129,14 +166,34 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const execution = await this.client.exec(sandbox.id, command, signal)
       await captureVisualFrame('after_agent', agentExecution.id)
       if (execution.exitCode !== 0) throw new Error(`Sandbox Claude process exited ${execution.exitCode}: ${execution.output.slice(-2_000)}`)
-      const result = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && base64 -w0 .onevibe-result.txt`, signal)
-      if (result.exitCode !== 0) throw new Error('Unable to retrieve sandbox agent result')
-      await store.appendEvent(task.id, {
-        type: 'assistant_text_delta', lane: 'transcript', content: Buffer.from(result.output.trim(), 'base64').toString('utf8').slice(0, 64_000),
-        payload: { executionRoute: 'onecomputer_sandbox' },
+      const journal = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && base64 -w0 .onevibe-events.jsonl`, signal)
+      if (journal.exitCode !== 0) throw new Error('Unable to retrieve sandbox agent event journal')
+      const parsedJournal = parseClaudeStreamJournal(Buffer.from(journal.output.trim(), 'base64').toString('utf8'))
+      for (const entry of parsedJournal.entries) {
+        if (entry.kind === 'tool_started') await store.appendEvent(task.id, {
+          type: 'tool_call_started', lane: 'activity', label: entry.name,
+          content: 'Claude requested a governed workspace tool inside the ONEComputer sandbox.',
+          payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, input: entry.input },
+        })
+        if (entry.kind === 'tool_completed') await store.appendEvent(task.id, {
+          type: 'tool_call_completed', lane: 'activity', label: 'Tool result', content: entry.content,
+          payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, isError: entry.isError },
+        })
+        if (entry.kind === 'text') await store.appendEvent(task.id, {
+          type: 'assistant_text_delta', lane: 'transcript', content: entry.content,
+          payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, source: 'claude_stream_json' },
+        })
+      }
+      if (parsedJournal.result && !parsedJournal.entries.some((entry) => entry.kind === 'text' && entry.content === parsedJournal.result)) await store.appendEvent(task.id, {
+        type: 'assistant_text_delta', lane: 'transcript', content: parsedJournal.result,
+        payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, source: 'claude_stream_json_result' },
       })
+      if (parsedJournal.sessionId) {
+        const current = store.getTask(task.id)
+        await store.updateTask(task.id, { securityContext: { ...current.securityContext!, runtimeSessionId: parsedJournal.sessionId } })
+      }
 
-      const listing = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && find . -type f ! -name '.onevibe-result.txt' -print0 | base64 -w0`, signal)
+      const listing = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && find . -type f ! -name '.onevibe-events.jsonl' -print0 | base64 -w0`, signal)
       if (listing.exitCode !== 0) throw new Error('Unable to enumerate sandbox artifacts')
       const paths = Buffer.from(listing.output.trim(), 'base64').toString('utf8').split('\0').filter(Boolean).map((item) => item.replace(/^\.\//, ''))
       if (paths.length > 100) throw new Error('Sandbox produced more than the 100-file extraction limit')
