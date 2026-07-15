@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, ArrowRight, Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Palette, Pencil, Presentation, RefreshCw, Save, Settings2, ShieldCheck, Table2, TerminalSquare } from 'lucide-react'
+import { Activity, ArrowLeft, ArrowRight, Check, Code2, Copy, Download, Eye, File, Files, GitFork, Globe2, History, Maximize2, Minimize2, Network, Palette, Pencil, Presentation, RefreshCw, Save, Settings2, ShieldCheck, Table2, TerminalSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
@@ -6,7 +6,7 @@ import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
 
-type Tab = 'dashboard' | 'computer' | 'observe' | 'preview' | 'visual' | 'slides' | 'design' | 'database' | 'code' | 'files' | 'history' | 'evidence' | 'settings'
+type Tab = 'dashboard' | 'computer' | 'observe' | 'preview' | 'visual' | 'slides' | 'design' | 'database' | 'code' | 'files' | 'history' | 'evidence' | 'handoff' | 'settings'
 type SlideOutline = { number: number; title: string; summary: string }
 type DesignDirection = { id: string; name: string; rationale: string; confidence: number; selected: boolean }
 type DesignPhilosophy = { name: string; description: string }
@@ -125,6 +125,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><Files size={14} /> Files</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}><History size={14} /> History</button>
           <button className={tab === 'evidence' ? 'active' : ''} onClick={() => setTab('evidence')}><ShieldCheck size={14} /> Evidence</button>
+          {task.status === 'completed' && <button className={tab === 'handoff' ? 'active' : ''} onClick={() => setTab('handoff')}><GitFork size={14} /> Handoff</button>}
           <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}><Settings2 size={14} /> Settings</button>
         </div>
         <div className="workspace-tools"><button title="Make a provenance-linked copy" onClick={() => void copyTask(task.id).then((copy) => window.location.assign(`/tasks/${copy.id}`))}><Copy size={14} /></button><a title="Download source, evidence, and GitHub handoff" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
@@ -178,6 +179,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
               <p className="evidence-note"><Network size={13} /> Local hashes demonstrate ordering only. Production evidence must be anchored outside the workload through OpenVTC.</p>
             </motion.div>
           )}
+          {tab === 'handoff' && <motion.div key="handoff" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="handoff-pane"><header><div><GitFork size={18} /><div><span>Source handoff</span><strong>Prepare a GitHub review</strong></div></div><a href={`/api/tasks/${task.id}/download`}><Download size={13} /> Download handoff</a></header><section><div className="handoff-step"><i>01</i><div><strong>Review portable source</strong><p>Inspect the generated files, `validation-report.json`, and preview before sharing anything externally.</p></div></div><div className="handoff-step"><i>02</i><div><strong>Keep the evidence with the source</strong><p>The download includes `ONEVIBE-EVIDENCE.json` and `GITHUB-HANDOFF.md` so review remains traceable to this task.</p></div></div><div className="handoff-step"><i>03</i><div><strong>Use your approved GitHub identity</strong><p>Create the repository or pull request only after your organization’s review and any required external VTI Wallet approval.</p></div></div></section><footer><ShieldCheck size={14} /><p>ONEVibe does not access GitHub credentials, create repositories, or push code from this browser. The archive is a review-ready handoff, not publication authority.</p></footer></motion.div>}
           {tab === 'settings' && (
             <motion.div key="settings" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="task-settings-pane">
               <header><div><Settings2 size={17} /><div><span>Task operating settings</span><strong>Read-only runtime and context record</strong></div></div><em>Secrets never render here</em></header>
