@@ -1,10 +1,10 @@
 import { AppWindow, ArrowUp, BarChart3, Bot, ChevronDown, Cloud, FileText, Gamepad2, Globe2, Info, Link2, Monitor, Palette, Paperclip, Presentation, Search, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useRef, useState } from 'react'
-import type { Task, TaskAttachment, TaskMode } from '../types'
+import type { Task, TaskAttachment, TaskMode, TaskSkill } from '../types'
 
 type DraftAttachment = Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string; size: number }
-type Props = { compact?: boolean; busy?: boolean; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[]) => Promise<void> }
+type Props = { compact?: boolean; busy?: boolean; skills?: TaskSkill[]; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[]) => Promise<void> }
 
 const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: typeof Bot }> = [
   { id: 'general', label: 'Agent', detail: 'Flexible governed task', icon: Bot },
@@ -25,7 +25,7 @@ const starterTemplates: Array<{ title: string; outcome: string; prompt: string; 
   { title: 'Prototype an internal tool', outcome: 'Interactive app', mode: 'app', prompt: 'Create a focused internal tool prototype with a clean workflow, realistic sample data, and a responsive interface. Explain the decisions made.' },
 ]
 
-export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Props) => {
+export const PromptComposer = ({ compact = false, busy = false, skills = [], onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
   const [mode, setMode] = useState<TaskMode>('general')
@@ -41,7 +41,7 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
   const submit = async () => {
     const value = prompt.trim()
     if (!value || busy) return
-    await onSubmit(value, provider, mode, references, attachments)
+    await onSubmit(value, provider, mode, references, attachments, skills)
     setPrompt('')
     setReferences([])
     setReferenceDraft('')
@@ -58,6 +58,7 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
         <span>Start from a shape</span>
         <div>{starterTemplates.map((template) => <button key={template.title} type="button" onClick={() => { setPrompt(template.prompt); setMode(template.mode) }}><strong>{template.title}</strong><small>{template.outcome}</small></button>)}</div>
       </motion.div>}
+      {!compact && skills.length > 0 && <div className="selected-skills" aria-label="Selected skill packs">{skills.map((skill) => <span key={skill}><Sparkles size={10} /> {skill.replaceAll('_', ' ')}</span>)}</div>}
       <textarea
         value={prompt}
         onChange={(event) => setPrompt(event.target.value)}

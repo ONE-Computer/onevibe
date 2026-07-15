@@ -203,6 +203,20 @@ describe('TaskStore', () => {
     expect(reloaded.getTask(task.id).references).toEqual(['https://example.com/product'])
   })
 
+  it('persists explicit task skill guides independently of permissions', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-skills-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Review the launch posture', 'demo', 'research', 'project_onevibe', undefined, [], [], ['research', 'security_review'])
+
+    expect(task.skills).toEqual(['research', 'security_review'])
+    const reloaded = new TaskStore(root)
+    await reloaded.initialize()
+    expect(reloaded.getTask(task.id).skills).toEqual(['research', 'security_review'])
+  })
+
   it('persists metadata for path-confined task attachments', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-attachments-'))
     temporaryRoots.push(root)

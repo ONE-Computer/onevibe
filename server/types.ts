@@ -32,6 +32,7 @@ export type EventType =
 
 export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'blocked'
 export type TaskMode = 'general' | 'website' | 'slides' | 'document' | 'research' | 'data' | 'design' | 'app' | 'game'
+export type TaskSkill = 'research' | 'web_build' | 'slides' | 'data_analysis' | 'document' | 'product_design' | 'security_review' | 'browser_testing'
 
 export type Project = {
   id: string
@@ -118,6 +119,7 @@ export type Task = {
   prompt: string
   provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'
   mode: TaskMode
+  skills: TaskSkill[]
   projectId: string
   scheduleId?: string
   references: string[]

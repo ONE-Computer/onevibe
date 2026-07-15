@@ -8,10 +8,11 @@ import { TaskTimeline } from './components/TaskTimeline'
 import { Workspace } from './components/Workspace'
 import { SharedArtifact } from './components/SharedArtifact'
 import { Schedules } from './components/Schedules'
+import { SkillsLibrary } from './components/SkillsLibrary'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
 import { addProjectFile, cancelTask, createProject, createSchedule, createTask, listProjects, listSchedules, listTasks, requestShare, sendFollowUp, setScheduleEnabled } from './lib/api'
-import type { Project, Task, TaskAttachment, TaskMode, TaskSchedule } from './types'
+import type { Project, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
 const starterPrompts = [
@@ -26,7 +27,8 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [schedules, setSchedules] = useState<TaskSchedule[]>([])
   const [activeProjectId, setActiveProjectId] = useState('project_onevibe')
-  const [view, setView] = useState<'agent' | 'schedules'>('agent')
+  const [view, setView] = useState<'agent' | 'schedules' | 'skills'>('agent')
+  const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>([])
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -50,10 +52,10 @@ export default function App() {
     setTasks((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))
   }, [snapshot])
 
-  const startTask = async (prompt: string, provider: Task['provider'], mode: TaskMode = 'general', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) => {
+  const startTask = async (prompt: string, provider: Task['provider'], mode: TaskMode = 'general', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = selectedSkills) => {
     setCreating(true)
     try {
-      const task = await createTask(prompt, provider, mode, activeProjectId, references, attachments)
+      const task = await createTask(prompt, provider, mode, activeProjectId, references, attachments, skills)
       setTasks((current) => [task, ...current])
       setActiveTaskId(task.id)
       window.history.pushState({}, '', `/tasks/${task.id}`)
@@ -67,6 +69,7 @@ export default function App() {
     setActiveTaskId(taskId)
     window.history.pushState({}, '', taskId ? `/tasks/${taskId}` : '/')
   }
+  const toggleSkill = (skill: TaskSkill) => setSelectedSkills((current) => current.includes(skill) ? current.filter((item) => item !== skill) : current.length >= 4 ? current : [...current, skill])
 
   const addProject = async (name: string, context: string) => {
     const project = await createProject(name, context)
@@ -101,7 +104,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onOpenSchedules={() => { setActiveTaskId(null); setView('schedules'); window.history.pushState({}, '', '/') }} /></motion.div>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onOpenSkills={() => { setActiveTaskId(null); setView('skills'); window.history.pushState({}, '', '/') }} onOpenSchedules={() => { setActiveTaskId(null); setView('schedules'); window.history.pushState({}, '', '/') }} /></motion.div>}</AnimatePresence>
       <main className="main-shell">
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><span className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></span></div>
@@ -109,14 +112,14 @@ export default function App() {
         </header>
 
         <AnimatePresence mode="wait">
-          {view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} /></motion.section> : !activeTaskId ? (
+          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="ambient-grid" />
               <div className="home-content">
                 <div className="home-badge"><ShieldCheck size={14} /> {projects.find((project) => project.id === activeProjectId)?.name ?? 'ONEVibe product'} · ONEComputer security</div>
                 <h1>What will you<br /><span>build safely?</span></h1>
                 <p>Give your team a capable cloud agent without surrendering control of data, tools, or approvals.</p>
-                <PromptComposer busy={creating} onSubmit={startTask} />
+                <PromptComposer busy={creating} skills={selectedSkills} onSubmit={startTask} />
                 <div className="starter-prompts">{starterPrompts.map((prompt) => <button key={prompt} onClick={() => void startTask(prompt, 'demo')}>{prompt}<span>↗</span></button>)}</div>
                 <div className="home-assurance"><span><i /> Disposable workspaces</span><span><i /> Default-deny policy</span><span><i /> Separate wallet approval</span></div>
               </div>

@@ -15,10 +15,11 @@ type Props = {
   onSelectProject: (projectId: string) => void
   onCreateProject: (name: string, context: string) => Promise<void>
   onAttachProjectFile: (projectId: string, file: { name: string; mimeType: string; dataBase64: string }) => Promise<void>
+  onOpenSkills: () => void
   onOpenSchedules: () => void
 }
 
-export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onOpenSchedules }: Props) => {
+export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onOpenSkills, onOpenSchedules }: Props) => {
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
@@ -43,7 +44,7 @@ export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects
     <label className="history-search"><Search size={13} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" /></label>
     <nav className="primary-nav" aria-label="Primary">
       <button className="nav-item active"><Sparkles size={16} /> Agent</button>
-      <button className="nav-item"><Blocks size={16} /> Skills <span className="nav-pill">12</span></button>
+      <button className="nav-item" onClick={onOpenSkills}><Blocks size={16} /> Skills <span className="nav-pill">8</span></button>
       <button className="nav-item" onClick={onOpenSchedules}><Clock3 size={16} /> Scheduled</button>
       <button className="nav-item"><Library size={16} /> Library</button>
     </nav>

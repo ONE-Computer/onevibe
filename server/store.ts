@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
-import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
+import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -105,6 +105,7 @@ export class TaskStore {
       try {
         const task = JSON.parse(await readFile(path.join(this.tasksRoot, entry.name, 'task.json'), 'utf8')) as Task
         task.mode ??= 'general'
+        task.skills ??= []
         task.projectId ??= 'project_onevibe'
         task.references ??= []
         task.attachments ??= []
@@ -132,7 +133,7 @@ export class TaskStore {
     }
   }
 
-  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = [], attachments: TaskAttachment[] = []): Promise<Task> {
+  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = [], attachments: TaskAttachment[] = [], skills: TaskSkill[] = []): Promise<Task> {
     if (!this.projects.has(projectId)) throw new Error('Project not found')
     const now = new Date().toISOString()
     const id = `task_${randomUUID().replaceAll('-', '').slice(0, 14)}`
@@ -142,6 +143,7 @@ export class TaskStore {
       prompt,
       provider,
       mode,
+      skills,
       projectId,
       scheduleId,
       references,

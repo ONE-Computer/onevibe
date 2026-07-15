@@ -1,4 +1,4 @@
-import type { ChatMessage, Project, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
+import type { ChatMessage, Project, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 
 const parse = async <T>(response: Response): Promise<T> => {
   const body = await response.json() as T & { error?: string }
@@ -8,11 +8,11 @@ const parse = async <T>(response: Response): Promise<T> => {
 
 export const listTasks = async () => parse<{ tasks: Task[] }>(await fetch('/api/tasks'))
 
-export const createTask = async (prompt: string, provider: Task['provider'], mode: TaskMode, projectId = 'project_onevibe', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) =>
+export const createTask = async (prompt: string, provider: Task['provider'], mode: TaskMode, projectId = 'project_onevibe', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = []) =>
   parse<Task>(await fetch('/api/tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, provider, mode, projectId, references, attachments }),
+    body: JSON.stringify({ prompt, provider, mode, projectId, references, attachments, skills }),
   }))
 
 export const listProjects = async () => parse<{ projects: Project[] }>(await fetch('/api/projects'))

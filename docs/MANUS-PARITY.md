@@ -21,6 +21,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 13. **I** Agent-mode entry point — primary ONEVibe surface.
 14. **I** Task history surface — durable turn-based chat history, timestamps/status, cursor pagination, full-text search, reload persistence, and evidence export.
 15. **P** Reusable project context — a project now retains a governed brief plus up to twelve bounded, path-confined knowledge files. Text-like files are attached server-side as untrusted context with immutable metadata-only evidence. Folder sync, fine-grained project permissions, connected drives, and deletion/version management remain pending.
+15a. **P** Skill library — eight explicit task skill guides can be selected (up to four per task), persisted, injected as non-authoritative operating guidance, and recorded in evidence. Third-party skill installation, organization policy packs, and per-project defaults remain pending.
 
 ## Prompting, context, and input
 
