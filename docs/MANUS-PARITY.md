@@ -43,7 +43,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 ## Creation modes and templates
 
 29. **I** Create Slides mode — mode-specific plan, eight-slide outline, interactive preview, notes, and genuine PPTX output. ONEVibe also has explicit portable Document and Data-story modes with inspectable source/metadata.
-30. **P** Build Website mode — website artifacts and isolated preview work; mode-specific workflow is pending.
+30. **P** Build Website mode — portable React/Vite output now includes a responsive, accessible enterprise landing-page starter with clear operating-boundary messaging and semantic FAQ disclosure. AI-directed design, screenshot/browser review, richer template packs, and deployment remain pending.
 31. **P** Design mode — concept rationale and design-token artifacts exist; richer visual generation is pending.
 32. **P** Create Games mode — dedicated plan and a portable playable React interaction loop now exist; richer mechanics, game assets, and runtime play-testing remain pending.
 33. **P** Expandable mode catalogue — the composer exposes nine purpose-specific modes with output descriptions and persists the chosen mode. A compact starter gallery now preconfigures editable Website, Briefing, Research, and Internal-tool tasks; deeper per-mode template packs remain pending.
@@ -109,7 +109,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 84. **P** Sandbox-dashboard mockup — security context and a headless visual-runtime timeline are visible; inventory and management interaction are incomplete.
 85. **P** Mobile-wallet mockup — deep link and approval card exist; wallet simulator/client is pending.
 86. **I** Navigation interaction.
-87. **M** FAQ accordion interaction as generated output.
+87. **P** FAQ accordion interaction as generated output — Website mode includes semantic `details`/`summary` disclosure; agent-directed content and browser-reviewed interaction remain pending.
 88. **M** Development observability collector.
 89. **I** Icon-system integration — Lucide.
 90. **M** Generated-asset storage proxy.

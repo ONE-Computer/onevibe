@@ -63,6 +63,21 @@ describe('mode artifacts', () => {
     expect(await store.readWorkspaceFile(task.id, 'app/src/styles.css')).toContain('.signal')
   })
 
+  it('generates a responsive website with an accessible FAQ interaction', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-website-mode-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('A secure home for enterprise agents', 'demo', 'website')
+    await writeModeArtifacts(task, store)
+
+    expect(await store.readWorkspaceFile(task.id, 'app/src/App.tsx')).toContain('<details')
+    expect(await store.readWorkspaceFile(task.id, 'app/src/App.tsx')).toContain('Workspace boundary active')
+    expect(await store.readWorkspaceFile(task.id, 'app/src/styles.css')).toContain('@media(max-width:700px)')
+  })
+
   it('writes an explicit static validation report without claiming runtime verification', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-validation-'))
     temporaryRoots.push(root)
