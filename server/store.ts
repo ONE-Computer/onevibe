@@ -236,6 +236,20 @@ export class TaskStore {
     return updated
   }
 
+  async removeProjectFile(projectId: string, filePath: string) {
+    const project = this.getProject(projectId)
+    const file = project.files.find((candidate) => candidate.path === filePath)
+    if (!file) throw new Error('Project knowledge file not found')
+    const root = path.join(this.projectsRoot, projectId)
+    const target = path.join(root, file.path)
+    assertWithin(root, target)
+    await rm(target, { force: true })
+    const updated = { ...project, files: project.files.filter((candidate) => candidate.path !== file.path), updatedAt: new Date().toISOString() }
+    this.projects.set(projectId, updated)
+    await this.persistProjects()
+    return updated
+  }
+
   async projectContextFiles(projectId: string) {
     const project = this.getProject(projectId)
     const chunks: string[] = []

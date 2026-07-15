@@ -226,6 +226,11 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (!bytes.length || bytes.byteLength > 256 * 1024) throw new Error('Each project knowledge file must be between 1 byte and 256 KiB')
     return json(response, 201, await store.addProjectFile(segments[2], { name: input.name, mimeType: input.mimeType || 'application/octet-stream', bytes }))
   }
+  if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files') {
+    const filePath = url.searchParams.get('path')
+    if (!filePath) throw new Error('Project knowledge file path is required')
+    return json(response, 200, await store.removeProjectFile(segments[2], filePath))
+  }
   if (request.method === 'GET' && url.pathname === '/api/schedules') return json(response, 200, { schedules: store.listSchedules() })
   if (request.method === 'POST' && url.pathname === '/api/schedules') {
     const input = createScheduleInput.parse(await readBody(request))

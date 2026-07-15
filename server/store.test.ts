@@ -255,6 +255,21 @@ describe('TaskStore', () => {
     expect(reloaded.getProject(project.id).files[0]?.name).toBe('brief.md')
   })
 
+  it('removes project knowledge from future context without affecting the project brief', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-project-knowledge-remove-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const project = await store.createProject('Launch', 'Retain this governing brief.')
+    const withKnowledge = await store.addProjectFile(project.id, { name: 'old-brief.md', mimeType: 'text/markdown', bytes: Buffer.from('Stale context') })
+    const updated = await store.removeProjectFile(project.id, withKnowledge.files[0].path)
+
+    expect(updated.context).toBe('Retain this governing brief.')
+    expect(updated.files).toEqual([])
+    await expect(store.projectContextFiles(project.id)).resolves.toEqual([])
+  })
+
   it('persists website references with task context', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-references-'))
     temporaryRoots.push(root)
