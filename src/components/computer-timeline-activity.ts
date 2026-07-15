@@ -211,6 +211,29 @@ export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) 
 
 export const causalVisualItemsFor = (eventId: string, items: ComputerItem[]) => items.filter((item) => item.kind === 'screenshot' && item.payload?.causedByEventId === eventId)
 
+export type RailCardType = 'cli' | 'visual' | 'deliverable' | 'policy'
+export type VisualEvidenceState = 'captured' | 'unavailable' | 'not_applicable'
+
+/**
+ * A frame is evidence only when a stored screenshot is causally related to
+ * this tool event. Browser-capable tools without that evidence must say so,
+ * rather than inheriting another tool's frame or showing decorative imagery.
+ */
+export const visualEvidenceStateFor = (item: ComputerItem, items: ComputerItem[]): VisualEvidenceState => {
+  if (item.kind !== 'terminal') return 'not_applicable'
+  const relatedEventIds = [item.id, ...(item.relatedEventIds ?? [])]
+  if (relatedEventIds.some((eventId) => causalVisualItemsFor(eventId, items).length > 0)) return 'captured'
+  return item.payload?.browserTool === true ? 'unavailable' : 'not_applicable'
+}
+
+/** One small, visible category makes a mixed chronological stream scannable. */
+export const railCardTypeFor = (item: ComputerItem): RailCardType => {
+  if (item.kind === 'terminal') return 'cli'
+  if (item.kind === 'screenshot') return 'visual'
+  if (item.kind === 'approval') return 'policy'
+  return 'deliverable'
+}
+
 export const evidenceItemId = (items: ComputerItem[], eventId: string | null) => {
   const item = eventId ? items.find((candidate) => candidate.id === eventId || candidate.relatedEventIds?.includes(eventId)) : undefined
   return item?.eventHash ? item.id : undefined

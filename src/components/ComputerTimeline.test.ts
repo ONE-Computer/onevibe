@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, virtualRailRange, visualEvidenceStateFor, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -54,6 +54,18 @@ describe('Computer timeline terminal inspection', () => {
     ]
 
     expect(causalVisualItemsFor('event-start', items).map((item) => item.id)).toEqual(['frame-one'])
+  })
+
+  it('keeps mixed rail semantics explicit and never invents a browser frame', () => {
+    const browser: ComputerItem = { id: 'browser-start', kind: 'terminal', title: 'Navigate', createdAt: '2026-07-16T00:00:00.000Z', payload: { browserTool: true } }
+    const frame: ComputerItem = { id: 'frame', kind: 'screenshot', title: 'Browser frame', createdAt: '2026-07-16T00:00:01.000Z', payload: { causedByEventId: 'browser-start' } }
+    const file: ComputerItem = { id: 'file', kind: 'file', title: 'README.md', createdAt: '2026-07-16T00:00:02.000Z' }
+
+    expect(railCardTypeFor(browser)).toBe('cli')
+    expect(railCardTypeFor(frame)).toBe('visual')
+    expect(railCardTypeFor(file)).toBe('deliverable')
+    expect(visualEvidenceStateFor(browser, [browser])).toBe('unavailable')
+    expect(visualEvidenceStateFor(browser, [browser, frame])).toBe('captured')
   })
 
   it('only restores a URL reference for immutable evidence, never the live display', () => {
