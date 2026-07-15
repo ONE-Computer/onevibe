@@ -1,12 +1,27 @@
-import { Box, ExternalLink, FileCode2, FolderOpen, LibraryBig } from 'lucide-react'
+import { Box, ExternalLink, FileCode2, FolderOpen, LibraryBig, Search, X } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useMemo, useState } from 'react'
 import type { LibraryItem, Project } from '../types'
 
 type Props = { items: LibraryItem[]; projects: Project[]; onOpenTask: (taskId: string) => void }
 
 const typeLabel = (mode: LibraryItem['task']['mode']) => mode === 'data' ? 'Data story' : mode === 'app' ? 'App' : mode[0]!.toUpperCase() + mode.slice(1)
 
-export const Library = ({ items, projects, onOpenTask }: Props) => <section className="library-view">
-  <header><div><span className="task-kicker">Reusable governed outputs</span><h1>Library</h1><p>Completed artifacts across projects. Reopen the originating task to inspect the conversation, evidence chain, source, and any approval history.</p></div><LibraryBig size={28} /></header>
-  {!items.length ? <div className="library-empty"><Box size={22} /><strong>No completed artifacts yet</strong><span>Finished work will appear here with its original task and evidence trail.</span></div> : <div className="library-grid">{items.map(({ task, files }) => <motion.article layout key={task.id}><div className="library-card-top"><span>{typeLabel(task.mode)}</span><time>{new Date(task.updatedAt).toLocaleDateString()}</time></div><h2>{task.title}</h2><p>{projects.find((project) => project.id === task.projectId)?.name ?? 'Project workspace'}</p><div className="library-files"><FolderOpen size={13} /> {files.length} artifact{files.length === 1 ? '' : 's'}{files.slice(0, 2).map((file) => <small key={file.path}><FileCode2 size={11} /> {file.path}</small>)}</div><button aria-label={`Open ${task.title}`} onClick={() => onOpenTask(task.id)}>Open governed task <ExternalLink size={13} /></button></motion.article>)}</div>}
-</section>
+export const Library = ({ items, projects, onOpenTask }: Props) => {
+  const [query, setQuery] = useState('')
+  const [mode, setMode] = useState<'all' | LibraryItem['task']['mode']>('all')
+  const modes = [...new Set(items.map((item) => item.task.mode))]
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return items.filter(({ task, files }) => {
+      if (mode !== 'all' && task.mode !== mode) return false
+      if (!needle) return true
+      const project = projects.find((candidate) => candidate.id === task.projectId)?.name ?? ''
+      return [task.title, task.mode, project, ...files.map((file) => file.path)].some((value) => value.toLowerCase().includes(needle))
+    })
+  }, [items, mode, projects, query])
+  return <section className="library-view">
+    <header><div><span className="task-kicker">Reusable governed outputs</span><h1>Library</h1><p>Completed artifacts across projects. Reopen the originating task to inspect the conversation, evidence chain, source, and any approval history.</p></div><LibraryBig size={28} /></header>
+    {!items.length ? <div className="library-empty"><Box size={22} /><strong>No completed artifacts yet</strong><span>Finished work will appear here with its original task and evidence trail.</span></div> : <><div className="library-retrieval"><label><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, project, mode, or artifact path" aria-label="Search library artifacts" />{query && <button onClick={() => setQuery('')} aria-label="Clear library search"><X size={13} /></button>}</label><div>{(['all', ...modes] as const).map((candidate) => <button key={candidate} className={mode === candidate ? 'active' : ''} onClick={() => setMode(candidate)}>{candidate === 'all' ? `All ${items.length}` : typeLabel(candidate)}</button>)}</div></div>{!filtered.length ? <div className="library-empty library-no-results"><Search size={22} /><strong>No matching artifacts</strong><span>Try a different task name, project, mode, or file path.</span></div> : <div className="library-grid">{filtered.map(({ task, files }) => <motion.article layout key={task.id}><div className="library-card-top"><span>{typeLabel(task.mode)}</span><time>{new Date(task.updatedAt).toLocaleDateString()}</time></div><h2>{task.title}</h2><p>{projects.find((project) => project.id === task.projectId)?.name ?? 'Project workspace'}</p><div className="library-files"><FolderOpen size={13} /> {files.length} artifact{files.length === 1 ? '' : 's'}{files.slice(0, 2).map((file) => <small key={file.path}><FileCode2 size={11} /> {file.path}</small>)}</div><button aria-label={`Open ${task.title}`} onClick={() => onOpenTask(task.id)}>Open governed task <ExternalLink size={13} /></button></motion.article>)}</div>}</>}
+  </section>
+}
