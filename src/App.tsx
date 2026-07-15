@@ -10,6 +10,7 @@ import { SharedArtifact } from './components/SharedArtifact'
 import { Schedules } from './components/Schedules'
 import { SkillsLibrary } from './components/SkillsLibrary'
 import { Library } from './components/Library'
+import { Computers } from './components/Computers'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
 import { addProjectFile, cancelTask, createProject, createSchedule, createTask, getRuntimeReadiness, listLibrary, listProjects, listSchedules, listTasks, requestShare, sendFollowUp, setScheduleEnabled } from './lib/api'
@@ -21,10 +22,10 @@ const starterPrompts = [
   'Research a market and produce an evidence-backed report',
   'Create an internal tool with a governed approval flow',
 ]
-type AppView = 'agent' | 'schedules' | 'skills' | 'library'
+type AppView = 'agent' | 'schedules' | 'skills' | 'library' | 'computers'
 const viewFromLocation = (): AppView => {
   const value = new URLSearchParams(window.location.search).get('view')
-  return value === 'schedules' || value === 'skills' || value === 'library' ? value : 'agent'
+  return value === 'schedules' || value === 'skills' || value === 'library' || value === 'computers' ? value : 'agent'
 }
 
 export default function App() {
@@ -131,7 +132,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} /></motion.div>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} /></motion.div>}</AnimatePresence>
       <main className="main-shell">
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><span className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></span></div>
@@ -139,7 +140,7 @@ export default function App() {
         </header>
 
         <AnimatePresence mode="wait">
-          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} /></motion.section> : !activeTaskId ? (
+          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="ambient-grid" />
               <div className="home-content">
