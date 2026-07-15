@@ -65,6 +65,7 @@ const createTaskInput = z.object({
   skills: z.array(taskSkill).max(4).default([]),
 })
 const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), context: z.string().trim().max(8_000).default('') })
+const updateProjectInput = z.object({ context: z.string().trim().max(8_000) })
 const createScheduleInput = z.object({
   name: z.string().trim().min(2).max(100), prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).default('demo'),
@@ -213,6 +214,10 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'POST' && url.pathname === '/api/projects') {
     const input = createProjectInput.parse(await readBody(request))
     return json(response, 201, await store.createProject(input.name, input.context))
+  }
+  if (request.method === 'PATCH' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments.length === 3) {
+    const input = updateProjectInput.parse(await readBody(request))
+    return json(response, 200, await store.updateProjectContext(segments[2], input.context))
   }
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files') {
     const input = projectAttachment.parse(await readBody(request, 500_000))

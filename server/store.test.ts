@@ -22,6 +22,18 @@ describe('TaskStore', () => {
     expect(task.plan[1]?.title).toContain('architecture')
   })
 
+  it('updates a project governed brief durably', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-project-brief-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const project = await store.createProject('Policy project', 'Initial brief')
+    const updated = await store.updateProjectContext(project.id, 'Require review for external publication.')
+    expect(updated.context).toBe('Require review for external publication.')
+    expect(store.getProject(project.id).context).toBe(updated.context)
+  })
+
   it('creates an ordered tamper-evident event chain', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-store-'))
     temporaryRoots.push(root)

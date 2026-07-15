@@ -21,6 +21,9 @@ export const listProjects = async () => parse<{ projects: Project[] }>(await fet
 export const createProject = async (name: string, context: string) => parse<Project>(await fetch('/api/projects', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, context }),
 }))
+export const updateProjectContext = async (projectId: string, context: string) => parse<Project>(await fetch(`/api/projects/${projectId}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context }),
+}))
 export const addProjectFile = async (projectId: string, file: Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }) => parse<Project>(await fetch(`/api/projects/${projectId}/files`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(file),
 }))

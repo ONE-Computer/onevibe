@@ -192,6 +192,14 @@ export class TaskStore {
     return project
   }
 
+  async updateProjectContext(projectId: string, context: string) {
+    const project = this.getProject(projectId)
+    const updated = { ...project, context, updatedAt: new Date().toISOString() }
+    this.projects.set(projectId, updated)
+    await this.persistProjects()
+    return updated
+  }
+
   async addProjectFile(projectId: string, input: { name: string; mimeType: string; bytes: Buffer }) {
     const project = this.getProject(projectId)
     if (project.files.length >= 12) throw new Error('A project can contain at most 12 knowledge files')
