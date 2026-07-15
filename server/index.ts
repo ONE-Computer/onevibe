@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import path from 'node:path'
 import { z } from 'zod'
 import { DemoRuntimeAdapter } from './demo-runner.js'
 import { ClaudeSdkRuntimeAdapter } from './claude-sdk-runner.js'
@@ -36,6 +37,7 @@ const readBody = async (request: IncomingMessage) => {
 const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'remote']).default('demo'),
+  mode: z.enum(['general', 'website', 'slides', 'research', 'design', 'app', 'game']).default('general'),
 })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
 
@@ -110,7 +112,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) {
       return json(response, 409, { error: 'Remote runtime is not configured. Set ONEVIBE_RUNTIME_URL.' })
     }
-    const task = await store.createTask(input.prompt, input.provider)
+    const task = await store.createTask(input.prompt, input.provider, input.mode)
     setTimeout(() => executeTask(task.id, input.prompt, false), 25)
     return json(response, 201, task)
   }
@@ -180,13 +182,24 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'GET' && segments[3] === 'file') {
       const filePath = url.searchParams.get('path')
       if (!filePath) return json(response, 400, { error: 'Missing path' })
+      if (url.searchParams.get('download') === '1') {
+        const bytes = await store.readWorkspaceBytes(taskId, filePath)
+        response.writeHead(200, {
+          'Content-Type': filePath.endsWith('.pptx') ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' : 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${path.basename(filePath).replaceAll('"', '')}"`,
+          'Content-Length': bytes.byteLength,
+          'Cache-Control': 'no-store',
+        })
+        response.end(bytes)
+        return
+      }
       return json(response, 200, { path: filePath, content: await store.readWorkspaceFile(taskId, filePath) })
     }
     if (request.method === 'GET' && segments[3] === 'preview') {
       const html = await store.readWorkspaceFile(taskId, 'index.html')
       response.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
-        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; script-src 'none'; connect-src 'none'; frame-ancestors 'self'",
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; script-src 'unsafe-inline'; connect-src 'none'; frame-ancestors 'self'",
         'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
         'Cache-Control': 'no-store',
       })

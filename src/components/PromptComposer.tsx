@@ -1,19 +1,21 @@
 import { ArrowUp, ChevronDown, Cloud, Link2, Monitor, Paperclip, ShieldCheck, Sparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
-import type { Task } from '../types'
+import type { Task, TaskMode } from '../types'
 
-type Props = { compact?: boolean; busy?: boolean; onSubmit: (prompt: string, provider: Task['provider']) => Promise<void> }
+type Props = { compact?: boolean; busy?: boolean; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode) => Promise<void> }
 
 export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
+  const [mode, setMode] = useState<TaskMode>('general')
   const providers: Task['provider'][] = ['demo', 'claude_sdk', 'remote']
+  const modes: TaskMode[] = ['general', 'website', 'slides', 'research', 'design', 'app', 'game']
 
   const submit = async () => {
     const value = prompt.trim()
     if (!value || busy) return
-    await onSubmit(value, provider)
+    await onSubmit(value, provider, mode)
     setPrompt('')
   }
 
@@ -32,7 +34,7 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
           <button title="Attach files"><Paperclip size={16} /></button>
           <button title="Connect context"><Link2 size={16} /></button>
           <span className="composer-divider" />
-          <button className="mode-button"><Monitor size={15} /> My computer <ChevronDown size={13} /></button>
+          {!compact && <button className="mode-button" onClick={() => setMode(modes[(modes.indexOf(mode) + 1) % modes.length] ?? 'general')}><Monitor size={15} /> {mode === 'general' ? 'Agent' : mode[0]?.toUpperCase() + mode.slice(1)} <ChevronDown size={13} /></button>}
           {!compact && <button className="mode-button" onClick={() => setProvider(providers[(providers.indexOf(provider) + 1) % providers.length] ?? 'demo')}>
             {provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}
             {provider === 'demo' ? 'Safe demo' : provider === 'claude_sdk' ? 'Claude SDK' : 'AgentCore'} <ChevronDown size={13} />

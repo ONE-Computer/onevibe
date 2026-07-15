@@ -29,6 +29,7 @@ export type EventType =
   | 'run_cancelled'
 
 export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'blocked'
+export type TaskMode = 'general' | 'website' | 'slides' | 'research' | 'design' | 'app' | 'game'
 
 export type PlanStep = {
   id: string
@@ -71,6 +72,7 @@ export type Task = {
   title: string
   prompt: string
   provider: 'demo' | 'claude_sdk' | 'remote'
+  mode: TaskMode
   status: RunStatus
   plan: PlanStep[]
   createdAt: string

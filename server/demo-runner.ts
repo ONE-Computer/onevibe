@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { evaluateAction } from './policy.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
+import { writeModeArtifacts } from './mode-artifacts.js'
 
 const pause = (milliseconds: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal.aborted) return reject(new DOMException('Task cancelled', 'AbortError'))
@@ -68,9 +69,10 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
     await pause(500, signal)
     await store.writeWorkspaceFile(task.id, 'index.html', previewHtml(task.title))
     await store.writeWorkspaceFile(task.id, 'manifest.json', `${JSON.stringify({ name: task.title, generatedBy: 'onevibe-demo', sourcePrompt: task.prompt, latestInstruction: prompt, public: false }, null, 2)}\n`)
+    const modeFiles = await writeModeArtifacts(task, store)
     await store.appendEvent(task.id, {
       type: 'tool_call_completed', lane: 'activity', label: 'Source files written',
-      content: 'Three files are available in the task workspace.', payload: { toolName: 'workspace.write', result: 'success' },
+      content: `${modeFiles.length + 3} files are available in the task workspace.`, payload: { toolName: 'workspace.write', result: 'success', mode: task.mode, modeFiles },
     })
     await store.appendEvent(task.id, {
       type: 'artifact_created', lane: 'artifact', label: 'Interactive preview',

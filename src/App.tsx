@@ -8,7 +8,7 @@ import { TaskTimeline } from './components/TaskTimeline'
 import { Workspace } from './components/Workspace'
 import { useTask } from './hooks/useTask'
 import { cancelTask, createTask, listTasks, sendFollowUp } from './lib/api'
-import type { Task } from './types'
+import type { Task, TaskMode } from './types'
 import './index.css'
 
 const starterPrompts = [
@@ -40,10 +40,10 @@ export default function App() {
     setTasks((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))
   }, [snapshot])
 
-  const startTask = async (prompt: string, provider: Task['provider']) => {
+  const startTask = async (prompt: string, provider: Task['provider'], mode: TaskMode = 'general') => {
     setCreating(true)
     try {
-      const task = await createTask(prompt, provider)
+      const task = await createTask(prompt, provider, mode)
       setTasks((current) => [task, ...current])
       setActiveTaskId(task.id)
       window.history.pushState({}, '', `/tasks/${task.id}`)

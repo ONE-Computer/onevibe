@@ -7,6 +7,7 @@ import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 type Tab = 'preview' | 'code' | 'files' | 'history' | 'evidence'
 
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
+const isBinary = (filePath: string) => /\.(pptx|pdf|png|jpe?g|gif|zip)$/i.test(filePath)
 
 export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [tab, setTab] = useState<Tab>('preview')
@@ -25,6 +26,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   }, [task.events.length, task.id])
   useEffect(() => {
     if (!selectedFile) return
+    if (isBinary(selectedFile)) { setContent(''); return }
     void getFile(task.id, selectedFile).then((result) => setContent(result.content))
   }, [selectedFile, task.id])
   useEffect(() => { if (tab === 'evidence') void getEvidence(task.id).then((result) => setChainValid(result.valid)) }, [tab, task.id, task.events.length])
@@ -55,19 +57,19 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
         <AnimatePresence mode="wait">
           {tab === 'preview' && (
             <motion.div key="preview" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="preview-pane">
-              {task.previewPath ? <iframe title="Generated workspace preview" sandbox="" src={activePreview} /> : <div className="workspace-placeholder"><RefreshCw className="spin" size={20} /><strong>Preparing preview</strong><span>The governed workspace is materializing.</span></div>}
+              {task.previewPath ? <iframe title="Generated workspace preview" sandbox="allow-scripts" src={activePreview} /> : <div className="workspace-placeholder"><RefreshCw className="spin" size={20} /><strong>Preparing preview</strong><span>The governed workspace is materializing.</span></div>}
             </motion.div>
           )}
           {tab === 'code' && (
             <motion.div key="code" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="code-pane">
               <aside>{files.map((file) => <button key={file.path} className={selectedFile === file.path ? 'active' : ''} onClick={() => setSelectedFile(file.path)}><File size={13} />{file.path}</button>)}</aside>
-              <pre><code>{content || '// Select a generated file'}</code></pre>
+              <pre><code>{selectedFile && isBinary(selectedFile) ? `Binary artifact: ${selectedFile}\n\nDownload it from the Files tab.` : content || '// Select a generated file'}</code></pre>
             </motion.div>
           )}
           {tab === 'files' && (
             <motion.div key="files" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="files-pane">
               <div className="files-heading"><div><strong>Workspace files</strong><span>Portable source · no ambient credentials</span></div><span>{files.length} files</span></div>
-              {files.map((file) => <button key={file.path} onClick={() => { setSelectedFile(file.path); setTab('code') }}><File size={15} /><span><strong>{file.path}</strong><small>{new Date(file.updatedAt).toLocaleTimeString()}</small></span><em>{formatBytes(file.size)}</em></button>)}
+              {files.map((file) => isBinary(file.path) ? <a className="file-download-row" key={file.path} href={`/api/tasks/${task.id}/file?path=${encodeURIComponent(file.path)}&download=1`}><Download size={15} /><span><strong>{file.path}</strong><small>Download binary artifact</small></span><em>{formatBytes(file.size)}</em></a> : <button key={file.path} onClick={() => { setSelectedFile(file.path); setTab('code') }}><File size={15} /><span><strong>{file.path}</strong><small>{new Date(file.updatedAt).toLocaleTimeString()}</small></span><em>{formatBytes(file.size)}</em></button>)}
             </motion.div>
           )}
           {tab === 'history' && (

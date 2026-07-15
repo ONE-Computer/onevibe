@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
-import type { EventInput, RuntimeEvent, Task, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
+import type { EventInput, RuntimeEvent, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -15,6 +15,25 @@ const assertWithin = (root: string, candidate: string) => {
 const writeJson = async (filePath: string, value: unknown) => {
   await mkdir(path.dirname(filePath), { recursive: true })
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+const planFor = (mode: TaskMode): Task['plan'] => {
+  const middle: Record<TaskMode, [string, string, string]> = {
+    general: ['Prepare the governed workspace', 'Create the requested artifact', 'Validate output and policy decisions'],
+    website: ['Generate and select a design concept', 'Build the responsive website', 'Run build, browser, and accessibility checks'],
+    slides: ['Draft the slide-by-slide outline', 'Render the deck and speaker notes', 'Validate layout and export formats'],
+    research: ['Define sources and evidence criteria', 'Collect and synthesize findings', 'Verify citations and uncertainty'],
+    design: ['Generate visual directions', 'Develop the selected design system', 'Review consistency and accessibility'],
+    app: ['Define the application architecture', 'Build the interactive application', 'Run type, build, and interaction checks'],
+    game: ['Define mechanics and art direction', 'Build the playable experience', 'Play-test controls and completion paths'],
+  }
+  return [
+    { id: 'scope', title: 'Understand the request and security boundaries', status: 'pending' },
+    { id: 'workspace', title: middle[mode][0], status: 'pending' },
+    { id: 'build', title: middle[mode][1], status: 'pending' },
+    { id: 'verify', title: middle[mode][2], status: 'pending' },
+    { id: 'deliver', title: 'Deliver source, preview, and evidence', status: 'pending' },
+  ]
 }
 
 export class TaskStore {
@@ -44,6 +63,7 @@ export class TaskStore {
       if (!entry.isDirectory()) continue
       try {
         const task = JSON.parse(await readFile(path.join(this.tasksRoot, entry.name, 'task.json'), 'utf8')) as Task
+        task.mode ??= 'general'
         const eventFile = path.join(this.tasksRoot, entry.name, 'events.json')
         let storedEvents: RuntimeEvent[] = []
         try {
@@ -59,7 +79,7 @@ export class TaskStore {
     }
   }
 
-  async createTask(prompt: string, provider: Task['provider']): Promise<Task> {
+  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general'): Promise<Task> {
     const now = new Date().toISOString()
     const id = `task_${randomUUID().replaceAll('-', '').slice(0, 14)}`
     const task: Task = {
@@ -67,14 +87,9 @@ export class TaskStore {
       title: prompt.length > 56 ? `${prompt.slice(0, 53).trim()}…` : prompt,
       prompt,
       provider,
+      mode,
       status: 'pending',
-      plan: [
-        { id: 'scope', title: 'Understand the request and security boundaries', status: 'pending' },
-        { id: 'workspace', title: 'Prepare the governed workspace', status: 'pending' },
-        { id: 'build', title: 'Create the requested artifact', status: 'pending' },
-        { id: 'verify', title: 'Validate output and policy decisions', status: 'pending' },
-        { id: 'deliver', title: 'Deliver source, preview, and evidence', status: 'pending' },
-      ],
+      plan: planFor(mode),
       createdAt: now,
       updatedAt: now,
     }
@@ -163,8 +178,18 @@ export class TaskStore {
     await writeFile(target, content, 'utf8')
   }
 
+  async writeWorkspaceBytes(taskId: string, relativePath: string, content: Uint8Array) {
+    const target = this.workspacePath(taskId, relativePath)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, content)
+  }
+
   async readWorkspaceFile(taskId: string, relativePath: string) {
     return readFile(this.workspacePath(taskId, relativePath), 'utf8')
+  }
+
+  async readWorkspaceBytes(taskId: string, relativePath: string) {
+    return readFile(this.workspacePath(taskId, relativePath))
   }
 
   async listWorkspaceFiles(taskId: string): Promise<WorkspaceFile[]> {
@@ -231,7 +256,7 @@ export class TaskStore {
   async exportWorkspaceZip(taskId: string) {
     const files = await this.listWorkspaceFiles(taskId)
     const entries: Record<string, Uint8Array> = {}
-    for (const file of files) entries[file.path] = strToU8(await this.readWorkspaceFile(taskId, file.path))
+    for (const file of files) entries[file.path] = await this.readWorkspaceBytes(taskId, file.path)
     entries['ONEVIBE-EVIDENCE.json'] = strToU8(`${JSON.stringify({
       task: this.getTask(taskId),
       events: this.listEvents(taskId),

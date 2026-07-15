@@ -84,6 +84,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
           'You are ONEVibe, an enterprise agent operating inside a governed task workspace.',
           'Work only inside the current directory. Never request, expose, or persist credentials.',
           'Create portable source files and a README. For a website, create index.html with no external dependencies.',
+          `The selected creation mode is ${task.mode}. Follow its artifact conventions and produce mode-appropriate source, rationale, and validation notes.`,
           'Do not publish, access external services, or claim security certification. Public release requires a separate VTI Wallet.',
         ].join(' '),
         tools: [...allowedTools],

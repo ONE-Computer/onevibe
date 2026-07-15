@@ -40,10 +40,10 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 
 ## Creation modes and templates
 
-29. **M** Create Slides mode.
+29. **I** Create Slides mode — mode-specific plan, eight-slide outline, interactive preview, notes, and genuine PPTX output.
 30. **P** Build Website mode — website artifacts and isolated preview work; mode-specific workflow is pending.
-31. **M** Design mode.
-32. **M** Create Games mode.
+31. **P** Design mode — concept rationale and design-token artifacts exist; richer visual generation is pending.
+32. **P** Create Games mode — dedicated plan and app scaffold exist; playable game generation is pending.
 33. **M** Expandable mode catalogue.
 34. **M** E-commerce / Shopify template.
 35. **M** Landing-page template.
@@ -54,17 +54,17 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 40. **M** Link-in-bio template.
 41. **M** Blog template.
 42. **M** Slide-template catalogue and import.
-43. **M** Structured slide outline before rendering.
-44. **M** Template-driven task bootstrapping.
+43. **I** Structured slide outline before rendering — persisted eight-slide `outline.json`.
+44. **I** Template-driven task bootstrapping — seven persisted modes receive distinct plans and artifact contracts.
 
 ## Website ideation and design
 
-45. **M** Automatic concept generation.
+45. **P** Automatic concept generation — Design mode writes three deterministic candidates; agent-generated exploration is pending.
 46. **M** Candidate probability display.
-47. **M** Automatic concept selection.
+47. **I** Automatic concept selection — Design mode records its selected direction in `ideas.md`.
 48. **M** Named design philosophy.
-49. **M** Design-principle documentation.
-50. **P** Semantic color planning — ONEVibe shell uses semantic tokens; generated work does not enforce it.
+49. **I** Design-principle documentation — Design mode retains `ideas.md`.
+50. **I** Semantic color planning — generated tokens distinguish verified and pending states.
 51. **M** Generated brand artwork.
 52. **P** Responsive-layout intent — shell is responsive; generated-project validation is pending.
 53. **P** Restrained-motion intent — shell uses Framer Motion and reduced-motion handling.
@@ -88,20 +88,20 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 68. **I** Files workspace tab.
 69. **M** Settings workspace tab.
 70. **I** Workspace expansion — fullscreen overlay with explicit exit and Escape handling.
-71. **M** Vite project generation.
-72. **M** React and TypeScript generation as a mode contract.
+71. **I** Vite project generation — Website, App, and Game modes emit a portable Vite scaffold.
+72. **I** React and TypeScript generation as a mode contract.
 73. **M** Tailwind CSS integration as a generated scaffold.
 74. **M** Component-library scaffold.
 75. **M** Server scaffold.
 76. **M** Shared-code scaffold.
 77. **M** Package lock generation.
-78. **M** Formatting configuration.
-79. **M** Git ignore generation.
-80. **M** Generated ideation artifact.
+78. **I** Formatting configuration — generated `.prettierrc`.
+79. **I** Git ignore generation — generated `.gitignore` excludes dependencies, builds, and environment files.
+80. **I** Generated ideation artifact — Design mode persists candidate rationale and selection.
 
 ## Interaction and application assembly
 
-81. **M** Stateful React interactions as a generated-project guarantee.
+81. **I** Stateful React interactions — App-family scaffolds include a typed stateful interaction.
 82. **M** Role-journey interaction.
 83. **P** Security-approval demonstration — external request is real in the contract; resolution is not yet connected.
 84. **P** Sandbox-dashboard mockup — security context is visible; management interaction is incomplete.
@@ -121,8 +121,8 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 95. **M** GitHub handoff action.
 96. **I** Download-as-ZIP source handoff with evidence manifest.
 97. **P** Artifact reuse controls — follow-up editing, immutable version history/restore, ZIP, and fullscreen work; copy and governed sharing are pending.
-98. **M** Multi-format slide export.
-99. **M** Interactive deck viewer with notes.
+98. **P** Multi-format slide export — PPTX is implemented and ZIP-portable; PDF and cloud-drive destinations are pending.
+99. **P** Interactive deck viewer with notes — previous/next preview and speaker notes work; thumbnails and editable notes are pending.
 100. **M** Cross-device clients.
 
 ## Immediate parity sequence
