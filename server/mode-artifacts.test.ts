@@ -44,4 +44,23 @@ describe('mode artifacts', () => {
     expect(await store.readWorkspaceFile(task.id, 'app/vite.config.ts')).toContain('defineConfig')
     expect((await store.listWorkspaceFiles(task.id)).map((file) => file.path)).toContain('app/.gitignore')
   })
+
+  it('writes an explicit static validation report without claiming runtime verification', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-validation-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const { validateModeArtifacts } = await import('./artifact-validation.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Build a governed dashboard', 'demo', 'app')
+    await store.writeWorkspaceFile(task.id, 'index.html', '<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width"><title>Dashboard</title></head><body><h1>Dashboard</h1></body></html>')
+    await writeModeArtifacts(task, store)
+
+    const validation = await validateModeArtifacts(task, store)
+
+    expect(validation.passed).toBe(true)
+    expect(validation.limitation).toContain('Static contract')
+    expect(await store.readWorkspaceFile(task.id, 'validation-report.json')).toContain('app:build-script')
+  })
 })

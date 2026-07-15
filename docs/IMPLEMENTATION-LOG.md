@@ -31,3 +31,4 @@
 - Added the ONEComputer visual-runtime bridge: the server can request a headless X11 session, persist its PNG frame in task evidence, and proxy current screenshots to the workspace UI. The browser never gains X11, VNC, CDP, or service-token access.
 - Added a persisted semantic system/light/dark theme with pre-paint preference selection, accessible focus states, and reduced-motion handling.
 - Documented the product roadmap and visual microVM architecture. The remaining deployment gate is an end-to-end attestation of the actual sandbox provider, gateway egress enforcement, and visual-capture API—not merely the local demo UI.
+- Added explicit per-mode artifact-contract validation. Each deterministic task saves `validation-report.json` covering required files and format/semantic checks; it intentionally distinguishes static checks from dependency installation, executed builds, browser automation, and production security verification.

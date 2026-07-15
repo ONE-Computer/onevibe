@@ -1,0 +1,81 @@
+import type { TaskStore } from './store.js'
+import type { Task, TaskMode } from './types.js'
+
+export type ArtifactCheck = {
+  id: string
+  status: 'passed' | 'failed' | 'skipped'
+  detail: string
+}
+
+export type ArtifactValidation = {
+  version: 1
+  mode: TaskMode
+  checkedAt: string
+  passed: boolean
+  checks: ArtifactCheck[]
+  limitation: string
+}
+
+const required = async (store: TaskStore, taskId: string, filePath: string, checks: ArtifactCheck[]) => {
+  try {
+    const content = await store.readWorkspaceFile(taskId, filePath)
+    checks.push({ id: `file:${filePath}`, status: 'passed', detail: `${filePath} exists` })
+    return content
+  } catch {
+    checks.push({ id: `file:${filePath}`, status: 'failed', detail: `${filePath} is missing` })
+    return undefined
+  }
+}
+
+const check = (checks: ArtifactCheck[], id: string, pass: boolean, detail: string) => checks.push({ id, status: pass ? 'passed' : 'failed', detail })
+
+export const validateModeArtifacts = async (task: Task, store: TaskStore): Promise<ArtifactValidation> => {
+  const checks: ArtifactCheck[] = []
+  const preview = await required(store, task.id, 'index.html', checks)
+  if (preview) {
+    check(checks, 'preview:language', /<html[^>]+lang=["']en["']/i.test(preview), 'Preview declares document language')
+    check(checks, 'preview:viewport', /<meta[^>]+name=["']viewport["']/i.test(preview), 'Preview declares a responsive viewport')
+    check(checks, 'preview:title', /<title>[^<]+<\/title>/i.test(preview), 'Preview declares a document title')
+    check(checks, 'preview:heading', /<h1[\s>]/i.test(preview), 'Preview includes a primary heading')
+    check(checks, 'preview:no-secrets', !/(?:api[_-]?key|secret|password)\s*[:=]\s*["'][^"']{8,}/i.test(preview), 'Preview contains no obvious embedded credential')
+  }
+  if (task.mode === 'slides') {
+    const outline = await required(store, task.id, 'outline.json', checks)
+    await required(store, task.id, 'speaker-notes.md', checks)
+    const deck = await store.readWorkspaceBytes(task.id, 'deck.pptx').catch(() => undefined)
+    check(checks, 'slides:pptx', Boolean(deck?.subarray(0, 2).every((byte, index) => byte === [0x50, 0x4b][index])), 'Deck is a ZIP-based PPTX file')
+    let parsedOutline: unknown[] | undefined
+    try { parsedOutline = outline ? JSON.parse(outline) as unknown[] : undefined } catch { /* recorded below */ }
+    check(checks, 'slides:outline', Array.isArray(parsedOutline) && parsedOutline.length === 8, 'Deck outline has eight slides')
+  }
+  if (task.mode === 'research') {
+    const report = await required(store, task.id, 'report.md', checks)
+    const sources = await required(store, task.id, 'sources.json', checks)
+    check(checks, 'research:findings', Boolean(report?.includes('## Findings')), 'Research report distinguishes findings')
+    try { JSON.parse(sources ?? '') ; check(checks, 'research:sources-json', true, 'Sources manifest is valid JSON') } catch { check(checks, 'research:sources-json', false, 'Sources manifest is valid JSON') }
+  }
+  if (task.mode === 'design') {
+    await required(store, task.id, 'ideas.md', checks)
+    const tokens = await required(store, task.id, 'design-tokens.json', checks)
+    try { JSON.parse(tokens ?? '') ; check(checks, 'design:tokens-json', true, 'Design tokens are valid JSON') } catch { check(checks, 'design:tokens-json', false, 'Design tokens are valid JSON') }
+  }
+  if (task.mode === 'website' || task.mode === 'app' || task.mode === 'game') {
+    const packageJson = await required(store, task.id, 'app/package.json', checks)
+    await required(store, task.id, 'app/src/App.tsx', checks)
+    await required(store, task.id, 'app/src/main.tsx', checks)
+    await required(store, task.id, 'app/vite.config.ts', checks)
+    await required(store, task.id, 'app/tsconfig.json', checks)
+    await required(store, task.id, 'app/.gitignore', checks)
+    try {
+      const manifest = JSON.parse(packageJson ?? '') as { scripts?: { build?: string } }
+      check(checks, 'app:build-script', Boolean(manifest.scripts?.build), 'Portable scaffold declares a build script')
+    } catch { check(checks, 'app:build-script', false, 'Portable scaffold declares a build script') }
+  }
+  const validation: ArtifactValidation = {
+    version: 1, mode: task.mode, checkedAt: new Date().toISOString(),
+    passed: checks.every((item) => item.status !== 'failed'), checks,
+    limitation: 'Static contract validation only. It does not execute generated code, perform browser automation, inspect third-party dependencies, or prove production deployment safety.',
+  }
+  await store.writeWorkspaceFile(task.id, 'validation-report.json', `${JSON.stringify(validation, null, 2)}\n`)
+  return validation
+}

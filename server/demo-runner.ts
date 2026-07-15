@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { evaluateAction } from './policy.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 import { writeModeArtifacts } from './mode-artifacts.js'
+import { validateModeArtifacts } from './artifact-validation.js'
 
 const pause = (milliseconds: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal.aborted) return reject(new DOMException('Task cancelled', 'AbortError'))
@@ -90,6 +91,16 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
 
     await store.setPlanStep(task.id, 'verify', 'running')
     await pause(380, signal)
+    await store.appendEvent(task.id, {
+      type: 'tool_call_started', lane: 'activity', label: 'Validate artifact contract',
+      content: 'Checking required outputs, portable metadata, preview semantics, and obvious credential leaks.', payload: { toolName: 'artifact.validate', mode: task.mode },
+    })
+    const validation = await validateModeArtifacts(task, store)
+    await store.appendEvent(task.id, {
+      type: 'tool_call_completed', lane: 'activity', label: validation.passed ? 'Artifact contract passed' : 'Artifact contract needs review',
+      content: validation.passed ? `${validation.checks.length} static checks passed. Runtime and browser validation remain separate gates.` : 'One or more static checks failed; inspect validation-report.json before handoff.',
+      payload: { toolName: 'artifact.validate', passed: validation.passed, report: 'validation-report.json', checkCount: validation.checks.length },
+    })
     const publishDecision = evaluateAction('publish_preview')
     const approvalId = `approval_${randomUUID().replaceAll('-', '').slice(0, 12)}`
     const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()

@@ -9,6 +9,7 @@ The first vertical slice already supports:
 - multi-turn follow-up instructions that resume the same task workspace and Claude SDK session;
 - immutable workspace version history and evidence-recorded restore;
 - mode-specific Website, Slides, Research, Design, App, and Game workflows, including native PPTX generation;
+- per-task static artifact validation reports for generated previews, portable app scaffolds, slide decks, research manifests, and design tokens;
 - embedded source editing with diff review, optimistic concurrency, version snapshot, and evidence recording;
 - first-class waiting-for-user requests that resume the parked Claude tool call or demo execution;
 - externally approved, capability-based read-only sharing with signed local wallet receipts;
