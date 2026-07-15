@@ -12,8 +12,8 @@ import { SkillsLibrary } from './components/SkillsLibrary'
 import { Library } from './components/Library'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelTask, createProject, createSchedule, createTask, listLibrary, listProjects, listSchedules, listTasks, requestShare, sendFollowUp, setScheduleEnabled } from './lib/api'
-import type { LibraryItem, Project, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
+import { addProjectFile, cancelTask, createProject, createSchedule, createTask, getRuntimeReadiness, listLibrary, listProjects, listSchedules, listTasks, requestShare, sendFollowUp, setScheduleEnabled } from './lib/api'
+import type { LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
 const starterPrompts = [
@@ -33,6 +33,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [schedules, setSchedules] = useState<TaskSchedule[]>([])
   const [library, setLibrary] = useState<LibraryItem[]>([])
+  const [runtime, setRuntime] = useState<RuntimeReadiness>()
   const [activeProjectId, setActiveProjectId] = useState('project_onevibe')
   const [view, setView] = useState<AppView>(viewFromLocation)
   const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>([])
@@ -50,6 +51,7 @@ export default function App() {
   useEffect(() => { void refreshTasks() }, [refreshTasks])
   useEffect(() => { void listLibrary().then(({ items }) => setLibrary(items)) }, [])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)) }, [])
+  useEffect(() => { void getRuntimeReadiness().then(setRuntime).catch(() => undefined) }, [])
   useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }) }, [activeProjectId])
   useEffect(() => {
     const onPopState = () => {
@@ -144,7 +146,7 @@ export default function App() {
                 <div className="home-badge"><ShieldCheck size={14} /> {projects.find((project) => project.id === activeProjectId)?.name ?? 'ONEVibe product'} · ONEComputer security</div>
                 <h1>What will you<br /><span>build safely?</span></h1>
                 <p>Give your team a capable cloud agent without surrendering control of data, tools, or approvals.</p>
-                <PromptComposer busy={creating} skills={selectedSkills} onSubmit={startTask} />
+                <PromptComposer busy={creating} skills={selectedSkills} runtime={runtime} onSubmit={startTask} />
                 <div className="starter-prompts">{starterPrompts.map((prompt) => <button key={prompt} onClick={() => void startTask(prompt, 'demo')}>{prompt}<span>↗</span></button>)}</div>
                 <div className="home-assurance"><span><i /> Disposable workspaces</span><span><i /> Default-deny policy</span><span><i /> Separate wallet approval</span></div>
               </div>
@@ -158,7 +160,7 @@ export default function App() {
                     {error && <div className="stream-warning">{error}</div>}
                     <TaskTimeline task={snapshot} events={snapshot.events} />
                     <TaskPlan plan={snapshot.plan} />
-                    <PromptComposer compact busy={creating || Boolean(snapshot.inputRequest)} queueable={snapshot.status === 'running' || snapshot.status === 'pending'} onSubmit={(prompt) => continueTask(prompt)} />
+                    <PromptComposer compact busy={creating || Boolean(snapshot.inputRequest)} queueable={snapshot.status === 'running' || snapshot.status === 'pending'} runtime={runtime} onSubmit={(prompt) => continueTask(prompt)} />
                   </div>
                   <div className="workspace-pane"><Workspace task={snapshot} /></div>
                 </>

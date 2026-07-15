@@ -1,10 +1,10 @@
 import { AppWindow, ArrowUp, BarChart3, Bot, ChevronDown, Cloud, FileText, Gamepad2, Globe2, Info, Link2, Monitor, Palette, Paperclip, Presentation, Search, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useRef, useState } from 'react'
-import type { Task, TaskAttachment, TaskMode, TaskSkill } from '../types'
+import type { RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSkill } from '../types'
 
 type DraftAttachment = Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string; size: number }
-type Props = { compact?: boolean; busy?: boolean; queueable?: boolean; skills?: TaskSkill[]; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[]) => Promise<void> }
+type Props = { compact?: boolean; busy?: boolean; queueable?: boolean; skills?: TaskSkill[]; runtime?: RuntimeReadiness; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[]) => Promise<void> }
 
 const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: typeof Bot }> = [
   { id: 'general', label: 'Agent', detail: 'Flexible governed task', icon: Bot },
@@ -25,7 +25,7 @@ const starterTemplates: Array<{ title: string; outcome: string; prompt: string; 
   { title: 'Prototype an internal tool', outcome: 'Interactive app', mode: 'app', prompt: 'Create a focused internal tool prototype with a clean workflow, realistic sample data, and a responsive interface. Explain the decisions made.' },
 ]
 
-export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], onSubmit }: Props) => {
+export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], runtime, onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
   const [mode, setMode] = useState<TaskMode>('general')
@@ -33,14 +33,16 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
   const [references, setReferences] = useState<string[]>([])
   const [referencesOpen, setReferencesOpen] = useState(false)
   const [modePickerOpen, setModePickerOpen] = useState(false)
+  const [providerPickerOpen, setProviderPickerOpen] = useState(false)
   const [attachments, setAttachments] = useState<DraftAttachment[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
-  const providers: Task['provider'][] = ['demo', 'claude_sdk', 'onecomputer', 'remote']
   const selectedMode = modeCatalog.find((candidate) => candidate.id === mode) ?? modeCatalog[0]!
+  const providerStates = runtime?.providers ?? [{ id: 'demo' as const, label: 'Safe demo', boundary: 'Local task workspace', available: true, detail: 'Deterministic UX and evidence contract; not VM isolation.' }]
+  const selectedProvider = providerStates.find((candidate) => candidate.id === provider) ?? providerStates[0]!
 
   const submit = async () => {
     const value = prompt.trim()
-    if (!value || busy) return
+    if (!value || busy || !selectedProvider.available) return
     await onSubmit(value, provider, mode, references, attachments, skills)
     setPrompt('')
     setReferences([])
@@ -74,14 +76,11 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
           {!compact && <button title="Connect website reference" aria-label="Connect website reference" onClick={() => setReferencesOpen((value) => !value)}><Link2 size={16} /></button>}
           <span className="composer-divider" />
           {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen((value) => !value)}><Monitor size={15} /> {selectedMode.label} <ChevronDown size={13} /></button>{modePickerOpen && <motion.div className="mode-catalog" role="menu" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: .98 }}>{modeCatalog.map((candidate) => { const Icon = candidate.icon; return <button key={candidate.id} role="menuitem" className={candidate.id === mode ? 'selected' : ''} onClick={() => { setMode(candidate.id); setModePickerOpen(false) }}><Icon size={15} /><span><strong>{candidate.label}</strong><small>{candidate.detail}</small></span>{candidate.id === mode && <ShieldCheck size={13} />}</button> })}</motion.div>}</div>}
-          {!compact && <button className="mode-button" onClick={() => setProvider(providers[(providers.indexOf(provider) + 1) % providers.length] ?? 'demo')}>
-            {provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}
-            {provider === 'demo' ? 'Safe demo' : provider === 'claude_sdk' ? 'Claude SDK' : provider === 'onecomputer' ? 'ONEComputer' : 'AgentCore'} <ChevronDown size={13} />
-          </button>}
+          {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={providerPickerOpen} onClick={() => setProviderPickerOpen((value) => !value)}><span className={`runtime-dot ${selectedProvider.available ? 'ready' : 'unavailable'}`} />{provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}{selectedProvider.label} <ChevronDown size={13} /></button>{providerPickerOpen && <motion.div className="mode-catalog provider-catalog" role="menu" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: .98 }}>{providerStates.map((candidate) => <button key={candidate.id} role="menuitem" className={candidate.id === provider ? 'selected' : ''} disabled={!candidate.available} onClick={() => { setProvider(candidate.id); setProviderPickerOpen(false) }}><span className={`runtime-dot ${candidate.available ? 'ready' : 'unavailable'}`} /><Cloud size={15} /><span><strong>{candidate.label}</strong><small>{candidate.boundary} · {candidate.detail}</small></span>{candidate.id === provider && <ShieldCheck size={13} />}</button>)}</motion.div>}</div>}
         </div>
         <div className="composer-right">
           <span className="policy-chip"><ShieldCheck size={13} /> governed</span>
-          <button className="send-button" disabled={!prompt.trim() || busy} onClick={() => void submit()} aria-label={queueable ? 'Queue guidance for next turn' : 'Start task'}><ArrowUp size={17} /></button>
+          <button className="send-button" disabled={!prompt.trim() || busy || !selectedProvider.available} onClick={() => void submit()} aria-label={queueable ? 'Queue guidance for next turn' : 'Start task'}><ArrowUp size={17} /></button>
         </div>
       </div>
     </motion.div>

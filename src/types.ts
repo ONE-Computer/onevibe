@@ -74,3 +74,5 @@ export type Task = {
 }
 
 export type TaskSnapshot = Task & { events: RuntimeEvent[]; files: WorkspaceFile[]; messages: ChatMessage[] }
+export type RuntimeProviderState = { id: Task['provider']; label: string; boundary: string; available: boolean; detail: string }
+export type RuntimeReadiness = { providers: RuntimeProviderState[] }

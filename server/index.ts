@@ -11,6 +11,7 @@ import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
 import { UserInputBroker } from './user-input-broker.js'
 import { WalletApprovalService } from './wallet-approval-service.js'
+import { runtimeReadiness } from './runtime-readiness.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -197,6 +198,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       oneComputerSandboxConfigured: oneComputerConfigured,
     })
   }
+  if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, runtimeReadiness({ remoteConfigured: Boolean(REMOTE_RUNTIME_URL), oneComputerConfigured }))
 
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
     return json(response, 200, { tasks: store.listTasks() })
