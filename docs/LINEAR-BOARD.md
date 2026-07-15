@@ -4,6 +4,15 @@
 
 [ONEVibe — Backend E2E & Manus Parity](https://linear.app/onecomputer/project/onevibe-backend-e2e-and-manus-parity-ff4554221471) is the execution source of truth for ONEVibe. The broader ONEComputer × OpenVTC project owns platform identity, policy, wallet, and gateway work; it is not the ONEVibe product backlog.
 
+Linear also serves as the management and architecture review hub:
+
+- [Architecture, North Star, and Management Overview](https://linear.app/onecomputer/document/onevibe-architecture-north-star-and-management-overview-27ae12db08ed)
+- [Backend System Architecture and Data Contracts](https://linear.app/onecomputer/document/onevibe-backend-system-architecture-and-data-contracts-87f16ad25cfa)
+- [ADR-001 — One Durable Conversation Owns One MicroVM](https://linear.app/onecomputer/document/adr-001-one-durable-conversation-owns-one-microvm-7f16afddf894)
+- [Release Gates and Evidence Matrix](https://linear.app/onecomputer/document/onevibe-release-gates-and-evidence-matrix-57f4789dc493)
+- [Risks, Decisions, and Open Questions](https://linear.app/onecomputer/document/onevibe-risks-decisions-and-open-questions-528b7de05f59)
+- [Engineering Workstreams and Agent Delegation Model](https://linear.app/onecomputer/document/onevibe-engineering-workstreams-and-agent-delegation-model-2b0ec99f18c5)
+
 The current release gate is [ONE-215](https://linear.app/onecomputer/issue/ONE-215):
 
 1. `ONE-216` — transactional conversation, turn, and message service.
@@ -31,3 +40,9 @@ Read the credential at `../handover/onecomputer-handover-secrets-lean/mac/linear
 - Descriptions must include the backend contract, lifecycle/state model, failure behavior, security invariants, acceptance tests, evidence, dependencies, and non-goals.
 - Do not mark a task Done from demo mode, a host-process fallback, mocked provider IDs, fixture-only artifacts, or a passing unit test that never reaches the real provider.
 - After implementation, comment with commit SHA, commands, live provider/runtime IDs (non-secret), evidence-chain result, artifact validation, teardown receipt, and remaining limitations.
+
+## Delegation
+
+The main agent remains product manager, architecture owner, integration reviewer, and release-evidence owner. Specialist agents receive bounded tickets only after shared interfaces are approved. Persistence (`ONE-216`) lands its repository/schema contract before runtime lifecycle (`ONE-217`) and event ingestion (`ONE-219`) implement against it. At most two mutating workstreams run concurrently until those foundations stabilize; read-only research and design audits may run wider.
+
+A specialist cannot change another workstream's public contract, introduce frontend-authoritative state, downgrade a real-provider acceptance test to a fixture, or mark an issue Done. Each handoff must identify its issue, changed files/interfaces, migrations/configuration, focused tests, failure/security analysis, limitations, and reproduction commands. The main agent runs the full gate, integrates, commits, and updates Linear.
