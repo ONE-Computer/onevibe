@@ -195,4 +195,20 @@ describe('mode artifacts', () => {
     expect((await validateModeArtifacts(document, store)).passed).toBe(true)
     expect((await validateModeArtifacts(data, store)).passed).toBe(true)
   })
+
+  it('preserves declared research references as unverified provenance without fetching them', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-research-provenance-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Review approved source material', 'demo', 'research', 'project_onevibe', undefined, ['https://user:password@example.com/report?token=never-show#fragment'])
+    await writeModeArtifacts(task, store)
+
+    const sources = await store.readWorkspaceFile(task.id, 'sources.json')
+    expect(sources).toContain('https://example.com/report')
+    expect(sources).not.toContain('never-show')
+    expect(await store.readWorkspaceFile(task.id, 'report.md')).toContain('not fetched by this runtime')
+  })
 })

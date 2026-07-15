@@ -4,6 +4,19 @@ import type { Task } from './types.js'
 
 const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 
+const declaredReference = (value: string) => {
+  try {
+    const url = new URL(value)
+    url.username = ''
+    url.password = ''
+    url.search = ''
+    url.hash = ''
+    return { url: url.toString(), hostname: url.hostname, provenance: 'user_supplied_unverified', retrieved: false }
+  } catch {
+    return { url: '[invalid reference omitted]', hostname: '', provenance: 'user_supplied_unverified', retrieved: false }
+  }
+}
+
 const shell = (title: string, body: string, script = '') => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>:root{font-family:Inter,system-ui;background:#090b0a;color:#f3f6f4}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 75% 10%,#143523,transparent 35%),#090b0a}main{width:min(1060px,92vw);margin:auto;padding:56px 0}.eyebrow{font:11px ui-monospace;color:#42db82;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(42px,7vw,82px);line-height:.94;letter-spacing:-.06em;margin:20px 0}p{color:#9aa59e;line-height:1.65}.card{border:1px solid #29332d;background:#101411;border-radius:14px;padding:22px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:30px}button{border:1px solid #375241;background:#15251b;color:#a5e3bd;border-radius:8px;padding:9px 12px;cursor:pointer}</style></head><body><main>${body}</main>${script ? `<script>${script}</script>` : ''}</body></html>`
 
 const slideOutlineFor = (task: Task): Array<[string, string]> => {
@@ -135,9 +148,10 @@ export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
     return ['index.html', 'document.md', 'document.json']
   }
   if (task.mode === 'research') {
-    await store.writeWorkspaceFile(task.id, 'report.md', `# ${task.title}\n\n## Research question\n\n${task.prompt}\n\n## Findings\n\nThis local demo establishes the evidence-oriented artifact contract. Native Claude mode performs the substantive research.\n\n## Limitations\n\nNo external sources were accessed by the deterministic demo runtime.\n`)
-    await store.writeWorkspaceFile(task.id, 'sources.json', '[]\n')
-    await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, `<div class="eyebrow">Evidence-backed research</div><h1>${escapeHtml(task.title)}</h1><div class="grid"><article class="card"><strong>Question</strong><p>${escapeHtml(task.prompt)}</p></article><article class="card"><strong>Boundary</strong><p>No external sources were accessed in demo mode.</p></article></div>`))
+    const sources = task.references.map(declaredReference)
+    await store.writeWorkspaceFile(task.id, 'report.md', `# ${task.title}\n\n## Research question\n\n${task.prompt}\n\n## Findings\n\nThis local demo establishes the evidence-oriented artifact contract. Native Claude mode performs the substantive research.\n\n## Declared sources\n\n${sources.length ? sources.map((source) => `- ${source.url} — user-supplied, unverified, and not fetched by this runtime.`).join('\n') : 'No references were supplied.'}\n\n## Limitations\n\nNo external sources were accessed by the deterministic demo runtime. A declared reference is provenance for user intent, not a verified citation or evidence of retrieval.\n`)
+    await store.writeWorkspaceFile(task.id, 'sources.json', `${JSON.stringify(sources, null, 2)}\n`)
+    await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, `<div class="eyebrow">Evidence-backed research</div><h1>${escapeHtml(task.title)}</h1><div class="grid"><article class="card"><strong>Question</strong><p>${escapeHtml(task.prompt)}</p></article><article class="card"><strong>Declared references</strong><p>${sources.length} user-supplied reference${sources.length === 1 ? '' : 's'} recorded. No external sources were fetched in demo mode.</p></article><article class="card"><strong>Boundary</strong><p>Declared references are unverified context, not citations or evidence of retrieval.</p></article></div>`))
     return ['index.html', 'report.md', 'sources.json']
   }
   if (task.mode === 'data') {
