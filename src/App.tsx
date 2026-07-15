@@ -7,10 +7,11 @@ import { TaskPlan } from './components/TaskPlan'
 import { TaskTimeline } from './components/TaskTimeline'
 import { Workspace } from './components/Workspace'
 import { SharedArtifact } from './components/SharedArtifact'
+import { Schedules } from './components/Schedules'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { cancelTask, createProject, createTask, listProjects, listTasks, requestShare, sendFollowUp } from './lib/api'
-import type { Project, Task, TaskMode } from './types'
+import { cancelTask, createProject, createSchedule, createTask, listProjects, listSchedules, listTasks, requestShare, sendFollowUp, setScheduleEnabled } from './lib/api'
+import type { Project, Task, TaskMode, TaskSchedule } from './types'
 import './index.css'
 
 const starterPrompts = [
@@ -23,7 +24,9 @@ export default function App() {
   const shareId = window.location.pathname.match(/^\/share\/([^/]+)$/)?.[1]
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
+  const [schedules, setSchedules] = useState<TaskSchedule[]>([])
   const [activeProjectId, setActiveProjectId] = useState('project_onevibe')
+  const [view, setView] = useState<'agent' | 'schedules'>('agent')
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -35,6 +38,7 @@ export default function App() {
   }, [])
 
   useEffect(() => { void refreshTasks() }, [refreshTasks])
+  useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)) }, [])
   useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }) }, [activeProjectId])
   useEffect(() => {
     const onPopState = () => setActiveTaskId(window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
@@ -59,6 +63,7 @@ export default function App() {
   }
 
   const navigateToTask = (taskId: string | null) => {
+    setView('agent')
     setActiveTaskId(taskId)
     window.history.pushState({}, '', taskId ? `/tasks/${taskId}` : '/')
   }
@@ -67,6 +72,15 @@ export default function App() {
     const project = await createProject(name, context)
     setProjects((current) => [project, ...current])
     setActiveProjectId(project.id)
+  }
+
+  const addSchedule = async (input: Pick<TaskSchedule, 'name' | 'prompt' | 'provider' | 'mode' | 'projectId' | 'intervalMinutes'>) => {
+    const schedule = await createSchedule(input)
+    setSchedules((current) => [...current, schedule].sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt)))
+  }
+  const toggleSchedule = async (schedule: TaskSchedule) => {
+    const updated = await setScheduleEnabled(schedule.id, !schedule.enabled)
+    setSchedules((current) => current.map((item) => item.id === updated.id ? updated : item))
   }
 
   if (shareId) return <SharedArtifact shareId={shareId} />
@@ -83,7 +97,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} /></motion.div>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onOpenSchedules={() => { setActiveTaskId(null); setView('schedules'); window.history.pushState({}, '', '/') }} /></motion.div>}</AnimatePresence>
       <main className="main-shell">
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><span className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></span></div>
@@ -91,7 +105,7 @@ export default function App() {
         </header>
 
         <AnimatePresence mode="wait">
-          {!activeTaskId ? (
+          {view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="ambient-grid" />
               <div className="home-content">

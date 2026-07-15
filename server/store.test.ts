@@ -137,6 +137,22 @@ describe('TaskStore', () => {
     expect(reloaded.getTask(task.id).projectId).toBe(project.id)
   })
 
+  it('claims due schedules once and advances their next governed run', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-schedules-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const schedule = await store.createSchedule({ name: 'Daily review', prompt: 'Review pending approvals', provider: 'demo', mode: 'research', projectId: 'project_onevibe', intervalMinutes: 15 })
+    const due = await store.claimDueSchedules(new Date(new Date(schedule.nextRunAt).getTime() + 1))
+
+    expect(due).toHaveLength(1)
+    expect(due[0]?.id).toBe(schedule.id)
+    expect(store.listSchedules()[0]?.lastRunAt).toBeTruthy()
+    expect(store.listSchedules()[0]?.nextRunAt > schedule.nextRunAt).toBe(true)
+    expect(await store.claimDueSchedules(new Date(new Date(schedule.nextRunAt).getTime() + 1))).toHaveLength(0)
+  })
+
   it('persists, paginates, searches, and completes chat turns independently of events', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-chat-history-'))
     temporaryRoots.push(root)

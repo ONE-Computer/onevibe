@@ -51,6 +51,13 @@ const createTaskInput = z.object({
   projectId: z.string().regex(/^project_[a-z0-9]+$/).default('project_onevibe'),
 })
 const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), context: z.string().trim().max(8_000).default('') })
+const createScheduleInput = z.object({
+  name: z.string().trim().min(2).max(100), prompt: z.string().trim().min(3).max(8_000),
+  provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).default('demo'),
+  mode: z.enum(['general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']).default('general'),
+  projectId: z.string().regex(/^project_[a-z0-9]+$/), intervalMinutes: z.number().int().min(15).max(10_080),
+})
+const scheduleStateInput = z.object({ enabled: z.boolean() })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
@@ -139,6 +146,17 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'POST' && url.pathname === '/api/projects') {
     const input = createProjectInput.parse(await readBody(request))
     return json(response, 201, await store.createProject(input.name, input.context))
+  }
+  if (request.method === 'GET' && url.pathname === '/api/schedules') return json(response, 200, { schedules: store.listSchedules() })
+  if (request.method === 'POST' && url.pathname === '/api/schedules') {
+    const input = createScheduleInput.parse(await readBody(request))
+    if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) return json(response, 409, { error: 'Remote runtime is not configured' })
+    if (input.provider === 'onecomputer' && (!ONECOMPUTER_API_URL || !ONECOMPUTER_SERVICE_TOKEN)) return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured' })
+    return json(response, 201, await store.createSchedule(input))
+  }
+  if (request.method === 'PATCH' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2]) {
+    const input = scheduleStateInput.parse(await readBody(request))
+    return json(response, 200, await store.setScheduleEnabled(segments[2], input.enabled))
   }
 
   if (request.method === 'GET' && url.pathname === '/api/search') {
@@ -385,6 +403,17 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 }
 
 await store.initialize()
+const runDueSchedules = async () => {
+  for (const schedule of await store.claimDueSchedules()) {
+    const task = await store.createTask(schedule.prompt, schedule.provider, schedule.mode, schedule.projectId, schedule.id)
+    await store.appendEvent(task.id, {
+      type: 'activity_delta', lane: 'control', label: 'Scheduled run claimed',
+      content: `Created by schedule “${schedule.name}” at its governed interval.`, payload: { scheduleId: schedule.id, intervalMinutes: schedule.intervalMinutes },
+    })
+    setTimeout(() => executeTask(task.id, schedule.prompt, false), 25)
+  }
+}
+setInterval(() => { void runDueSchedules().catch((error: unknown) => console.error('Schedule dispatch failed', error)) }, 15_000).unref()
 createServer((request, response) => {
   route(request, response).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)

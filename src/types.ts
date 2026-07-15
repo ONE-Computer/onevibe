@@ -4,6 +4,7 @@ export type PresentationPanel = 'terminal' | 'screenshot' | 'preview' | 'file' |
 export type PresentationDescriptor = { panel: PresentationPanel; uri?: string; artifactPath?: string }
 
 export type Project = { id: string; name: string; context: string; createdAt: string; updatedAt: string }
+export type TaskSchedule = { id: string; name: string; prompt: string; provider: Task['provider']; mode: TaskMode; projectId: string; intervalMinutes: number; enabled: boolean; nextRunAt: string; lastRunAt?: string; createdAt: string; updatedAt: string }
 export type EventLane = 'transcript' | 'activity' | 'control' | 'artifact' | 'approval'
 
 export type RuntimeEvent = {
@@ -33,6 +34,7 @@ export type Task = {
   provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'
   mode: TaskMode
   projectId: string
+  scheduleId?: string
   status: RunStatus
   plan: PlanStep[]
   createdAt: string

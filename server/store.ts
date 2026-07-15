@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
-import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
+import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskMode, TaskSchedule, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -56,6 +56,7 @@ export class TaskStore {
   private events = new Map<string, RuntimeEvent[]>()
   private messages = new Map<string, ChatMessage[]>()
   private projects = new Map<string, Project>()
+  private schedules = new Map<string, TaskSchedule>()
   private activeTurns = new Map<string, string>()
   private emitter = new EventEmitter()
   private tasksRoot: string
@@ -63,6 +64,7 @@ export class TaskStore {
   private runtimeRoot: string
   private versionsRoot: string
   private projectsFile: string
+  private schedulesFile: string
 
   constructor(dataRoot = DEFAULT_DATA_ROOT) {
     const resolvedRoot = path.resolve(dataRoot)
@@ -71,6 +73,7 @@ export class TaskStore {
     this.runtimeRoot = path.join(resolvedRoot, 'runtime')
     this.versionsRoot = path.join(resolvedRoot, 'versions')
     this.projectsFile = path.join(resolvedRoot, 'projects.json')
+    this.schedulesFile = path.join(resolvedRoot, 'schedules.json')
   }
 
   async initialize() {
@@ -87,6 +90,10 @@ export class TaskStore {
       this.projects.set('project_onevibe', { id: 'project_onevibe', name: 'ONEVibe product', context: 'Governed agent workspace powered by ONEComputer and OpenVTC. Keep approvals outside the browser and preserve evidence.', createdAt: now, updatedAt: now })
       await this.persistProjects()
     }
+    try {
+      const stored = JSON.parse(await readFile(this.schedulesFile, 'utf8')) as TaskSchedule[]
+      for (const schedule of stored) this.schedules.set(schedule.id, schedule)
+    } catch { /* first local run */ }
     const entries = await readdir(this.tasksRoot, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
@@ -114,7 +121,7 @@ export class TaskStore {
     }
   }
 
-  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe'): Promise<Task> {
+  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string): Promise<Task> {
     if (!this.projects.has(projectId)) throw new Error('Project not found')
     const now = new Date().toISOString()
     const id = `task_${randomUUID().replaceAll('-', '').slice(0, 14)}`
@@ -125,6 +132,7 @@ export class TaskStore {
       provider,
       mode,
       projectId,
+      scheduleId,
       status: 'pending',
       plan: planFor(mode),
       createdAt: now,
@@ -155,6 +163,36 @@ export class TaskStore {
     this.projects.set(project.id, project)
     await this.persistProjects()
     return project
+  }
+
+  listSchedules() { return [...this.schedules.values()].sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt)) }
+
+  async createSchedule(input: Pick<TaskSchedule, 'name' | 'prompt' | 'provider' | 'mode' | 'projectId' | 'intervalMinutes'>): Promise<TaskSchedule> {
+    if (!this.projects.has(input.projectId)) throw new Error('Project not found')
+    const now = new Date().toISOString()
+    const schedule: TaskSchedule = { id: `schedule_${randomUUID().replaceAll('-', '').slice(0, 12)}`, ...input, enabled: true, nextRunAt: new Date(Date.now() + input.intervalMinutes * 60_000).toISOString(), createdAt: now, updatedAt: now }
+    this.schedules.set(schedule.id, schedule)
+    await this.persistSchedules()
+    return schedule
+  }
+
+  async setScheduleEnabled(id: string, enabled: boolean) {
+    const current = this.schedules.get(id)
+    if (!current) throw new Error('Schedule not found')
+    const updated = { ...current, enabled, updatedAt: new Date().toISOString(), ...(enabled && current.nextRunAt < new Date().toISOString() ? { nextRunAt: new Date().toISOString() } : {}) }
+    this.schedules.set(id, updated)
+    await this.persistSchedules()
+    return updated
+  }
+
+  async claimDueSchedules(now = new Date()) {
+    const due = this.listSchedules().filter((schedule) => schedule.enabled && schedule.nextRunAt <= now.toISOString())
+    for (const schedule of due) {
+      const updated = { ...schedule, lastRunAt: now.toISOString(), nextRunAt: new Date(now.getTime() + schedule.intervalMinutes * 60_000).toISOString(), updatedAt: now.toISOString() }
+      this.schedules.set(schedule.id, updated)
+    }
+    if (due.length) await this.persistSchedules()
+    return due
   }
 
   getTask(id: string) {
@@ -427,6 +465,7 @@ export class TaskStore {
   }
 
   private async persistProjects() { await writeJson(this.projectsFile, this.listProjects()) }
+  private async persistSchedules() { await writeJson(this.schedulesFile, this.listSchedules()) }
 
   private async appendAssistantDelta(taskId: string, content: string) {
     let turnId = this.activeTurns.get(taskId)

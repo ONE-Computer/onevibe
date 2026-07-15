@@ -14,9 +14,10 @@ type Props = {
   activeProjectId: string
   onSelectProject: (projectId: string) => void
   onCreateProject: (name: string, context: string) => Promise<void>
+  onOpenSchedules: () => void
 }
 
-export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject }: Props) => {
+export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject, onOpenSchedules }: Props) => {
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
@@ -40,7 +41,7 @@ export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects
     <nav className="primary-nav" aria-label="Primary">
       <button className="nav-item active"><Sparkles size={16} /> Agent</button>
       <button className="nav-item"><Blocks size={16} /> Skills <span className="nav-pill">12</span></button>
-      <button className="nav-item"><Clock3 size={16} /> Scheduled</button>
+      <button className="nav-item" onClick={onOpenSchedules}><Clock3 size={16} /> Scheduled</button>
       <button className="nav-item"><Library size={16} /> Library</button>
     </nav>
     <div className="nav-section-label"><span>Projects</span><button aria-label="Create project" onClick={() => setCreatingProject((value) => !value)}><Plus size={13} /></button></div>

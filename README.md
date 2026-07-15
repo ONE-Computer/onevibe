@@ -15,6 +15,7 @@ The first vertical slice already supports:
 - externally approved, capability-based read-only sharing with signed local wallet receipts;
 - durable multi-turn chat history with streaming state, pagination, cross-task search, migration, and export;
 - durable project workspaces with a governed background brief that is attached server-side to each new agent run;
+- persistent schedules (15-minute minimum) that create ordinary project-bound tasks with the same evidence and approval controls;
 - a typed Server-Sent Events task timeline;
 - durable plan-step lifecycle timing, including elapsed duration in the task plan and evidence-backed transitions;
 - a Manus-inspired **Computer** panel that records and scrubs agent terminal activity, visual frames, previews, and produced files beside the conversation;

@@ -1,4 +1,4 @@
-import type { ChatMessage, Project, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
+import type { ChatMessage, Project, Task, TaskMode, TaskSchedule, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 
 const parse = async <T>(response: Response): Promise<T> => {
   const body = await response.json() as T & { error?: string }
@@ -18,6 +18,13 @@ export const createTask = async (prompt: string, provider: Task['provider'], mod
 export const listProjects = async () => parse<{ projects: Project[] }>(await fetch('/api/projects'))
 export const createProject = async (name: string, context: string) => parse<Project>(await fetch('/api/projects', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, context }),
+}))
+export const listSchedules = async () => parse<{ schedules: TaskSchedule[] }>(await fetch('/api/schedules'))
+export const createSchedule = async (input: Pick<TaskSchedule, 'name' | 'prompt' | 'provider' | 'mode' | 'projectId' | 'intervalMinutes'>) => parse<TaskSchedule>(await fetch('/api/schedules', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+}))
+export const setScheduleEnabled = async (id: string, enabled: boolean) => parse<TaskSchedule>(await fetch(`/api/schedules/${id}`, {
+  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }),
 }))
 
 export const getTask = async (taskId: string) => parse<TaskSnapshot>(await fetch(`/api/tasks/${taskId}`))

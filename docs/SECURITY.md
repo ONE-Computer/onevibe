@@ -22,6 +22,7 @@
 - ONEComputer mode executes Claude through the sandbox API, rejects unsafe artifact paths, caps extraction at 100 files/10 MiB, and deletes the sandbox by default.
 - A ONEComputer sandbox is not presented as gateway-enforced unless `ONECOMPUTER_GATEWAY_ENFORCED=true` is explicitly configured after deployment verification.
 - Visual-runtime capture is pull-only: ONEVibe requests a sandbox-owned headless X11 PNG over the authenticated service channel, stores the resulting frame as evidence, and proxies it to the browser. It does not expose VNC, X11, Chrome DevTools Protocol, or sandbox tokens to the browser.
+- Schedules are constrained to a 15-minute minimum and only dispatch ordinary task creation. They do not carry approval authority, bypass policy, or gain direct publication/connector credentials.
 
 ## Promotion gates
 
