@@ -110,7 +110,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 85. **P** Mobile-wallet mockup — deep link and approval card exist; wallet simulator/client is pending.
 86. **I** Navigation interaction.
 87. **P** FAQ accordion interaction as generated output — Website mode includes semantic `details`/`summary` disclosure; agent-directed content and browser-reviewed interaction remain pending.
-88. **M** Development observability collector.
+88. **P** Development observability — task-scoped event-derived duration, tool activity/errors, X11 evidence count, artifact count, runtime boundary, and gateway-attestation state are rendered in the workspace. Provider metrics, network flows, organization telemetry, and export remain pending.
 89. **I** Icon-system integration — Lucide.
 90. **M** Generated-asset storage proxy.
 

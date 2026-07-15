@@ -6,11 +6,12 @@ import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
 
-type Tab = 'dashboard' | 'computer' | 'preview' | 'visual' | 'slides' | 'database' | 'code' | 'files' | 'history' | 'evidence' | 'settings'
+type Tab = 'dashboard' | 'computer' | 'observe' | 'preview' | 'visual' | 'slides' | 'database' | 'code' | 'files' | 'history' | 'evidence' | 'settings'
 type SlideOutline = { number: number; title: string; summary: string }
 
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
 const isBinary = (filePath: string) => /\.(pptx|pdf|png|jpe?g|gif|zip)$/i.test(filePath)
+const formatElapsed = (milliseconds: number) => milliseconds < 1_000 ? '<1s' : milliseconds < 60_000 ? `${Math.round(milliseconds / 1_000)}s` : `${Math.floor(milliseconds / 60_000)}m ${Math.round((milliseconds % 60_000) / 1_000)}s`
 
 export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [tab, setTab] = useState<Tab>('preview')
@@ -31,6 +32,17 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [activeSlide, setActiveSlide] = useState(0)
   const [dataRows, setDataRows] = useState<string[][]>([])
   const completedSteps = task.plan.filter((step) => step.status === 'completed').length
+  const observability = useMemo(() => {
+    const startedAt = task.events.find((event) => event.type === 'run_started')?.createdAt ?? task.createdAt
+    const endedAt = task.events.at(-1)?.createdAt ?? task.updatedAt
+    const tools = task.events.filter((event) => event.type.startsWith('tool_call'))
+    const toolCalls = tools.filter((event) => event.type === 'tool_call_started').length
+    const toolFailures = tools.filter((event) => event.payload.isError === true).length
+    const visualFrames = task.events.filter((event) => event.payload.kind === 'visual_frame').length
+    const artifacts = task.events.filter((event) => event.type === 'artifact_created' || event.type === 'artifact_updated').length
+    const duration = Math.max(0, new Date(endedAt).getTime() - new Date(startedAt).getTime())
+    return { startedAt, duration, toolCalls, toolFailures, visualFrames, artifacts }
+  }, [task.createdAt, task.events, task.updatedAt])
 
   useEffect(() => {
     void getFiles(task.id).then((result) => {
@@ -93,6 +105,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
         <div className="workspace-tabs">
           <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}><Activity size={14} /> Dashboard</button>
           <button className={tab === 'computer' ? 'active' : ''} onClick={() => setTab('computer')}><TerminalSquare size={14} /> Computer</button>
+          <button className={tab === 'observe' ? 'active' : ''} onClick={() => setTab('observe')}><Network size={14} /> Observe</button>
           <button className={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}><Globe2 size={14} /> Preview</button>
           {task.mode === 'slides' && <button className={tab === 'slides' ? 'active' : ''} onClick={() => setTab('slides')}><Presentation size={14} /> Deck</button>}
           {task.mode === 'data' && <button className={tab === 'database' ? 'active' : ''} onClick={() => setTab('database')}><Table2 size={14} /> Data</button>}
@@ -110,6 +123,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
         <AnimatePresence mode="wait">
           {tab === 'dashboard' && <motion.div key="dashboard" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="dashboard-pane"><header><div><span>Task workspace</span><strong>{task.status.replaceAll('_', ' ')}</strong></div><p>{task.securityContext?.executionBoundary === 'onecomputer_sandbox' ? 'ONEComputer sandbox boundary' : task.securityContext?.executionBoundary === 'remote_runtime' ? 'Remote runtime boundary' : 'Local task workspace'}</p></header><div className="dashboard-grid"><article><span>Plan progress</span><strong>{completedSteps} / {task.plan.length}</strong><small>{task.plan.find((step) => step.status === 'running')?.title ?? 'No active plan step'}</small></article><article><span>Portable artifacts</span><strong>{files.filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')).length}</strong><small>{files.length} files in workspace</small></article><article><span>Evidence events</span><strong>{task.events.length}</strong><small>{task.activeRunId ? `Active run ${task.activeRunId.slice(-6)}` : 'No active run'}</small></article><article><span>Approval boundary</span><strong>{task.approval?.state ?? 'none'}</strong><small>{task.approval ? 'Decision remains in VTI Wallet' : 'No consequential action pending'}</small></article></div><section className="dashboard-boundary"><ShieldCheck size={17} /><div><strong>{task.securityContext?.gatewayEnforced ? 'Gateway enforcement attested' : 'Policy boundary visible'}</strong><span>{task.securityContext?.gatewayEnforced ? 'Runtime reports gateway enforcement for this task.' : 'This task does not claim production gateway attestation.'}</span></div></section></motion.div>}
           {tab === 'computer' && <motion.div key="computer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="computer-pane"><ComputerTimeline task={task} /></motion.div>}
+          {tab === 'observe' && <motion.div key="observe" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="observability-pane"><header><div><span>Task-scoped execution facts</span><strong>Observability</strong></div><em>Derived from recorded events</em></header><div className="observability-grid"><article><span>Observed duration</span><strong>{formatElapsed(observability.duration)}</strong><small>From task start to latest recorded event</small></article><article><span>Tool calls</span><strong>{observability.toolCalls}</strong><small>{observability.toolFailures ? `${observability.toolFailures} reported errors` : 'No reported tool errors'}</small></article><article><span>Visual evidence</span><strong>{observability.visualFrames}</strong><small>{task.securityContext?.visualRuntimeReady ? 'X11 capture enabled' : 'No visual runtime attested'}</small></article><article><span>Artifacts</span><strong>{observability.artifacts}</strong><small>{files.filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')).length} portable files available</small></article></div><section className="observability-run"><div><Activity size={15} /><span>Run boundary</span></div><strong>{task.provider === 'onecomputer' ? 'ONEComputer sandbox' : task.provider === 'claude_sdk' ? 'Claude Agent SDK' : task.provider === 'remote' ? 'Remote runtime' : 'Local demo runtime'}</strong><small>Started {new Date(observability.startedAt).toLocaleString()} · {task.securityContext?.gatewayEnforced ? 'gateway enforcement attested' : 'no gateway attestation claimed'}</small></section><section className="observability-note"><ShieldCheck size={14} /><p>This is a review surface, not an infrastructure control plane. It reports only task evidence available to ONEVibe; provider metrics, network flows, and organization telemetry are intentionally not inferred.</p></section></motion.div>}
           {tab === 'preview' && (
             <motion.div key="preview" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="preview-pane">
               {task.previewPath ? <iframe title="Generated workspace preview" sandbox="allow-scripts" src={activePreview} /> : <div className="workspace-placeholder"><RefreshCw className="spin" size={20} /><strong>Preparing preview</strong><span>The governed workspace is materializing.</span></div>}
