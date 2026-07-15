@@ -21,7 +21,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
   it('projects a bounded, redacted Claude stream journal into timeline events', async () => {
     const { parseClaudeStreamJournal } = await import('./onecomputer-sandbox-runner.js')
     const journal = [
-      JSON.stringify({ type: 'assistant', session_id: 'session-sandbox-1', message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Write', input: { file_path: 'index.html', api_key: 'never-show' } }] } }),
+      JSON.stringify({ type: 'assistant', session_id: 'session-sandbox-1', message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Write', input: { file_path: 'index.html', api_key: 'never-show', url: 'https://user:password@example.com/path?token=never-show#secret' } }] } }),
       JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'Wrote index.html' }] } }),
       JSON.stringify({ type: 'result', session_id: 'session-sandbox-1', result: 'Completed the page.' }),
     ].join('\n')
@@ -29,7 +29,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(parseClaudeStreamJournal(journal)).toEqual({
       sessionId: 'session-sandbox-1', result: 'Completed the page.',
       entries: [
-        { kind: 'tool_started', toolUseId: 'tool-1', name: 'Write', input: { file_path: 'index.html', api_key: '[REDACTED]' } },
+        { kind: 'tool_started', toolUseId: 'tool-1', name: 'Write', input: { file_path: 'index.html', api_key: '[REDACTED]', url: 'https://example.com/path' } },
         { kind: 'tool_completed', toolUseId: 'tool-1', content: 'Wrote index.html', isError: false },
       ],
     })

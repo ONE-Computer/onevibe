@@ -15,9 +15,26 @@ const wait = (milliseconds: number, signal: AbortSignal) => new Promise<void>((r
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
+const redactUrl = (value: string) => {
+  try {
+    const url = new URL(value)
+    if (!['http:', 'https:', 'file:'].includes(url.protocol)) return value
+    url.username = ''
+    url.password = ''
+    url.search = ''
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return value
+  }
+}
+
 const sanitize = (value: unknown, depth = 0): unknown => {
   if (depth > 6) return '[Max depth]'
-  if (typeof value === 'string') return value.length > 8_000 ? `${value.slice(0, 8_000)}…[truncated]` : value
+  if (typeof value === 'string') {
+    const bounded = value.length > 8_000 ? `${value.slice(0, 8_000)}…[truncated]` : value
+    return redactUrl(bounded)
+  }
   if (Array.isArray(value)) return value.slice(0, 100).map((item) => sanitize(item, depth + 1))
   if (!isRecord(value)) return value
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, /authorization|cookie|token|secret|api[_-]?key|password/i.test(key) ? '[REDACTED]' : sanitize(item, depth + 1)]))
