@@ -39,7 +39,15 @@ The default view is chronological and auto-follows new activity. A settled task 
 4. **P0d — browser evidence (in progress):** Website, App, and Game outputs now add an explicit sandbox-local `file://` Chromium screenshot after artifact extraction, with hostname resolution blocked. Allowlisted browser-tool starts/results now produce explicitly labelled X11 checkpoints tied to the tool-use ID and a bounded tool/URL record; query strings, fragments, credentials, and sandbox-local paths are removed before projection. Add trusted page-title metadata and production browser playback without exposing CDP or control credentials.
 5. **P0e — scale and accessibility:** Progressive media loading, keyboard traversal, screen-reader labels, reduced-motion behavior, and performance proof at 10,000 events.
 6. **P0f — real runtime proof:** Exercise the rail against an attested ONEComputer X11/browser runtime—not demo fixtures—with redaction and retention evidence.
-7. **P0g — Manus-style mixed tool stream (next):** Make the rail visibly alternate between the right evidence type for the agent's actual tool call: a compact CLI transcript for command work; an inline X11/browser capture for graphical work; and a file, diff, preview, or slide card for a produced deliverable. Preserve a single scroll position across the mixed stream, bind every card to the same tool-use/run/sequence model, and make visual capture availability explicit rather than fabricating a frame. Validate the interaction against real sandbox sessions before treating the UX as parity.
+7. **P0g — Manus-style mixed tool stream (highest-priority active track):** Make the rail visibly alternate between the right evidence type for the agent's actual tool call: a compact CLI transcript for command work; an inline X11/browser capture for graphical work; and a file, diff, preview, or slide card for a produced deliverable. Preserve one continuous scroll position while a reviewer moves backward and forward through the work; bind every card to the same tool-use/run/sequence model; and make visual-capture availability explicit rather than fabricating a frame. This is the primary interaction to study against a real Manus session when a detail is uncertain—not a generic activity-feed redesign. Validate the interaction against real attested sandbox sessions before treating the UX as parity.
+
+### P0g acceptance checklist
+
+- For a real task that mixes shell and browser work, the rail interleaves the command/request, sanitized output/result, causal X11/browser frame, and resulting artifact in their actual order.
+- A CLI card stays compact until expanded, preserves its result pairing, and never leaks host paths, credentials, or a live shell.
+- A visual card is tied to the producing tool call; when no capture exists, the UI says so rather than showing a placeholder that could be mistaken for evidence.
+- The reviewer can scroll or keyboard-step in either direction across CLI, visual, and deliverable cards without losing their anchor, context, or immutable deep link.
+- Study notes for any Manus-specific interaction detail record the observed behavior, source/session, and the ONEVibe security adaptation before it is copied into product behavior.
 
 ## Definition of done
 
