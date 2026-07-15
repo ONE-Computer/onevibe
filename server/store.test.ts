@@ -306,6 +306,20 @@ describe('TaskStore', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('normalizes bounded artifact tags and records only tag metadata in the control stream', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-task-tags-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Classify this governed artifact', 'demo')
+    const tagged = await store.updateTaskTags(task.id, ['Security', 'executive-update', 'security'])
+
+    expect(tagged.tags).toEqual(['security', 'executive-update'])
+    expect(store.listEvents(task.id).at(-1)).toMatchObject({ type: 'activity_delta', label: 'Task tags updated', payload: { tags: ['security', 'executive-update'] } })
+    await expect(store.updateTaskTags(task.id, ['not valid'])).rejects.toThrow('Task tags')
+  })
+
   it('persists website references with task context', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-references-'))
     temporaryRoots.push(root)

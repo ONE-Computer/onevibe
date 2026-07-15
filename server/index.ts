@@ -81,6 +81,7 @@ const createScheduleInput = z.object({
 const scheduleStateInput = z.object({ enabled: z.boolean() })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
 const moveTaskProjectInput = z.object({ projectId: z.string().regex(/^project_[a-z0-9]+$/) })
+const updateTaskTagsInput = z.object({ tags: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/)).max(8) })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const restoreProjectFileInput = z.object({ expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
@@ -358,6 +359,10 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before moving it to another project' })
       const input = moveTaskProjectInput.parse(await readBody(request))
       return json(response, 200, await store.moveTaskToProject(taskId, input.projectId))
+    }
+    if (request.method === 'PATCH' && segments[3] === 'tags') {
+      const input = updateTaskTagsInput.parse(await readBody(request))
+      return json(response, 200, await store.updateTaskTags(taskId, input.tags))
     }
     if (request.method === 'POST' && segments[3] === 'messages') {
       const input = followUpInput.parse(await readBody(request))

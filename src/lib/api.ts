@@ -67,6 +67,9 @@ export const cancelTask = async (taskId: string) =>
 export const moveTaskToProject = async (taskId: string, projectId: string) =>
   parse<Task>(await fetch(`/api/tasks/${taskId}/project`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId }) }))
 
+export const updateTaskTags = async (taskId: string, tags: string[]) =>
+  parse<Task>(await fetch(`/api/tasks/${taskId}/tags`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tags }) }))
+
 export const sendFollowUp = async (taskId: string, prompt: string) =>
   parse<{ status: string; taskId: string }>(await fetch(`/api/tasks/${taskId}/messages`, {
     method: 'POST',

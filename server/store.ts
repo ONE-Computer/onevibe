@@ -128,6 +128,7 @@ export class TaskStore {
         const task = JSON.parse(await readFile(path.join(this.tasksRoot, entry.name, 'task.json'), 'utf8')) as Task
         task.mode ??= 'general'
         task.skills ??= []
+        task.tags ??= []
         task.queuedGuidance ??= []
         task.projectId ??= 'project_onevibe'
         task.references ??= []
@@ -168,6 +169,7 @@ export class TaskStore {
       provider,
       mode,
       skills,
+      tags: [],
       queuedGuidance: [],
       projectId,
       scheduleId,
@@ -428,6 +430,19 @@ export class TaskStore {
       type: 'activity_delta', lane: 'control', label: 'Task moved to project',
       content: `Moved from ${origin.name} to ${destination.name}. Future continuations use the destination project context.`,
       payload: { fromProjectId: origin.id, fromProjectName: origin.name, toProjectId: destination.id, toProjectName: destination.name, continuationContextChanged: true },
+    })
+    return this.getTask(taskId)
+  }
+
+  async updateTaskTags(taskId: string, tags: string[]) {
+    const task = this.getTask(taskId)
+    const normalized = [...new Set(tags.map((tag) => tag.trim().toLowerCase()))]
+    if (normalized.length > 8 || normalized.some((tag) => !/^[a-z0-9][a-z0-9-]{0,31}$/.test(tag))) throw new Error('Task tags must be 1–32 lowercase letters, numbers, or hyphens')
+    if (normalized.join('|') === task.tags.join('|')) return task
+    await this.updateTask(taskId, { tags: normalized })
+    await this.appendEvent(taskId, {
+      type: 'activity_delta', lane: 'control', label: 'Task tags updated',
+      content: `${normalized.length} reusable library tag${normalized.length === 1 ? '' : 's'} recorded.`, payload: { tags: normalized },
     })
     return this.getTask(taskId)
   }
