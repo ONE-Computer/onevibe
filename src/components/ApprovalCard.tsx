@@ -1,8 +1,9 @@
 import { CheckCircle2, Clock3, ExternalLink, Fingerprint, LockKeyhole, ShieldAlert, XCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { Task } from '../types'
+import type { ApprovalReviewPolicy } from './approval-review'
 
-export const ApprovalCard = ({ approval }: { approval: NonNullable<Task['approval']> }) => {
+export const ApprovalCard = ({ approval, policy }: { approval: NonNullable<Task['approval']>; policy?: ApprovalReviewPolicy }) => {
   const pending = approval.state === 'pending'
   const action = approval.action.replaceAll('_', ' ')
   const heading = approval.state === 'approved' ? `${action} approved externally` : approval.state === 'denied' ? `${action} was denied externally` : approval.state === 'expired' ? `${action} request expired` : `Approve ${action}`
@@ -16,6 +17,7 @@ export const ApprovalCard = ({ approval }: { approval: NonNullable<Task['approva
       <div className="approval-facts">
         <span><Fingerprint size={13} /> {approval.intentHash ? `Intent ${approval.intentHash.slice(0, 8)}` : 'Renewal required'}</span><span><Clock3 size={13} /> {pending ? '15 minute expiry' : approval.receipt ? new Date(approval.receipt.decidedAt).toLocaleString() : 'Decision window closed'}</span><span><LockKeyhole size={13} /> Wallet key custody</span>
       </div>
+      {policy && <details className="approval-policy"><summary>Policy evaluated · {policy.policyId}</summary><p>{policy.reason}</p><div>{policy.controls.map((control) => <code key={control}>{control.replaceAll('_', ' ')}</code>)}</div></details>}
       {pending && <a href={approval.walletUrl} className="wallet-button">Open VTI Wallet <ExternalLink size={14} /></a>}
       {pending && <details className="wallet-handoff"><summary>What happens in the external wallet?</summary><div className="wallet-phone" aria-label="Illustration of the separate VTI Wallet approval flow"><span>VTI WALLET</span><strong>Review intent</strong><p>{action}</p><i><Fingerprint size={13} /> Sign with wallet key</i><small>This preview is informational. The decision happens only in the separate wallet.</small></div></details>}
     </div>

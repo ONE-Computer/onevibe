@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import type { RuntimeEvent, TaskSnapshot } from '../types'
 import { ApprovalCard } from './ApprovalCard'
+import { approvalReviewPolicyFor } from './approval-review'
 import { UserInputCard } from './UserInputCard'
 
 const iconFor = (event: RuntimeEvent) => {
@@ -48,7 +49,7 @@ export const TaskTimeline = ({ task, events }: Props) => {
           ))}
         </AnimatePresence>
       </div>
-      {task.approval && <ApprovalCard approval={task.approval} />}
+      {task.approval && <ApprovalCard approval={task.approval} policy={approvalReviewPolicyFor(events, task.approval.id)} />}
       {task.inputRequest && <UserInputCard taskId={task.id} request={task.inputRequest} />}
     </div>
   )
