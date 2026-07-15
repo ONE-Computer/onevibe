@@ -217,6 +217,21 @@ describe('TaskStore', () => {
     expect(reloaded.getTask(task.id).skills).toEqual(['research', 'security_review'])
   })
 
+  it('lists completed reusable artifacts without exposing raw inputs or evidence frames', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-library-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Create a reusable artifact', 'demo')
+    await store.writeWorkspaceFile(task.id, 'README.md', '# Reusable artifact')
+    await store.writeWorkspaceFile(task.id, 'inputs/private.txt', 'do not list')
+    await store.writeWorkspaceFile(task.id, 'evidence/visual/frame.png', 'do not list')
+    await store.updateTask(task.id, { status: 'completed' })
+
+    await expect(store.listLibrary()).resolves.toEqual([expect.objectContaining({ task: expect.objectContaining({ id: task.id }), files: [expect.objectContaining({ path: 'README.md' })] })])
+  })
+
   it('persists metadata for path-confined task attachments', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-attachments-'))
     temporaryRoots.push(root)

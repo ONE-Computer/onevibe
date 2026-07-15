@@ -16,10 +16,11 @@ type Props = {
   onCreateProject: (name: string, context: string) => Promise<void>
   onAttachProjectFile: (projectId: string, file: { name: string; mimeType: string; dataBase64: string }) => Promise<void>
   onOpenSkills: () => void
+  onOpenLibrary: () => void
   onOpenSchedules: () => void
 }
 
-export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onOpenSkills, onOpenSchedules }: Props) => {
+export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onOpenSkills, onOpenLibrary, onOpenSchedules }: Props) => {
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
@@ -46,7 +47,7 @@ export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects
       <button className="nav-item active"><Sparkles size={16} /> Agent</button>
       <button className="nav-item" onClick={onOpenSkills}><Blocks size={16} /> Skills <span className="nav-pill">8</span></button>
       <button className="nav-item" onClick={onOpenSchedules}><Clock3 size={16} /> Scheduled</button>
-      <button className="nav-item"><Library size={16} /> Library</button>
+      <button className="nav-item" onClick={onOpenLibrary}><Library size={16} /> Library</button>
     </nav>
     <div className="nav-section-label"><span>Projects</span><button aria-label="Create project" onClick={() => setCreatingProject((value) => !value)}><Plus size={13} /></button></div>
     {creatingProject && <form className="project-create" onSubmit={(event) => { event.preventDefault(); const name = projectName.trim(); if (!name) return; void onCreateProject(name, projectContext.trim()).then(() => { setProjectName(''); setProjectContext(''); setCreatingProject(false) }) }}><input autoFocus value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Project name" maxLength={100} /><textarea value={projectContext} onChange={(event) => setProjectContext(event.target.value)} placeholder="Governed brief (optional)" maxLength={8000} rows={2} /><button type="submit">Create project</button></form>}

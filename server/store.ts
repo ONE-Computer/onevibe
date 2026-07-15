@@ -164,6 +164,14 @@ export class TaskStore {
     return [...this.tasks.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   }
 
+  async listLibrary() {
+    const completed = this.listTasks().filter((task) => task.status === 'completed')
+    return Promise.all(completed.map(async (task) => ({
+      task,
+      files: (await this.listWorkspaceFiles(task.id)).filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')),
+    })))
+  }
+
   listProjects() { return [...this.projects.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }
 
   getProject(id: string) {

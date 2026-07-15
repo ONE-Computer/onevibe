@@ -9,10 +9,11 @@ import { Workspace } from './components/Workspace'
 import { SharedArtifact } from './components/SharedArtifact'
 import { Schedules } from './components/Schedules'
 import { SkillsLibrary } from './components/SkillsLibrary'
+import { Library } from './components/Library'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelTask, createProject, createSchedule, createTask, listProjects, listSchedules, listTasks, requestShare, sendFollowUp, setScheduleEnabled } from './lib/api'
-import type { Project, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
+import { addProjectFile, cancelTask, createProject, createSchedule, createTask, listLibrary, listProjects, listSchedules, listTasks, requestShare, sendFollowUp, setScheduleEnabled } from './lib/api'
+import type { LibraryItem, Project, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
 const starterPrompts = [
@@ -26,8 +27,9 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [schedules, setSchedules] = useState<TaskSchedule[]>([])
+  const [library, setLibrary] = useState<LibraryItem[]>([])
   const [activeProjectId, setActiveProjectId] = useState('project_onevibe')
-  const [view, setView] = useState<'agent' | 'schedules' | 'skills'>('agent')
+  const [view, setView] = useState<'agent' | 'schedules' | 'skills' | 'library'>('agent')
   const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>([])
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
@@ -40,6 +42,7 @@ export default function App() {
   }, [])
 
   useEffect(() => { void refreshTasks() }, [refreshTasks])
+  useEffect(() => { void listLibrary().then(({ items }) => setLibrary(items)) }, [])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)) }, [])
   useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }) }, [activeProjectId])
   useEffect(() => {
@@ -50,6 +53,7 @@ export default function App() {
   useEffect(() => {
     if (!snapshot) return
     setTasks((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))
+    if (snapshot.status === 'completed') void listLibrary().then(({ items }) => setLibrary(items))
   }, [snapshot])
 
   const startTask = async (prompt: string, provider: Task['provider'], mode: TaskMode = 'general', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = selectedSkills) => {
@@ -104,7 +108,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onOpenSkills={() => { setActiveTaskId(null); setView('skills'); window.history.pushState({}, '', '/') }} onOpenSchedules={() => { setActiveTaskId(null); setView('schedules'); window.history.pushState({}, '', '/') }} /></motion.div>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onOpenSkills={() => { setActiveTaskId(null); setView('skills'); window.history.pushState({}, '', '/') }} onOpenLibrary={() => { setActiveTaskId(null); setView('library'); window.history.pushState({}, '', '/') }} onOpenSchedules={() => { setActiveTaskId(null); setView('schedules'); window.history.pushState({}, '', '/') }} /></motion.div>}</AnimatePresence>
       <main className="main-shell">
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><span className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></span></div>
@@ -112,7 +116,7 @@ export default function App() {
         </header>
 
         <AnimatePresence mode="wait">
-          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} /></motion.section> : !activeTaskId ? (
+          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="ambient-grid" />
               <div className="home-content">

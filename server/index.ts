@@ -188,6 +188,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
     return json(response, 200, { tasks: store.listTasks() })
   }
+  if (request.method === 'GET' && url.pathname === '/api/library') return json(response, 200, { items: await store.listLibrary() })
 
   if (request.method === 'GET' && url.pathname === '/api/projects') return json(response, 200, { projects: store.listProjects() })
   if (request.method === 'POST' && url.pathname === '/api/projects') {

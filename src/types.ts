@@ -27,6 +27,7 @@ export type RuntimeEvent = {
 
 export type PlanStep = { id: string; title: string; status: 'pending' | 'running' | 'completed' | 'blocked'; startedAt?: string; completedAt?: string }
 export type WorkspaceFile = { path: string; size: number; updatedAt: string }
+export type LibraryItem = { task: Task; files: WorkspaceFile[] }
 export type TaskAttachment = { name: string; path: string; size: number; mimeType: string }
 export type WorkspaceVersion = { id: string; taskId: string; label: string; createdAt: string; fileCount: number; evidenceHash: string }
 export type ChatMessage = { id: string; taskId: string; turnId: string; role: 'user' | 'assistant' | 'system'; content: string; status: 'streaming' | 'completed' | 'failed' | 'cancelled'; provider?: Task['provider']; createdAt: string; updatedAt: string }
