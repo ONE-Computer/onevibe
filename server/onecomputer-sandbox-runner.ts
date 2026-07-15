@@ -95,6 +95,26 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     const sandbox = continuation
       ? await this.client.getSandbox(retainedSandboxId!, signal)
       : await this.client.createSandbox(`onevibe-${task.id.slice(-8)}`, signal)
+    let observedSandboxState: string | undefined
+    const recordSandboxState = async (candidate: typeof sandbox) => {
+      const state = candidate.state ?? 'provisioning'
+      if (state === observedSandboxState) return
+      observedSandboxState = state
+      const current = store.getTask(task.id)
+      await store.updateTask(task.id, {
+        securityContext: {
+          ...(current.securityContext ?? { mode: 'onecomputer', gatewayEnforced: this.options.gatewayEnforced }),
+          mode: 'onecomputer', sandboxId: sandbox.id, provider: candidate.provider ?? sandbox.provider,
+          gatewayEnforced: this.options.gatewayEnforced, executionBoundary: 'onecomputer_sandbox', sandboxState: state,
+        },
+      })
+      await store.appendEvent(task.id, {
+        type: 'activity_delta', lane: 'control', label: 'ONEComputer sandbox state observed',
+        content: `Sandbox boundary is ${state}. The provider ID is now retained for polling and cleanup.`,
+        payload: { sandboxId: sandbox.id, provider: candidate.provider ?? sandbox.provider, state, lifecycle: 'provider_observed' },
+      })
+    }
+    await recordSandboxState(sandbox)
     let destroyed = false
     let visualLoop: Promise<void> | undefined
     let stopVisualLoop: (() => void) | undefined
@@ -143,6 +163,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         if (live.state === 'error' || Date.now() >= deadline) throw new Error(`ONEComputer sandbox failed to start (state=${live.state ?? 'unknown'})`)
         await wait(this.options.pollMilliseconds ?? 2_000, signal)
         live = await this.client.getSandbox(sandbox.id, signal)
+        await recordSandboxState(live)
       }
       await store.updateTask(task.id, {
         securityContext: {

@@ -86,6 +86,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.some((command) => command.includes('--output-format stream-json --verbose'))).toBe(true)
     expect(commands.some((command) => command.includes('mcp__playwright__browser_navigate'))).toBe(true)
     expect(client.deleteSandbox).toHaveBeenCalledWith('sandbox-1')
+    expect(store.listEvents(task.id).filter((event) => event.label === 'ONEComputer sandbox state observed').map((event) => event.payload.state)).toEqual(['creating', 'started'])
     expect(client.startVisualRuntime).toHaveBeenCalledWith('sandbox-1', expect.any(AbortSignal))
     expect(client.getVisualScreenshot).toHaveBeenCalledTimes(5)
     expect((await store.listWorkspaceFiles(task.id)).some((file) => file.path.includes('evidence/visual/'))).toBe(true)

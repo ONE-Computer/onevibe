@@ -62,6 +62,8 @@ This is an integration blocker, not a reason to weaken the ONEVibe boundary:
 
 Until (1) and (2) are implemented, a caller can cancel before it receives an ID, leaving the provider unable to participate in reliable automatic cleanup. That is unacceptable for production ephemeral-workspace guarantees.
 
+The ONEVibe runner now persists the provider-returned sandbox ID/state immediately and emits typed state-transition evidence while polling. This client-side prerequisite is covered by tests; the live gate remains the Azure deployment of the corresponding provider repair and its fresh provenance response.
+
 ## Required successful proof
 
 Run the following after the provider lifecycle change:
