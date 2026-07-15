@@ -11,6 +11,17 @@ afterEach(async () => {
 })
 
 describe('TaskStore', () => {
+  it('creates a task plan that carries the requested outcome into the scope step', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-plan-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Build a concise launch dashboard for the regional team', 'demo', 'app')
+    expect(task.plan[0]?.title).toContain('Build a concise launch dashboard')
+    expect(task.plan[1]?.title).toContain('architecture')
+  })
+
   it('creates an ordered tamper-evident event chain', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-store-'))
     temporaryRoots.push(root)

@@ -32,7 +32,7 @@ const panelFor = (input: EventInput): PresentationDescriptor | undefined => {
   return { panel: 'file', artifactPath }
 }
 
-const planFor = (mode: TaskMode): Task['plan'] => {
+const planFor = (mode: TaskMode, prompt: string): Task['plan'] => {
   const middle: Record<TaskMode, [string, string, string]> = {
     general: ['Prepare the governed workspace', 'Create the requested artifact', 'Validate output and policy decisions'],
     website: ['Generate and select a design concept', 'Build the responsive website', 'Run build, browser, and accessibility checks'],
@@ -44,12 +44,14 @@ const planFor = (mode: TaskMode): Task['plan'] => {
     app: ['Define the application architecture', 'Build the interactive application', 'Run type, build, and interaction checks'],
     game: ['Define mechanics and art direction', 'Build the playable experience', 'Play-test controls and completion paths'],
   }
+  const focus = prompt.replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '')
+  const shortFocus = focus.length > 72 ? `${focus.slice(0, 69)}…` : focus
   return [
-    { id: 'scope', title: 'Understand the request and security boundaries', status: 'pending' },
-    { id: 'workspace', title: middle[mode][0], status: 'pending' },
+    { id: 'scope', title: `Frame ${shortFocus} and security boundaries`, status: 'pending' },
+    { id: 'workspace', title: `${middle[mode][0]} for this outcome`, status: 'pending' },
     { id: 'build', title: middle[mode][1], status: 'pending' },
     { id: 'verify', title: middle[mode][2], status: 'pending' },
-    { id: 'deliver', title: 'Deliver source, preview, and evidence', status: 'pending' },
+    { id: 'deliver', title: `Deliver ${mode === 'slides' ? 'deck' : mode === 'document' ? 'document' : 'source'}, preview, and evidence`, status: 'pending' },
   ]
 }
 
@@ -151,7 +153,7 @@ export class TaskStore {
       references,
       attachments,
       status: 'pending',
-      plan: planFor(mode),
+      plan: planFor(mode, prompt),
       createdAt: now,
       updatedAt: now,
     }
