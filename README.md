@@ -54,7 +54,7 @@ Open `http://localhost:5173`. The API listens on `127.0.0.1:4311`.
 
 - `demo` (default): deterministic local workflow that writes only under `.onevibe/workspaces/<task-id>`.
 - `claude_sdk`: native `@anthropic-ai/claude-agent-sdk` execution with a workspace-only Read/Write/Edit/Glob/Grep tool policy. It uses your server-side Claude credentials and never sends them to the browser.
-- `onecomputer`: provisions an authenticated ONEComputer sandbox, runs Claude inside it, extracts at most 100 files/10 MiB, and destroys the sandbox after delivery by default. Set `ONECOMPUTER_RETAIN_SANDBOX=true` only when persistence is intentional.
+- `onecomputer`: provisions an authenticated ONEComputer sandbox, runs Claude inside it, extracts at most 100 files/10 MiB, and destroys the sandbox after delivery by default. Set `ONECOMPUTER_RETAIN_SANDBOX=true` only when persistence is intentional; only an explicitly retained, still-active sandbox may be reused for a follow-up turn.
 - `remote`: set `ONEVIBE_RUNTIME_URL` to a trusted AgentCore/backend SSE endpoint. The server proxies and normalizes the stream; the browser never receives runtime credentials.
 
 Optional server-side integration variables:
