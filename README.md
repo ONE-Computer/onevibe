@@ -14,6 +14,7 @@ The first vertical slice already supports:
 - first-class waiting-for-user requests that resume the parked Claude tool call or demo execution;
 - externally approved, capability-based read-only sharing with signed local wallet receipts;
 - durable multi-turn chat history with streaming state, pagination, cross-task search, migration, and export;
+- durable project workspaces with a governed background brief that is attached server-side to each new agent run;
 - a typed Server-Sent Events task timeline;
 - a Manus-inspired **Computer** panel that records and scrubs agent terminal activity, visual frames, previews, and produced files beside the conversation;
 - activity, tool, artifact, approval, and control lanes;

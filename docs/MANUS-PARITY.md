@@ -20,7 +20,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 12. **I** Concurrent workspace plus conversation and Computer timeline — task events are rendered as a scrub-able terminal, visual-frame, artifact, and preview record beside the conversation.
 13. **I** Agent-mode entry point — primary ONEVibe surface.
 14. **I** Task history surface — durable turn-based chat history, timestamps/status, cursor pagination, full-text search, reload persistence, and evidence export.
-15. **M** Reusable project context.
+15. **P** Reusable project context — persisted projects, governed background briefs, and task-to-project binding are implemented; project-level files, permissions, and connectors are pending.
 
 ## Prompting, context, and input
 

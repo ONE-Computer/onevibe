@@ -85,6 +85,23 @@ describe('TaskStore', () => {
     expect(await store.readWorkspaceFile(target.id, 'artifact.md')).toBe('changed copy')
   })
 
+  it('persists governed project context and binds new tasks to it', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-projects-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const project = await store.createProject('Risk review', 'Keep all customer data in Singapore and require wallet approval for publication.')
+    const task = await store.createTask('Draft a control brief', 'demo', 'research', project.id)
+
+    expect(task.projectId).toBe(project.id)
+    expect(store.getProject(project.id).context).toContain('Singapore')
+    const reloaded = new TaskStore(root)
+    await reloaded.initialize()
+    expect(reloaded.getProject(project.id).name).toBe('Risk review')
+    expect(reloaded.getTask(task.id).projectId).toBe(project.id)
+  })
+
   it('persists, paginates, searches, and completes chat turns independently of events', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-chat-history-'))
     temporaryRoots.push(root)

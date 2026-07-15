@@ -1,7 +1,7 @@
 import { Blocks, Clock3, FolderKanban, Library, Plus, Search, Settings2, ShieldCheck, Sparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import type { Task } from '../types'
+import type { Project, Task } from '../types'
 import { searchChat } from '../lib/api'
 import { BrandMark } from './BrandMark'
 
@@ -10,10 +10,17 @@ type Props = {
   activeTaskId: string | null
   onNewTask: () => void
   onSelectTask: (taskId: string) => void
+  projects: Project[]
+  activeProjectId: string
+  onSelectProject: (projectId: string) => void
+  onCreateProject: (name: string, context: string) => Promise<void>
 }
 
-export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask }: Props) => {
+export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject }: Props) => {
   const [query, setQuery] = useState('')
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [projectName, setProjectName] = useState('')
+  const [projectContext, setProjectContext] = useState('')
   const [matchedTaskIds, setMatchedTaskIds] = useState<Set<string>>(new Set())
   useEffect(() => {
     if (query.trim().length < 2) { setMatchedTaskIds(new Set()); return }
@@ -36,8 +43,9 @@ export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask }: Props)
       <button className="nav-item"><Clock3 size={16} /> Scheduled</button>
       <button className="nav-item"><Library size={16} /> Library</button>
     </nav>
-    <div className="nav-section-label"><span>Projects</span><Plus size={13} /></div>
-    <button className="project-row"><FolderKanban size={14} /> ONEVibe product</button>
+    <div className="nav-section-label"><span>Projects</span><button aria-label="Create project" onClick={() => setCreatingProject((value) => !value)}><Plus size={13} /></button></div>
+    {creatingProject && <form className="project-create" onSubmit={(event) => { event.preventDefault(); const name = projectName.trim(); if (!name) return; void onCreateProject(name, projectContext.trim()).then(() => { setProjectName(''); setProjectContext(''); setCreatingProject(false) }) }}><input autoFocus value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Project name" maxLength={100} /><textarea value={projectContext} onChange={(event) => setProjectContext(event.target.value)} placeholder="Governed brief (optional)" maxLength={8000} rows={2} /><button type="submit">Create project</button></form>}
+    {projects.map((project) => <button key={project.id} className={`project-row ${project.id === activeProjectId ? 'selected' : ''}`} onClick={() => onSelectProject(project.id)}><FolderKanban size={14} /> <span>{project.name}</span></button>)}
     <div className="nav-section-label"><span>Tasks</span><Settings2 size={13} /></div>
     <div className="task-list">
       {visibleTasks.length === 0 && <p className="empty-sidebar">{query ? 'No matching conversations.' : 'Your work will appear here.'}</p>}

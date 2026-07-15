@@ -9,8 +9,8 @@ import { Workspace } from './components/Workspace'
 import { SharedArtifact } from './components/SharedArtifact'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { cancelTask, createTask, listTasks, requestShare, sendFollowUp } from './lib/api'
-import type { Task, TaskMode } from './types'
+import { cancelTask, createProject, createTask, listProjects, listTasks, requestShare, sendFollowUp } from './lib/api'
+import type { Project, Task, TaskMode } from './types'
 import './index.css'
 
 const starterPrompts = [
@@ -22,6 +22,8 @@ const starterPrompts = [
 export default function App() {
   const shareId = window.location.pathname.match(/^\/share\/([^/]+)$/)?.[1]
   const [tasks, setTasks] = useState<Task[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [activeProjectId, setActiveProjectId] = useState('project_onevibe')
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -33,6 +35,7 @@ export default function App() {
   }, [])
 
   useEffect(() => { void refreshTasks() }, [refreshTasks])
+  useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }) }, [activeProjectId])
   useEffect(() => {
     const onPopState = () => setActiveTaskId(window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
     window.addEventListener('popstate', onPopState)
@@ -46,7 +49,7 @@ export default function App() {
   const startTask = async (prompt: string, provider: Task['provider'], mode: TaskMode = 'general') => {
     setCreating(true)
     try {
-      const task = await createTask(prompt, provider, mode)
+      const task = await createTask(prompt, provider, mode, activeProjectId)
       setTasks((current) => [task, ...current])
       setActiveTaskId(task.id)
       window.history.pushState({}, '', `/tasks/${task.id}`)
@@ -58,6 +61,12 @@ export default function App() {
   const navigateToTask = (taskId: string | null) => {
     setActiveTaskId(taskId)
     window.history.pushState({}, '', taskId ? `/tasks/${taskId}` : '/')
+  }
+
+  const addProject = async (name: string, context: string) => {
+    const project = await createProject(name, context)
+    setProjects((current) => [project, ...current])
+    setActiveProjectId(project.id)
   }
 
   if (shareId) return <SharedArtifact shareId={shareId} />
@@ -74,7 +83,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} /></motion.div>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} /></motion.div>}</AnimatePresence>
       <main className="main-shell">
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><span className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></span></div>
@@ -86,7 +95,7 @@ export default function App() {
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="ambient-grid" />
               <div className="home-content">
-                <div className="home-badge"><ShieldCheck size={14} /> ONEComputer security · OpenVTC trust</div>
+                <div className="home-badge"><ShieldCheck size={14} /> {projects.find((project) => project.id === activeProjectId)?.name ?? 'ONEVibe product'} · ONEComputer security</div>
                 <h1>What will you<br /><span>build safely?</span></h1>
                 <p>Give your team a capable cloud agent without surrendering control of data, tools, or approvals.</p>
                 <PromptComposer busy={creating} onSubmit={startTask} />
@@ -99,7 +108,7 @@ export default function App() {
               {!snapshot ? <div className="loading-state"><span className="loader" /> Loading governed workspace…</div> : (
                 <>
                   <div className="conversation-pane">
-                    <div className="conversation-header"><div><span className="task-kicker">{snapshot.provider === 'demo' ? 'Local demo runtime' : snapshot.provider === 'claude_sdk' ? 'Claude Agent SDK' : snapshot.provider === 'onecomputer' ? 'ONEComputer sandbox' : 'AgentCore runtime'}</span><h2>{snapshot.title}</h2></div><div className="run-controls"><span className={`status-badge ${snapshot.status}`}>{snapshot.status.replaceAll('_', ' ')}</span>{snapshot.status === 'running' && <button className="cancel-button" onClick={() => void cancelTask(snapshot.id)}><Square size={10} /> Stop</button>}</div></div>
+                    <div className="conversation-header"><div><span className="task-kicker">{projects.find((project) => project.id === snapshot.projectId)?.name ?? 'Project workspace'} · {snapshot.provider === 'demo' ? 'Local demo runtime' : snapshot.provider === 'claude_sdk' ? 'Claude Agent SDK' : snapshot.provider === 'onecomputer' ? 'ONEComputer sandbox' : 'AgentCore runtime'}</span><h2>{snapshot.title}</h2></div><div className="run-controls"><span className={`status-badge ${snapshot.status}`}>{snapshot.status.replaceAll('_', ' ')}</span>{snapshot.status === 'running' && <button className="cancel-button" onClick={() => void cancelTask(snapshot.id)}><Square size={10} /> Stop</button>}</div></div>
                     {error && <div className="stream-warning">{error}</div>}
                     <TaskTimeline task={snapshot} events={snapshot.events} />
                     <TaskPlan plan={snapshot.plan} />

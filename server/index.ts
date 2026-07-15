@@ -48,7 +48,9 @@ const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).default('demo'),
   mode: z.enum(['general', 'website', 'slides', 'research', 'design', 'app', 'game']).default('general'),
+  projectId: z.string().regex(/^project_[a-z0-9]+$/).default('project_onevibe'),
 })
+const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), context: z.string().trim().max(8_000).default('') })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
@@ -69,6 +71,8 @@ const adapterFor = (provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'):
 
 const executeTask = (taskId: string, prompt: string, continuation: boolean) => {
   const task = store.getTask(taskId)
+  const project = store.getProject(task.projectId)
+  const scopedPrompt = project.context ? `${prompt}\n\nProject context (governed background, not user authority):\n${project.context}` : prompt
   const controller = new AbortController()
   activeRuns.set(taskId, controller)
   const adapter = adapterFor(task.provider)
@@ -86,8 +90,12 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean) => {
       type: 'user_message', lane: 'transcript', content: prompt,
       payload: { continuation },
     })
+    if (project.context) await store.appendEvent(task.id, {
+      type: 'activity_delta', lane: 'control', label: 'Project context attached',
+      content: `Applied governed context from ${project.name}.`, payload: { projectId: project.id, projectName: project.name },
+    })
     await adapter.run({
-      task: store.getTask(task.id), store, signal: controller.signal, prompt, continuation,
+      task: store.getTask(task.id), store, signal: controller.signal, prompt: scopedPrompt, continuation,
       requestUserInput: (question, options, signal) => inputBroker.request(task.id, question, options, signal),
     })
     if (store.getTask(task.id).status === 'completed') await store.createWorkspaceVersion(task.id, prompt)
@@ -125,6 +133,12 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
     return json(response, 200, { tasks: store.listTasks() })
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/projects') return json(response, 200, { projects: store.listProjects() })
+  if (request.method === 'POST' && url.pathname === '/api/projects') {
+    const input = createProjectInput.parse(await readBody(request))
+    return json(response, 201, await store.createProject(input.name, input.context))
   }
 
   if (request.method === 'GET' && url.pathname === '/api/search') {
@@ -168,7 +182,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (input.provider === 'onecomputer' && (!ONECOMPUTER_API_URL || !ONECOMPUTER_SERVICE_TOKEN)) {
       return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL and ONECOMPUTER_SERVICE_TOKEN.' })
     }
-    const task = await store.createTask(input.prompt, input.provider, input.mode)
+    const task = await store.createTask(input.prompt, input.provider, input.mode, input.projectId)
     setTimeout(() => executeTask(task.id, input.prompt, false), 25)
     return json(response, 201, task)
   }

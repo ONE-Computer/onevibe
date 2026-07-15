@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
-import type { ChatMessage, EventInput, RuntimeEvent, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
+import type { ChatMessage, EventInput, Project, RuntimeEvent, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -40,12 +40,14 @@ export class TaskStore {
   private tasks = new Map<string, Task>()
   private events = new Map<string, RuntimeEvent[]>()
   private messages = new Map<string, ChatMessage[]>()
+  private projects = new Map<string, Project>()
   private activeTurns = new Map<string, string>()
   private emitter = new EventEmitter()
   private tasksRoot: string
   private workspacesRoot: string
   private runtimeRoot: string
   private versionsRoot: string
+  private projectsFile: string
 
   constructor(dataRoot = DEFAULT_DATA_ROOT) {
     const resolvedRoot = path.resolve(dataRoot)
@@ -53,6 +55,7 @@ export class TaskStore {
     this.workspacesRoot = path.join(resolvedRoot, 'workspaces')
     this.runtimeRoot = path.join(resolvedRoot, 'runtime')
     this.versionsRoot = path.join(resolvedRoot, 'versions')
+    this.projectsFile = path.join(resolvedRoot, 'projects.json')
   }
 
   async initialize() {
@@ -60,12 +63,22 @@ export class TaskStore {
     await mkdir(this.workspacesRoot, { recursive: true })
     await mkdir(this.runtimeRoot, { recursive: true })
     await mkdir(this.versionsRoot, { recursive: true })
+    try {
+      const stored = JSON.parse(await readFile(this.projectsFile, 'utf8')) as Project[]
+      for (const project of stored) this.projects.set(project.id, project)
+    } catch { /* first local run */ }
+    if (!this.projects.size) {
+      const now = new Date().toISOString()
+      this.projects.set('project_onevibe', { id: 'project_onevibe', name: 'ONEVibe product', context: 'Governed agent workspace powered by ONEComputer and OpenVTC. Keep approvals outside the browser and preserve evidence.', createdAt: now, updatedAt: now })
+      await this.persistProjects()
+    }
     const entries = await readdir(this.tasksRoot, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       try {
         const task = JSON.parse(await readFile(path.join(this.tasksRoot, entry.name, 'task.json'), 'utf8')) as Task
         task.mode ??= 'general'
+        task.projectId ??= 'project_onevibe'
         const eventFile = path.join(this.tasksRoot, entry.name, 'events.json')
         let storedEvents: RuntimeEvent[] = []
         try {
@@ -86,7 +99,8 @@ export class TaskStore {
     }
   }
 
-  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general'): Promise<Task> {
+  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe'): Promise<Task> {
+    if (!this.projects.has(projectId)) throw new Error('Project not found')
     const now = new Date().toISOString()
     const id = `task_${randomUUID().replaceAll('-', '').slice(0, 14)}`
     const task: Task = {
@@ -95,6 +109,7 @@ export class TaskStore {
       prompt,
       provider,
       mode,
+      projectId,
       status: 'pending',
       plan: planFor(mode),
       createdAt: now,
@@ -109,6 +124,22 @@ export class TaskStore {
 
   listTasks() {
     return [...this.tasks.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  listProjects() { return [...this.projects.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }
+
+  getProject(id: string) {
+    const project = this.projects.get(id)
+    if (!project) throw new Error('Project not found')
+    return project
+  }
+
+  async createProject(name: string, context = ''): Promise<Project> {
+    const now = new Date().toISOString()
+    const project = { id: `project_${randomUUID().replaceAll('-', '').slice(0, 12)}`, name, context, createdAt: now, updatedAt: now }
+    this.projects.set(project.id, project)
+    await this.persistProjects()
+    return project
   }
 
   getTask(id: string) {
@@ -365,6 +396,8 @@ export class TaskStore {
   private async persist(task: Task) {
     await writeJson(path.join(this.tasksRoot, task.id, 'task.json'), task)
   }
+
+  private async persistProjects() { await writeJson(this.projectsFile, this.listProjects()) }
 
   private async appendAssistantDelta(taskId: string, content: string) {
     let turnId = this.activeTurns.get(taskId)

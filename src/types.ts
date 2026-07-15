@@ -1,5 +1,7 @@
 export type RunStatus = 'pending' | 'running' | 'waiting_for_approval' | 'waiting_for_user_input' | 'completed' | 'failed' | 'cancelled'
 export type TaskMode = 'general' | 'website' | 'slides' | 'research' | 'design' | 'app' | 'game'
+
+export type Project = { id: string; name: string; context: string; createdAt: string; updatedAt: string }
 export type EventLane = 'transcript' | 'activity' | 'control' | 'artifact' | 'approval'
 
 export type RuntimeEvent = {
@@ -28,6 +30,7 @@ export type Task = {
   prompt: string
   provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'
   mode: TaskMode
+  projectId: string
   status: RunStatus
   plan: PlanStep[]
   createdAt: string
