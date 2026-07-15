@@ -249,10 +249,12 @@ export class TaskStore {
 
   async appendEvent(taskId: string, input: EventInput) {
     const existing = this.events.get(taskId) ?? []
+    const runId = this.getTask(taskId).activeRunId
     const previousHash = existing.at(-1)?.eventHash ?? 'GENESIS'
     const presentation = panelFor(input)
     const unsigned = {
       taskId,
+      ...(runId ? { runId } : {}),
       sequence: existing.length,
       type: input.type,
       lane: input.lane,
@@ -288,6 +290,7 @@ export class TaskStore {
     existing.push({ id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider, createdAt: now, updatedAt: now })
     this.messages.set(taskId, existing)
     this.activeTurns.set(taskId, turnId)
+    await this.updateTask(taskId, { activeRunId: turnId })
     await this.persistMessages(taskId)
     return turnId
   }
@@ -494,6 +497,7 @@ export class TaskStore {
     const message = [...(this.messages.get(taskId) ?? [])].reverse().find((item) => item.turnId === turnId && item.role === 'assistant')
     if (message) { message.status = status; message.updatedAt = new Date().toISOString() }
     this.activeTurns.delete(taskId)
+    if (this.getTask(taskId).activeRunId === turnId) await this.updateTask(taskId, { activeRunId: undefined })
     await this.persistMessages(taskId)
   }
 

@@ -67,6 +67,7 @@ export type PlanStep = {
 export type RuntimeEvent = {
   id: string
   taskId: string
+  runId?: string
   sequence: number
   type: EventType
   lane: EventLane
@@ -119,6 +120,7 @@ export type Task = {
   references: string[]
   attachments: TaskAttachment[]
   status: RunStatus
+  activeRunId?: string
   plan: PlanStep[]
   createdAt: string
   updatedAt: string
@@ -157,4 +159,4 @@ export type TaskSnapshot = Task & {
   messages: ChatMessage[]
 }
 
-export type EventInput = Omit<RuntimeEvent, 'id' | 'taskId' | 'sequence' | 'createdAt' | 'previousHash' | 'eventHash'>
+export type EventInput = Omit<RuntimeEvent, 'id' | 'taskId' | 'runId' | 'sequence' | 'createdAt' | 'previousHash' | 'eventHash'>

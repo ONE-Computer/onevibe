@@ -64,6 +64,23 @@ describe('TaskStore', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('binds durable event evidence to a run and clears the active run on completion', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-run-evidence-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Run-bound evidence', 'demo')
+    const runId = await store.beginTurn(task.id, task.prompt, task.provider)
+    const started = await store.appendEvent(task.id, { type: 'run_started', lane: 'control', status: 'running', payload: {} })
+    const completed = await store.appendEvent(task.id, { type: 'run_completed', lane: 'control', status: 'completed', payload: {} })
+
+    expect(started.runId).toBe(runId)
+    expect(completed.runId).toBe(runId)
+    expect(store.getTask(task.id).activeRunId).toBeUndefined()
+    expect(store.verifyChain(task.id)).toBe(true)
+  })
+
   it('rejects workspace traversal', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-store-'))
     temporaryRoots.push(root)

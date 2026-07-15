@@ -10,6 +10,7 @@ export type EventLane = 'transcript' | 'activity' | 'control' | 'artifact' | 'ap
 export type RuntimeEvent = {
   id: string
   taskId: string
+  runId?: string
   sequence: number
   type: string
   lane: EventLane
@@ -39,6 +40,7 @@ export type Task = {
   references: string[]
   attachments: TaskAttachment[]
   status: RunStatus
+  activeRunId?: string
   plan: PlanStep[]
   createdAt: string
   updatedAt: string
