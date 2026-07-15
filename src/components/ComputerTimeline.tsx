@@ -1,34 +1,7 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, Eye, FileCode2, Presentation, Radio, ShieldCheck, TerminalSquare, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
-import type { PresentationDescriptor, PresentationPanel, TaskSnapshot } from '../types'
-
-type ComputerItem = {
-  id: string
-  kind: PresentationPanel
-  title: string
-  detail?: string
-  runId?: string
-  createdAt: string
-  uri?: string
-  payload?: Record<string, unknown>
-  live?: boolean
-}
-
-const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
-  const items = task.events.flatMap((event): ComputerItem[] => {
-    const presentation = event.payload.presentation as PresentationDescriptor | undefined
-    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff', 'slide', 'approval'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, uri: presentation.uri, payload: event.payload }]
-    // Compatibility for evidence created before the typed presentation contract.
-    if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', title: event.label ?? 'Tool call', detail: event.content, createdAt: event.createdAt, runId: event.runId, payload: event.payload }]
-    if (event.type === 'artifact_created' || event.type === 'artifact_updated') return [{ id: event.id, kind: event.type === 'artifact_updated' ? 'diff' : 'file', title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, payload: event.payload }]
-    return []
-  })
-  if (task.securityContext?.visualRuntimeReady && task.securityContext.sandboxState !== 'destroyed') items.push({
-    id: 'live-x11', kind: 'screenshot', title: 'Live X11 display', detail: 'Authenticated PNG capture · no VNC',
-    createdAt: task.updatedAt, uri: `/api/tasks/${task.id}/visual/screenshot`, live: true,
-  })
-  return items
-}
+import type { PresentationPanel, TaskSnapshot } from '../types'
+import { formatInspectable, presentationItems, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
 
 const iconFor = (item: ComputerItem) => item.kind === 'terminal' ? <TerminalSquare size={13} /> : item.kind === 'screenshot' ? <Eye size={13} /> : item.kind === 'preview' ? <Radio size={13} /> : item.kind === 'slide' ? <Presentation size={13} /> : item.kind === 'approval' ? <ShieldCheck size={13} /> : <FileCode2 size={13} />
 
@@ -48,6 +21,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
     setNewActivity((current) => Math.max(current, Math.max(0, items.length - selected - 1)))
   }, [follow, items.length, itemKey, selected])
   const active = items[Math.min(selected, Math.max(items.length - 1, 0))]
+  const terminalActivity = active?.kind === 'terminal' ? terminalActivityFor(active, task.events) : undefined
   useEffect(() => {
     if (!active?.live) return
     setFrame(Date.now())
@@ -71,7 +45,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
       {active?.kind === 'slide' && <div className="computer-file"><Presentation size={28} /><strong>{active.detail ?? active.title}</strong><span>Deck evidence is preserved. Open the Files tab to download the PPTX or inspect the rendered viewer.</span></div>}
       {active?.kind === 'approval' && <div className="computer-file"><CheckCircle2 size={28} /><strong>{active.title}</strong><span>{active.detail ?? 'Approval evidence is recorded separately from the browser and can be verified in the task history.'}</span></div>}
       {(active?.kind === 'file' || active?.kind === 'diff') && <div className="computer-file"><FileCode2 size={28} /><strong>{active.detail ?? active.title}</strong><span>{active.kind === 'diff' ? 'Open the Code tab to inspect the recorded version change.' : 'Open the Files or Code tab to inspect this artifact.'}</span></div>}
-      {active?.kind === 'terminal' && <pre><code>{[active.detail, active.payload ? JSON.stringify(active.payload, null, 2).slice(0, 24_000) : ''].filter(Boolean).join('\n\n')}</code></pre>}
+      {active?.kind === 'terminal' && <div className="computer-terminal"><div className="computer-terminal-meta"><span>{active.title}</span>{terminalActivity?.failed ? <b>tool error</b> : <em>recorded activity</em>}</div>{terminalActivity?.request !== undefined && <section><label>Request</label><pre><code>{formatInspectable(terminalActivity.request)}</code></pre></section>}{terminalActivity?.output && <section><label>{terminalActivity.failed ? 'Error output' : 'Result'}</label><pre><code>{formatInspectable(terminalActivity.output)}</code></pre></section>}{terminalActivity?.toolUseId && <small>Tool call {terminalActivity.toolUseId.slice(-8)} · correlated with its paired result and visual checkpoints in this run.</small>}</div>}
     </section>
   </div>
 }
