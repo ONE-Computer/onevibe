@@ -72,7 +72,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 53. **P** Restrained-motion intent — shell uses Framer Motion and reduced-motion handling.
 54. **P** Typography-system selection — shell has a deliberate stack; generated selection is pending.
 55. **I** Design-token generation — shell token system exists.
-56. **M** OKLCH theme values.
+56. **I** OKLCH theme values — generated Design artifacts include perceptual OKLCH values alongside hex fallbacks for the Secure Signal background, verified, and pending palette.
 57. **I** Dark and light foundation tokens — persisted system/light/dark preference, pre-paint selection, semantic tokens, focus styling, and reduced-motion handling are implemented.
 58. **M** Cut-corner interface language.
 59. **P** Asymmetric editorial layout planning — represented in shell, not generated rationale.
