@@ -165,6 +165,9 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean) => {
       return
     }
     const message = error instanceof Error ? error.message : String(error)
+    const failedTask = store.getTask(task.id)
+    const activeStep = failedTask.plan.find((step) => step.status === 'running') ?? failedTask.plan.find((step) => step.status === 'pending')
+    if (activeStep) await store.setPlanStep(task.id, activeStep.id, 'blocked')
     await store.appendEvent(task.id, {
       type: 'run_failed', lane: 'control', status: 'failed', label: 'Task failed', content: message, payload: {},
     })
