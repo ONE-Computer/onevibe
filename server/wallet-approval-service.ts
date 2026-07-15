@@ -13,7 +13,8 @@ export class WalletApprovalService {
     if (expectedBytes.length !== suppliedBytes.length || !timingSafeEqual(expectedBytes, suppliedBytes)) throw new Error('Wallet authorization failed')
   }
 
-  listPending() {
+  async listPending() {
+    await this.store.reconcileExpiredApprovals()
     return this.store.listTasks().flatMap((task) => {
       const approval = task.approval
       if (!approval || approval.state !== 'pending') return []
@@ -38,14 +39,11 @@ export class WalletApprovalService {
   }
 
   async decide(approvalId: string, decision: 'approved' | 'denied', signer: string) {
+    await this.store.reconcileExpiredApprovals()
     const task = this.store.findTaskByApproval(approvalId)
     const approval = task.approval
     if (!approval || approval.state !== 'pending') throw new Error('Approval is not pending')
     if (!approval.intentHash || !approval.evidenceHash) throw new Error('Approval is missing an evidence-bound intent; request a new approval')
-    if (Date.parse(approval.expiresAt) <= Date.now()) {
-      await this.store.updateTask(task.id, { approval: { ...approval, state: 'expired' } })
-      throw new Error('Approval has expired')
-    }
     const decidedAt = new Date().toISOString()
     const receiptBody = JSON.stringify({ approvalId, taskId: task.id, action: approval.action, decision, signer, decidedAt, intentHash: approval.intentHash })
     const signature = createHmac('sha256', this.walletToken).update(receiptBody).digest('hex')

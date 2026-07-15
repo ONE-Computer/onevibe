@@ -212,6 +212,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, runtimeReadiness({ claudeConfigured, remoteConfigured: Boolean(REMOTE_RUNTIME_URL), oneComputerConfigured }))
 
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
+    await store.reconcileExpiredApprovals()
     return json(response, 200, { tasks: store.listTasks() })
   }
   if (request.method === 'GET' && url.pathname === '/api/library') return json(response, 200, { items: await store.listLibrary() })
@@ -287,7 +288,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (!walletService) return json(response, 503, { error: 'External wallet resolution is not configured' })
     walletService.authorize(request.headers.authorization)
     if (request.method === 'GET' && segments[2] === 'approvals' && segments.length === 3) {
-      return json(response, 200, { approvals: walletService.listPending() })
+      return json(response, 200, { approvals: await walletService.listPending() })
     }
     if (request.method === 'POST' && segments[2] === 'approvals' && segments[3] && segments[4] === 'decision') {
       const input = walletDecision.parse(await readBody(request))
@@ -338,6 +339,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   const taskId = segments[2]
   if (segments[0] === 'api' && segments[1] === 'tasks' && taskId) {
     if (request.method === 'GET' && segments.length === 3) {
+      await store.reconcileExpiredApprovals()
       return json(response, 200, await store.snapshot(taskId))
     }
     if (request.method === 'POST' && segments[3] === 'cancel') {

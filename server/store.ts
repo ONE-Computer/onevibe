@@ -389,6 +389,27 @@ export class TaskStore {
     return task
   }
 
+  async reconcileExpiredApprovals(now = Date.now()) {
+    const expired: string[] = []
+    for (const candidate of this.listTasks()) {
+      const approval = candidate.approval
+      if (!approval || approval.state !== 'pending' || !Number.isFinite(Date.parse(approval.expiresAt)) || Date.parse(approval.expiresAt) > now) continue
+      // Re-read after prior awaits so concurrent review requests cannot append
+      // duplicate expiry evidence for the same approval.
+      const task = this.getTask(candidate.id)
+      const current = task.approval
+      if (!current || current.state !== 'pending' || current.id !== approval.id || Date.parse(current.expiresAt) > now) continue
+      await this.updateTask(task.id, { approval: { ...current, state: 'expired' } })
+      await this.appendEvent(task.id, {
+        type: 'approval_resolved', lane: 'approval', status: task.status, label: 'External wallet request expired',
+        content: `The ${current.action.replaceAll('_', ' ')} approval window closed without a wallet decision.`,
+        payload: { approvalId: current.id, action: current.action, state: 'expired', intentHash: current.intentHash, evidenceHash: current.evidenceHash, authority: 'server_expiry_reconciliation', walletDecision: false },
+      })
+      expired.push(task.id)
+    }
+    return expired
+  }
+
   async updateTask(id: string, patch: Partial<Task>) {
     const current = this.getTask(id)
     const updated = { ...current, ...patch, id: current.id, updatedAt: new Date().toISOString() }

@@ -24,7 +24,7 @@ describe('WalletApprovalService', () => {
     const wallet = new WalletApprovalService(store, token)
 
     expect(() => wallet.authorize('Bearer wrong')).toThrow('authorization failed')
-    expect(wallet.listPending()).toMatchObject([{ taskId: task.id, intent: { version: 1, taskId: task.id, action: 'share_artifact', evidenceHash, intentHash } }])
+    await expect(wallet.listPending()).resolves.toMatchObject([{ taskId: task.id, intent: { version: 1, taskId: task.id, action: 'share_artifact', evidenceHash, intentHash } }])
     const result = await wallet.decide('approval-test', 'approved', 'test-vti-wallet')
 
     expect(result.share?.id.length).toBeGreaterThan(20)
@@ -34,5 +34,26 @@ describe('WalletApprovalService', () => {
     expect(store.getTask(task.id).approval?.state).toBe('approved')
     expect(store.listEvents(task.id).at(-1)?.type).toBe('approval_resolved')
     expect(store.verifyChain(task.id)).toBe(true)
+  })
+
+  it('reconciles expired requests into immutable non-decision evidence before wallet review', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-wallet-expiry-'))
+    roots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { WalletApprovalService } = await import('./wallet-approval-service.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Publish a governed artifact', 'demo')
+    const expiresAt = new Date(Date.now() - 1_000).toISOString()
+    const evidenceHash = 'test-evidence-head'
+    const intentHash = approvalIntentHash({ approvalId: 'approval-expired', taskId: task.id, action: 'publish_preview', expiresAt, evidenceHash })
+    await store.updateTask(task.id, { approval: { id: 'approval-expired', action: 'publish_preview', intentHash, evidenceHash, state: 'pending', walletUrl: 'openvtc://trust-task/approval-expired', expiresAt } })
+    const wallet = new WalletApprovalService(store, 'wallet-test-token-that-is-long-enough')
+
+    await expect(wallet.listPending()).resolves.toEqual([])
+    expect(store.getTask(task.id).approval?.state).toBe('expired')
+    expect(store.listEvents(task.id).at(-1)).toMatchObject({ type: 'approval_resolved', payload: { state: 'expired', walletDecision: false } })
+    expect(store.verifyChain(task.id)).toBe(true)
+    await expect(wallet.decide('approval-expired', 'approved', 'test-vti-wallet')).rejects.toThrow('not pending')
   })
 })
