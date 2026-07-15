@@ -1,0 +1,198 @@
+import { createHash, randomUUID } from 'node:crypto'
+import { EventEmitter } from 'node:events'
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import type { EventInput, RuntimeEvent, Task, TaskSnapshot, WorkspaceFile } from './types.js'
+
+const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
+
+const assertWithin = (root: string, candidate: string) => {
+  const relative = path.relative(root, candidate)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Path escapes configured workspace root')
+}
+
+const writeJson = async (filePath: string, value: unknown) => {
+  await mkdir(path.dirname(filePath), { recursive: true })
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+export class TaskStore {
+  private tasks = new Map<string, Task>()
+  private events = new Map<string, RuntimeEvent[]>()
+  private emitter = new EventEmitter()
+  private tasksRoot: string
+  private workspacesRoot: string
+
+  constructor(dataRoot = DEFAULT_DATA_ROOT) {
+    const resolvedRoot = path.resolve(dataRoot)
+    this.tasksRoot = path.join(resolvedRoot, 'tasks')
+    this.workspacesRoot = path.join(resolvedRoot, 'workspaces')
+  }
+
+  async initialize() {
+    await mkdir(this.tasksRoot, { recursive: true })
+    await mkdir(this.workspacesRoot, { recursive: true })
+    const entries = await readdir(this.tasksRoot, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      try {
+        const task = JSON.parse(await readFile(path.join(this.tasksRoot, entry.name, 'task.json'), 'utf8')) as Task
+        const eventFile = path.join(this.tasksRoot, entry.name, 'events.json')
+        let storedEvents: RuntimeEvent[] = []
+        try {
+          storedEvents = JSON.parse(await readFile(eventFile, 'utf8')) as RuntimeEvent[]
+        } catch {
+          storedEvents = []
+        }
+        this.tasks.set(task.id, task)
+        this.events.set(task.id, storedEvents)
+      } catch {
+        // Ignore incomplete local-demo records. Production storage must fail closed.
+      }
+    }
+  }
+
+  async createTask(prompt: string, provider: Task['provider']): Promise<Task> {
+    const now = new Date().toISOString()
+    const id = `task_${randomUUID().replaceAll('-', '').slice(0, 14)}`
+    const task: Task = {
+      id,
+      title: prompt.length > 56 ? `${prompt.slice(0, 53).trim()}…` : prompt,
+      prompt,
+      provider,
+      status: 'pending',
+      plan: [
+        { id: 'scope', title: 'Understand the request and security boundaries', status: 'pending' },
+        { id: 'workspace', title: 'Prepare the governed workspace', status: 'pending' },
+        { id: 'build', title: 'Create the requested artifact', status: 'pending' },
+        { id: 'verify', title: 'Validate output and policy decisions', status: 'pending' },
+        { id: 'deliver', title: 'Deliver source, preview, and evidence', status: 'pending' },
+      ],
+      createdAt: now,
+      updatedAt: now,
+    }
+    this.tasks.set(id, task)
+    this.events.set(id, [])
+    await this.persist(task)
+    return task
+  }
+
+  listTasks() {
+    return [...this.tasks.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  getTask(id: string) {
+    const task = this.tasks.get(id)
+    if (!task) throw new Error('Task not found')
+    return task
+  }
+
+  async updateTask(id: string, patch: Partial<Task>) {
+    const current = this.getTask(id)
+    const updated = { ...current, ...patch, id: current.id, updatedAt: new Date().toISOString() }
+    this.tasks.set(id, updated)
+    await this.persist(updated)
+    return updated
+  }
+
+  async setPlanStep(taskId: string, stepId: string, status: Task['plan'][number]['status']) {
+    const task = this.getTask(taskId)
+    return this.updateTask(taskId, {
+      plan: task.plan.map((step) => (step.id === stepId ? { ...step, status } : step)),
+    })
+  }
+
+  async appendEvent(taskId: string, input: EventInput) {
+    const existing = this.events.get(taskId) ?? []
+    const previousHash = existing.at(-1)?.eventHash ?? 'GENESIS'
+    const unsigned = {
+      taskId,
+      sequence: existing.length,
+      type: input.type,
+      lane: input.lane,
+      status: input.status,
+      label: input.label,
+      content: input.content,
+      payload: input.payload,
+      createdAt: new Date().toISOString(),
+      previousHash,
+    }
+    const eventHash = createHash('sha256').update(JSON.stringify(unsigned)).digest('hex')
+    const event: RuntimeEvent = { id: `${taskId}:event:${existing.length}`, ...unsigned, eventHash }
+    existing.push(event)
+    this.events.set(taskId, existing)
+    await writeJson(path.join(this.tasksRoot, taskId, 'events.json'), existing)
+    this.emitter.emit(taskId, event)
+    return event
+  }
+
+  listEvents(taskId: string) {
+    return this.events.get(taskId) ?? []
+  }
+
+  subscribe(taskId: string, listener: (event: RuntimeEvent) => void) {
+    this.emitter.on(taskId, listener)
+    return () => this.emitter.off(taskId, listener)
+  }
+
+  workspacePath(taskId: string, relativePath = '') {
+    this.getTask(taskId)
+    const root = path.join(this.workspacesRoot, taskId)
+    const candidate = path.resolve(root, relativePath)
+    assertWithin(root, candidate)
+    return candidate
+  }
+
+  async writeWorkspaceFile(taskId: string, relativePath: string, content: string) {
+    const target = this.workspacePath(taskId, relativePath)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, content, 'utf8')
+  }
+
+  async readWorkspaceFile(taskId: string, relativePath: string) {
+    return readFile(this.workspacePath(taskId, relativePath), 'utf8')
+  }
+
+  async listWorkspaceFiles(taskId: string): Promise<WorkspaceFile[]> {
+    const root = this.workspacePath(taskId)
+    await mkdir(root, { recursive: true })
+    const results: WorkspaceFile[] = []
+    const walk = async (directory: string) => {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const full = path.join(directory, entry.name)
+        if (entry.isDirectory()) await walk(full)
+        if (entry.isFile()) {
+          const details = await stat(full)
+          results.push({
+            path: path.relative(root, full),
+            size: details.size,
+            updatedAt: details.mtime.toISOString(),
+          })
+        }
+      }
+    }
+    await walk(root)
+    return results.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  async snapshot(taskId: string): Promise<TaskSnapshot> {
+    return { ...this.getTask(taskId), events: this.listEvents(taskId), files: await this.listWorkspaceFiles(taskId) }
+  }
+
+  verifyChain(taskId: string) {
+    const events = this.listEvents(taskId)
+    let previousHash = 'GENESIS'
+    for (const event of events) {
+      const { id: _id, eventHash, ...unsigned } = event
+      if (event.previousHash !== previousHash) return false
+      const expected = createHash('sha256').update(JSON.stringify(unsigned)).digest('hex')
+      if (expected !== eventHash) return false
+      previousHash = eventHash
+    }
+    return true
+  }
+
+  private async persist(task: Task) {
+    await writeJson(path.join(this.tasksRoot, task.id, 'task.json'), task)
+  }
+}
