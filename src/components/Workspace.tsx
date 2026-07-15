@@ -5,8 +5,9 @@ import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, 
 import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
+import { workspaceLocationForTab, workspaceTabFromSearch, type WorkspaceTab } from './workspace-navigation'
 
-type Tab = 'dashboard' | 'computer' | 'observe' | 'preview' | 'visual' | 'slides' | 'design' | 'database' | 'assets' | 'code' | 'files' | 'history' | 'evidence' | 'handoff' | 'settings'
+type Tab = WorkspaceTab
 type SlideOutline = { number: number; title: string; summary: string }
 type DesignDirection = { id: string; name: string; rationale: string; confidence: number; selected: boolean }
 type DesignPhilosophy = { name: string; description: string }
@@ -16,7 +17,7 @@ const isBinary = (filePath: string) => /\.(pptx|pdf|png|jpe?g|gif|zip)$/i.test(f
 const formatElapsed = (milliseconds: number) => milliseconds < 1_000 ? '<1s' : milliseconds < 60_000 ? `${Math.round(milliseconds / 1_000)}s` : `${Math.floor(milliseconds / 60_000)}m ${Math.round((milliseconds % 60_000) / 1_000)}s`
 
 export const Workspace = ({ task }: { task: TaskSnapshot }) => {
-  const [tab, setTab] = useState<Tab>('preview')
+  const [tab, setTab] = useState<Tab>(() => workspaceTabFromSearch(window.location.search))
   const [files, setFiles] = useState<WorkspaceFile[]>(task.files)
   const [selectedFile, setSelectedFile] = useState<string | null>(task.files[0]?.path ?? null)
   const [content, setContent] = useState('')
@@ -53,6 +54,22 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
     if (event?.label === 'Sandbox browser review not observed') return { state: 'not observed', detail: 'Browser was enabled, but no review tool was recorded' }
     return { state: 'not requested', detail: 'No browser-review evidence was requested for this task' }
   }, [task.events])
+
+  const selectTab = (next: Tab) => {
+    setTab(next)
+    window.history.pushState(window.history.state, '', workspaceLocationForTab(window.location.href, next))
+  }
+
+  useEffect(() => {
+    const restore = () => setTab(workspaceTabFromSearch(window.location.search))
+    window.addEventListener('popstate', restore)
+    return () => window.removeEventListener('popstate', restore)
+  }, [])
+  useEffect(() => { setTab(workspaceTabFromSearch(window.location.search)) }, [task.id])
+  useEffect(() => {
+    if (workspaceTabFromSearch(window.location.search) === tab) return
+    window.history.pushState(window.history.state, '', workspaceLocationForTab(window.location.href, tab))
+  }, [tab])
 
   useEffect(() => {
     void getFiles(task.id).then((result) => {
@@ -120,21 +137,21 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
       <header className="workspace-header">
         <div className="window-controls"><i /><i /><i /></div>
         <div className="workspace-tabs">
-          <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}><Activity size={14} /> Dashboard</button>
-          <button className={tab === 'computer' ? 'active' : ''} onClick={() => setTab('computer')}><TerminalSquare size={14} /> Computer</button>
-          <button className={tab === 'observe' ? 'active' : ''} onClick={() => setTab('observe')}><Network size={14} /> Observe</button>
-          <button className={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}><Globe2 size={14} /> Preview</button>
-          {task.mode === 'slides' && <button className={tab === 'slides' ? 'active' : ''} onClick={() => setTab('slides')}><Presentation size={14} /> Deck</button>}
-          {task.mode === 'design' && <button className={tab === 'design' ? 'active' : ''} onClick={() => setTab('design')}><Palette size={14} /> Directions</button>}
-          {task.mode === 'data' && <button className={tab === 'database' ? 'active' : ''} onClick={() => setTab('database')}><Table2 size={14} /> Data</button>}
-          {assetFiles.length > 0 && <button className={tab === 'assets' ? 'active' : ''} onClick={() => setTab('assets')}><Image size={14} /> Assets</button>}
-          {task.securityContext?.executionBoundary === 'onecomputer_sandbox' && <button className={tab === 'visual' ? 'active' : ''} onClick={() => setTab('visual')}><Eye size={14} /> Live X11</button>}
-          <button className={tab === 'code' ? 'active' : ''} onClick={() => setTab('code')}><Code2 size={14} /> Code</button>
-          <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><Files size={14} /> Files</button>
-          <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}><History size={14} /> History</button>
-          <button className={tab === 'evidence' ? 'active' : ''} onClick={() => setTab('evidence')}><ShieldCheck size={14} /> Evidence</button>
-          {task.status === 'completed' && <button className={tab === 'handoff' ? 'active' : ''} onClick={() => setTab('handoff')}><GitFork size={14} /> Handoff</button>}
-          <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}><Settings2 size={14} /> Settings</button>
+          <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => selectTab('dashboard')}><Activity size={14} /> Dashboard</button>
+          <button className={tab === 'computer' ? 'active' : ''} onClick={() => selectTab('computer')}><TerminalSquare size={14} /> Computer</button>
+          <button className={tab === 'observe' ? 'active' : ''} onClick={() => selectTab('observe')}><Network size={14} /> Observe</button>
+          <button className={tab === 'preview' ? 'active' : ''} onClick={() => selectTab('preview')}><Globe2 size={14} /> Preview</button>
+          {task.mode === 'slides' && <button className={tab === 'slides' ? 'active' : ''} onClick={() => selectTab('slides')}><Presentation size={14} /> Deck</button>}
+          {task.mode === 'design' && <button className={tab === 'design' ? 'active' : ''} onClick={() => selectTab('design')}><Palette size={14} /> Directions</button>}
+          {task.mode === 'data' && <button className={tab === 'database' ? 'active' : ''} onClick={() => selectTab('database')}><Table2 size={14} /> Data</button>}
+          {assetFiles.length > 0 && <button className={tab === 'assets' ? 'active' : ''} onClick={() => selectTab('assets')}><Image size={14} /> Assets</button>}
+          {task.securityContext?.executionBoundary === 'onecomputer_sandbox' && <button className={tab === 'visual' ? 'active' : ''} onClick={() => selectTab('visual')}><Eye size={14} /> Live X11</button>}
+          <button className={tab === 'code' ? 'active' : ''} onClick={() => selectTab('code')}><Code2 size={14} /> Code</button>
+          <button className={tab === 'files' ? 'active' : ''} onClick={() => selectTab('files')}><Files size={14} /> Files</button>
+          <button className={tab === 'history' ? 'active' : ''} onClick={() => selectTab('history')}><History size={14} /> History</button>
+          <button className={tab === 'evidence' ? 'active' : ''} onClick={() => selectTab('evidence')}><ShieldCheck size={14} /> Evidence</button>
+          {task.status === 'completed' && <button className={tab === 'handoff' ? 'active' : ''} onClick={() => selectTab('handoff')}><GitFork size={14} /> Handoff</button>}
+          <button className={tab === 'settings' ? 'active' : ''} onClick={() => selectTab('settings')}><Settings2 size={14} /> Settings</button>
         </div>
         <div className="workspace-tools"><button title="Make a provenance-linked copy" onClick={() => void copyTask(task.id).then((copy) => window.location.assign(`/tasks/${copy.id}`))}><Copy size={14} /></button><a title="Download source, evidence, and GitHub handoff" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
       </header>
