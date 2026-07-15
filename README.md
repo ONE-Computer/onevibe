@@ -1,5 +1,7 @@
 # ONEVibe
 
+[![Verify ONEVibe](https://github.com/ONE-Computer/onevibe/actions/workflows/ci.yml/badge.svg)](https://github.com/ONE-Computer/onevibe/actions/workflows/ci.yml)
+
 ONEVibe is an open-source governed AI workspace: a Manus-like task, artifact, and preview experience backed by ONEComputer security boundaries.
 
 The first vertical slice already supports:
