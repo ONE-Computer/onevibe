@@ -21,6 +21,11 @@ const starterPrompts = [
   'Research a market and produce an evidence-backed report',
   'Create an internal tool with a governed approval flow',
 ]
+type AppView = 'agent' | 'schedules' | 'skills' | 'library'
+const viewFromLocation = (): AppView => {
+  const value = new URLSearchParams(window.location.search).get('view')
+  return value === 'schedules' || value === 'skills' || value === 'library' ? value : 'agent'
+}
 
 export default function App() {
   const shareId = window.location.pathname.match(/^\/share\/([^/]+)$/)?.[1]
@@ -29,7 +34,7 @@ export default function App() {
   const [schedules, setSchedules] = useState<TaskSchedule[]>([])
   const [library, setLibrary] = useState<LibraryItem[]>([])
   const [activeProjectId, setActiveProjectId] = useState('project_onevibe')
-  const [view, setView] = useState<'agent' | 'schedules' | 'skills' | 'library'>('agent')
+  const [view, setView] = useState<AppView>(viewFromLocation)
   const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>([])
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
@@ -46,7 +51,10 @@ export default function App() {
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)) }, [])
   useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }) }, [activeProjectId])
   useEffect(() => {
-    const onPopState = () => setActiveTaskId(window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
+    const onPopState = () => {
+      setActiveTaskId(window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
+      setView(viewFromLocation())
+    }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
@@ -72,6 +80,11 @@ export default function App() {
     setView('agent')
     setActiveTaskId(taskId)
     window.history.pushState({}, '', taskId ? `/tasks/${taskId}` : '/')
+  }
+  const navigateToView = (nextView: Exclude<AppView, 'agent'>) => {
+    setActiveTaskId(null)
+    setView(nextView)
+    window.history.pushState({}, '', `/?view=${nextView}`)
   }
   const toggleSkill = (skill: TaskSkill) => setSelectedSkills((current) => current.includes(skill) ? current.filter((item) => item !== skill) : current.length >= 4 ? current : [...current, skill])
 
@@ -108,7 +121,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onOpenSkills={() => { setActiveTaskId(null); setView('skills'); window.history.pushState({}, '', '/') }} onOpenLibrary={() => { setActiveTaskId(null); setView('library'); window.history.pushState({}, '', '/') }} onOpenSchedules={() => { setActiveTaskId(null); setView('schedules'); window.history.pushState({}, '', '/') }} /></motion.div>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} /></motion.div>}</AnimatePresence>
       <main className="main-shell">
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><span className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></span></div>

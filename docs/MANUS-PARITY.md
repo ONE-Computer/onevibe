@@ -16,7 +16,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 8. **I** Expandable task messages — long user and grouped assistant turns collapse and expand in place.
 9. **I** Structured waiting state — runtime parks durably, UI renders the focused request, and an answer resumes the same execution.
 10. **I** Terminal-input request state — native Claude can invoke the ONEVibe input MCP tool and receive the user's answer as its tool result.
-11. **I** Persistent task routes — `/tasks/:taskId` survives reload and browser navigation.
+11. **I** Persistent routes — `/tasks/:taskId` and the Skills, Library, and Scheduled surfaces survive reload and browser navigation through explicit view URLs.
 12. **I** Concurrent workspace plus conversation and Computer timeline — server-classified, run-bound, evidence-backed task events render as a scrub-able terminal, visual-frame, artifact, diff, preview, deck, and approval record beside the conversation. The rail supports explicit live follow/pause and keyboard step/scrub; authenticated sandbox execution now adds bounded five-second live X11 checkpoints. High-scale replay and deployed production visual capture remain P0 work.
 13. **I** Agent-mode entry point — primary ONEVibe surface.
 14. **I** Task history surface — durable turn-based chat history, timestamps/status, cursor pagination, full-text search, reload persistence, and evidence export.

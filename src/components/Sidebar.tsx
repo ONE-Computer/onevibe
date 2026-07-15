@@ -6,6 +6,7 @@ import { searchChat } from '../lib/api'
 import { BrandMark } from './BrandMark'
 
 type Props = {
+  view: 'agent' | 'schedules' | 'skills' | 'library'
   tasks: Task[]
   activeTaskId: string | null
   onNewTask: () => void
@@ -20,7 +21,7 @@ type Props = {
   onOpenSchedules: () => void
 }
 
-export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onOpenSkills, onOpenLibrary, onOpenSchedules }: Props) => {
+export const Sidebar = ({ view, tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onOpenSkills, onOpenLibrary, onOpenSchedules }: Props) => {
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
@@ -44,10 +45,10 @@ export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects
     <button className="new-task" onClick={onNewTask}><Plus size={16} /> New task <kbd>⌘ K</kbd></button>
     <label className="history-search"><Search size={13} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" /></label>
     <nav className="primary-nav" aria-label="Primary">
-      <button className="nav-item active"><Sparkles size={16} /> Agent</button>
-      <button className="nav-item" onClick={onOpenSkills}><Blocks size={16} /> Skills <span className="nav-pill">8</span></button>
-      <button className="nav-item" onClick={onOpenSchedules}><Clock3 size={16} /> Scheduled</button>
-      <button className="nav-item" onClick={onOpenLibrary}><Library size={16} /> Library</button>
+      <button className={`nav-item ${view === 'agent' ? 'active' : ''}`} onClick={onNewTask}><Sparkles size={16} /> Agent</button>
+      <button className={`nav-item ${view === 'skills' ? 'active' : ''}`} onClick={onOpenSkills}><Blocks size={16} /> Skills <span className="nav-pill">8</span></button>
+      <button className={`nav-item ${view === 'schedules' ? 'active' : ''}`} onClick={onOpenSchedules}><Clock3 size={16} /> Scheduled</button>
+      <button className={`nav-item ${view === 'library' ? 'active' : ''}`} onClick={onOpenLibrary}><Library size={16} /> Library</button>
     </nav>
     <div className="nav-section-label"><span>Projects</span><button aria-label="Create project" onClick={() => setCreatingProject((value) => !value)}><Plus size={13} /></button></div>
     {creatingProject && <form className="project-create" onSubmit={(event) => { event.preventDefault(); const name = projectName.trim(); if (!name) return; void onCreateProject(name, projectContext.trim()).then(() => { setProjectName(''); setProjectContext(''); setCreatingProject(false) }) }}><input autoFocus value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Project name" maxLength={100} /><textarea value={projectContext} onChange={(event) => setProjectContext(event.target.value)} placeholder="Governed brief (optional)" maxLength={8000} rows={2} /><button type="submit">Create project</button></form>}
