@@ -29,6 +29,17 @@ Date: 2026-07-15
 - Vite production build
 - workspace ZIP integrity check with source plus `ONEVIBE-EVIDENCE.json`
 
+## API smoke test — 2026-07-15
+
+An isolated API process (separate temporary `ONEVIBE_DATA_DIR`, port `4319`) received a `POST /api/tasks` request for a Safe-demo App task: “Create an operations dashboard for a governed workspace.”
+
+- The task completed all five persisted plan steps.
+- It produced 19 workspace files, including the typed React/Vite app scaffold, server foundation, mode-aware `index.html` preview, and `validation-report.json`.
+- The static artifact contract reported 26 checks passed.
+- The preview endpoint contained the generated Operations preview and `OPS-124` queue artifact.
+- The evidence endpoint reported a valid immutable event chain.
+- Public publication was withheld behind a pending `openvtc://` external-wallet request; no browser decision path was exercised or available.
+
 ## Honest limitations
 
 - Local demo mode is a process plus path confinement, not a VM/container sandbox.
