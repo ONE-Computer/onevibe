@@ -1,4 +1,4 @@
-import { Activity, Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, RefreshCw, Save, ShieldCheck, TerminalSquare } from 'lucide-react'
+import { Activity, Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, Presentation, RefreshCw, Save, ShieldCheck, TerminalSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
@@ -6,7 +6,8 @@ import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
 
-type Tab = 'dashboard' | 'computer' | 'preview' | 'visual' | 'code' | 'files' | 'history' | 'evidence'
+type Tab = 'dashboard' | 'computer' | 'preview' | 'visual' | 'slides' | 'code' | 'files' | 'history' | 'evidence'
+type SlideOutline = { number: number; title: string; summary: string }
 
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
 const isBinary = (filePath: string) => /\.(pptx|pdf|png|jpe?g|gif|zip)$/i.test(filePath)
@@ -25,6 +26,9 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [fullscreen, setFullscreen] = useState(false)
   const [visualFrame, setVisualFrame] = useState(0)
   const [visualError, setVisualError] = useState(false)
+  const [slides, setSlides] = useState<SlideOutline[]>([])
+  const [speakerNotes, setSpeakerNotes] = useState('')
+  const [activeSlide, setActiveSlide] = useState(0)
   const completedSteps = task.plan.filter((step) => step.status === 'completed').length
 
   useEffect(() => {
@@ -42,6 +46,12 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   }, [selectedFile, task.id])
   useEffect(() => { if (tab === 'evidence') void getEvidence(task.id).then((result) => setChainValid(result.valid)) }, [tab, task.id, task.events.length])
   useEffect(() => { if (tab === 'history') void getVersions(task.id).then((result) => setVersions(result.versions)) }, [tab, task.id, task.events.length])
+  useEffect(() => {
+    if (tab !== 'slides' || task.mode !== 'slides') return
+    void Promise.all([getFile(task.id, 'outline.json'), getFile(task.id, 'speaker-notes.md')]).then(([outline, notes]) => {
+      try { setSlides(JSON.parse(outline.content) as SlideOutline[]); setActiveSlide(0); setSpeakerNotes(notes.content) } catch { setSlides([]); setSpeakerNotes('') }
+    })
+  }, [tab, task.id, task.mode])
   useEffect(() => {
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setFullscreen(false) }
     window.addEventListener('keydown', close)
@@ -79,6 +89,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}><Activity size={14} /> Dashboard</button>
           <button className={tab === 'computer' ? 'active' : ''} onClick={() => setTab('computer')}><TerminalSquare size={14} /> Computer</button>
           <button className={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}><Globe2 size={14} /> Preview</button>
+          {task.mode === 'slides' && <button className={tab === 'slides' ? 'active' : ''} onClick={() => setTab('slides')}><Presentation size={14} /> Deck</button>}
           {task.securityContext?.executionBoundary === 'onecomputer_sandbox' && <button className={tab === 'visual' ? 'active' : ''} onClick={() => setTab('visual')}><Eye size={14} /> Live X11</button>}
           <button className={tab === 'code' ? 'active' : ''} onClick={() => setTab('code')}><Code2 size={14} /> Code</button>
           <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><Files size={14} /> Files</button>
@@ -97,6 +108,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
               {task.previewPath ? <iframe title="Generated workspace preview" sandbox="allow-scripts" src={activePreview} /> : <div className="workspace-placeholder"><RefreshCw className="spin" size={20} /><strong>Preparing preview</strong><span>The governed workspace is materializing.</span></div>}
             </motion.div>
           )}
+          {tab === 'slides' && <motion.div key="slides" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="deck-pane">{slides.length ? <><aside>{slides.map((slide, index) => <button key={slide.number} className={index === activeSlide ? 'active' : ''} onClick={() => setActiveSlide(index)}><span>{String(slide.number).padStart(2, '0')}</span><strong>{slide.title}</strong></button>)}</aside><section><div className="deck-slide"><span>Slide {slides[activeSlide]?.number} / {slides.length}</span><h2>{slides[activeSlide]?.title}</h2><p>{slides[activeSlide]?.summary}</p></div><article className="speaker-notes"><header><strong>Speaker notes</strong><button onClick={() => { setSelectedFile('speaker-notes.md'); setTab('code') }}>Edit notes <Pencil size={11} /></button></header><p>{speakerNotes.match(new RegExp(`## ${slides[activeSlide]?.number}\\. [^\\n]+\\n\\n([\\s\\S]*?)(?=\\n## |$)`))?.[1]?.trim() ?? 'No notes for this slide.'}</p></article></section></> : <div className="workspace-placeholder"><Presentation size={20} /><strong>Deck outline unavailable</strong><span>Open the Files tab to inspect the portable slide artifacts.</span></div>}</motion.div>}
           {tab === 'visual' && (
             <motion.div key="visual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="visual-pane">
               {task.securityContext?.sandboxState === 'destroyed' ? <div className="workspace-placeholder"><ShieldCheck size={20} /><strong>Ephemeral display closed</strong><span>The sandbox was destroyed after artifact extraction.</span></div> : task.securityContext?.visualRuntimeReady && !visualError ? <><div className="visual-status"><span className="live-dot" /> Live X11 capture · no VNC · 1 FPS</div><img src={`/api/tasks/${task.id}/visual/screenshot?v=${visualFrame}`} onError={() => setVisualError(true)} alt="Live X11 display from the ONEComputer sandbox" /></> : <div className="workspace-placeholder"><Eye size={20} /><strong>{visualError ? 'Visual frame unavailable' : 'Starting visual runtime'}</strong><span>{visualError ? 'The authenticated capture endpoint did not return a frame.' : 'Xvfb and Chromium are being prepared inside the sandbox.'}</span></div>}
