@@ -253,6 +253,16 @@ export class TaskStore {
     return version
   }
 
+  async copyWorkspace(sourceTaskId: string, targetTaskId: string) {
+    const source = this.workspacePath(sourceTaskId)
+    const target = this.workspacePath(targetTaskId)
+    const files = await this.listWorkspaceFiles(sourceTaskId)
+    if (!files.length) return 0
+    await rm(target, { recursive: true, force: true })
+    await cp(source, target, { recursive: true })
+    return files.length
+  }
+
   async exportWorkspaceZip(taskId: string) {
     const files = await this.listWorkspaceFiles(taskId)
     const entries: Record<string, Uint8Array> = {}

@@ -67,4 +67,21 @@ describe('TaskStore', () => {
     expect(await store.readWorkspaceFile(task.id, 'index.html')).toContain('Version one')
     expect(await store.listWorkspaceVersions(task.id)).toHaveLength(1)
   })
+
+  it('copies a workspace without sharing mutable files', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-copy-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const source = await store.createTask('Create the source artifact', 'demo')
+    const target = await store.createTask('Copy the source artifact', 'demo')
+    await store.writeWorkspaceFile(source.id, 'artifact.md', 'original')
+
+    expect(await store.copyWorkspace(source.id, target.id)).toBe(1)
+    await store.writeWorkspaceFile(target.id, 'artifact.md', 'changed copy')
+
+    expect(await store.readWorkspaceFile(source.id, 'artifact.md')).toBe('original')
+    expect(await store.readWorkspaceFile(target.id, 'artifact.md')).toBe('changed copy')
+  })
 })

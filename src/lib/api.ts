@@ -41,3 +41,6 @@ export const getVersions = async (taskId: string) =>
 
 export const restoreVersion = async (taskId: string, versionId: string) =>
   parse<{ version: WorkspaceVersion }>(await fetch(`/api/tasks/${taskId}/versions/${versionId}/restore`, { method: 'POST' }))
+
+export const copyTask = async (taskId: string) =>
+  parse<TaskSnapshot>(await fetch(`/api/tasks/${taskId}/copy`, { method: 'POST' }))

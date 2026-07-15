@@ -145,6 +145,25 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       setTimeout(() => executeTask(taskId, input.prompt, true), 25)
       return json(response, 202, { status: 'queued', taskId })
     }
+    if (request.method === 'POST' && segments[3] === 'copy') {
+      const source = store.getTask(taskId)
+      if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before copying it' })
+      const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode)
+      const fileCount = await store.copyWorkspace(source.id, copied.id)
+      const sourceHead = store.listEvents(source.id).at(-1)?.eventHash ?? 'GENESIS'
+      await store.updateTask(copied.id, {
+        status: 'completed',
+        previewPath: fileCount ? `/api/tasks/${copied.id}/preview` : undefined,
+        securityContext: { mode: 'local_demo', gatewayEnforced: false },
+      })
+      await store.appendEvent(copied.id, {
+        type: 'artifact_created', lane: 'artifact', status: 'completed', label: 'Task copied',
+        content: `Copied ${fileCount} workspace files from ${source.id}.`,
+        payload: { sourceTaskId: source.id, sourceEvidenceHash: sourceHead, fileCount },
+      })
+      await store.createWorkspaceVersion(copied.id, `Copied from ${source.title}`)
+      return json(response, 201, await store.snapshot(copied.id))
+    }
     if (request.method === 'GET' && segments[3] === 'events') {
       response.writeHead(200, {
         'Content-Type': 'text/event-stream',

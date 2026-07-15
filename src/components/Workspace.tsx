@@ -1,7 +1,7 @@
-import { Check, Code2, Download, File, Files, Globe2, History, Maximize2, Minimize2, Network, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Check, Code2, Copy, Download, File, Files, Globe2, History, Maximize2, Minimize2, Network, RefreshCw, ShieldCheck } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { getEvidence, getFile, getFiles, getVersions, restoreVersion } from '../lib/api'
+import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion } from '../lib/api'
 import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 
 type Tab = 'preview' | 'code' | 'files' | 'history' | 'evidence'
@@ -50,7 +50,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}><History size={14} /> History</button>
           <button className={tab === 'evidence' ? 'active' : ''} onClick={() => setTab('evidence')}><ShieldCheck size={14} /> Evidence</button>
         </div>
-        <div className="workspace-tools"><a title="Download source and evidence" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
+        <div className="workspace-tools"><button title="Make a provenance-linked copy" onClick={() => void copyTask(task.id).then((copy) => window.location.assign(`/tasks/${copy.id}`))}><Copy size={14} /></button><a title="Download source and evidence" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
       </header>
       <div className="workspace-meta"><span className="live-dot" /> local.onevibe.dev/{task.id.slice(-6)}<span className="workspace-policy"><ShieldCheck size={12} /> {task.securityContext?.gatewayEnforced ? 'ONEComputer gateway enforced' : 'local policy demo'}</span></div>
       <div className="workspace-body">
