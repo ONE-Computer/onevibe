@@ -12,7 +12,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 4. **P** Live plan progress — live statuses exist; per-run reset and richer progress are pending.
 5. **P** Per-step elapsed time — plan transitions now persist start/completion timestamps, render elapsed duration, and append timing evidence. Native-agent-derived granular step mapping remains pending.
 6. **I** Narrated execution — typed transcript deltas from demo, SDK, or remote runtime.
-7. **P** Interruptible follow-up chat — resumable same-session follow-ups work after a turn; mid-run steering is pending.
+7. **P** Interruptible follow-up chat — resumable same-session follow-ups work after a turn, and active non-interruptible provider turns now accept bounded, evidence-backed guidance queued for the next turn. True provider-native live interruption/injection remains pending.
 8. **I** Expandable task messages — long user and grouped assistant turns collapse and expand in place.
 9. **I** Structured waiting state — runtime parks durably, UI renders the focused request, and an answer resumes the same execution.
 10. **I** Terminal-input request state — native Claude can invoke the ONEVibe input MCP tool and receive the user's answer as its tool result.

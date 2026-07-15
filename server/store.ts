@@ -106,6 +106,7 @@ export class TaskStore {
         const task = JSON.parse(await readFile(path.join(this.tasksRoot, entry.name, 'task.json'), 'utf8')) as Task
         task.mode ??= 'general'
         task.skills ??= []
+        task.queuedGuidance ??= []
         task.projectId ??= 'project_onevibe'
         task.references ??= []
         task.attachments ??= []
@@ -144,6 +145,7 @@ export class TaskStore {
       provider,
       mode,
       skills,
+      queuedGuidance: [],
       projectId,
       scheduleId,
       references,
@@ -278,6 +280,27 @@ export class TaskStore {
     this.tasks.set(id, updated)
     await this.persist(updated)
     return updated
+  }
+
+  async queueGuidance(taskId: string, prompt: string) {
+    const task = this.getTask(taskId)
+    if (task.queuedGuidance.length >= 8) throw new Error('Task already has the maximum of 8 queued guidance messages')
+    const guidance = { id: `guidance_${randomUUID().replaceAll('-', '').slice(0, 12)}`, prompt, createdAt: new Date().toISOString() }
+    await this.updateTask(taskId, { queuedGuidance: [...task.queuedGuidance, guidance] })
+    await this.appendEvent(taskId, {
+      type: 'guidance_queued', lane: 'control', label: 'Guidance queued for next turn',
+      content: 'The current provider turn is non-interruptible; this guidance will resume the same task immediately after it reaches a terminal state.',
+      payload: { guidanceId: guidance.id, promptLength: prompt.length, appliesAfterRun: task.activeRunId },
+    })
+    return guidance
+  }
+
+  async takeQueuedGuidance(taskId: string) {
+    const task = this.getTask(taskId)
+    const [guidance, ...remaining] = task.queuedGuidance
+    if (!guidance) return undefined
+    await this.updateTask(taskId, { queuedGuidance: remaining })
+    return guidance
   }
 
   async setPlanStep(taskId: string, stepId: string, status: Task['plan'][number]['status']) {

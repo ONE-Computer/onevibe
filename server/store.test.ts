@@ -232,6 +232,24 @@ describe('TaskStore', () => {
     await expect(store.listLibrary()).resolves.toEqual([expect.objectContaining({ task: expect.objectContaining({ id: task.id }), files: [expect.objectContaining({ path: 'README.md' })] })])
   })
 
+  it('persists queued guidance in the evidence chain and drains it in arrival order', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-guidance-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Build a governed workspace', 'demo')
+    await store.beginTurn(task.id, task.prompt, task.provider)
+    const first = await store.queueGuidance(task.id, 'Use a stronger executive summary.')
+    await store.queueGuidance(task.id, 'Keep the artifact portable.')
+
+    expect(store.getTask(task.id).queuedGuidance).toHaveLength(2)
+    await expect(store.takeQueuedGuidance(task.id)).resolves.toMatchObject({ id: first.id, prompt: 'Use a stronger executive summary.' })
+    expect(store.getTask(task.id).queuedGuidance).toEqual([expect.objectContaining({ prompt: 'Keep the artifact portable.' })])
+    expect(store.listEvents(task.id).at(-1)).toMatchObject({ type: 'guidance_queued', payload: expect.objectContaining({ guidanceId: expect.any(String), promptLength: 27 }) })
+    expect(store.verifyChain(task.id)).toBe(true)
+  })
+
   it('persists metadata for path-confined task attachments', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-attachments-'))
     temporaryRoots.push(root)

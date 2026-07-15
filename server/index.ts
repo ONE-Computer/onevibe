@@ -168,7 +168,20 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean) => {
       type: 'run_failed', lane: 'control', status: 'failed', label: 'Task failed', content: message, payload: {},
     })
     await store.updateTask(task.id, { status: 'failed' })
-  }).finally(() => activeRuns.delete(task.id))
+  }).finally(async () => {
+    activeRuns.delete(task.id)
+    const finished = store.getTask(task.id)
+    if (finished.status !== 'completed') return
+    const guidance = await store.takeQueuedGuidance(task.id)
+    if (!guidance) return
+    await store.updateTask(task.id, { status: 'pending' })
+    await store.appendEvent(task.id, {
+      type: 'guidance_applied', lane: 'control', label: 'Queued guidance starting next turn',
+      content: 'The preceding provider turn completed. ONEVibe is resuming the same governed task with the queued guidance.',
+      payload: { guidanceId: guidance.id, queuedAt: guidance.createdAt },
+    })
+    setTimeout(() => executeTask(task.id, guidance.prompt, true), 25)
+  })
 }
 
 const route = async (request: IncomingMessage, response: ServerResponse) => {
@@ -289,7 +302,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       const input = followUpInput.parse(await readBody(request))
       const task = store.getTask(taskId)
       if (activeRuns.has(taskId) || task.status === 'running' || task.status === 'pending') {
-        return json(response, 409, { error: 'Wait for the current turn to finish or stop it first' })
+        const guidance = await store.queueGuidance(taskId, input.prompt)
+        return json(response, 202, { status: 'queued', taskId, guidanceId: guidance.id })
       }
       if (task.provider === 'remote' && !REMOTE_RUNTIME_URL) {
         return json(response, 409, { error: 'Remote runtime is not configured' })
@@ -313,7 +327,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'POST' && segments[3] === 'copy') {
       const source = store.getTask(taskId)
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before copying it' })
-      const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode, source.projectId, undefined, source.references)
+      const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode, source.projectId, undefined, source.references, [], source.skills)
       const fileCount = await store.copyWorkspace(source.id, copied.id)
       const sourceHead = store.listEvents(source.id).at(-1)?.eventHash ?? 'GENESIS'
       await store.updateTask(copied.id, {

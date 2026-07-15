@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import type { Task, TaskAttachment, TaskMode, TaskSkill } from '../types'
 
 type DraftAttachment = Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string; size: number }
-type Props = { compact?: boolean; busy?: boolean; skills?: TaskSkill[]; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[]) => Promise<void> }
+type Props = { compact?: boolean; busy?: boolean; queueable?: boolean; skills?: TaskSkill[]; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[]) => Promise<void> }
 
 const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: typeof Bot }> = [
   { id: 'general', label: 'Agent', detail: 'Flexible governed task', icon: Bot },
@@ -25,7 +25,7 @@ const starterTemplates: Array<{ title: string; outcome: string; prompt: string; 
   { title: 'Prototype an internal tool', outcome: 'Interactive app', mode: 'app', prompt: 'Create a focused internal tool prototype with a clean workflow, realistic sample data, and a responsive interface. Explain the decisions made.' },
 ]
 
-export const PromptComposer = ({ compact = false, busy = false, skills = [], onSubmit }: Props) => {
+export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
   const [mode, setMode] = useState<TaskMode>('general')
@@ -62,7 +62,7 @@ export const PromptComposer = ({ compact = false, busy = false, skills = [], onS
       <textarea
         value={prompt}
         onChange={(event) => setPrompt(event.target.value)}
-        placeholder={compact ? 'Ask ONEVibe to refine or continue…' : 'Assign a task, build an app, or investigate a problem'}
+        placeholder={compact ? (queueable ? 'Guide the next turn — this will queue safely…' : 'Ask ONEVibe to refine or continue…') : 'Assign a task, build an app, or investigate a problem'}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() }
         }}
@@ -81,7 +81,7 @@ export const PromptComposer = ({ compact = false, busy = false, skills = [], onS
         </div>
         <div className="composer-right">
           <span className="policy-chip"><ShieldCheck size={13} /> governed</span>
-          <button className="send-button" disabled={!prompt.trim() || busy} onClick={() => void submit()} aria-label="Start task"><ArrowUp size={17} /></button>
+          <button className="send-button" disabled={!prompt.trim() || busy} onClick={() => void submit()} aria-label={queueable ? 'Queue guidance for next turn' : 'Start task'}><ArrowUp size={17} /></button>
         </div>
       </div>
     </motion.div>

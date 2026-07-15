@@ -39,6 +39,7 @@ export type Task = {
   provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'
   mode: TaskMode
   skills: TaskSkill[]
+  queuedGuidance: Array<{ id: string; prompt: string; createdAt: string }>
   projectId: string
   scheduleId?: string
   references: string[]

@@ -24,6 +24,8 @@ export type EventType =
   | 'approval_resolved'
   | 'user_input_requested'
   | 'user_input_resolved'
+  | 'guidance_queued'
+  | 'guidance_applied'
   | 'artifact_created'
   | 'artifact_updated'
   | 'run_completed'
@@ -120,6 +122,7 @@ export type Task = {
   provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'
   mode: TaskMode
   skills: TaskSkill[]
+  queuedGuidance: Array<{ id: string; prompt: string; createdAt: string }>
   projectId: string
   scheduleId?: string
   references: string[]
