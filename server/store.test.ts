@@ -291,6 +291,21 @@ describe('TaskStore', () => {
     expect(store.listProjectFileVersions(project.id, initial.path)).toHaveLength(2)
   })
 
+  it('moves a settled task between projects with an evidence-recorded context boundary', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-project-move-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const destination = await store.createProject('Destination', 'Use this new project context.')
+    const task = await store.createTask('Organize this governed task', 'demo')
+    const moved = await store.moveTaskToProject(task.id, destination.id)
+
+    expect(moved.projectId).toBe(destination.id)
+    expect(store.listEvents(task.id).at(-1)).toMatchObject({ type: 'activity_delta', label: 'Task moved to project', payload: { fromProjectId: 'project_onevibe', toProjectId: destination.id, continuationContextChanged: true } })
+    expect(store.verifyChain(task.id)).toBe(true)
+  })
+
   it('persists website references with task context', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-references-'))
     temporaryRoots.push(root)

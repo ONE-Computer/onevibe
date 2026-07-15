@@ -418,6 +418,20 @@ export class TaskStore {
     return updated
   }
 
+  async moveTaskToProject(taskId: string, projectId: string) {
+    const task = this.getTask(taskId)
+    const destination = this.getProject(projectId)
+    if (task.projectId === destination.id) return task
+    const origin = this.getProject(task.projectId)
+    await this.updateTask(taskId, { projectId: destination.id })
+    await this.appendEvent(taskId, {
+      type: 'activity_delta', lane: 'control', label: 'Task moved to project',
+      content: `Moved from ${origin.name} to ${destination.name}. Future continuations use the destination project context.`,
+      payload: { fromProjectId: origin.id, fromProjectName: origin.name, toProjectId: destination.id, toProjectName: destination.name, continuationContextChanged: true },
+    })
+    return this.getTask(taskId)
+  }
+
   async queueGuidance(taskId: string, prompt: string) {
     const task = this.getTask(taskId)
     if (task.queuedGuidance.length >= 8) throw new Error('Task already has the maximum of 8 queued guidance messages')

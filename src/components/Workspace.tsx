@@ -2,7 +2,7 @@ import { Activity, ArrowLeft, ArrowRight, Check, ClipboardCheck, Code2, Copy, Do
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { compareVersion, copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
-import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { Project, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
 import { workspaceLocationForTab, workspaceTabFromSearch, type WorkspaceTab } from './workspace-navigation'
@@ -17,7 +17,7 @@ const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes /
 const isBinary = (filePath: string) => /\.(pptx|pdf|png|jpe?g|gif|zip)$/i.test(filePath)
 const formatElapsed = (milliseconds: number) => milliseconds < 1_000 ? '<1s' : milliseconds < 60_000 ? `${Math.round(milliseconds / 1_000)}s` : `${Math.floor(milliseconds / 60_000)}m ${Math.round((milliseconds % 60_000) / 1_000)}s`
 
-export const Workspace = ({ task }: { task: TaskSnapshot }) => {
+export const Workspace = ({ task, projects, onMoveProject }: { task: TaskSnapshot; projects: Project[]; onMoveProject: (taskId: string, projectId: string) => Promise<void> }) => {
   const [tab, setTab] = useState<Tab>(() => workspaceTabFromSearch(window.location.search))
   const [files, setFiles] = useState<WorkspaceFile[]>(task.files)
   const [selectedFile, setSelectedFile] = useState<string | null>(task.files[0]?.path ?? null)
@@ -39,6 +39,8 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [dataRows, setDataRows] = useState<string[][]>([])
   const [designDirections, setDesignDirections] = useState<DesignDirection[]>([])
   const [designPhilosophy, setDesignPhilosophy] = useState<DesignPhilosophy | null>(null)
+  const [movingProject, setMovingProject] = useState(false)
+  const [projectMoveError, setProjectMoveError] = useState<string | null>(null)
   const completedSteps = task.plan.filter((step) => step.status === 'completed').length
   const observability = useMemo(() => {
     const startedAt = task.events.find((event) => event.type === 'run_started')?.createdAt ?? task.createdAt
@@ -222,7 +224,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
                 <article><span>Approval authority</span><strong>{task.approval?.state ?? 'No approval pending'}</strong><small>{task.approval ? 'Decision remains outside the browser in VTI Wallet' : 'No consequential action has been requested'}</small></article>
                 <article><span>Artifact contract</span><strong>{task.mode.replaceAll('_', ' ')} mode</strong><small>Validation reports distinguish static evidence from executed runtime checks.</small></article>
               </div>
-              <section className="task-settings-context"><header><strong>Attached governed context</strong><span>Metadata only · treated as untrusted input</span></header><div>{task.skills.length > 0 ? <article><span>Skill guides</span><p>{task.skills.map((skill) => skill.replaceAll('_', ' ')).join(' · ')}</p></article> : <article><span>Skill guides</span><p>None selected for this task.</p></article>}{task.references.length > 0 ? <article><span>Website references</span><p>{task.references.map((reference) => new URL(reference).hostname).join(' · ')}</p></article> : <article><span>Website references</span><p>None attached.</p></article>}{task.attachments.length > 0 ? <article><span>Local attachments</span><p>{task.attachments.length} bounded file{task.attachments.length === 1 ? '' : 's'} staged under task inputs.</p></article> : <article><span>Local attachments</span><p>None attached.</p></article>}<article><span>Project</span><p>{task.projectId}</p></article></div></section>
+              <section className="task-project-control"><header><div><span>Project placement</span><strong>Future continuations use this project context</strong></div><em>{task.status === 'running' || task.status === 'pending' ? 'Stop task to move' : 'Settled task'}</em></header><select value={task.projectId} disabled={movingProject || task.status === 'running' || task.status === 'pending'} aria-label="Move task to project" onChange={(event) => { const projectId = event.target.value; if (projectId === task.projectId) return; setMovingProject(true); setProjectMoveError(null); void onMoveProject(task.id, projectId).catch((error: unknown) => setProjectMoveError(error instanceof Error ? error.message : 'Unable to move task')).finally(() => setMovingProject(false)) }}>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>{projectMoveError && <p>{projectMoveError}</p>}</section><section className="task-settings-context"><header><strong>Attached governed context</strong><span>Metadata only · treated as untrusted input</span></header><div>{task.skills.length > 0 ? <article><span>Skill guides</span><p>{task.skills.map((skill) => skill.replaceAll('_', ' ')).join(' · ')}</p></article> : <article><span>Skill guides</span><p>None selected for this task.</p></article>}{task.references.length > 0 ? <article><span>Website references</span><p>{task.references.map((reference) => new URL(reference).hostname).join(' · ')}</p></article> : <article><span>Website references</span><p>None attached.</p></article>}{task.attachments.length > 0 ? <article><span>Local attachments</span><p>{task.attachments.length} bounded file{task.attachments.length === 1 ? '' : 's'} staged under task inputs.</p></article> : <article><span>Local attachments</span><p>None attached.</p></article>}<article><span>Project</span><p>{task.projectId}</p></article></div></section>
               <p className="task-settings-note"><ShieldCheck size={13} /> Runtime credentials, wallet signing keys, X11/VNC/CDP channels, and provider control-plane access are intentionally absent from the browser.</p>
             </motion.div>
           )}
