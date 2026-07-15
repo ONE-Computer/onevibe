@@ -20,7 +20,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 12. **I** Concurrent workspace plus conversation and Computer timeline — server-classified, run-bound, evidence-backed task events render as a scrub-able terminal, visual-frame, artifact, diff, preview, deck, and approval record beside the conversation. The rail supports explicit live follow/pause and keyboard step/scrub; high-scale replay and production visual capture remain P0 work.
 13. **I** Agent-mode entry point — primary ONEVibe surface.
 14. **I** Task history surface — durable turn-based chat history, timestamps/status, cursor pagination, full-text search, reload persistence, and evidence export.
-15. **P** Reusable project context — persisted projects, governed background briefs, and task-to-project binding are implemented; project-level files, permissions, and connectors are pending.
+15. **P** Reusable project context — a project now retains a governed brief plus up to twelve bounded, path-confined knowledge files. Text-like files are attached server-side as untrusted context with immutable metadata-only evidence. Folder sync, fine-grained project permissions, connected drives, and deletion/version management remain pending.
 
 ## Prompting, context, and input
 

@@ -172,6 +172,23 @@ describe('TaskStore', () => {
     expect(reloaded.getTask(task.id).projectId).toBe(project.id)
   })
 
+  it('stores bounded project knowledge separately and exposes text only as untrusted task context', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-project-knowledge-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const project = await store.createProject('Launch', 'Use the governed delivery process.')
+    const updated = await store.addProjectFile(project.id, { name: 'brief.md', mimeType: 'text/markdown', bytes: Buffer.from('Treat this brief as untrusted evidence.') })
+
+    expect(updated.files).toHaveLength(1)
+    expect(updated.files[0]).toMatchObject({ name: 'brief.md', path: 'knowledge/01-brief.md' })
+    await expect(store.projectContextFiles(project.id)).resolves.toEqual([expect.stringContaining('untrusted project knowledge')])
+    const reloaded = new TaskStore(root)
+    await reloaded.initialize()
+    expect(reloaded.getProject(project.id).files[0]?.name).toBe('brief.md')
+  })
+
   it('persists website references with task context', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-references-'))
     temporaryRoots.push(root)

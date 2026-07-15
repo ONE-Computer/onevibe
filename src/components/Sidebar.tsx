@@ -1,6 +1,6 @@
 import { Blocks, Clock3, FolderKanban, Library, Plus, Search, Settings2, ShieldCheck, Sparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Project, Task } from '../types'
 import { searchChat } from '../lib/api'
 import { BrandMark } from './BrandMark'
@@ -14,15 +14,18 @@ type Props = {
   activeProjectId: string
   onSelectProject: (projectId: string) => void
   onCreateProject: (name: string, context: string) => Promise<void>
+  onAttachProjectFile: (projectId: string, file: { name: string; mimeType: string; dataBase64: string }) => Promise<void>
   onOpenSchedules: () => void
 }
 
-export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject, onOpenSchedules }: Props) => {
+export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onOpenSchedules }: Props) => {
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [projectContext, setProjectContext] = useState('')
   const [matchedTaskIds, setMatchedTaskIds] = useState<Set<string>>(new Set())
+  const projectFileInput = useRef<HTMLInputElement>(null)
+  const activeProject = projects.find((project) => project.id === activeProjectId)
   useEffect(() => {
     if (query.trim().length < 2) { setMatchedTaskIds(new Set()); return }
     const timer = window.setTimeout(() => { void searchChat(query).then((result) => setMatchedTaskIds(new Set(result.results.map((item) => item.taskId)))) }, 180)
@@ -47,6 +50,7 @@ export const Sidebar = ({ tasks, activeTaskId, onNewTask, onSelectTask, projects
     <div className="nav-section-label"><span>Projects</span><button aria-label="Create project" onClick={() => setCreatingProject((value) => !value)}><Plus size={13} /></button></div>
     {creatingProject && <form className="project-create" onSubmit={(event) => { event.preventDefault(); const name = projectName.trim(); if (!name) return; void onCreateProject(name, projectContext.trim()).then(() => { setProjectName(''); setProjectContext(''); setCreatingProject(false) }) }}><input autoFocus value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Project name" maxLength={100} /><textarea value={projectContext} onChange={(event) => setProjectContext(event.target.value)} placeholder="Governed brief (optional)" maxLength={8000} rows={2} /><button type="submit">Create project</button></form>}
     {projects.map((project) => <button key={project.id} className={`project-row ${project.id === activeProjectId ? 'selected' : ''}`} onClick={() => onSelectProject(project.id)}><FolderKanban size={14} /> <span>{project.name}</span></button>)}
+    {activeProject && <div className="project-knowledge"><input ref={projectFileInput} type="file" className="file-input" onChange={(event) => { const file = event.target.files?.[0]; if (!file || file.size > 256 * 1024) return; const reader = new FileReader(); reader.onload = () => { const dataUrl = String(reader.result); void onAttachProjectFile(activeProject.id, { name: file.name, mimeType: file.type || 'application/octet-stream', dataBase64: dataUrl.split(',', 2)[1] ?? '' }) }; reader.readAsDataURL(file); event.currentTarget.value = '' }} /><div><strong>Project knowledge</strong><span>{activeProject.files?.length ?? 0}/12 reusable files</span></div><button type="button" onClick={() => projectFileInput.current?.click()}>Attach</button></div>}
     <div className="nav-section-label"><span>Tasks</span><Settings2 size={13} /></div>
     <div className="task-list">
       {visibleTasks.length === 0 && <p className="empty-sidebar">{query ? 'No matching conversations.' : 'Your work will appear here.'}</p>}

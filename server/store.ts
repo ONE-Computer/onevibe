@@ -65,6 +65,7 @@ export class TaskStore {
   private workspacesRoot: string
   private runtimeRoot: string
   private versionsRoot: string
+  private projectsRoot: string
   private projectsFile: string
   private schedulesFile: string
 
@@ -74,6 +75,7 @@ export class TaskStore {
     this.workspacesRoot = path.join(resolvedRoot, 'workspaces')
     this.runtimeRoot = path.join(resolvedRoot, 'runtime')
     this.versionsRoot = path.join(resolvedRoot, 'versions')
+    this.projectsRoot = path.join(resolvedRoot, 'projects')
     this.projectsFile = path.join(resolvedRoot, 'projects.json')
     this.schedulesFile = path.join(resolvedRoot, 'schedules.json')
   }
@@ -83,13 +85,14 @@ export class TaskStore {
     await mkdir(this.workspacesRoot, { recursive: true })
     await mkdir(this.runtimeRoot, { recursive: true })
     await mkdir(this.versionsRoot, { recursive: true })
+    await mkdir(this.projectsRoot, { recursive: true })
     try {
       const stored = JSON.parse(await readFile(this.projectsFile, 'utf8')) as Project[]
       for (const project of stored) this.projects.set(project.id, project)
     } catch { /* first local run */ }
     if (!this.projects.size) {
       const now = new Date().toISOString()
-      this.projects.set('project_onevibe', { id: 'project_onevibe', name: 'ONEVibe product', context: 'Governed agent workspace powered by ONEComputer and OpenVTC. Keep approvals outside the browser and preserve evidence.', createdAt: now, updatedAt: now })
+      this.projects.set('project_onevibe', { id: 'project_onevibe', name: 'ONEVibe product', context: 'Governed agent workspace powered by ONEComputer and OpenVTC. Keep approvals outside the browser and preserve evidence.', files: [], createdAt: now, updatedAt: now })
       await this.persistProjects()
     }
     try {
@@ -122,6 +125,10 @@ export class TaskStore {
       } catch {
         // Ignore incomplete local-demo records. Production storage must fail closed.
       }
+    }
+    for (const [id, project] of this.projects) {
+      project.files ??= []
+      this.projects.set(id, project)
     }
   }
 
@@ -165,10 +172,46 @@ export class TaskStore {
 
   async createProject(name: string, context = ''): Promise<Project> {
     const now = new Date().toISOString()
-    const project = { id: `project_${randomUUID().replaceAll('-', '').slice(0, 12)}`, name, context, createdAt: now, updatedAt: now }
+    const project = { id: `project_${randomUUID().replaceAll('-', '').slice(0, 12)}`, name, context, files: [], createdAt: now, updatedAt: now }
     this.projects.set(project.id, project)
     await this.persistProjects()
     return project
+  }
+
+  async addProjectFile(projectId: string, input: { name: string; mimeType: string; bytes: Buffer }) {
+    const project = this.getProject(projectId)
+    if (project.files.length >= 12) throw new Error('A project can contain at most 12 knowledge files')
+    const name = path.basename(input.name).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
+    if (!name || name === '.' || name === '..') throw new Error('Invalid project file name')
+    const duplicate = project.files.some((file) => file.name === name)
+    if (duplicate) throw new Error('A project file with that name already exists')
+    const relativePath = `knowledge/${String(project.files.length + 1).padStart(2, '0')}-${name}`
+    const target = path.join(this.projectsRoot, projectId, relativePath)
+    assertWithin(path.join(this.projectsRoot, projectId), target)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, input.bytes)
+    const file = { name, path: relativePath, size: input.bytes.byteLength, mimeType: input.mimeType, createdAt: new Date().toISOString() }
+    const updated = { ...project, files: [...project.files, file], updatedAt: new Date().toISOString() }
+    this.projects.set(projectId, updated)
+    await this.persistProjects()
+    return updated
+  }
+
+  async projectContextFiles(projectId: string) {
+    const project = this.getProject(projectId)
+    const chunks: string[] = []
+    let remaining = 12_000
+    for (const file of project.files) {
+      if (remaining <= 0 || !/^(?:text\/|application\/(?:json|yaml|xml))/.test(file.mimeType) && !/\.(?:md|txt|json|ya?ml|csv|xml)$/i.test(file.name)) continue
+      const target = path.join(this.projectsRoot, project.id, file.path)
+      assertWithin(path.join(this.projectsRoot, project.id), target)
+      const raw = await readFile(target, 'utf8').catch(() => '')
+      const content = raw.slice(0, Math.min(4_000, remaining))
+      if (!content) continue
+      chunks.push(`--- ${file.name} (untrusted project knowledge) ---\n${content}`)
+      remaining -= content.length
+    }
+    return chunks
   }
 
   listSchedules() { return [...this.schedules.values()].sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt)) }

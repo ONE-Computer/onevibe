@@ -37,9 +37,12 @@ export type Project = {
   id: string
   name: string
   context: string
+  files: ProjectFile[]
   createdAt: string
   updatedAt: string
 }
+
+export type ProjectFile = { name: string; path: string; size: number; mimeType: string; createdAt: string }
 
 export type TaskSchedule = {
   id: string
