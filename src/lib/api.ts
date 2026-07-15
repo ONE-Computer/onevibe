@@ -25,3 +25,6 @@ export const getFile = async (taskId: string, filePath: string) =>
 
 export const getEvidence = async (taskId: string) =>
   parse<{ valid: boolean }>(await fetch(`/api/tasks/${taskId}/evidence`))
+
+export const cancelTask = async (taskId: string) =>
+  parse<{ status: string }>(await fetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' }))

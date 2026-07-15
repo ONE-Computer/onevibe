@@ -51,7 +51,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     await store.initialize()
     const task = await store.createTask('Build a governed website', 'claude_sdk')
 
-    await new ClaudeSdkRuntimeAdapter().run({ task, store })
+    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal })
 
     const events = store.listEvents(task.id)
     expect(permissionChecks).toEqual(['allow', 'deny', 'deny'])

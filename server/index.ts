@@ -14,6 +14,7 @@ const REMOTE_RUNTIME_TOKEN = process.env.ONEVIBE_RUNTIME_BEARER_TOKEN
 const ONECOMPUTER_API_URL = process.env.ONECOMPUTER_API_URL
 const ONECOMPUTER_SERVICE_TOKEN = process.env.ONECOMPUTER_SERVICE_TOKEN
 const store = new TaskStore()
+const activeRuns = new Map<string, AbortController>()
 
 const json = (response: ServerResponse, status: number, value: unknown) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
@@ -59,6 +60,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       return json(response, 409, { error: 'Remote runtime is not configured. Set ONEVIBE_RUNTIME_URL.' })
     }
     const task = await store.createTask(input.prompt, input.provider)
+    const controller = new AbortController()
+    activeRuns.set(task.id, controller)
     const adapter: RuntimeAdapter = input.provider === 'remote'
       ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN)
       : input.provider === 'claude_sdk'
@@ -82,15 +85,23 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
             securityContext: { mode: 'local_demo', gatewayEnforced: false },
           })
         }
-        await adapter.run({ task: store.getTask(task.id), store })
+        await adapter.run({ task: store.getTask(task.id), store, signal: controller.signal })
       }
       run().catch(async (error: unknown) => {
+        if (controller.signal.aborted) {
+          await store.appendEvent(task.id, {
+            type: 'run_cancelled', lane: 'control', status: 'cancelled', label: 'Task cancelled',
+            content: 'Execution was stopped by the user. Existing workspace files and evidence were retained.', payload: {},
+          })
+          await store.updateTask(task.id, { status: 'cancelled' })
+          return
+        }
         const message = error instanceof Error ? error.message : String(error)
         await store.appendEvent(task.id, {
           type: 'run_failed', lane: 'control', status: 'failed', label: 'Task failed', content: message, payload: {},
         })
         await store.updateTask(task.id, { status: 'failed' })
-      })
+      }).finally(() => activeRuns.delete(task.id))
     }, 25)
     return json(response, 201, task)
   }
@@ -99,6 +110,16 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (segments[0] === 'api' && segments[1] === 'tasks' && taskId) {
     if (request.method === 'GET' && segments.length === 3) {
       return json(response, 200, await store.snapshot(taskId))
+    }
+    if (request.method === 'POST' && segments[3] === 'cancel') {
+      const task = store.getTask(taskId)
+      if (task.status !== 'running' && task.status !== 'pending') {
+        return json(response, 409, { error: `Task cannot be cancelled from ${task.status}` })
+      }
+      const controller = activeRuns.get(taskId)
+      if (!controller) return json(response, 409, { error: 'Task execution is not active' })
+      controller.abort()
+      return json(response, 202, { status: 'cancelling' })
     }
     if (request.method === 'GET' && segments[3] === 'events') {
       response.writeHead(200, {

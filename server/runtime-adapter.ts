@@ -4,6 +4,7 @@ import type { TaskStore } from './store.js'
 export type RuntimeContext = {
   task: Task
   store: TaskStore
+  signal: AbortSignal
 }
 
 export interface RuntimeAdapter {

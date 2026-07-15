@@ -5,6 +5,7 @@ ONEVibe is an open-source governed AI workspace: a Manus-like task, artifact, an
 The first vertical slice already supports:
 
 - natural-language task creation and automatic planning;
+- server-owned cancellation that retains partial source and evidence;
 - a typed Server-Sent Events task timeline;
 - activity, tool, artifact, approval, and control lanes;
 - a path-confined local workspace with generated files and live preview;

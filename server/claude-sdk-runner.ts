@@ -39,7 +39,8 @@ const titleFor = (message: SDKMessage) => {
 export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'claude_sdk'
 
-  async run({ task, store }: RuntimeContext) {
+  async run({ task, store, signal }: RuntimeContext) {
+    signal.throwIfAborted()
     const workspace = store.workspacePath(task.id)
     const runtimeState = store.runtimeStatePath(task.id)
     await mkdir(workspace, { recursive: true })
@@ -67,11 +68,16 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       return { behavior: 'allow', updatedInput: input }
     }
 
+    const abortController = new AbortController()
+    const abort = () => abortController.abort()
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) abortController.abort()
     let persistedSessionId = task.securityContext?.runtimeSessionId
     let terminal: { success: boolean; content?: string; nativeMessage: Record<string, unknown> } | undefined
     for await (const message of query({
       prompt: task.prompt,
       options: {
+        abortController,
         cwd: workspace,
         model: process.env.ONEVIBE_CLAUDE_MODEL ?? 'claude-sonnet-5',
         systemPrompt: [
@@ -155,6 +161,8 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       }
     }
 
+    signal.removeEventListener('abort', abort)
+    signal.throwIfAborted()
     const files = await store.listWorkspaceFiles(task.id)
     const hasPreview = files.some((file) => file.path === 'index.html')
     if (hasPreview) {

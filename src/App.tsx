@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, CodeXml, Menu, PanelLeftClose, Share2, ShieldCheck, Sparkles } from 'lucide-react'
+import { Bell, ChevronDown, CodeXml, Menu, PanelLeftClose, Share2, ShieldCheck, Sparkles, Square } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useState } from 'react'
 import { PromptComposer } from './components/PromptComposer'
@@ -7,7 +7,7 @@ import { TaskPlan } from './components/TaskPlan'
 import { TaskTimeline } from './components/TaskTimeline'
 import { Workspace } from './components/Workspace'
 import { useTask } from './hooks/useTask'
-import { createTask, listTasks } from './lib/api'
+import { cancelTask, createTask, listTasks } from './lib/api'
 import type { Task } from './types'
 import './index.css'
 
@@ -73,7 +73,7 @@ export default function App() {
               {!snapshot ? <div className="loading-state"><span className="loader" /> Loading governed workspace…</div> : (
                 <>
                   <div className="conversation-pane">
-                    <div className="conversation-header"><div><span className="task-kicker">{snapshot.provider === 'demo' ? 'Local demo runtime' : 'AgentCore runtime'}</span><h2>{snapshot.title}</h2></div><span className={`status-badge ${snapshot.status}`}>{snapshot.status.replaceAll('_', ' ')}</span></div>
+                    <div className="conversation-header"><div><span className="task-kicker">{snapshot.provider === 'demo' ? 'Local demo runtime' : snapshot.provider === 'claude_sdk' ? 'Claude Agent SDK' : 'AgentCore runtime'}</span><h2>{snapshot.title}</h2></div><div className="run-controls"><span className={`status-badge ${snapshot.status}`}>{snapshot.status.replaceAll('_', ' ')}</span>{snapshot.status === 'running' && <button className="cancel-button" onClick={() => void cancelTask(snapshot.id)}><Square size={10} /> Stop</button>}</div></div>
                     {error && <div className="stream-warning">{error}</div>}
                     <TaskTimeline task={snapshot} events={snapshot.events} />
                     <TaskPlan plan={snapshot.plan} />

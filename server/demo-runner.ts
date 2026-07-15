@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { evaluateAction } from './policy.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 
-const pause = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+const pause = (milliseconds: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+  if (signal.aborted) return reject(new DOMException('Task cancelled', 'AbortError'))
+  const abort = () => { clearTimeout(timer); reject(new DOMException('Task cancelled', 'AbortError')) }
+  const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve() }, milliseconds)
+  signal.addEventListener('abort', abort, { once: true })
+})
 
 const previewHtml = (title: string) => `<!doctype html>
 <html lang="en">
@@ -28,7 +33,8 @@ const previewHtml = (title: string) => `<!doctype html>
 export class DemoRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'demo'
 
-  async run({ task, store }: RuntimeContext) {
+  async run({ task, store, signal }: RuntimeContext) {
+    signal.throwIfAborted()
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'Task started',
@@ -40,7 +46,7 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
     })
 
     await store.setPlanStep(task.id, 'scope', 'running')
-    await pause(320)
+    await pause(320, signal)
     await store.appendEvent(task.id, {
       type: 'assistant_text_delta', lane: 'transcript',
       content: 'I’ll turn this into a working artifact, keep the runtime boundary visible, and withhold public release until an external wallet approves it.',
@@ -49,7 +55,7 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
     await store.setPlanStep(task.id, 'scope', 'completed')
 
     await store.setPlanStep(task.id, 'workspace', 'running')
-    await pause(300)
+    await pause(300, signal)
     const workspaceDecision = evaluateAction('write_workspace')
     await store.appendEvent(task.id, {
       type: 'activity_delta', lane: 'activity', label: 'Workspace policy evaluated',
@@ -63,7 +69,7 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
       type: 'tool_call_started', lane: 'activity', label: 'Write source files',
       content: 'Creating the preview and project metadata.', payload: { toolName: 'workspace.write', files: ['index.html', 'manifest.json'] },
     })
-    await pause(500)
+    await pause(500, signal)
     await store.writeWorkspaceFile(task.id, 'index.html', previewHtml(task.title))
     await store.writeWorkspaceFile(task.id, 'manifest.json', `${JSON.stringify({ name: task.title, generatedBy: 'onevibe-demo', sourcePrompt: task.prompt, public: false }, null, 2)}\n`)
     await store.appendEvent(task.id, {
@@ -78,7 +84,7 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
     await store.setPlanStep(task.id, 'build', 'completed')
 
     await store.setPlanStep(task.id, 'verify', 'running')
-    await pause(380)
+    await pause(380, signal)
     const publishDecision = evaluateAction('publish_preview')
     const approvalId = `approval_${randomUUID().replaceAll('-', '').slice(0, 12)}`
     const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()
@@ -99,7 +105,7 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
     await store.setPlanStep(task.id, 'verify', 'completed')
 
     await store.setPlanStep(task.id, 'deliver', 'running')
-    await pause(320)
+    await pause(320, signal)
     await store.appendEvent(task.id, {
       type: 'run_completed', lane: 'control', status: 'completed', label: 'Task completed safely',
       content: 'The artifact is ready locally. Publication is still pending in the separate wallet.',

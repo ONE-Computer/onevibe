@@ -48,7 +48,8 @@ export class RemoteRuntimeAdapter implements RuntimeAdapter {
 
   constructor(private readonly endpoint: string, private readonly bearerToken?: string) {}
 
-  async run({ task, store }: RuntimeContext) {
+  async run({ task, store, signal }: RuntimeContext) {
+    signal.throwIfAborted()
     await store.updateTask(task.id, { status: 'running' })
     const response = await fetch(this.endpoint, {
       method: 'POST',
@@ -64,7 +65,7 @@ export class RemoteRuntimeAdapter implements RuntimeAdapter {
         projectId: 'onevibe-local',
         runId: task.id,
       }),
-      signal: AbortSignal.timeout(15 * 60_000),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(15 * 60_000)]),
     })
     if (!response.ok || !response.body) throw new Error(`Remote runtime returned HTTP ${response.status}`)
 
