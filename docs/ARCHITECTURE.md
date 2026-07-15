@@ -50,3 +50,10 @@ The local slice proves the UX and contract:
 8. verify the event hash chain.
 
 It does not claim VM isolation, egress enforcement, real wallet signatures, or cloud runtime execution.
+
+## Implemented production adapters
+
+- `RemoteRuntimeAdapter` consumes the AgentCore/backend typed SSE contract. Its optional bearer token remains server-side.
+- `OneComputerClient` calls the real authenticated `/v1/sandboxes` route and exposes the real `/trigger-governed-action` seam. It intentionally has no approval-decision method.
+- When `ONEVIBE_RUNTIME_URL`, `ONECOMPUTER_API_URL`, and their server-side credentials are configured, a remote task provisions its ONEComputer sandbox before runtime execution and records the sandbox/provider boundary on the event timeline.
+- Workspace download emits a ZIP containing portable source plus `ONEVIBE-EVIDENCE.json` with task metadata, ordered events, and chain-verification status.

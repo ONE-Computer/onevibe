@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { z } from 'zod'
 import { DemoRuntimeAdapter } from './demo-runner.js'
+import { OneComputerClient } from './onecomputer-client.js'
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
@@ -8,6 +9,9 @@ import { TaskStore } from './store.js'
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
 const REMOTE_RUNTIME_URL = process.env.ONEVIBE_RUNTIME_URL
+const REMOTE_RUNTIME_TOKEN = process.env.ONEVIBE_RUNTIME_BEARER_TOKEN
+const ONECOMPUTER_API_URL = process.env.ONECOMPUTER_API_URL
+const ONECOMPUTER_SERVICE_TOKEN = process.env.ONECOMPUTER_SERVICE_TOKEN
 const store = new TaskStore()
 
 const json = (response: ServerResponse, status: number, value: unknown) => {
@@ -55,10 +59,29 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     }
     const task = await store.createTask(input.prompt, input.provider)
     const adapter: RuntimeAdapter = input.provider === 'remote'
-      ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string)
+      ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN)
       : new DemoRuntimeAdapter()
     setTimeout(() => {
-      adapter.run({ task, store }).catch(async (error: unknown) => {
+      const run = async () => {
+        if (input.provider === 'remote' && ONECOMPUTER_API_URL && ONECOMPUTER_SERVICE_TOKEN) {
+          const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL, serviceToken: ONECOMPUTER_SERVICE_TOKEN })
+          const sandbox = await client.createSandbox(`onevibe-${task.id.slice(-8)}`)
+          await store.updateTask(task.id, {
+            securityContext: { mode: 'onecomputer', sandboxId: sandbox.id, provider: sandbox.provider, gatewayEnforced: true },
+          })
+          await store.appendEvent(task.id, {
+            type: 'activity_delta', lane: 'control', label: 'ONEComputer sandbox provisioned',
+            content: 'The remote runtime is attached to an authenticated ONEComputer sandbox contract.',
+            payload: { sandboxId: sandbox.id, provider: sandbox.provider, state: sandbox.state, gatewayEnforced: true },
+          })
+        } else {
+          await store.updateTask(task.id, {
+            securityContext: { mode: 'local_demo', gatewayEnforced: false },
+          })
+        }
+        await adapter.run({ task: store.getTask(task.id), store })
+      }
+      run().catch(async (error: unknown) => {
         const message = error instanceof Error ? error.message : String(error)
         await store.appendEvent(task.id, {
           type: 'run_failed', lane: 'control', status: 'failed', label: 'Task failed', content: message, payload: {},
@@ -113,6 +136,17 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     }
     if (request.method === 'GET' && segments[3] === 'evidence') {
       return json(response, 200, { valid: store.verifyChain(taskId), events: store.listEvents(taskId) })
+    }
+    if (request.method === 'GET' && segments[3] === 'download') {
+      const archive = await store.exportWorkspaceZip(taskId)
+      response.writeHead(200, {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="onevibe-${taskId}.zip"`,
+        'Content-Length': archive.byteLength,
+        'Cache-Control': 'no-store',
+      })
+      response.end(Buffer.from(archive))
+      return
     }
   }
 

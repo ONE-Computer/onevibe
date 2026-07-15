@@ -11,3 +11,5 @@
 - Implemented and browser-verified the complete local task journey, including source/preview, external-wallet request, safe completion, and evidence verification.
 - Removed external font loading so the default application shell has no surprise third-party asset egress.
 - Captured dated home and completed-task screenshots under `docs/evidence/`.
+- Added the authenticated ONEComputer sandbox client against the verified `/v1/sandboxes` and governed-action routes; deliberately omitted portal approval decisions.
+- Added server-only runtime bearer authentication and portable ZIP export with an evidence manifest.

@@ -29,6 +29,12 @@ export type Task = {
   createdAt: string
   updatedAt: string
   previewPath?: string
+  securityContext?: {
+    mode: 'local_demo' | 'onecomputer'
+    sandboxId?: string
+    provider?: string
+    gatewayEnforced: boolean
+  }
   approval?: {
     id: string
     action: string

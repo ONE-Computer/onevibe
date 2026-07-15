@@ -1,4 +1,4 @@
-import { Check, Code2, File, Files, Globe2, History, Maximize2, Network, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Check, Code2, Download, File, Files, Globe2, History, Maximize2, Network, RefreshCw, ShieldCheck } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { getEvidence, getFile, getFiles } from '../lib/api'
@@ -39,9 +39,9 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><Files size={14} /> Files</button>
           <button className={tab === 'evidence' ? 'active' : ''} onClick={() => setTab('evidence')}><ShieldCheck size={14} /> Evidence</button>
         </div>
-        <div className="workspace-tools"><button><RefreshCw size={14} /></button><button><Maximize2 size={14} /></button></div>
+        <div className="workspace-tools"><a title="Download source and evidence" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button><Maximize2 size={14} /></button></div>
       </header>
-      <div className="workspace-meta"><span className="live-dot" /> local.onevibe.dev/{task.id.slice(-6)}<span className="workspace-policy"><ShieldCheck size={12} /> policy attached</span></div>
+      <div className="workspace-meta"><span className="live-dot" /> local.onevibe.dev/{task.id.slice(-6)}<span className="workspace-policy"><ShieldCheck size={12} /> {task.securityContext?.gatewayEnforced ? 'ONEComputer gateway enforced' : 'local policy demo'}</span></div>
       <div className="workspace-body">
         <AnimatePresence mode="wait">
           {tab === 'preview' && (
@@ -64,7 +64,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           {tab === 'evidence' && (
             <motion.div key="evidence" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="evidence-pane">
               <div className={`evidence-verdict ${chainValid ? 'valid' : ''}`}><ShieldCheck size={24} /><div><span>Local evidence chain</span><strong>{chainValid === null ? 'Verifying…' : chainValid ? 'Verified' : 'Integrity failure'}</strong></div>{chainValid && <Check size={18} />}</div>
-              <div className="evidence-stats"><div><span>Ordered events</span><strong>{task.events.length}</strong></div><div><span>Runtime route</span><strong>{task.provider}</strong></div><div><span>External approvals</span><strong>{task.approval ? 1 : 0}</strong></div></div>
+              <div className="evidence-stats"><div><span>Ordered events</span><strong>{task.events.length}</strong></div><div><span>Security boundary</span><strong>{task.securityContext?.gatewayEnforced ? 'gateway' : 'demo'}</strong></div><div><span>External approvals</span><strong>{task.approval ? 1 : 0}</strong></div></div>
               <div className="evidence-log">{task.events.slice(-6).reverse().map((event) => <div key={event.id}><History size={13} /><span>{event.sequence.toString().padStart(2, '0')}</span><strong>{event.label ?? event.type}</strong><code>{event.eventHash.slice(0, 12)}</code></div>)}</div>
               <p className="evidence-note"><Network size={13} /> Local hashes demonstrate ordering only. Production evidence must be anchored outside the workload through OpenVTC.</p>
             </motion.div>

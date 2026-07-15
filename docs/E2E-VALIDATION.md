@@ -27,6 +27,7 @@ Date: 2026-07-15
 - two Vitest security/store tests
 - frontend and server TypeScript checks
 - Vite production build
+- workspace ZIP integrity check with source plus `ONEVIBE-EVIDENCE.json`
 
 ## Honest limitations
 

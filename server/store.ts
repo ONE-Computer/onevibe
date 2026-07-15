@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { strToU8, zipSync } from 'fflate'
 import type { EventInput, RuntimeEvent, Task, TaskSnapshot, WorkspaceFile } from './types.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
@@ -173,6 +174,19 @@ export class TaskStore {
     }
     await walk(root)
     return results.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  async exportWorkspaceZip(taskId: string) {
+    const files = await this.listWorkspaceFiles(taskId)
+    const entries: Record<string, Uint8Array> = {}
+    for (const file of files) entries[file.path] = strToU8(await this.readWorkspaceFile(taskId, file.path))
+    entries['ONEVIBE-EVIDENCE.json'] = strToU8(`${JSON.stringify({
+      task: this.getTask(taskId),
+      events: this.listEvents(taskId),
+      chainValid: this.verifyChain(taskId),
+      exportedAt: new Date().toISOString(),
+    }, null, 2)}\n`)
+    return zipSync(entries, { level: 6 })
   }
 
   async snapshot(taskId: string): Promise<TaskSnapshot> {

@@ -27,6 +27,16 @@ Open `http://localhost:5173`. The API listens on `127.0.0.1:4311`.
 - `demo` (default): deterministic local workflow that writes only under `.onevibe/workspaces/<task-id>`.
 - `remote`: set `ONEVIBE_RUNTIME_URL` to a trusted AgentCore/backend SSE endpoint. The server proxies and normalizes the stream; the browser never receives runtime credentials.
 
+Optional server-side integration variables:
+
+```text
+ONEVIBE_RUNTIME_BEARER_TOKEN=...
+ONECOMPUTER_API_URL=https://onecomputer.example.com
+ONECOMPUTER_SERVICE_TOKEN=...
+```
+
+With both ONEComputer variables present, remote tasks provision through the real authenticated `POST /v1/sandboxes` route before invoking the runtime. Tokens are never serialized to task events or sent to the browser.
+
 ## Security status
 
 This repository is an implementation preview, not a certified sandbox. The local filesystem adapter demonstrates confinement and evidence behavior but does not provide VM/container isolation or network enforcement. Production deployment must attach ONEComputer's real sandbox and Rust gateway plus a real OpenVTC/VTI Wallet.

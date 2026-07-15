@@ -46,13 +46,17 @@ const normalize = (value: unknown): EventInput | null => {
 export class RemoteRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'remote'
 
-  constructor(private readonly endpoint: string) {}
+  constructor(private readonly endpoint: string, private readonly bearerToken?: string) {}
 
   async run({ task, store }: RuntimeContext) {
     await store.updateTask(task.id, { status: 'running' })
     const response = await fetch(this.endpoint, {
       method: 'POST',
-      headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+      headers: {
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+        ...(this.bearerToken ? { Authorization: `Bearer ${this.bearerToken}` } : {}),
+      },
       body: JSON.stringify({
         provider: 'claude_agentcore',
         prompt: task.prompt,
