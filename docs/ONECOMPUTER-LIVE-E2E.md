@@ -45,6 +45,12 @@ A subsequent local ONEVibe preflight again reached public `GET /v1/health` with 
 
 The local process had no `ONECOMPUTER_API_URL`, `ONECOMPUTER_SERVICE_TOKEN`, or `ONECOMPUTER_PROJECT_ID` configured, and both gateway attestation and browser automation were disabled. No sandbox request was attempted. This is intentionally not a production E2E result: credentials plus the lifecycle and gateway gates above are required before a controlled task may be started.
 
+## Source contract re-verification — 2026-07-16
+
+The ONEComputer integration source contains the lifecycle repair at `d0438e0` (`fix: persist sandbox before asynchronous bootstrap`). Its `POST /v1/sandboxes` route now creates a provider resource in `provisioning`, persists its ownership record, returns `201`, then starts long bootstrap work asynchronously. The associated package test `src/routes/sandboxes.test.ts` passed two cases: persistence-before-bootstrap and cleanup/status update after bootstrap failure.
+
+This proves the source contract, not Azure promotion. The stale public timestamp above means the deployed runtime cannot yet be assumed to include `d0438e0`; deployment provenance, fresh health time, server-side credentials, and gateway attestation remain required before the controlled ONEVibe E2E can run.
+
 ## Blocking gap: asynchronous provisioning lifecycle
 
 This is an integration blocker, not a reason to weaken the ONEVibe boundary:
