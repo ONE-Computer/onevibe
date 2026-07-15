@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { DemoRuntimeAdapter } from './demo-runner.js'
 import { ClaudeSdkRuntimeAdapter } from './claude-sdk-runner.js'
 import { OneComputerClient } from './onecomputer-client.js'
+import { OneComputerSandboxRuntimeAdapter } from './onecomputer-sandbox-runner.js'
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
@@ -17,6 +18,8 @@ const REMOTE_RUNTIME_URL = process.env.ONEVIBE_RUNTIME_URL
 const REMOTE_RUNTIME_TOKEN = process.env.ONEVIBE_RUNTIME_BEARER_TOKEN
 const ONECOMPUTER_API_URL = process.env.ONECOMPUTER_API_URL
 const ONECOMPUTER_SERVICE_TOKEN = process.env.ONECOMPUTER_SERVICE_TOKEN
+const ONECOMPUTER_GATEWAY_ENFORCED = process.env.ONECOMPUTER_GATEWAY_ENFORCED === 'true'
+const ONECOMPUTER_RETAIN_SANDBOX = process.env.ONECOMPUTER_RETAIN_SANDBOX === 'true'
 const WALLET_TOKEN = process.env.ONEVIBE_WALLET_TOKEN
 const store = new TaskStore()
 const activeRuns = new Map<string, AbortController>()
@@ -42,7 +45,7 @@ const readBody = async (request: IncomingMessage) => {
 
 const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
-  provider: z.enum(['demo', 'claude_sdk', 'remote']).default('demo'),
+  provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).default('demo'),
   mode: z.enum(['general', 'website', 'slides', 'research', 'design', 'app', 'game']).default('general'),
 })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
@@ -52,8 +55,12 @@ const walletDecision = z.object({ decision: z.enum(['approved', 'denied']), sign
 const textFilePattern = /\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|ya?ml|toml|xml|svg|gitignore|prettierrc)$/i
 const contentHash = (content: string) => createHash('sha256').update(content).digest('hex')
 
-const adapterFor = (provider: 'demo' | 'claude_sdk' | 'remote'): RuntimeAdapter => provider === 'remote'
+const adapterFor = (provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'): RuntimeAdapter => provider === 'remote'
   ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN)
+  : provider === 'onecomputer'
+    ? new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN! }), {
+      gatewayEnforced: ONECOMPUTER_GATEWAY_ENFORCED, retainSandbox: ONECOMPUTER_RETAIN_SANDBOX,
+    })
   : provider === 'claude_sdk'
     ? new ClaudeSdkRuntimeAdapter()
     : new DemoRuntimeAdapter()
@@ -64,19 +71,13 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean) => {
   activeRuns.set(taskId, controller)
   const adapter = adapterFor(task.provider)
   const run = async () => {
-    if (task.provider === 'remote' && ONECOMPUTER_API_URL && ONECOMPUTER_SERVICE_TOKEN) {
-      const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL, serviceToken: ONECOMPUTER_SERVICE_TOKEN })
-      const sandbox = await client.createSandbox(`onevibe-${task.id.slice(-8)}`)
+    if (!task.securityContext && task.provider !== 'onecomputer') {
       await store.updateTask(task.id, {
-        securityContext: { mode: 'onecomputer', sandboxId: sandbox.id, provider: sandbox.provider, gatewayEnforced: true },
+        securityContext: {
+          mode: 'local_demo', gatewayEnforced: false,
+          executionBoundary: task.provider === 'remote' ? 'remote_runtime' : 'host_process',
+        },
       })
-      await store.appendEvent(task.id, {
-        type: 'activity_delta', lane: 'control', label: 'ONEComputer sandbox provisioned',
-        content: 'The remote runtime is attached to an authenticated ONEComputer sandbox contract.',
-        payload: { sandboxId: sandbox.id, provider: sandbox.provider, state: sandbox.state, gatewayEnforced: true },
-      })
-    } else if (!task.securityContext) {
-      await store.updateTask(task.id, { securityContext: { mode: 'local_demo', gatewayEnforced: false } })
     }
     await store.appendEvent(task.id, {
       type: 'user_message', lane: 'transcript', content: prompt,
@@ -115,6 +116,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       runtime: REMOTE_RUNTIME_URL ? 'remote_available' : 'demo_only',
       approvalAuthority: 'external_vti_wallet',
       walletResolutionConfigured: Boolean(walletService),
+      oneComputerSandboxConfigured: Boolean(ONECOMPUTER_API_URL && ONECOMPUTER_SERVICE_TOKEN),
     })
   }
 
@@ -153,6 +155,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const input = createTaskInput.parse(await readBody(request))
     if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) {
       return json(response, 409, { error: 'Remote runtime is not configured. Set ONEVIBE_RUNTIME_URL.' })
+    }
+    if (input.provider === 'onecomputer' && (!ONECOMPUTER_API_URL || !ONECOMPUTER_SERVICE_TOKEN)) {
+      return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL and ONECOMPUTER_SERVICE_TOKEN.' })
     }
     const task = await store.createTask(input.prompt, input.provider, input.mode)
     setTimeout(() => executeTask(task.id, input.prompt, false), 25)

@@ -19,6 +19,8 @@
 - ordered events include `previousHash` and `eventHash`;
 - runtime mode and non-production limitations are visible in the UI.
 - local wallet decisions produce HMAC receipts for integration testing; the wallet secret is never serialized into task state or evidence.
+- ONEComputer mode executes Claude through the sandbox API, rejects unsafe artifact paths, caps extraction at 100 files/10 MiB, and deletes the sandbox by default.
+- A ONEComputer sandbox is not presented as gateway-enforced unless `ONECOMPUTER_GATEWAY_ENFORCED=true` is explicitly configured after deployment verification.
 
 ## Promotion gates
 

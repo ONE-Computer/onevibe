@@ -9,7 +9,7 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
   const [mode, setMode] = useState<TaskMode>('general')
-  const providers: Task['provider'][] = ['demo', 'claude_sdk', 'remote']
+  const providers: Task['provider'][] = ['demo', 'claude_sdk', 'onecomputer', 'remote']
   const modes: TaskMode[] = ['general', 'website', 'slides', 'research', 'design', 'app', 'game']
 
   const submit = async () => {
@@ -37,7 +37,7 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
           {!compact && <button className="mode-button" onClick={() => setMode(modes[(modes.indexOf(mode) + 1) % modes.length] ?? 'general')}><Monitor size={15} /> {mode === 'general' ? 'Agent' : mode[0]?.toUpperCase() + mode.slice(1)} <ChevronDown size={13} /></button>}
           {!compact && <button className="mode-button" onClick={() => setProvider(providers[(providers.indexOf(provider) + 1) % providers.length] ?? 'demo')}>
             {provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}
-            {provider === 'demo' ? 'Safe demo' : provider === 'claude_sdk' ? 'Claude SDK' : 'AgentCore'} <ChevronDown size={13} />
+            {provider === 'demo' ? 'Safe demo' : provider === 'claude_sdk' ? 'Claude SDK' : provider === 'onecomputer' ? 'ONEComputer' : 'AgentCore'} <ChevronDown size={13} />
           </button>}
         </div>
         <div className="composer-right">

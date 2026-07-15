@@ -71,7 +71,7 @@ export type Task = {
   id: string
   title: string
   prompt: string
-  provider: 'demo' | 'claude_sdk' | 'remote'
+  provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'
   mode: TaskMode
   status: RunStatus
   plan: PlanStep[]
@@ -84,6 +84,9 @@ export type Task = {
     provider?: string
     gatewayEnforced: boolean
     runtimeSessionId?: string
+    executionBoundary?: 'host_process' | 'onecomputer_sandbox' | 'remote_runtime'
+    sandboxState?: string
+    destroyedAt?: string
   }
   approval?: {
     id: string

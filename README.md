@@ -34,6 +34,7 @@ Open `http://localhost:5173`. The API listens on `127.0.0.1:4311`.
 
 - `demo` (default): deterministic local workflow that writes only under `.onevibe/workspaces/<task-id>`.
 - `claude_sdk`: native `@anthropic-ai/claude-agent-sdk` execution with a workspace-only Read/Write/Edit/Glob/Grep tool policy. It uses your server-side Claude credentials and never sends them to the browser.
+- `onecomputer`: provisions an authenticated ONEComputer sandbox, runs Claude inside it, extracts at most 100 files/10 MiB, and destroys the sandbox after delivery by default. Set `ONECOMPUTER_RETAIN_SANDBOX=true` only when persistence is intentional.
 - `remote`: set `ONEVIBE_RUNTIME_URL` to a trusted AgentCore/backend SSE endpoint. The server proxies and normalizes the stream; the browser never receives runtime credentials.
 
 Optional server-side integration variables:
@@ -46,9 +47,11 @@ ONEVIBE_CLAUDE_MAX_BUDGET_USD=5
 ONEVIBE_WALLET_TOKEN=use-a-long-random-local-wallet-secret
 ONECOMPUTER_API_URL=https://onecomputer.example.com
 ONECOMPUTER_SERVICE_TOKEN=...
+ONECOMPUTER_GATEWAY_ENFORCED=false
+ONECOMPUTER_RETAIN_SANDBOX=false
 ```
 
-With both ONEComputer variables present, remote tasks provision through the real authenticated `POST /v1/sandboxes` route before invoking the runtime. Tokens are never serialized to task events or sent to the browser.
+With both ONEComputer variables present, the `onecomputer` runtime uses the real authenticated create, poll, exec, and delete sandbox routes. Tokens are never serialized to task events or sent to the browser. `ONECOMPUTER_GATEWAY_ENFORCED` defaults to false and must only be enabled after the deployed sandbox's egress path has been independently verified.
 
 The browser can request a share but cannot approve one. In local development, operate the separate wallet CLI from another terminal:
 
