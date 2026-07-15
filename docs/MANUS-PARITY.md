@@ -94,8 +94,8 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 72. **I** React and TypeScript generation as a mode contract.
 73. **P** Tailwind CSS integration as a generated scaffold — generated React/Vite projects include Tailwind 4 plus the Vite plugin, but dependency installation/build proof remains sandbox-gated.
 74. **P** Component-library scaffold — projects include a typed reusable Button and `cn` helper; richer component catalogue and visual-regression proof remain pending.
-75. **M** Server scaffold.
-76. **M** Shared-code scaffold.
+75. **P** Server scaffold — App mode emits a typed, local Node HTTP health endpoint with separate scripts; connectors, auth, deployment, and sandbox execution proof remain pending.
+76. **P** Shared-code scaffold — App mode emits a small typed client/server contract; broader domain/shared-package generation remains pending.
 77. **M** Package lock generation.
 78. **I** Formatting configuration — generated `.prettierrc`.
 79. **I** Git ignore generation — generated `.gitignore` excludes dependencies, builds, and environment files.

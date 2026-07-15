@@ -83,7 +83,7 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
     const styles = await required(store, task.id, 'app/src/styles.css', checks)
     check(checks, 'app:root-landmark', /<main(?:\s|>)/.test(appSource ?? ''), 'Generated app contains a main landmark')
     try {
-      const manifest = JSON.parse(packageJson ?? '') as { scripts?: { build?: string; dev?: string }; dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
+      const manifest = JSON.parse(packageJson ?? '') as { scripts?: { build?: string; dev?: string; 'server:dev'?: string; 'server:check'?: string }; dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
       check(checks, 'app:build-script', Boolean(manifest.scripts?.build), 'Portable scaffold declares a build script')
       check(checks, 'app:dev-script', Boolean(manifest.scripts?.dev), 'Portable scaffold declares a development script')
       check(checks, 'app:portable-vite-contract', Boolean(manifest.dependencies?.react && manifest.dependencies['react-dom'] && manifest.devDependencies?.vite && manifest.devDependencies.typescript), 'Portable scaffold declares React, Vite, and TypeScript dependencies')
@@ -98,6 +98,12 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
       check(checks, 'website:keyboard-focus', /:focus-visible/.test(styles ?? ''), 'Website supplies a visible keyboard focus treatment')
     }
     if (task.mode === 'app') check(checks, 'app:stateful-interaction', /useState\s*\(/.test(appSource ?? ''), 'App scaffold includes a stateful interaction')
+    if (task.mode === 'app') {
+      const server = await required(store, task.id, 'app/server/src/index.ts', checks)
+      const serverConfig = await required(store, task.id, 'app/server/tsconfig.json', checks)
+      const shared = await required(store, task.id, 'app/src/shared/contracts.ts', checks)
+      check(checks, 'app:typed-server-foundation', Boolean(server?.includes("createServer") && serverConfig?.includes('NodeNext') && shared?.includes('HealthResponse')), 'App scaffold includes a typed local server and shared contract')
+    }
     if (task.mode === 'game') check(checks, 'game:playable-control', /onClick=/.test(appSource ?? '') && /catchSignal/.test(appSource ?? ''), 'Game scaffold includes an interactive control loop')
   }
   const validation: ArtifactValidation = {
