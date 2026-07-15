@@ -18,6 +18,13 @@ const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: ty
   { id: 'game', label: 'Game', detail: 'Playable web experience', icon: Gamepad2 },
 ]
 
+const starterTemplates: Array<{ title: string; outcome: string; prompt: string; mode: TaskMode }> = [
+  { title: 'Ship a website', outcome: 'Responsive site + preview', mode: 'website', prompt: 'Build a polished responsive landing page for a secure enterprise AI workspace. Include a clear value proposition, product flow, and accessible mobile layout.' },
+  { title: 'Make a briefing', outcome: 'Narrative deck + speaker notes', mode: 'slides', prompt: 'Create an executive update deck: context, decision, delivery plan, risks, and next steps. Keep it concise, evidence-led, and ready to present.' },
+  { title: 'Investigate a question', outcome: 'Cited research brief', mode: 'research', prompt: 'Research this question, distinguish evidence from inference, and produce a concise brief with sources, open questions, and recommended next steps.' },
+  { title: 'Prototype an internal tool', outcome: 'Interactive app', mode: 'app', prompt: 'Create a focused internal tool prototype with a clean workflow, realistic sample data, and a responsive interface. Explain the decisions made.' },
+]
+
 export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
@@ -47,6 +54,10 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
       {!compact && referencesOpen && <div className="reference-popover"><input value={referenceDraft} onChange={(event) => setReferenceDraft(event.target.value)} placeholder="https://example.com/reference" onKeyDown={(event) => { if (event.key !== 'Enter') return; event.preventDefault(); try { const url = new URL(referenceDraft); if (!/^https?:$/.test(url.protocol) || url.username || url.password || /(?:token|secret|api[_-]?key|password)=/i.test(url.search)) return; setReferences((current) => current.includes(url.toString()) || current.length >= 8 ? current : [...current, url.toString()]); setReferenceDraft('') } catch { /* URL remains editable until valid */ } }} /><span>Press Enter to attach a public reference. ONEVibe does not fetch it automatically.</span></div>}
       {!compact && references.length > 0 && <div className="reference-chips">{references.map((reference) => <span key={reference}>{new URL(reference).hostname}<button aria-label={`Remove ${reference}`} onClick={() => setReferences((current) => current.filter((item) => item !== reference))}><X size={11} /></button></span>)}</div>}
       {!compact && attachments.length > 0 && <div className="reference-chips attachment-chips">{attachments.map((attachment) => <span key={`${attachment.name}-${attachment.size}`}>{attachment.name} · {Math.ceil(attachment.size / 1024)} KB<button aria-label={`Remove ${attachment.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== attachment))}><X size={11} /></button></span>)}</div>}
+      {!compact && !prompt && <motion.div className="template-gallery" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
+        <span>Start from a shape</span>
+        <div>{starterTemplates.map((template) => <button key={template.title} type="button" onClick={() => { setPrompt(template.prompt); setMode(template.mode) }}><strong>{template.title}</strong><small>{template.outcome}</small></button>)}</div>
+      </motion.div>}
       <textarea
         value={prompt}
         onChange={(event) => setPrompt(event.target.value)}

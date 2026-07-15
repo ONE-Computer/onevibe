@@ -44,9 +44,9 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 30. **P** Build Website mode — website artifacts and isolated preview work; mode-specific workflow is pending.
 31. **P** Design mode — concept rationale and design-token artifacts exist; richer visual generation is pending.
 32. **P** Create Games mode — dedicated plan and app scaffold exist; playable game generation is pending.
-33. **P** Expandable mode catalogue — the composer exposes nine purpose-specific modes with output descriptions and persists the chosen mode. Template galleries and mode-specific starter packs remain pending.
+33. **P** Expandable mode catalogue — the composer exposes nine purpose-specific modes with output descriptions and persists the chosen mode. A compact starter gallery now preconfigures editable Website, Briefing, Research, and Internal-tool tasks; deeper per-mode template packs remain pending.
 34. **M** E-commerce / Shopify template.
-35. **M** Landing-page template.
+35. **P** Landing-page template — an editable Website starter is available in the composer; reusable visual/template packs remain pending.
 36. **M** Dashboard template.
 37. **M** Portfolio template.
 38. **M** Corporate-site template.
