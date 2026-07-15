@@ -14,8 +14,8 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 6. **I** Narrated execution — typed transcript deltas from demo, SDK, or remote runtime.
 7. **P** Interruptible follow-up chat — resumable same-session follow-ups work after a turn; mid-run steering is pending.
 8. **I** Expandable task messages — long user and grouped assistant turns collapse and expand in place.
-9. **P** Structured waiting state — schema and approval waiting exist; general user-input loop is pending.
-10. **M** Terminal-input request state.
+9. **I** Structured waiting state — runtime parks durably, UI renders the focused request, and an answer resumes the same execution.
+10. **I** Terminal-input request state — native Claude can invoke the ONEVibe input MCP tool and receive the user's answer as its tool result.
 11. **I** Persistent task routes — `/tasks/:taskId` survives reload and browser navigation.
 12. **I** Concurrent workspace plus conversation.
 13. **I** Agent-mode entry point — primary ONEVibe surface.

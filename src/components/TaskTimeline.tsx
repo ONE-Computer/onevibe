@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import type { RuntimeEvent, Task } from '../types'
 import { ApprovalCard } from './ApprovalCard'
+import { UserInputCard } from './UserInputCard'
 
 const iconFor = (event: RuntimeEvent) => {
   if (event.lane === 'artifact') return <FileCode2 size={15} />
@@ -61,6 +62,7 @@ export const TaskTimeline = ({ task, events }: Props) => {
         </AnimatePresence>
       </div>
       {task.approval && <ApprovalCard approval={task.approval} />}
+      {task.inputRequest && <UserInputCard taskId={task.id} request={task.inputRequest} />}
     </div>
   )
 }

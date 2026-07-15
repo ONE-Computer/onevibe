@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
-import { query, type PermissionResult, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import { createSdkMcpServer, query, tool, type PermissionResult, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import { z } from 'zod'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
@@ -39,7 +40,7 @@ const titleFor = (message: SDKMessage) => {
 export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'claude_sdk'
 
-  async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
+  async run({ task, store, signal, prompt, continuation, requestUserInput }: RuntimeContext) {
     signal.throwIfAborted()
     const workspace = store.workspacePath(task.id)
     const runtimeState = store.runtimeStatePath(task.id)
@@ -52,7 +53,18 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       payload: { executionRoute: 'claude_agent_sdk', model: process.env.ONEVIBE_CLAUDE_MODEL ?? 'claude-sonnet-5' },
     })
 
-    const allowedTools = new Set(['Read', 'Write', 'Edit', 'Glob', 'Grep'])
+    const inputToolName = 'mcp__onevibe__request_user_input'
+    const allowedTools = new Set(['Read', 'Write', 'Edit', 'Glob', 'Grep', inputToolName])
+    const onevibeServer = createSdkMcpServer({
+      name: 'onevibe', version: '0.1.0', alwaysLoad: true,
+      instructions: 'Use request_user_input only when the task cannot safely continue without a human choice or missing value.',
+      tools: [tool('request_user_input', 'Pause the task and ask the user a focused question.', {
+        prompt: z.string().min(1).max(2_000), options: z.array(z.string().min(1).max(200)).max(8).default([]),
+      }, async ({ prompt: question, options }) => {
+        const answer = await requestUserInput(question, options, signal)
+        return { content: [{ type: 'text', text: answer }] }
+      })],
+    })
     const canUseTool = async (toolName: string, input: Record<string, unknown>): Promise<PermissionResult> => {
       if (!allowedTools.has(toolName)) {
         return { behavior: 'deny', message: `${toolName} is not available in the host-process SDK adapter. Use the ONEComputer sandbox MCP adapter.`, interrupt: false }
@@ -89,6 +101,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         ].join(' '),
         tools: [...allowedTools],
         allowedTools: [...allowedTools],
+        mcpServers: { onevibe: onevibeServer },
         canUseTool,
         permissionMode: 'default',
         includePartialMessages: true,

@@ -23,3 +23,4 @@
 - Made workspace export binary-safe and added direct binary artifact downloads without attempting to render PPTX bytes as source text.
 - Added independent task copies with copied source, a fresh evidence chain, and a provenance pointer to the source task's terminal evidence hash.
 - Added embedded source editing with Original/Modified/Diff views. Saves require the originally-read SHA-256, reject stale writes, snapshot the workspace first, and record before/after hashes in evidence.
+- Added a server-held user-input broker and native Claude MCP input tool. Tasks enter `waiting_for_user_input`, render options/free text, resume the same execution with the answer, record both transitions, and reject the parked promise on cancellation.

@@ -8,6 +8,7 @@ import { OneComputerClient } from './onecomputer-client.js'
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
+import { UserInputBroker } from './user-input-broker.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -17,6 +18,7 @@ const ONECOMPUTER_API_URL = process.env.ONECOMPUTER_API_URL
 const ONECOMPUTER_SERVICE_TOKEN = process.env.ONECOMPUTER_SERVICE_TOKEN
 const store = new TaskStore()
 const activeRuns = new Map<string, AbortController>()
+const inputBroker = new UserInputBroker(store)
 
 const json = (response: ServerResponse, status: number, value: unknown) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
@@ -42,6 +44,7 @@ const createTaskInput = z.object({
 })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
+const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
 const textFilePattern = /\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|ya?ml|toml|xml|svg|gitignore|prettierrc)$/i
 const contentHash = (content: string) => createHash('sha256').update(content).digest('hex')
 
@@ -75,7 +78,10 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean) => {
       type: 'user_message', lane: 'transcript', content: prompt,
       payload: { continuation },
     })
-    await adapter.run({ task: store.getTask(task.id), store, signal: controller.signal, prompt, continuation })
+    await adapter.run({
+      task: store.getTask(task.id), store, signal: controller.signal, prompt, continuation,
+      requestUserInput: (question, options, signal) => inputBroker.request(task.id, question, options, signal),
+    })
     if (store.getTask(task.id).status === 'completed') await store.createWorkspaceVersion(task.id, prompt)
   }
   run().catch(async (error: unknown) => {
@@ -148,6 +154,11 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       await store.updateTask(taskId, { status: 'pending' })
       setTimeout(() => executeTask(taskId, input.prompt, true), 25)
       return json(response, 202, { status: 'queued', taskId })
+    }
+    if (request.method === 'POST' && segments[3] === 'inputs' && segments[4]) {
+      const input = inputAnswer.parse(await readBody(request))
+      await inputBroker.resolve(taskId, segments[4], input.answer)
+      return json(response, 200, { status: 'resumed' })
     }
     if (request.method === 'POST' && segments[3] === 'copy') {
       const source = store.getTask(taskId)

@@ -98,7 +98,7 @@ export default function App() {
                     {error && <div className="stream-warning">{error}</div>}
                     <TaskTimeline task={snapshot} events={snapshot.events} />
                     <TaskPlan plan={snapshot.plan} />
-                    <PromptComposer compact busy={creating || snapshot.status === 'running' || snapshot.status === 'pending'} onSubmit={(prompt) => continueTask(prompt)} />
+                    <PromptComposer compact busy={creating || snapshot.status === 'running' || snapshot.status === 'pending' || Boolean(snapshot.inputRequest)} onSubmit={(prompt) => continueTask(prompt)} />
                   </div>
                   <div className="workspace-pane"><Workspace task={snapshot} /></div>
                 </>

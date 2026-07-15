@@ -16,6 +16,8 @@ const permissionChecks: string[] = []
 const queryCalls: QueryInput[] = []
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  createSdkMcpServer: (options: unknown) => ({ type: 'sdk', name: 'onevibe', instance: options }),
+  tool: (name: string, description: string, schema: unknown, handler: unknown) => ({ name, description, schema, handler }),
   query: async function* ({ prompt, options }: QueryInput) {
     queryCalls.push({ prompt, options })
     permissionChecks.push((await options.canUseTool('Write', { file_path: 'index.html' })).behavior)
@@ -56,7 +58,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     await store.initialize()
     const task = await store.createTask('Build a governed website', 'claude_sdk')
 
-    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false })
+    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'test answer' })
 
     const events = store.listEvents(task.id)
     expect(permissionChecks).toEqual(['allow', 'deny', 'deny'])
@@ -79,7 +81,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     const task = await store.createTask('Build the first version', 'claude_sdk')
     await store.updateTask(task.id, { securityContext: { mode: 'local_demo', gatewayEnforced: false, runtimeSessionId: 'session-existing' } })
 
-    await new ClaudeSdkRuntimeAdapter().run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Now add a pricing section', continuation: true })
+    await new ClaudeSdkRuntimeAdapter().run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Now add a pricing section', continuation: true, requestUserInput: async () => 'test answer' })
 
     expect(queryCalls[0]?.options.resume).toBe('session-existing')
     expect(queryCalls[0]?.prompt).toBe('Now add a pricing section')

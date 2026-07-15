@@ -10,6 +10,7 @@ The first vertical slice already supports:
 - immutable workspace version history and evidence-recorded restore;
 - mode-specific Website, Slides, Research, Design, App, and Game workflows, including native PPTX generation;
 - embedded source editing with diff review, optimistic concurrency, version snapshot, and evidence recording;
+- first-class waiting-for-user requests that resume the parked Claude tool call or demo execution;
 - a typed Server-Sent Events task timeline;
 - activity, tool, artifact, approval, and control lanes;
 - a path-confined local workspace with generated files and live preview;

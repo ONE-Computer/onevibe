@@ -49,3 +49,8 @@ export const restoreVersion = async (taskId: string, versionId: string) =>
 
 export const copyTask = async (taskId: string) =>
   parse<TaskSnapshot>(await fetch(`/api/tasks/${taskId}/copy`, { method: 'POST' }))
+
+export const answerInput = async (taskId: string, inputRequestId: string, answer: string) =>
+  parse<{ status: string }>(await fetch(`/api/tasks/${taskId}/inputs/${inputRequestId}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answer }),
+  }))

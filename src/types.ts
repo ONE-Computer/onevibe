@@ -46,6 +46,7 @@ export type Task = {
     walletUrl: string
     expiresAt: string
   }
+  inputRequest?: { id: string; prompt: string; options: string[]; createdAt: string }
 }
 
 export type TaskSnapshot = Task & { events: RuntimeEvent[]; files: WorkspaceFile[] }

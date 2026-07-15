@@ -7,6 +7,7 @@ export type RuntimeContext = {
   signal: AbortSignal
   prompt: string
   continuation: boolean
+  requestUserInput: (prompt: string, options: string[], signal: AbortSignal) => Promise<string>
 }
 
 export interface RuntimeAdapter {

@@ -34,7 +34,7 @@ const previewHtml = (title: string) => `<!doctype html>
 export class DemoRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'demo'
 
-  async run({ task, store, signal, prompt }: RuntimeContext) {
+  async run({ task, store, signal, prompt, requestUserInput }: RuntimeContext) {
     signal.throwIfAborted()
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
@@ -49,6 +49,13 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
       content: 'I’ll turn this into a working artifact, keep the runtime boundary visible, and withhold public release until an external wallet approves it.',
       payload: {},
     })
+    if (/\b(?:ask me|confirm with me|need my input)\b/i.test(prompt)) {
+      const answer = await requestUserInput('Which deployment region should this workspace use?', ['Singapore', 'Virginia', 'Local only'], signal)
+      await store.appendEvent(task.id, {
+        type: 'assistant_text_delta', lane: 'transcript',
+        content: `Thanks — I’ll continue with “${answer}” as the selected region.`, payload: { inputApplied: true },
+      })
+    }
     await store.setPlanStep(task.id, 'scope', 'completed')
 
     await store.setPlanStep(task.id, 'workspace', 'running')
