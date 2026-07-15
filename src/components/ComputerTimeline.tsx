@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, Eye, FileCode2, Pause, Play, Presentation, Radio, ShieldCheck, TerminalSquare, Wrench } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { PresentationPanel, TaskSnapshot } from '../types'
-import { artifactRailItems, causalVisualItemsFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, virtualRailRange, visualEvidenceStateFor, type ComputerItem } from './computer-timeline-activity'
+import { artifactRailItems, causalVisualItemsFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, virtualRailRange, visualEvidenceStateFor, type ComputerItem } from './computer-timeline-activity'
 
 const iconFor = (item: ComputerItem) => item.kind === 'terminal' ? <TerminalSquare size={13} /> : item.kind === 'screenshot' ? <Eye size={13} /> : item.kind === 'preview' ? <Radio size={13} /> : item.kind === 'slide' ? <Presentation size={13} /> : item.kind === 'approval' ? <ShieldCheck size={13} /> : <FileCode2 size={13} />
 const RAIL_ROW_HEIGHT = 68
@@ -170,6 +170,8 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
     persistEvidenceReference(railItems[index], 'all')
   }
   const onTimelineKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const target = event.target instanceof HTMLElement ? event.target : undefined
+    if (event.altKey || event.ctrlKey || event.metaKey || !timelineNavigationAllowedFor(target?.tagName, target?.isContentEditable)) return
     if (event.key === 'ArrowLeft') { event.preventDefault(); move(selected - 1) }
     if (event.key === 'ArrowRight') { event.preventDefault(); move(selected + 1) }
     if (event.key === 'Home') { event.preventDefault(); move(0) }

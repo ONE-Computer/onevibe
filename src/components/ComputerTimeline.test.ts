@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, virtualRailRange, visualEvidenceStateFor, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, virtualRailRange, visualEvidenceStateFor, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -139,6 +139,14 @@ describe('Computer timeline terminal inspection', () => {
   it('windows a long rail while retaining an overscan buffer for smooth scrolling', () => {
     expect(virtualRailRange(10_000, 68 * 500, 340)).toEqual({ start: 488, end: 517 })
     expect(virtualRailRange(3, 0, 340)).toEqual({ start: 0, end: 3 })
+  })
+
+  it('reserves arrow and home/end controls for the rail without stealing editable-field navigation', () => {
+    expect(timelineNavigationAllowedFor('div')).toBe(true)
+    expect(timelineNavigationAllowedFor('input')).toBe(false)
+    expect(timelineNavigationAllowedFor('textarea')).toBe(false)
+    expect(timelineNavigationAllowedFor('select')).toBe(false)
+    expect(timelineNavigationAllowedFor('div', true)).toBe(false)
   })
 
   it('searches only projected rail metadata', () => {

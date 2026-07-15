@@ -71,6 +71,9 @@ export const formatDuration = (milliseconds: number | undefined) => {
   return `${Math.floor(milliseconds / 60_000)}m ${Math.round((milliseconds % 60_000) / 1_000)}s`
 }
 
+/** Do not steal caret, select-menu, or editable-content navigation from the reviewer. */
+export const timelineNavigationAllowedFor = (tagName: string | undefined, isContentEditable = false) => !isContentEditable && !['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName?.toUpperCase() ?? '')
+
 export const virtualRailRange = (count: number, scrollTop: number, viewportHeight: number, rowHeight = 68, overscan = 12) => {
   if (count <= 0) return { start: 0, end: 0 }
   const visibleStart = Math.floor(Math.max(0, scrollTop) / rowHeight)
