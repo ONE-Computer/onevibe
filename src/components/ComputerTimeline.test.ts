@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, matchesRailQuery, runIdsFor, summarizeRunEvidence, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, matchesRailQuery, presentationItems, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -134,5 +134,22 @@ describe('Computer timeline terminal inspection', () => {
       { id: 'other', kind: 'file', title: 'Later', createdAt: '2026-07-16T00:00:03.000Z', runId: 'run-b' },
     ]
     expect(summarizeRunEvidence(items, 'run-a')).toEqual({ runId: 'run-a', cards: 3, toolCards: 1, visualFrames: 1, deliverables: 1, durationMs: 2_000 })
+  })
+
+  it('derives display-only legacy run boundaries from immutable run-start events', () => {
+    const firstStart = event('run-start-one', 'run_started', {})
+    const firstTool = event('first-tool', 'tool_call_started', { toolUseId: 'first' })
+    const secondStart = event('run-start-two', 'run_started', {})
+    const secondTool = event('second-tool', 'tool_call_started', { toolUseId: 'second' })
+    const task = { id: 'task-1', status: 'completed', updatedAt: secondTool.createdAt, events: [firstStart, firstTool, secondStart, secondTool], files: [], messages: [] } as unknown as import('../types').TaskSnapshot
+    expect(presentationItems(task).map((item) => ({ id: item.id, runId: item.runId }))).toEqual([
+      { id: 'first-tool', runId: 'legacy-run-start-one' },
+      { id: 'second-tool', runId: 'legacy-run-start-two' },
+    ])
+  })
+
+  it('uses chronological turn labels for legacy runs and short IDs for persisted runs', () => {
+    expect(runLabel('legacy-run-start-one', ['legacy-run-start-one', 'legacy-run-start-two'])).toBe('Turn 1')
+    expect(runLabel('persisted-abcdef', [])).toBe('Run abcdef')
   })
 })

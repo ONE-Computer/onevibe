@@ -73,7 +73,16 @@ export const matchesRailQuery = (item: ComputerItem, query: string) => {
   return [item.title, item.detail, item.activityPreview, item.kind, item.runId, item.sequence?.toString()].some((value) => value?.toLocaleLowerCase().includes(normalized))
 }
 
-export const runIdsFor = (items: ComputerItem[]) => [...new Set(items.map((item) => item.runId).filter((runId): runId is string => Boolean(runId)))].sort((a, b) => a.localeCompare(b))
+/** Preserve first appearance: it is the chronological run order in the evidence stream. */
+export const runIdsFor = (items: ComputerItem[]) => [...new Set(items.map((item) => item.runId).filter((runId): runId is string => Boolean(runId)))]
+
+export const runLabel = (runId: string, orderedRunIds: string[] = []) => {
+  if (runId.startsWith('legacy-')) {
+    const index = orderedRunIds.indexOf(runId)
+    return `Turn ${index >= 0 ? index + 1 : 'earlier'}`
+  }
+  return `Run ${runId.slice(-6)}`
+}
 
 export const filterItemsByRun = (items: ComputerItem[], runId: string) => runId === 'all' ? items : items.filter((item) => item.runId === runId)
 
@@ -105,12 +114,18 @@ export const summarizeRunEvidence = (items: ComputerItem[], runId: string): RunE
 }
 
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
+  // Tasks created before run IDs were persisted still contain immutable
+  // `run_started` boundaries. Derive a display-only ID from that evidence so
+  // old multi-turn histories remain reviewable without rewriting their ledger.
+  let legacyRunId: string | undefined
   const items = task.events.flatMap((event): ComputerItem[] => {
+    if (event.type === 'run_started') legacyRunId = event.runId ?? `legacy-${event.id}`
+    const runId = event.runId ?? legacyRunId
     const presentation = event.payload.presentation as PresentationDescriptor | undefined
-    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff', 'slide', 'approval'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, eventType: event.type, title: event.label ?? 'Artifact', detail: event.content, activityPreview: presentation.panel === 'terminal' ? activityPreviewFor(event.payload) : undefined, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, uri: presentation.uri, payload: event.payload }]
+    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff', 'slide', 'approval'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, eventType: event.type, title: event.label ?? 'Artifact', detail: event.content, activityPreview: presentation.panel === 'terminal' ? activityPreviewFor(event.payload) : undefined, createdAt: event.createdAt, runId, sequence: event.sequence, eventHash: event.eventHash, uri: presentation.uri, payload: event.payload }]
     // Compatibility for evidence created before the typed presentation contract.
-    if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', eventType: event.type, title: event.label ?? 'Tool call', detail: event.content, activityPreview: activityPreviewFor(event.payload), createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
-    if (event.type === 'artifact_created' || event.type === 'artifact_updated') return [{ id: event.id, kind: event.type === 'artifact_updated' ? 'diff' : 'file', eventType: event.type, title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
+    if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', eventType: event.type, title: event.label ?? 'Tool call', detail: event.content, activityPreview: activityPreviewFor(event.payload), createdAt: event.createdAt, runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
+    if (event.type === 'artifact_created' || event.type === 'artifact_updated') return [{ id: event.id, kind: event.type === 'artifact_updated' ? 'diff' : 'file', eventType: event.type, title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
     return []
   })
   if (task.securityContext?.visualRuntimeReady && task.securityContext.sandboxState !== 'destroyed') items.push({
