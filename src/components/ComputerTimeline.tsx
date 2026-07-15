@@ -107,6 +107,19 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
     window.history.replaceState(window.history.state, '', url)
   }, [comparisonRunId, filter, runFilter])
   useEffect(() => {
+    // Keep review state shareable even when the reviewer only changes filters
+    // and never selects another evidence card.
+    if (restoredReplayTask.current !== task.id) return
+    const url = new URL(window.location.href)
+    if (filter === 'all') url.searchParams.delete('rail')
+    else url.searchParams.set('rail', filter)
+    if (runFilter === 'all') url.searchParams.delete('run')
+    else url.searchParams.set('run', runFilter)
+    if (!comparisonRunId || comparisonRunId === runFilter || runFilter === 'all') url.searchParams.delete('compare')
+    else url.searchParams.set('compare', comparisonRunId)
+    window.history.replaceState(window.history.state, '', url)
+  }, [comparisonRunId, filter, runFilter, task.id])
+  useEffect(() => {
     if (!replaying || filter !== 'screenshot' || items.length < 2) return
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     const timer = window.setTimeout(() => {
