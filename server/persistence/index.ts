@@ -1,4 +1,7 @@
 export * from './contracts.js'
 export * from './database.js'
+export * from './errors.js'
+export * from './legacy-importer.js'
 export * from './migrations.js'
+export * from './repositories.js'
 export * from './unit-of-work.js'

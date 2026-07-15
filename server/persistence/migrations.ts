@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { v1Sql } from './migrations/v1.js'
+import { v2Sql } from './migrations/v2.js'
 
 export interface Migration {
   version: number
@@ -23,6 +24,7 @@ export function migrationChecksum(sql: string): string {
 
 export const migrations: readonly Migration[] = Object.freeze([
   { version: 1, name: 'base_conversation_schema', sql: v1Sql, checksum: migrationChecksum(v1Sql) },
+  { version: 2, name: 'message_revisions_and_import_receipts', sql: v2Sql, checksum: migrationChecksum(v2Sql) },
 ])
 
 interface AppliedMigration {

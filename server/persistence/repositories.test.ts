@@ -1,0 +1,141 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import type Database from 'better-sqlite3'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { ConversationRecord, MessageRecord, TurnRecord } from './contracts.js'
+import { openDatabase } from './database.js'
+import { IdempotencyConflictError, InvalidCursorError, OptimisticConflictError } from './errors.js'
+import { runMigrations } from './migrations.js'
+import { createSqliteRepositories } from './repositories.js'
+import { SqliteUnitOfWork } from './unit-of-work.js'
+
+const directories: string[] = []
+const t0 = '2026-07-16T00:00:00.000Z'
+const t1 = '2026-07-16T00:00:01.000Z'
+const hash = (character: string) => character.repeat(64)
+
+const conversation = (id = 'conversation-1'): ConversationRecord => ({ id, title: 'ONEVibe', status: 'active', createdAt: t0, updatedAt: t0 })
+const turn = (id = 'turn-1'): TurnRecord => ({
+  id, conversationId: 'conversation-1', clientRequestId: `request-${id}`, ordinal: Number(id.split('-').at(-1)) - 1,
+  status: 'queued', createdAt: t0, startedAt: null, completedAt: null,
+})
+const message = (sequence: number, overrides: Partial<MessageRecord> = {}): MessageRecord => ({
+  id: `message-${sequence}`, conversationId: 'conversation-1', turnId: null, sequence, role: 'user',
+  contentJson: JSON.stringify({ text: `message ${sequence}` }), revision: 0, status: 'completed', createdAt: t0, ...overrides,
+})
+
+function databaseAt(filename?: string): { database: Database.Database; filename: string } {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'onevibe-repositories-'))
+  directories.push(directory)
+  const resolved = filename ?? path.join(directory, 'onevibe.sqlite')
+  const database = openDatabase(resolved)
+  runMigrations(database)
+  return { database, filename: resolved }
+}
+
+afterEach(() => {
+  for (const directory of directories.splice(0)) fs.rmSync(directory, { recursive: true, force: true })
+})
+
+describe('SQLite repositories', () => {
+  it('supports conversation, turn, and message CRUD with optimistic updates', () => {
+    const { database } = databaseAt()
+    try {
+      const repositories = createSqliteRepositories(database)
+      repositories.conversations.insert(conversation())
+      repositories.turns.insert(turn())
+      repositories.messages.append(message(0, { turnId: 'turn-1' }))
+      expect(repositories.conversations.findById('conversation-1')?.title).toBe('ONEVibe')
+      expect(repositories.turns.findByClientRequest('conversation-1', 'request-turn-1')?.id).toBe('turn-1')
+      expect(repositories.messages.listByConversation('conversation-1')).toHaveLength(1)
+
+      repositories.conversations.update({ ...conversation(), title: 'Renamed', updatedAt: t1 }, t0)
+      expect(repositories.conversations.findById('conversation-1')?.title).toBe('Renamed')
+      expect(() => repositories.conversations.update({ ...conversation(), title: 'Stale', updatedAt: t1 }, t0))
+        .toThrow(OptimisticConflictError)
+    } finally { database.close() }
+  })
+
+  it('atomically begins and finishes a turn through UnitOfWork', () => {
+    const { database } = databaseAt()
+    try {
+      const unitOfWork = new SqliteUnitOfWork(database)
+      unitOfWork.run((repositories) => {
+        repositories.conversations.insert(conversation())
+        repositories.turns.insert(turn())
+      })
+      unitOfWork.run((repositories) => {
+        const queued = repositories.turns.findById('turn-1')!
+        repositories.turns.transition('turn-1', 'queued', { ...queued, status: 'running', startedAt: t1 })
+        repositories.messages.append(message(0, { turnId: 'turn-1' }))
+      })
+      const completedAt = '2026-07-16T00:00:02.000Z'
+      unitOfWork.run((repositories) => {
+        const running = repositories.turns.findById('turn-1')!
+        repositories.messages.append(message(1, { turnId: 'turn-1', role: 'assistant' }))
+        repositories.turns.transition('turn-1', 'running', { ...running, status: 'completed', completedAt })
+      })
+      expect(createSqliteRepositories(database).turns.findById('turn-1')?.status).toBe('completed')
+      expect(createSqliteRepositories(database).messages.listByConversation('conversation-1')).toHaveLength(2)
+    } finally { database.close() }
+  })
+
+  it('revises assistant streaming content with revision conflict detection', () => {
+    const { database } = databaseAt()
+    try {
+      const repositories = createSqliteRepositories(database)
+      repositories.conversations.insert(conversation())
+      repositories.messages.append(message(0, { role: 'assistant', status: 'streaming', contentJson: '{"text":""}' }))
+      const delta = repositories.messages.appendAssistantDelta('message-0', 0, 'del')
+      expect(delta).toMatchObject({ revision: 1, status: 'streaming', contentJson: '{"text":"del"}' })
+      const revised = repositories.messages.appendAssistantDelta('message-0', 1, 'ta')
+      expect(revised).toMatchObject({ revision: 2, status: 'streaming', contentJson: '{"text":"delta"}' })
+      const completed = repositories.messages.reviseAssistant('message-0', 2, JSON.stringify({ text: 'done' }), 'completed')
+      expect(completed).toMatchObject({ revision: 3, status: 'completed' })
+      expect(() => repositories.messages.reviseAssistant('message-0', 2, '{}', 'completed')).toThrow(OptimisticConflictError)
+    } finally { database.close() }
+  })
+
+  it('treats same-hash idempotency claims as replays and rejects different hashes', () => {
+    const { database } = databaseAt()
+    try {
+      const repository = createSqliteRepositories(database).idempotency
+      expect(repository.claim('turn', 'request-1', hash('a'), t0)).toBe(true)
+      expect(repository.claim('turn', 'request-1', hash('a'), t0)).toBe(false)
+      expect(() => repository.claim('turn', 'request-1', hash('b'), t0)).toThrow(IdempotencyConflictError)
+      repository.complete('turn', 'request-1', '{"turnId":"turn-1"}', t1)
+      repository.complete('turn', 'request-1', '{"turnId":"turn-1"}', t1)
+      expect(repository.find('turn', 'request-1')?.state).toBe('completed')
+    } finally { database.close() }
+  })
+
+  it('paginates messages with stable conversation-bound cursors', () => {
+    const { database } = databaseAt()
+    try {
+      const repositories = createSqliteRepositories(database)
+      repositories.conversations.insert(conversation())
+      for (let sequence = 0; sequence < 5; sequence += 1) repositories.messages.append(message(sequence))
+      expect(() => repositories.messages.append(message(7))).toThrow(OptimisticConflictError)
+      const first = repositories.messages.pageByConversation('conversation-1', undefined, 2)
+      const second = repositories.messages.pageByConversation('conversation-1', first.nextCursor, 2)
+      const third = repositories.messages.pageByConversation('conversation-1', second.nextCursor, 2)
+      expect(first.items.map((item) => item.sequence)).toEqual([0, 1])
+      expect(second.items.map((item) => item.sequence)).toEqual([2, 3])
+      expect(third.items.map((item) => item.sequence)).toEqual([4])
+      expect(third.nextCursor).toBeUndefined()
+      expect(() => repositories.messages.pageByConversation('another', first.nextCursor, 2)).toThrow(InvalidCursorError)
+    } finally { database.close() }
+  })
+
+  it('persists repository data across database reopen', () => {
+    const opened = databaseAt()
+    createSqliteRepositories(opened.database).conversations.insert(conversation())
+    opened.database.close()
+    const reopened = openDatabase(opened.filename, { fileMustExist: true })
+    try {
+      runMigrations(reopened)
+      expect(createSqliteRepositories(reopened).conversations.findById('conversation-1')).toEqual(conversation())
+    } finally { reopened.close() }
+  })
+})
