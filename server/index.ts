@@ -12,6 +12,7 @@ import { TaskStore } from './store.js'
 import { UserInputBroker } from './user-input-broker.js'
 import { WalletApprovalService } from './wallet-approval-service.js'
 import { runtimeReadiness } from './runtime-readiness.js'
+import type { TaskSchedule } from './types.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -229,6 +230,11 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'PATCH' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2]) {
     const input = scheduleStateInput.parse(await readBody(request))
     return json(response, 200, await store.setScheduleEnabled(segments[2], input.enabled))
+  }
+  if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2] && segments[3] === 'run') {
+    const schedule = await store.claimScheduleNow(segments[2])
+    const task = await dispatchSchedule(schedule, 'manual')
+    return json(response, 201, { schedule, task })
   }
 
   if (request.method === 'GET' && url.pathname === '/api/search') {
@@ -488,14 +494,19 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 }
 
 await store.initialize()
+const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | 'manual') => {
+  const task = await store.createTask(schedule.prompt, schedule.provider, schedule.mode, schedule.projectId, schedule.id)
+  await store.appendEvent(task.id, {
+    type: 'activity_delta', lane: 'control', label: trigger === 'manual' ? 'Scheduled run started manually' : 'Scheduled run claimed',
+    content: trigger === 'manual' ? `Started manually from schedule “${schedule.name}”.` : `Created by schedule “${schedule.name}” at its governed interval.`,
+    payload: { scheduleId: schedule.id, intervalMinutes: schedule.intervalMinutes, trigger },
+  })
+  setTimeout(() => executeTask(task.id, schedule.prompt, false), 25)
+  return task
+}
 const runDueSchedules = async () => {
   for (const schedule of await store.claimDueSchedules()) {
-    const task = await store.createTask(schedule.prompt, schedule.provider, schedule.mode, schedule.projectId, schedule.id)
-    await store.appendEvent(task.id, {
-      type: 'activity_delta', lane: 'control', label: 'Scheduled run claimed',
-      content: `Created by schedule “${schedule.name}” at its governed interval.`, payload: { scheduleId: schedule.id, intervalMinutes: schedule.intervalMinutes },
-    })
-    setTimeout(() => executeTask(task.id, schedule.prompt, false), 25)
+    await dispatchSchedule(schedule, 'scheduled')
   }
 }
 setInterval(() => { void runDueSchedules().catch((error: unknown) => console.error('Schedule dispatch failed', error)) }, 15_000).unref()

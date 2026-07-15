@@ -13,7 +13,7 @@ import { Library } from './components/Library'
 import { Computers } from './components/Computers'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelTask, createProject, createSchedule, createTask, getRuntimeReadiness, listLibrary, listProjects, listSchedules, listTasks, requestShare, sendFollowUp, setScheduleEnabled } from './lib/api'
+import { addProjectFile, cancelTask, createProject, createSchedule, createTask, getRuntimeReadiness, listLibrary, listProjects, listSchedules, listTasks, requestShare, runScheduleNow, sendFollowUp, setScheduleEnabled } from './lib/api'
 import type { LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
@@ -110,6 +110,12 @@ export default function App() {
     const updated = await setScheduleEnabled(schedule.id, !schedule.enabled)
     setSchedules((current) => current.map((item) => item.id === updated.id ? updated : item))
   }
+  const runSchedule = async (schedule: TaskSchedule) => {
+    const result = await runScheduleNow(schedule.id)
+    setSchedules((current) => current.map((item) => item.id === result.schedule.id ? result.schedule : item))
+    setTasks((current) => [result.task, ...current])
+    navigateToTask(result.task.id)
+  }
 
   if (shareId) return <SharedArtifact shareId={shareId} />
 
@@ -140,7 +146,7 @@ export default function App() {
         </header>
 
         <AnimatePresence mode="wait">
-          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} /></motion.section> : !activeTaskId ? (
+          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="ambient-grid" />
               <div className="home-content">

@@ -298,6 +298,18 @@ describe('TaskStore', () => {
     expect(await store.claimDueSchedules(new Date(new Date(schedule.nextRunAt).getTime() + 1))).toHaveLength(0)
   })
 
+  it('claims an enabled schedule immediately and advances its next run', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-schedule-now-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const schedule = await store.createSchedule({ name: 'Review now', prompt: 'Review the task queue', provider: 'demo', mode: 'research', projectId: 'project_onevibe', intervalMinutes: 60 })
+    const claimed = await store.claimScheduleNow(schedule.id, new Date('2026-07-16T00:00:00.000Z'))
+    expect(claimed.lastRunAt).toBe('2026-07-16T00:00:00.000Z')
+    expect(claimed.nextRunAt).toBe('2026-07-16T01:00:00.000Z')
+  })
+
   it('persists, paginates, searches, and completes chat turns independently of events', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-chat-history-'))
     temporaryRoots.push(root)

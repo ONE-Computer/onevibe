@@ -248,6 +248,16 @@ export class TaskStore {
     return updated
   }
 
+  async claimScheduleNow(id: string, now = new Date()) {
+    const schedule = this.schedules.get(id)
+    if (!schedule) throw new Error('Schedule not found')
+    if (!schedule.enabled) throw new Error('Schedule is paused')
+    const updated = { ...schedule, lastRunAt: now.toISOString(), nextRunAt: new Date(now.getTime() + schedule.intervalMinutes * 60_000).toISOString(), updatedAt: now.toISOString() }
+    this.schedules.set(id, updated)
+    await this.persistSchedules()
+    return updated
+  }
+
   async claimDueSchedules(now = new Date()) {
     const due = this.listSchedules().filter((schedule) => schedule.enabled && schedule.nextRunAt <= now.toISOString())
     for (const schedule of due) {

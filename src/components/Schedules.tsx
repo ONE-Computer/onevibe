@@ -1,4 +1,4 @@
-import { CalendarClock, Pause, Play, Plus } from 'lucide-react'
+import { CalendarClock, Pause, Play, Plus, Zap } from 'lucide-react'
 import { useState } from 'react'
 import type { TaskMode, TaskSchedule } from '../types'
 
@@ -7,9 +7,10 @@ type Props = {
   activeProjectId: string
   onCreate: (input: Pick<TaskSchedule, 'name' | 'prompt' | 'provider' | 'mode' | 'projectId' | 'intervalMinutes'>) => Promise<void>
   onToggle: (schedule: TaskSchedule) => Promise<void>
+  onRunNow: (schedule: TaskSchedule) => Promise<void>
 }
 
-export const Schedules = ({ schedules, activeProjectId, onCreate, onToggle }: Props) => {
+export const Schedules = ({ schedules, activeProjectId, onCreate, onToggle, onRunNow }: Props) => {
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [intervalMinutes, setIntervalMinutes] = useState(1440)
@@ -26,6 +27,6 @@ export const Schedules = ({ schedules, activeProjectId, onCreate, onToggle }: Pr
       <textarea aria-label="Scheduled task prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="What should ONEVibe do?" maxLength={8000} />
       <div><select aria-label="Schedule interval" value={intervalMinutes} onChange={(event) => setIntervalMinutes(Number(event.target.value))}><option value={15}>Every 15 minutes</option><option value={60}>Hourly</option><option value={1440}>Daily</option><option value={10080}>Weekly</option></select><select aria-label="Scheduled task mode" value={mode} onChange={(event) => setMode(event.target.value as TaskMode)}><option value="general">Agent</option><option value="research">Research</option><option value="document">Document</option><option value="data">Data story</option><option value="slides">Slides</option></select><button type="submit"><Plus size={14} /> Create schedule</button></div>
     </form>
-    <div className="schedule-list">{schedules.length === 0 ? <p>No scheduled work yet.</p> : schedules.map((schedule) => <article key={schedule.id}><div><strong>{schedule.name}</strong><span>{schedule.prompt}</span><small>{schedule.intervalMinutes >= 1440 ? `Every ${schedule.intervalMinutes / 1440} day${schedule.intervalMinutes === 1440 ? '' : 's'}` : `Every ${schedule.intervalMinutes} minutes`} · next {new Date(schedule.nextRunAt).toLocaleString()}</small></div><button onClick={() => void onToggle(schedule)}>{schedule.enabled ? <><Pause size={13} /> Pause</> : <><Play size={13} /> Resume</>}</button></article>)}</div>
+    <div className="schedule-list">{schedules.length === 0 ? <p>No scheduled work yet.</p> : schedules.map((schedule) => <article key={schedule.id}><div><strong>{schedule.name}</strong><span>{schedule.prompt}</span><small>{schedule.intervalMinutes >= 1440 ? `Every ${schedule.intervalMinutes / 1440} day${schedule.intervalMinutes === 1440 ? '' : 's'}` : `Every ${schedule.intervalMinutes} minutes`} · next {new Date(schedule.nextRunAt).toLocaleString()}</small></div><aside>{schedule.enabled && <button onClick={() => void onRunNow(schedule)}><Zap size={13} /> Run now</button>}<button onClick={() => void onToggle(schedule)}>{schedule.enabled ? <><Pause size={13} /> Pause</> : <><Play size={13} /> Resume</>}</button></aside></article>)}</div>
   </section>
 }

@@ -31,6 +31,7 @@ export const createSchedule = async (input: Pick<TaskSchedule, 'name' | 'prompt'
 export const setScheduleEnabled = async (id: string, enabled: boolean) => parse<TaskSchedule>(await fetch(`/api/schedules/${id}`, {
   method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }),
 }))
+export const runScheduleNow = async (id: string) => parse<{ schedule: TaskSchedule; task: Task }>(await fetch(`/api/schedules/${id}/run`, { method: 'POST' }))
 
 export const getTask = async (taskId: string) => parse<TaskSnapshot>(await fetch(`/api/tasks/${taskId}`))
 
