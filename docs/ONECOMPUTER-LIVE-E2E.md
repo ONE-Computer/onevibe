@@ -33,6 +33,12 @@ A subsequent read-only audit of `onecomputer-openvtc.eastus2.cloudapp.azure.com`
 
 The audit also found three long-lived Kasm containers whose names identify prior E2E experiments, plus several days-old one-off `tsx` desktop inspection/restart commands. These must be reconciled through the provider's sandbox records and idempotent `DELETE` path before cleanup; blindly calling Docker would risk leaving the control-plane ownership record inconsistent. This is a lifecycle-hygiene finding, not proof that the active API can satisfy the required successful proof below.
 
+## Public endpoint recheck — 2026-07-16 (read-only)
+
+The public `https://onecomputer-openvtc.eastus2.cloudapp.azure.com/api/health` and `/v1/health` endpoints both returned `200` with `{"status":"ok"}`. An unauthenticated `GET /v1/sandboxes` returned `200` and `[]`, so no publicly visible sandbox record was present during the recheck.
+
+Both health JSON payloads and nginx `Date` headers reported `Wed, 15 Jul 2026 17:12`, while the workspace conducting the review was dated 16 Jul 2026 (Asia/Singapore). Treat this as a clock/freshness anomaly until the Azure host or edge clock is reconciled and a new observation proves normal time progression. This is not evidence of sandbox lifecycle, authentication, gateway enforcement, or visual-runtime correctness.
+
 ## Blocking gap: asynchronous provisioning lifecycle
 
 This is an integration blocker, not a reason to weaken the ONEVibe boundary:
