@@ -96,7 +96,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 74. **P** Component-library scaffold — projects include a typed reusable Button and `cn` helper; richer component catalogue and visual-regression proof remain pending.
 75. **P** Server scaffold — App mode emits a typed, local Node HTTP health endpoint with separate scripts; connectors, auth, deployment, and sandbox execution proof remain pending.
 76. **P** Shared-code scaffold — App mode emits a small typed client/server contract; broader domain/shared-package generation remains pending.
-77. **M** Package lock generation.
+77. **P** Package lock generation — a successful, opt-in gateway-attested ONEComputer build extracts the sandbox-generated `app/package-lock.json` into the governed workspace, bounded to 1 MiB. Deterministic lock generation for local/demo and Claude-SDK runs remains pending.
 78. **I** Formatting configuration — generated `.prettierrc`.
 79. **I** Git ignore generation — generated `.gitignore` excludes dependencies, builds, and environment files.
 80. **I** Generated ideation artifact — Design mode persists candidate rationale and selection.

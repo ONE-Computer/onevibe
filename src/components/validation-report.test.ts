@@ -12,7 +12,7 @@ describe('validation report parsing', () => {
   })
 
   it('accepts a bounded sandbox build report but rejects an untyped payload', () => {
-    expect(parseSandboxBuildReport(JSON.stringify({ version: 1, mode: 'app', checkedAt: '2026-07-16T00:00:00.000Z', execution: 'onecomputer_sandbox', gatewayEnforced: true, lifecycleScripts: 'disabled_during_install', passed: true, exitCode: 0, durationMs: 820, outputBytes: 120, limitation: 'Not deployment proof.' }))?.passed).toBe(true)
+    expect(parseSandboxBuildReport(JSON.stringify({ version: 1, mode: 'app', checkedAt: '2026-07-16T00:00:00.000Z', execution: 'onecomputer_sandbox', gatewayEnforced: true, lifecycleScripts: 'disabled_during_install', passed: true, exitCode: 0, durationMs: 820, outputBytes: 120, packageLockRecorded: true, limitation: 'Not deployment proof.' }))?.packageLockRecorded).toBe(true)
     expect(parseSandboxBuildReport(JSON.stringify({ passed: true }))).toBeUndefined()
   })
 })

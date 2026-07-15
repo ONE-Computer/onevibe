@@ -1,6 +1,6 @@
 export type ValidationCheck = { id: string; status: 'passed' | 'failed' | 'skipped'; detail: string }
 export type ValidationReport = { version: number; mode: string; checkedAt: string; passed: boolean; checks: ValidationCheck[]; limitation: string }
-export type SandboxBuildReport = { version: number; mode: string; checkedAt: string; execution: 'onecomputer_sandbox'; gatewayEnforced: boolean; lifecycleScripts: string; passed: boolean; exitCode: number; durationMs: number; outputBytes: number; limitation: string }
+export type SandboxBuildReport = { version: number; mode: string; checkedAt: string; execution: 'onecomputer_sandbox'; gatewayEnforced: boolean; lifecycleScripts: string; passed: boolean; exitCode: number; durationMs: number; outputBytes: number; packageLockRecorded?: boolean; limitation: string }
 
 export const parseValidationReport = (content: string): ValidationReport | undefined => {
   try {
@@ -17,6 +17,7 @@ export const parseSandboxBuildReport = (content: string): SandboxBuildReport | u
   try {
     const value = JSON.parse(content) as Partial<SandboxBuildReport>
     if (typeof value.version !== 'number' || typeof value.mode !== 'string' || typeof value.checkedAt !== 'string' || value.execution !== 'onecomputer_sandbox' || typeof value.gatewayEnforced !== 'boolean' || typeof value.lifecycleScripts !== 'string' || typeof value.passed !== 'boolean' || typeof value.exitCode !== 'number' || typeof value.durationMs !== 'number' || typeof value.outputBytes !== 'number' || typeof value.limitation !== 'string') return undefined
+    if (value.packageLockRecorded !== undefined && typeof value.packageLockRecorded !== 'boolean') return undefined
     return value as SandboxBuildReport
   } catch {
     return undefined

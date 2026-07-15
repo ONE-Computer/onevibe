@@ -98,6 +98,8 @@ export const sandboxBuildValidationCommand = (workspace: string) => [
   'exit "$build_code"',
 ].join('\n')
 
+export const sandboxPackageLockExtractionCommand = (workspace: string) => `cd ${shellQuote(`${workspace}/app`)} && if test -f package-lock.json; then bytes=$(wc -c < package-lock.json); if test "$bytes" -le 1048576; then base64 -w0 package-lock.json; else printf 'oversize:%s' "$bytes"; fi; fi`
+
 export const parseClaudeStreamJournal = (raw: string) => {
   const entries: ClaudeJournalEntry[] = []
   let result: string | undefined
@@ -476,6 +478,21 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         const durationMs = Date.now() - startedAt
         const passed = buildResult.exitCode === 0
         const reportPath = 'sandbox-build-report.json'
+        let packageLockRecorded = false
+        if (passed) {
+          const lock = await this.client.exec(sandbox.id, sandboxPackageLockExtractionCommand(workspace), signal)
+          if (lock.exitCode === 0 && lock.output.trim() && !lock.output.startsWith('oversize:')) {
+            const lockBytes = Buffer.from(lock.output.trim(), 'base64')
+            if (lockBytes.byteLength > 0 && lockBytes.byteLength <= 1024 * 1024) {
+              await store.writeWorkspaceBytes(task.id, 'app/package-lock.json', lockBytes)
+              packageLockRecorded = true
+              await store.appendEvent(task.id, {
+                type: 'artifact_created', lane: 'artifact', label: 'Sandbox-generated package lock', content: 'app/package-lock.json',
+                payload: { executionRoute: 'onecomputer_sandbox', kind: 'package_lock', sandboxId: sandbox.id, size: lockBytes.byteLength },
+              })
+            }
+          }
+        }
         await store.writeWorkspaceFile(task.id, reportPath, `${JSON.stringify({
           version: 1,
           mode: task.mode,
@@ -487,6 +504,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
           exitCode: buildResult.exitCode,
           durationMs,
           outputBytes: Buffer.byteLength(buildResult.output),
+          packageLockRecorded,
           limitation: 'This records a build attempted inside the disposable sandbox. It does not prove dependency provenance, browser behavior, deployment safety, or production policy compliance.',
         }, null, 2)}\n`)
         await store.appendEvent(task.id, {
