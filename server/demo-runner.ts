@@ -70,9 +70,13 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
     await store.setPlanStep(task.id, 'workspace', 'completed')
 
     await store.setPlanStep(task.id, 'build', 'running')
+    const writeToolUseId = `demo_write_${randomUUID().replaceAll('-', '').slice(0, 12)}`
     await store.appendEvent(task.id, {
       type: 'tool_call_started', lane: 'activity', label: 'Write source files',
-      content: 'Creating the preview and project metadata.', payload: { toolName: 'workspace.write', files: ['index.html', 'manifest.json'] },
+      content: 'Creating the preview and project metadata.', payload: {
+        executionRoute: 'local_demo', toolUseId: writeToolUseId, toolName: 'workspace.write',
+        input: { operation: 'write', paths: ['README.md', 'index.html', 'manifest.json'], mode: task.mode },
+      },
     })
     await pause(500, signal)
     await store.writeWorkspaceFile(task.id, 'index.html', previewHtml(task.title))
@@ -80,7 +84,10 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
     const modeFiles = await writeModeArtifacts(task, store)
     await store.appendEvent(task.id, {
       type: 'tool_call_completed', lane: 'activity', label: 'Source files written',
-      content: `${modeFiles.length + 3} files are available in the task workspace.`, payload: { toolName: 'workspace.write', result: 'success', mode: task.mode, modeFiles },
+      content: `${modeFiles.length + 3} files are available in the task workspace.`, payload: {
+        executionRoute: 'local_demo', toolUseId: writeToolUseId, toolName: 'workspace.write',
+        result: 'success', mode: task.mode, modeFiles,
+      },
     })
     await store.appendEvent(task.id, {
       type: 'artifact_created', lane: 'artifact', label: 'Interactive preview',
@@ -91,15 +98,22 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
 
     await store.setPlanStep(task.id, 'verify', 'running')
     await pause(380, signal)
+    const validateToolUseId = `demo_validate_${randomUUID().replaceAll('-', '').slice(0, 12)}`
     await store.appendEvent(task.id, {
       type: 'tool_call_started', lane: 'activity', label: 'Validate artifact contract',
-      content: 'Checking required outputs, portable metadata, preview semantics, and obvious credential leaks.', payload: { toolName: 'artifact.validate', mode: task.mode },
+      content: 'Checking required outputs, portable metadata, preview semantics, and obvious credential leaks.', payload: {
+        executionRoute: 'local_demo', toolUseId: validateToolUseId, toolName: 'artifact.validate',
+        input: { mode: task.mode, checks: ['required outputs', 'metadata', 'preview semantics', 'credential-like values'] },
+      },
     })
     const validation = await validateModeArtifacts(task, store)
     await store.appendEvent(task.id, {
       type: 'tool_call_completed', lane: 'activity', label: validation.passed ? 'Artifact contract passed' : 'Artifact contract needs review',
       content: validation.passed ? `${validation.checks.length} static checks passed. Runtime and browser validation remain separate gates.` : 'One or more static checks failed; inspect validation-report.json before handoff.',
-      payload: { toolName: 'artifact.validate', passed: validation.passed, report: 'validation-report.json', checkCount: validation.checks.length },
+      payload: {
+        executionRoute: 'local_demo', toolUseId: validateToolUseId, toolName: 'artifact.validate',
+        passed: validation.passed, report: 'validation-report.json', checkCount: validation.checks.length,
+      },
     })
     const publishDecision = evaluateAction('publish_preview')
     const approvalId = `approval_${randomUUID().replaceAll('-', '').slice(0, 12)}`
