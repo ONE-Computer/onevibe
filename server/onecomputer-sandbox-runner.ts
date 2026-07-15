@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { OneComputerClient } from './onecomputer-client.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
+import { validateModeArtifacts } from './artifact-validation.js'
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
@@ -434,6 +435,13 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         })
       }
       await store.setPlanStep(task.id, 'build', 'completed')
+      await store.setPlanStep(task.id, 'verify', 'running')
+      const validation = await validateModeArtifacts(store.getTask(task.id), store)
+      await store.appendEvent(task.id, {
+        type: 'artifact_created', lane: 'artifact', label: validation.passed ? 'Static artifact contract passed' : 'Static artifact contract needs review',
+        content: 'validation-report.json',
+        payload: { executionRoute: 'onecomputer_sandbox', kind: 'validation_report', passed: validation.passed, checkCount: validation.checks.length, limitation: validation.limitation },
+      })
       await store.setPlanStep(task.id, 'verify', 'completed')
       await store.setPlanStep(task.id, 'deliver', 'running')
       await destroy()

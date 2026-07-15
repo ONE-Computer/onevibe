@@ -108,6 +108,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.some((command) => command.includes('onevibe-browser-review.png'))).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.label === 'Sandbox browser review observed' && event.payload.generatedArtifactPreview === true)).toBe(true)
     expect(frames.at(-1)?.payload.uri).toContain(`/api/tasks/${task.id}/file?path=evidence%2Fvisual%2Fbrowser-review-`)
+    expect(store.listEvents(task.id).some((event) => event.label === 'Static artifact contract needs review' && event.content === 'validation-report.json')).toBe(true)
+    expect(await store.readWorkspaceFile(task.id, 'validation-report.json')).toContain('Static contract validation only')
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)
   })
