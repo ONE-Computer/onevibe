@@ -81,9 +81,11 @@ export const artifactRailItems = (items: ComputerItem[]) => {
 
 export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) => {
   const toolUseId = typeof item.payload?.toolUseId === 'string' ? item.payload.toolUseId : undefined
-  const paired = toolUseId ? events.find((event) => event.id !== item.id && event.payload.toolUseId === toolUseId) : undefined
+  const paired = toolUseId ? events.find((event) => event.id !== item.id && event.type === 'tool_call_completed' && event.payload.toolUseId === toolUseId) : undefined
   const request = item.payload?.input ?? paired?.payload.input
-  const output = item.payload?.isError === true || item.detail ? item.detail : paired?.content
+  // A start event often contains a human-readable request summary. Prefer the
+  // paired terminal result so the unified rail card reads request → outcome.
+  const output = item.eventType === 'tool_call_started' ? paired?.content : item.detail ?? paired?.content
   const failed = item.payload?.isError === true || paired?.payload.isError === true
   return { request, output, failed, toolUseId }
 }

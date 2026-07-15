@@ -19,6 +19,14 @@ describe('Computer timeline terminal inspection', () => {
     expect(activity.failed).toBe(false)
   })
 
+  it('shows the paired result, not a start-event summary, on a grouped tool card', () => {
+    const started = event('event-start', 'tool_call_started', { toolUseId: 'tool-12345678', input: { command: 'npm run build' } }, 'Starting build')
+    const finished = event('event-finish', 'tool_call_completed', { toolUseId: 'tool-12345678' }, 'Build succeeded')
+    const activity = terminalActivityFor({ id: started.id, kind: 'terminal', eventType: 'tool_call_started', title: 'Bash', createdAt: started.createdAt, detail: started.content, payload: started.payload }, [started, finished])
+
+    expect(activity.output).toBe('Build succeeded')
+  })
+
   it('labels an error result for the operator', () => {
     const completed = event('event-finish', 'tool_call_completed', { toolUseId: 'tool-1', isError: true }, 'Permission denied')
     const activity = terminalActivityFor({ id: completed.id, kind: 'terminal', title: 'Tool result', createdAt: completed.createdAt, detail: completed.content, payload: completed.payload }, [completed])
