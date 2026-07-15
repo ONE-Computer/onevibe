@@ -120,7 +120,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 92. **P** Accessibility-validation step — static preview semantics plus generated Website landmarks, native FAQ disclosure, compact layout, reduced-motion, and keyboard-focus affordances are checked. Automated accessibility scans remain pending.
 93. **P** Live-preview delivery and agent browser validation — isolated local preview works, and an attested sandbox may surface server-proxied X11 PNG frames; automated browser review, managed HTTPS, and a deployed microVM proof are pending.
 94. **P** Publish control — external approval is required and publication is withheld; approved deployment is pending.
-95. **M** GitHub handoff action.
+95. **P** GitHub handoff action — the source/evidence ZIP now includes an evidence-bound, GitHub-ready review guide with safe `git`/`gh` handoff steps. It does not create repositories or use GitHub credentials; a governed connector and approved push/PR flow remain pending.
 96. **I** Download-as-ZIP source handoff with evidence manifest.
 97. **I** Artifact reuse controls — follow-up editing, immutable history/restore, provenance-linked copy, wallet-approved read-only share, ZIP, and fullscreen all work.
 98. **P** Multi-format slide export — PPTX is implemented and ZIP-portable; PDF and cloud-drive destinations are pending.

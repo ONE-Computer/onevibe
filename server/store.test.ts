@@ -104,6 +104,10 @@ describe('TaskStore', () => {
     expect(strFromU8(archive['index.html']!)).toContain('Portable')
     const evidence = JSON.parse(strFromU8(archive['ONEVIBE-EVIDENCE.json']!)) as { chainValid: boolean }
     expect(evidence.chainValid).toBe(true)
+    const handoff = strFromU8(archive['GITHUB-HANDOFF.md']!)
+    expect(handoff).toContain('GitHub handoff')
+    expect(handoff).toContain('valid at export')
+    expect(handoff).toContain('does not create a repository')
   })
 
   it('captures and restores immutable workspace versions', async () => {

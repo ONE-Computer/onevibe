@@ -515,14 +515,16 @@ export class TaskStore {
   }
 
   async exportWorkspaceZip(taskId: string) {
+    const task = this.getTask(taskId)
+    const events = this.listEvents(taskId)
+    const messages = this.listMessages(taskId, { limit: 200 }).messages
+    const chainValid = this.verifyChain(taskId)
     const files = await this.listWorkspaceFiles(taskId)
     const entries: Record<string, Uint8Array> = {}
     for (const file of files) entries[file.path] = await this.readWorkspaceBytes(taskId, file.path)
+    entries['GITHUB-HANDOFF.md'] = strToU8(`# GitHub handoff\n\nThis archive is a portable handoff for **${task.title}**. It does not create a repository, authenticate to GitHub, or authorize publication.\n\n## Evidence\n\n- Task ID: \`${task.id}\`\n- Creation mode: \`${task.mode}\`\n- Provider: \`${task.provider}\`\n- Evidence chain: ${chainValid ? 'valid at export' : 'INVALID — do not publish until reviewed'}\n- Final evidence hash: \`${events.at(-1)?.eventHash ?? 'GENESIS'}\`\n\n## Suggested review and handoff\n\n1. Extract this archive and inspect \`ONEVIBE-EVIDENCE.json\`, \`validation-report.json\` (when present), and the generated source.\n2. Remove anything unsuitable for external publication. Never commit credentials, private inputs, evidence screenshots, or \`.env*\` files.\n3. Create a reviewed repository: \`git init && git add . && git commit -m "Initial governed handoff"\`.\n4. Use your approved GitHub identity and repository policy to create a remote or pull request. For GitHub CLI users: \`gh repo create <owner>/<repo> --private --source=. --push\`.\n5. Preserve this archive or attach \`ONEVIBE-EVIDENCE.json\` to the review record so the source handoff remains traceable.\n\nExternal publishing remains a consequential action. Obtain the required independent VTI Wallet approval before executing it.\n`)
     entries['ONEVIBE-EVIDENCE.json'] = strToU8(`${JSON.stringify({
-      task: this.getTask(taskId),
-      events: this.listEvents(taskId),
-      messages: this.listMessages(taskId, { limit: 200 }).messages,
-      chainValid: this.verifyChain(taskId),
+      task, events, messages, chainValid,
       exportedAt: new Date().toISOString(),
     }, null, 2)}\n`)
     return zipSync(entries, { level: 6 })
