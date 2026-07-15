@@ -54,6 +54,19 @@ describe('TaskStore', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('resets a completed plan when a new task turn begins while preserving evidence', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-plan-reset-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Continue a governed task', 'demo')
+    await store.setPlanStep(task.id, 'scope', 'completed')
+    await store.beginTurn(task.id, 'Continue with the next revision', 'demo')
+    expect(store.getTask(task.id).plan.every((step) => step.status === 'pending')).toBe(true)
+    expect(store.listEvents(task.id).at(-1)?.label).toBe('Plan reset for new run')
+  })
+
   it('projects typed presentation panels into immutable event evidence', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-presentations-'))
     temporaryRoots.push(root)

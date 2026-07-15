@@ -9,7 +9,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 1. **I** Natural-language task entry — `POST /api/tasks` and home composer.
 2. **I** Automatic task naming — deterministic persisted title.
 3. **P** Automatic multi-step planning — five persisted steps; not yet agent-generated.
-4. **P** Live plan progress — live statuses exist; per-run reset and richer progress are pending.
+4. **P** Live plan progress — live statuses exist and each continuation resets the durable plan lifecycle with evidence linking the prior run. Richer provider-native progress mapping remains pending.
 5. **P** Per-step elapsed time — plan transitions now persist start/completion timestamps, render elapsed duration, and append timing evidence. Native-agent-derived granular step mapping remains pending.
 6. **I** Narrated execution — typed transcript deltas from demo, SDK, or remote runtime.
 7. **P** Interruptible follow-up chat — resumable same-session follow-ups work after a turn, and active non-interruptible provider turns now accept bounded, evidence-backed guidance queued for the next turn. True provider-native live interruption/injection remains pending.

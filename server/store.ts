@@ -373,13 +373,23 @@ export class TaskStore {
   async beginTurn(taskId: string, content: string, provider: Task['provider']) {
     const now = new Date().toISOString()
     const turnId = `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`
+    const task = this.getTask(taskId)
+    const resetPlan = task.plan.some((step) => step.status !== 'pending')
     const existing = this.messages.get(taskId) ?? []
     existing.push({ id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'user', content, status: 'completed', provider, createdAt: now, updatedAt: now })
     existing.push({ id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider, createdAt: now, updatedAt: now })
     this.messages.set(taskId, existing)
     this.activeTurns.set(taskId, turnId)
-    await this.updateTask(taskId, { activeRunId: turnId })
+    await this.updateTask(taskId, {
+      activeRunId: turnId,
+      ...(resetPlan ? { plan: task.plan.map((step) => ({ id: step.id, title: step.title, status: 'pending' as const })) } : {}),
+    })
     await this.persistMessages(taskId)
+    if (resetPlan) await this.appendEvent(taskId, {
+      type: 'activity_delta', lane: 'control', label: 'Plan reset for new run',
+      content: 'The new turn has a fresh plan lifecycle. Prior run timing and completion remain preserved in the immutable evidence history.',
+      payload: { previousRunId: task.activeRunId, newRunId: turnId, planReset: true },
+    })
     return turnId
   }
 
