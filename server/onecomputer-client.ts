@@ -46,6 +46,19 @@ export class OneComputerClient {
     await this.request<void>(`/v1/sandboxes/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 
+  async startVisualRuntime(id: string, signal?: AbortSignal): Promise<{ display: string; width: number; height: number; browserReady: boolean }> {
+    return this.request(`/v1/sandboxes/${encodeURIComponent(id)}/visual/start`, { method: 'POST', signal })
+  }
+
+  async getVisualScreenshot(id: string, signal?: AbortSignal): Promise<Uint8Array> {
+    const response = await this.fetcher(`${this.baseUrl}/v1/sandboxes/${encodeURIComponent(id)}/visual/screenshot`, {
+      headers: { Accept: 'image/png', Authorization: `Bearer ${this.options.serviceToken}` },
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
+    })
+    if (!response.ok) throw new Error(`ONEComputer visual screenshot returned HTTP ${response.status}`)
+    return new Uint8Array(await response.arrayBuffer())
+  }
+
   private async request<T>(pathname: string, init: RequestInit = {}): Promise<T> {
     const response = await this.fetcher(`${this.baseUrl}${pathname}`, {
       ...init,

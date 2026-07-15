@@ -28,4 +28,15 @@ describe('OneComputerClient', () => {
     expect(fetcher.mock.calls[0]?.[0]).toBe('https://onecomputer.example/v1/sandboxes/sandbox%2Funsafe/exec')
     expect(fetcher.mock.calls[1]?.[0]).toBe('https://onecomputer.example/v1/sandboxes/sandbox%2Funsafe')
   })
+
+  it('retrieves X11 screenshots without exposing the service token', async () => {
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47])
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(png, { status: 200, headers: { 'Content-Type': 'image/png' } }))
+    const client = new OneComputerClient({ baseUrl: 'https://onecomputer.example', serviceToken: 'visual-secret', fetcher })
+
+    await expect(client.getVisualScreenshot('sandbox-1')).resolves.toEqual(png)
+    expect(fetcher).toHaveBeenCalledWith('https://onecomputer.example/v1/sandboxes/sandbox-1/visual/screenshot', expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer visual-secret', Accept: 'image/png' }),
+    }))
+  })
 })

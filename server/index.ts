@@ -20,6 +20,7 @@ const ONECOMPUTER_API_URL = process.env.ONECOMPUTER_API_URL
 const ONECOMPUTER_SERVICE_TOKEN = process.env.ONECOMPUTER_SERVICE_TOKEN
 const ONECOMPUTER_GATEWAY_ENFORCED = process.env.ONECOMPUTER_GATEWAY_ENFORCED === 'true'
 const ONECOMPUTER_RETAIN_SANDBOX = process.env.ONECOMPUTER_RETAIN_SANDBOX === 'true'
+const ONECOMPUTER_VISUAL_RUNTIME = process.env.ONECOMPUTER_VISUAL_RUNTIME !== 'false'
 const WALLET_TOKEN = process.env.ONEVIBE_WALLET_TOKEN
 const store = new TaskStore()
 const activeRuns = new Map<string, AbortController>()
@@ -60,6 +61,7 @@ const adapterFor = (provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'):
   : provider === 'onecomputer'
     ? new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN! }), {
       gatewayEnforced: ONECOMPUTER_GATEWAY_ENFORCED, retainSandbox: ONECOMPUTER_RETAIN_SANDBOX,
+      visualRuntime: ONECOMPUTER_VISUAL_RUNTIME,
     })
   : provider === 'claude_sdk'
     ? new ClaudeSdkRuntimeAdapter()
@@ -270,6 +272,21 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'GET' && segments[3] === 'versions' && segments.length === 4) {
       return json(response, 200, { versions: await store.listWorkspaceVersions(taskId) })
     }
+    if (request.method === 'GET' && segments[3] === 'visual' && segments[4] === 'screenshot') {
+      const task = store.getTask(taskId)
+      const sandboxId = task.securityContext?.sandboxId
+      if (!sandboxId || task.securityContext?.executionBoundary !== 'onecomputer_sandbox') return json(response, 404, { error: 'Task has no ONEComputer visual runtime' })
+      if (task.securityContext.sandboxState === 'destroyed') return json(response, 410, { error: 'The ephemeral sandbox has been destroyed' })
+      if (!ONECOMPUTER_API_URL || !ONECOMPUTER_SERVICE_TOKEN) return json(response, 503, { error: 'ONEComputer is not configured' })
+      const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL, serviceToken: ONECOMPUTER_SERVICE_TOKEN })
+      const png = await client.getVisualScreenshot(sandboxId)
+      response.writeHead(200, {
+        'Content-Type': 'image/png', 'Content-Length': png.byteLength,
+        'Cache-Control': 'no-store, private', 'X-Content-Type-Options': 'nosniff',
+      })
+      response.end(png)
+      return
+    }
     if (request.method === 'POST' && segments[3] === 'versions' && segments[4] && segments[5] === 'restore') {
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before restoring a version' })
       const version = await store.restoreWorkspaceVersion(taskId, segments[4])
@@ -283,6 +300,14 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'GET' && segments[3] === 'file') {
       const filePath = url.searchParams.get('path')
       if (!filePath) return json(response, 400, { error: 'Missing path' })
+      if (url.searchParams.get('raw') === '1') {
+        if (!/\.(?:png|jpe?g|gif|svg)$/i.test(filePath)) return json(response, 415, { error: 'Raw rendering is limited to image artifacts' })
+        const bytes = await store.readWorkspaceBytes(taskId, filePath)
+        const contentType = filePath.endsWith('.svg') ? 'image/svg+xml' : filePath.endsWith('.png') ? 'image/png' : filePath.endsWith('.gif') ? 'image/gif' : 'image/jpeg'
+        response.writeHead(200, { 'Content-Type': contentType, 'Content-Length': bytes.byteLength, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+        response.end(bytes)
+        return
+      }
       if (url.searchParams.get('download') === '1') {
         const bytes = await store.readWorkspaceBytes(taskId, filePath)
         response.writeHead(200, {

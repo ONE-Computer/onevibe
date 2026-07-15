@@ -15,7 +15,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
   constructor(
     private readonly client: OneComputerClient,
-    private readonly options: { gatewayEnforced: boolean; retainSandbox: boolean; pollMilliseconds?: number } = { gatewayEnforced: false, retainSandbox: false },
+    private readonly options: { gatewayEnforced: boolean; retainSandbox: boolean; visualRuntime?: boolean; pollMilliseconds?: number } = { gatewayEnforced: false, retainSandbox: false },
   ) {}
 
   async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
@@ -66,6 +66,23 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         content: `${sandbox.provider ?? 'configured'} provider started an isolated task boundary.`,
         payload: { sandboxId: sandbox.id, provider: sandbox.provider, state: live.state, gatewayEnforced: this.options.gatewayEnforced },
       })
+      if (this.options.visualRuntime) {
+        const visual = await this.client.startVisualRuntime(sandbox.id, signal)
+        const current = store.getTask(task.id)
+        await store.updateTask(task.id, { securityContext: { ...current.securityContext!, visualRuntimeReady: visual.browserReady } })
+        await store.appendEvent(task.id, {
+          type: 'activity_delta', lane: 'control', label: 'Headless visual runtime ready',
+          content: `X11 ${visual.display} · ${visual.width}×${visual.height} · screenshot stream available without VNC.`,
+          payload: { sandboxId: sandbox.id, transport: 'authenticated_png', ...visual },
+        })
+        const frame = await this.client.getVisualScreenshot(sandbox.id, signal)
+        const framePath = `evidence/visual/${Date.now()}-runtime-ready.png`
+        await store.writeWorkspaceBytes(task.id, framePath, frame)
+        await store.appendEvent(task.id, {
+          type: 'artifact_created', lane: 'artifact', label: 'X11 runtime frame', content: framePath,
+          payload: { kind: 'visual_frame', presentation: 'screenshot', sandboxId: sandbox.id, uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(framePath)}&raw=1` },
+        })
+      }
       await store.setPlanStep(task.id, 'workspace', 'completed')
       await store.setPlanStep(task.id, 'build', 'running')
 

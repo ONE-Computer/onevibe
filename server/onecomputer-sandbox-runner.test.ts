@@ -30,8 +30,10 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
       getSandbox: vi.fn(async () => ({ id: 'sandbox-1', state: 'started', provider: 'kasm-local' })),
       exec,
       deleteSandbox: vi.fn(async () => undefined),
+      startVisualRuntime: vi.fn(async () => ({ display: ':99', width: 1440, height: 900, browserReady: true })),
+      getVisualScreenshot: vi.fn(async () => Uint8Array.from([0x89, 0x50, 0x4e, 0x47])),
     } as unknown as OneComputerClient
-    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: false, pollMilliseconds: 1 })
+    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: false, visualRuntime: true, pollMilliseconds: 1 })
 
     await adapter.run({
       task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false,
@@ -42,6 +44,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.join('\n')).not.toContain(task.prompt)
     expect(commands.some((command) => command.includes('claude --print'))).toBe(true)
     expect(client.deleteSandbox).toHaveBeenCalledWith('sandbox-1')
+    expect(client.startVisualRuntime).toHaveBeenCalledWith('sandbox-1', expect.any(AbortSignal))
+    expect((await store.listWorkspaceFiles(task.id)).some((file) => file.path.includes('evidence/visual/'))).toBe(true)
     expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'destroyed', gatewayEnforced: false })
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)

@@ -1,10 +1,11 @@
-import { Check, Code2, Copy, Download, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, RefreshCw, Save, ShieldCheck } from 'lucide-react'
+import { Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, RefreshCw, Save, ShieldCheck, TerminalSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
 import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
+import { ComputerTimeline } from './ComputerTimeline'
 
-type Tab = 'preview' | 'code' | 'files' | 'history' | 'evidence'
+type Tab = 'computer' | 'preview' | 'visual' | 'code' | 'files' | 'history' | 'evidence'
 
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
 const isBinary = (filePath: string) => /\.(pptx|pdf|png|jpe?g|gif|zip)$/i.test(filePath)
@@ -21,6 +22,8 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [chainValid, setChainValid] = useState<boolean | null>(null)
   const [versions, setVersions] = useState<WorkspaceVersion[]>([])
   const [fullscreen, setFullscreen] = useState(false)
+  const [visualFrame, setVisualFrame] = useState(0)
+  const [visualError, setVisualError] = useState(false)
 
   useEffect(() => {
     void getFiles(task.id).then((result) => {
@@ -42,6 +45,13 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
     window.addEventListener('keydown', close)
     return () => window.removeEventListener('keydown', close)
   }, [])
+  useEffect(() => {
+    if (tab !== 'visual' || !task.securityContext?.visualRuntimeReady || task.securityContext.sandboxState === 'destroyed') return
+    setVisualError(false)
+    setVisualFrame(Date.now())
+    const timer = window.setInterval(() => setVisualFrame(Date.now()), 1_000)
+    return () => window.clearInterval(timer)
+  }, [tab, task.securityContext?.sandboxState, task.securityContext?.visualRuntimeReady])
 
   const activePreview = useMemo(() => `${task.previewPath ?? `/api/tasks/${task.id}/preview`}?v=${task.events.length}`, [task.events.length, task.id, task.previewPath])
   const diff = useMemo(() => {
@@ -64,7 +74,9 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
       <header className="workspace-header">
         <div className="window-controls"><i /><i /><i /></div>
         <div className="workspace-tabs">
+          <button className={tab === 'computer' ? 'active' : ''} onClick={() => setTab('computer')}><TerminalSquare size={14} /> Computer</button>
           <button className={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}><Globe2 size={14} /> Preview</button>
+          {task.securityContext?.executionBoundary === 'onecomputer_sandbox' && <button className={tab === 'visual' ? 'active' : ''} onClick={() => setTab('visual')}><Eye size={14} /> Live X11</button>}
           <button className={tab === 'code' ? 'active' : ''} onClick={() => setTab('code')}><Code2 size={14} /> Code</button>
           <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><Files size={14} /> Files</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}><History size={14} /> History</button>
@@ -75,9 +87,15 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
       <div className="workspace-meta"><span className="live-dot" /> local.onevibe.dev/{task.id.slice(-6)}<span className="workspace-policy"><ShieldCheck size={12} /> {task.securityContext?.gatewayEnforced ? 'ONEComputer gateway enforced' : 'local policy demo'}</span></div>
       <div className="workspace-body">
         <AnimatePresence mode="wait">
+          {tab === 'computer' && <motion.div key="computer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="computer-pane"><ComputerTimeline task={task} /></motion.div>}
           {tab === 'preview' && (
             <motion.div key="preview" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="preview-pane">
               {task.previewPath ? <iframe title="Generated workspace preview" sandbox="allow-scripts" src={activePreview} /> : <div className="workspace-placeholder"><RefreshCw className="spin" size={20} /><strong>Preparing preview</strong><span>The governed workspace is materializing.</span></div>}
+            </motion.div>
+          )}
+          {tab === 'visual' && (
+            <motion.div key="visual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="visual-pane">
+              {task.securityContext?.sandboxState === 'destroyed' ? <div className="workspace-placeholder"><ShieldCheck size={20} /><strong>Ephemeral display closed</strong><span>The sandbox was destroyed after artifact extraction.</span></div> : task.securityContext?.visualRuntimeReady && !visualError ? <><div className="visual-status"><span className="live-dot" /> Live X11 capture · no VNC · 1 FPS</div><img src={`/api/tasks/${task.id}/visual/screenshot?v=${visualFrame}`} onError={() => setVisualError(true)} alt="Live X11 display from the ONEComputer sandbox" /></> : <div className="workspace-placeholder"><Eye size={20} /><strong>{visualError ? 'Visual frame unavailable' : 'Starting visual runtime'}</strong><span>{visualError ? 'The authenticated capture endpoint did not return a frame.' : 'Xvfb and Chromium are being prepared inside the sandbox.'}</span></div>}
             </motion.div>
           )}
           {tab === 'code' && (

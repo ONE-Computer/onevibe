@@ -14,6 +14,7 @@ The first vertical slice already supports:
 - externally approved, capability-based read-only sharing with signed local wallet receipts;
 - durable multi-turn chat history with streaming state, pagination, cross-task search, migration, and export;
 - a typed Server-Sent Events task timeline;
+- a Manus-inspired **Computer** panel that records and scrubs agent terminal activity, visual frames, previews, and produced files beside the conversation;
 - activity, tool, artifact, approval, and control lanes;
 - a path-confined local workspace with generated files and live preview;
 - an append-only SHA-256 evidence chain;
@@ -50,9 +51,12 @@ ONECOMPUTER_API_URL=https://onecomputer.example.com
 ONECOMPUTER_SERVICE_TOKEN=...
 ONECOMPUTER_GATEWAY_ENFORCED=false
 ONECOMPUTER_RETAIN_SANDBOX=false
+ONECOMPUTER_VISUAL_RUNTIME=true
 ```
 
 With both ONEComputer variables present, the `onecomputer` runtime uses the real authenticated create, poll, exec, and delete sandbox routes. Tokens are never serialized to task events or sent to the browser. `ONECOMPUTER_GATEWAY_ENFORCED` defaults to false and must only be enabled after the deployed sandbox's egress path has been independently verified.
+
+When `ONECOMPUTER_VISUAL_RUNTIME` is enabled (the default), ONEVibe asks the sandbox service to start a headless X11 runtime and records a PNG visual frame as task evidence. The browser receives only an authenticated, server-proxied screenshot; it never receives X11, VNC, Chrome DevTools, or sandbox credentials. This is designed for an attested microVM runtime, not as a claim that the local demo or any existing container provider is a microVM.
 
 The browser can request a share but cannot approve one. In local development, operate the separate wallet CLI from another terminal:
 

@@ -21,6 +21,7 @@
 - local wallet decisions produce HMAC receipts for integration testing; the wallet secret is never serialized into task state or evidence.
 - ONEComputer mode executes Claude through the sandbox API, rejects unsafe artifact paths, caps extraction at 100 files/10 MiB, and deletes the sandbox by default.
 - A ONEComputer sandbox is not presented as gateway-enforced unless `ONECOMPUTER_GATEWAY_ENFORCED=true` is explicitly configured after deployment verification.
+- Visual-runtime capture is pull-only: ONEVibe requests a sandbox-owned headless X11 PNG over the authenticated service channel, stores the resulting frame as evidence, and proxies it to the browser. It does not expose VNC, X11, Chrome DevTools Protocol, or sandbox tokens to the browser.
 
 ## Promotion gates
 
@@ -33,3 +34,4 @@ Before production, replace or verify:
 5. unsigned local evidence with externally anchored OpenVTC evidence receipts;
 6. unauthenticated local API with enterprise identity, tenant isolation, CSRF protection, rate limits, and authorization;
 7. generic iframe preview with authenticated, non-indexed, time-limited isolated origins and strict Permissions Policy.
+8. visual capture with an attested microVM image, a private/loopback-only display and CDP endpoint, redaction before durable evidence storage, per-tenant retention, and explicit policy over when screenshots may be collected.

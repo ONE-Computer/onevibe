@@ -42,6 +42,7 @@ export type Task = {
     executionBoundary?: 'host_process' | 'onecomputer_sandbox' | 'remote_runtime'
     sandboxState?: string
     destroyedAt?: string
+    visualRuntimeReady?: boolean
   }
   approval?: {
     id: string

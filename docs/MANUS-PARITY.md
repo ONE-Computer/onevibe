@@ -17,7 +17,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 9. **I** Structured waiting state — runtime parks durably, UI renders the focused request, and an answer resumes the same execution.
 10. **I** Terminal-input request state — native Claude can invoke the ONEVibe input MCP tool and receive the user's answer as its tool result.
 11. **I** Persistent task routes — `/tasks/:taskId` survives reload and browser navigation.
-12. **I** Concurrent workspace plus conversation.
+12. **I** Concurrent workspace plus conversation and Computer timeline — task events are rendered as a scrub-able terminal, visual-frame, artifact, and preview record beside the conversation.
 13. **I** Agent-mode entry point — primary ONEVibe surface.
 14. **I** Task history surface — durable turn-based chat history, timestamps/status, cursor pagination, full-text search, reload persistence, and evidence export.
 15. **M** Reusable project context.
@@ -71,7 +71,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 54. **P** Typography-system selection — shell has a deliberate stack; generated selection is pending.
 55. **I** Design-token generation — shell token system exists.
 56. **M** OKLCH theme values.
-57. **P** Dark and light foundation tokens — dark foundation exists; light theme is pending.
+57. **I** Dark and light foundation tokens — persisted system/light/dark preference, pre-paint selection, semantic tokens, focus styling, and reduced-motion handling are implemented.
 58. **M** Cut-corner interface language.
 59. **P** Asymmetric editorial layout planning — represented in shell, not generated rationale.
 60. **P** Generated realistic product copy — demo output is prompt-derived but shallow.
@@ -104,7 +104,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 81. **I** Stateful React interactions — App-family scaffolds include a typed stateful interaction.
 82. **M** Role-journey interaction.
 83. **I** Security-approval demonstration — separate bearer-authenticated wallet CLI signs approve/deny receipts; the browser has no decision authority.
-84. **P** Sandbox-dashboard mockup — security context is visible; management interaction is incomplete.
+84. **P** Sandbox-dashboard mockup — security context and a headless visual-runtime timeline are visible; inventory and management interaction are incomplete.
 85. **P** Mobile-wallet mockup — deep link and approval card exist; wallet simulator/client is pending.
 86. **I** Navigation interaction.
 87. **M** FAQ accordion interaction as generated output.
@@ -116,7 +116,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 
 91. **P** Production-build validation and portability — ONEVibe builds and ZIPs source; generated projects are not universally built.
 92. **M** Accessibility-validation step.
-93. **P** Live-preview delivery and agent browser validation — isolated local preview works; automated browser review and managed HTTPS are pending.
+93. **P** Live-preview delivery and agent browser validation — isolated local preview works, and an attested sandbox may surface server-proxied X11 PNG frames; automated browser review, managed HTTPS, and a deployed microVM proof are pending.
 94. **P** Publish control — external approval is required and publication is withheld; approved deployment is pending.
 95. **M** GitHub handoff action.
 96. **I** Download-as-ZIP source handoff with evidence manifest.
@@ -130,7 +130,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 1. Durable routes, user-input states, mid-run steering, copy, and version history.
 2. Mode architecture for Website, Slides, Research, Design, and App with mode-specific plans and artifacts.
 3. Editable/diffable workspace plus browser/build/accessibility verification.
-4. Real ONEComputer sandbox lifecycle and gateway enforcement for every non-demo execution.
+4. Real ONEComputer sandbox lifecycle, headless visual-runtime evidence, and gateway enforcement for every non-demo execution.
 5. OpenVTC/VTI Wallet resolution, signed approval receipts, and gated publish/share/GitHub handoff.
 6. Connectors, reusable project context, generated scaffolds, slide exports, and cross-device clients.
 
