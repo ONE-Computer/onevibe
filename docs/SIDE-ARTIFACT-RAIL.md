@@ -29,7 +29,7 @@ The default view is chronological and auto-follows new activity. A settled task 
 - Every persistent card carries task ID, run ID, sequence, timestamp, artifact version where relevant, and immutable evidence hash.
 - Live frames are clearly labelled live and cannot masquerade as historical evidence. Historical cards are immutable and deep-linkable.
 - Screenshot capture follows tenant policy and retention. Secrets, personal data, and unrelated windows must be redacted before durable storage. Identical X11 frames may reuse one immutable PNG blob, but each causal rail card remains a separate evidence event.
-- Tool output has size limits and secret-aware redaction before it reaches the card or export.
+- Tool input and output have size limits and secret-/host-path-aware redaction before they reach the card or export.
 
 ## Delivery slices
 

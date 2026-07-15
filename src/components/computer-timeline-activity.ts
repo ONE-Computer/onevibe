@@ -26,6 +26,16 @@ const redactCommand = (command: string) => command
   .replace(/\bBearer\s+[^\s'"`]+/gi, 'Bearer <redacted>')
   .replace(/\/(?:Users|home)\/[^\s'"`]+/g, '<host-path>')
 
+const redactText = (value: string) => redactCommand(value)
+  .replace(/\b(authorization|api[_-]?key|token|password|secret)\s*[:=]\s*(["'])?([^\s,"'}\]]+)\2?/gi, '$1=<redacted>')
+
+const redactInspectableValue = (value: unknown): unknown => {
+  if (typeof value === 'string') return redactText(value)
+  if (Array.isArray(value)) return value.map(redactInspectableValue)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, nested]) => [key, redactedKeys.has(key.toLowerCase()) ? '<redacted>' : redactInspectableValue(nested)]))
+}
+
 const recordValue = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
 
 export const commandFor = (value: unknown) => {
@@ -49,7 +59,8 @@ const compactValue = (value: unknown): string | undefined => {
 export const activityPreviewFor = (payload?: Record<string, unknown>) => compactValue(payload?.input)
 
 export const formatInspectable = (value: unknown, limit = 12_000) => {
-  const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+  const redacted = redactInspectableValue(value)
+  const text = typeof redacted === 'string' ? redacted : JSON.stringify(redacted, null, 2)
   return text.length > limit ? `${text.slice(0, limit)}\n…[truncated for the activity rail]` : text
 }
 

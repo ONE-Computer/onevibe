@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, matchesRailQuery, presentationItems, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -77,6 +77,15 @@ describe('Computer timeline terminal inspection', () => {
     const activity = terminalActivityFor({ id: 'command', kind: 'terminal', title: 'Bash', createdAt: '2026-07-16T00:00:00.000Z', payload: { input: { command: 'pwd' } } }, [])
     expect(activity.command).toBe('pwd')
     expect(activity.workspaceLabel).toBe('Sandbox workspace')
+  })
+
+  it('redacts secret-shaped terminal output and host paths before inspection', () => {
+    const output = formatInspectable({ authorization: 'Bearer never-show', nested: { password: 'do-not-show', output: 'token=also-hidden at /Users/operator/private.log' } })
+    expect(output).toContain('<redacted>')
+    expect(output).not.toContain('never-show')
+    expect(output).not.toContain('do-not-show')
+    expect(output).not.toContain('also-hidden')
+    expect(output).not.toContain('/Users/operator')
   })
 
   it('folds a completed tool result into its originating rail card without changing evidence order', () => {
