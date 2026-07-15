@@ -13,7 +13,8 @@
     "lint": "oxlint src server",
     "test": "vitest run",
     "preview": "vite preview",
-    "wallet": "tsx server/wallet-cli.ts"
+    "wallet": "tsx server/wallet-cli.ts",
+    "e2e:onecomputer": "tsx scripts/onecomputer-live-e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.210",
