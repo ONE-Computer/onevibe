@@ -39,6 +39,12 @@ The public `https://onecomputer-openvtc.eastus2.cloudapp.azure.com/api/health` a
 
 Both health JSON payloads and nginx `Date` headers reported `Wed, 15 Jul 2026 17:12`, while the workspace conducting the review was dated 16 Jul 2026 (Asia/Singapore). Treat this as a clock/freshness anomaly until the Azure host or edge clock is reconciled and a new observation proves normal time progression. This is not evidence of sandbox lifecycle, authentication, gateway enforcement, or visual-runtime correctness.
 
+## Repeat preflight — 2026-07-16 (read-only)
+
+A subsequent local ONEVibe preflight again reached public `GET /v1/health` with `200`, reporting `{"status":"ok","version":"unknown","timestamp":"2026-07-15T17:54:16.207Z"}`. The nginx `Date` header was likewise `Wed, 15 Jul 2026 17:54:21 GMT`, confirming that the freshness anomaly persisted rather than proving a live-time response.
+
+The local process had no `ONECOMPUTER_API_URL`, `ONECOMPUTER_SERVICE_TOKEN`, or `ONECOMPUTER_PROJECT_ID` configured, and both gateway attestation and browser automation were disabled. No sandbox request was attempted. This is intentionally not a production E2E result: credentials plus the lifecycle and gateway gates above are required before a controlled task may be started.
+
 ## Blocking gap: asynchronous provisioning lifecycle
 
 This is an integration blocker, not a reason to weaken the ONEVibe boundary:
