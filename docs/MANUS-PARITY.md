@@ -42,7 +42,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 
 ## Creation modes and templates
 
-29. **I** Create Slides mode — mode-specific plan, eight-slide outline, interactive preview, notes, and genuine PPTX output. ONEVibe also has explicit portable Document and Data-story modes with inspectable source/metadata.
+29. **I** Create Slides mode — mode-specific plan, eight-slide outline, interactive preview, notes, genuine PPTX, and deterministic eight-page PDF output. ONEVibe also has explicit portable Document and Data-story modes with inspectable source/metadata.
 30. **P** Build Website mode — portable React/Vite output now includes a responsive, accessible enterprise landing-page starter with clear operating-boundary messaging and semantic FAQ disclosure. AI-directed design, screenshot/browser review, richer template packs, and deployment remain pending.
 31. **P** Design mode — concept rationale and design-token artifacts exist; richer visual generation is pending.
 32. **P** Create Games mode — dedicated plan and a portable playable React interaction loop now exist; richer mechanics, game assets, and runtime play-testing remain pending.
@@ -123,8 +123,8 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 95. **P** GitHub handoff action — the source/evidence ZIP now includes an evidence-bound, GitHub-ready review guide with safe `git`/`gh` handoff steps. It does not create repositories or use GitHub credentials; a governed connector and approved push/PR flow remain pending.
 96. **I** Download-as-ZIP source handoff with evidence manifest.
 97. **I** Artifact reuse controls — follow-up editing, immutable history/restore, provenance-linked copy, wallet-approved read-only share, ZIP, and fullscreen all work.
-98. **P** Multi-format slide export — PPTX is implemented and ZIP-portable; PDF and cloud-drive destinations are pending.
-99. **P** Interactive deck viewer with notes — visual outline thumbnails, previous/next review controls, and an editable speaker-note source flow work. Rendered PPTX thumbnails and PDF export remain pending.
+98. **P** Multi-format slide export — PPTX and a direct, parseable PDF export are implemented and ZIP-portable; cloud-drive destinations are pending.
+99. **P** Interactive deck viewer with notes — visual outline thumbnails, previous/next review controls, an editable speaker-note source flow, and direct PDF download work. Rendered PPTX/PDF page thumbnails and cloud-drive destinations remain pending.
 100. **P** Cross-device access — responsive web UI now exposes installable-web-app metadata and branded app icon for desktop/mobile browsers. The Computer evidence view now switches from a cramped two-column layout to a stacked mobile review flow that retains its filters, scrubber, chronological rail, and immutable stage inspection. Native iOS/Android clients, offline caching, push notification handling, and device-bound wallet integration remain pending.
 
 ## Immediate parity sequence

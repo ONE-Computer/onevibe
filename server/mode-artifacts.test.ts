@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
+import { PDFDocument } from 'pdf-lib'
 
 const temporaryRoots: string[] = []
 
@@ -16,19 +17,25 @@ describe('mode artifacts', () => {
     temporaryRoots.push(root)
     const { TaskStore } = await import('./store.js')
     const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const { validateModeArtifacts } = await import('./artifact-validation.js')
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('Brief senior management on ONEVibe', 'demo', 'slides')
 
     const files = await writeModeArtifacts(task, store)
     const pptx = await store.readWorkspaceBytes(task.id, 'deck.pptx')
+    const pdf = await store.readWorkspaceBytes(task.id, 'deck.pdf')
     const outline = JSON.parse(await store.readWorkspaceFile(task.id, 'outline.json')) as unknown[]
 
     expect(files).toContain('deck.pptx')
+    expect(files).toContain('deck.pdf')
     expect(pptx.subarray(0, 2).toString()).toBe('PK')
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
+    await expect(PDFDocument.load(pdf).then((deck) => deck.getPageCount())).resolves.toBe(8)
     expect(outline).toHaveLength(8)
     expect(JSON.stringify(outline)).toContain('Brief senior management on ONEVibe')
     expect(await store.readWorkspaceFile(task.id, 'index.html')).toContain('id="next"')
+    expect((await validateModeArtifacts(task, store)).checks.find((check) => check.id === 'slides:pdf')?.status).toBe('passed')
   })
 
   it('generates a portable React and TypeScript scaffold for app modes', async () => {

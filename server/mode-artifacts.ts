@@ -1,4 +1,5 @@
 import PptxGenJS from 'pptxgenjs'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import type { TaskStore } from './store.js'
 import type { Task } from './types.js'
 
@@ -34,6 +35,49 @@ const slideOutlineFor = (task: Task): Array<[string, string]> => {
   ]
 }
 
+const wrapPdfText = (text: string, maxWidth: number, font: { widthOfTextAtSize: (value: string, size: number) => number }, size: number) => {
+  const words = text.replace(/\s+/g, ' ').trim().split(' ')
+  const lines: string[] = []
+  let line = ''
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word
+    if (line && font.widthOfTextAtSize(candidate, size) > maxWidth) {
+      lines.push(line)
+      line = word
+    } else line = candidate
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
+const writeSlidePdf = async (task: Task, store: TaskStore, slides: Array<[string, string]>) => {
+  const pdf = await PDFDocument.create()
+  pdf.setTitle(`${task.title} — ONEVibe deck`)
+  pdf.setAuthor('ONEVibe')
+  pdf.setSubject(task.prompt)
+  pdf.setCreator('ONEVibe governed workspace')
+  const regular = await pdf.embedFont(StandardFonts.Helvetica)
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
+  const mono = await pdf.embedFont(StandardFonts.Courier)
+  const width = 960
+  const height = 540
+  for (const [index, [title, summary]] of slides.entries()) {
+    const page = pdf.addPage([width, height])
+    page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(0.035, 0.043, 0.04) })
+    page.drawRectangle({ x: 34, y: 478, width: 6, height: 28, color: rgb(0.22, 0.86, 0.49) })
+    page.drawText('ONEVIBE / GOVERNED AGENT WORKSPACE', { x: 52, y: 489, size: 10, font: mono, color: rgb(0.22, 0.86, 0.49) })
+    const titleLines = wrapPdfText(title, 820, bold, 38).slice(0, 3)
+    titleLines.forEach((line, lineIndex) => page.drawText(line, { x: 52, y: 405 - (lineIndex * 44), size: 38, font: bold, color: rgb(0.95, 0.965, 0.955) }))
+    const summaryStart = 275 - Math.max(0, titleLines.length - 1) * 24
+    const summaryLines = wrapPdfText(summary, 690, regular, 18).slice(0, 6)
+    summaryLines.forEach((line, lineIndex) => page.drawText(line, { x: 54, y: summaryStart - (lineIndex * 28), size: 18, font: regular, color: rgb(0.60, 0.65, 0.62) }))
+    page.drawLine({ start: { x: 52, y: 48 }, end: { x: 908, y: 48 }, thickness: 1, color: rgb(0.16, 0.21, 0.18) })
+    page.drawText('PORTABLE EXPORT · REVIEW BEFORE EXTERNAL DISTRIBUTION', { x: 52, y: 28, size: 8, font: mono, color: rgb(0.39, 0.44, 0.41) })
+    page.drawText(String(index + 1).padStart(2, '0'), { x: 870, y: 28, size: 9, font: mono, color: rgb(0.39, 0.44, 0.41) })
+  }
+  await store.writeWorkspaceBytes(task.id, 'deck.pdf', await pdf.save())
+}
+
 const writeSlides = async (task: Task, store: TaskStore) => {
   const slides = slideOutlineFor(task)
   const moduleValue: unknown = PptxGenJS
@@ -56,11 +100,12 @@ const writeSlides = async (task: Task, store: TaskStore) => {
   const bytes = await deck.write({ outputType: 'uint8array', compression: true })
   if (!(bytes instanceof Uint8Array)) throw new Error('PPTX generator returned an unexpected output type')
   await store.writeWorkspaceBytes(task.id, 'deck.pptx', bytes)
+  await writeSlidePdf(task, store, slides)
   await store.writeWorkspaceFile(task.id, 'outline.json', `${JSON.stringify(slides.map(([title, summary], index) => ({ number: index + 1, title, summary })), null, 2)}\n`)
   await store.writeWorkspaceFile(task.id, 'speaker-notes.md', slides.map(([title, summary], index) => `## ${index + 1}. ${title}\n\n${summary}\n`).join('\n'))
   const cards = slides.map(([title, summary], index) => `<article class="card slide" data-slide="${index}"><div class="eyebrow">Slide ${index + 1} / ${slides.length}</div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(summary)}</p></article>`).join('')
   await store.writeWorkspaceFile(task.id, 'index.html', shell('ONEVibe deck', `<div id="deck">${cards}</div><p><button id="previous">Previous</button> <button id="next">Next</button></p>`, `const slides=[...document.querySelectorAll('.slide')];let active=0;function show(){slides.forEach((s,i)=>s.hidden=i!==active)};previous.onclick=()=>{active=(active-1+slides.length)%slides.length;show()};next.onclick=()=>{active=(active+1)%slides.length;show()};show()`))
-  return ['index.html', 'outline.json', 'speaker-notes.md', 'deck.pptx']
+  return ['index.html', 'outline.json', 'speaker-notes.md', 'deck.pptx', 'deck.pdf']
 }
 
 const writeScaffold = async (task: Task, store: TaskStore) => {

@@ -1,5 +1,6 @@
 import type { TaskStore } from './store.js'
 import type { Task, TaskMode } from './types.js'
+import { PDFDocument } from 'pdf-lib'
 
 export type ArtifactCheck = {
   id: string
@@ -44,6 +45,10 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
     await required(store, task.id, 'speaker-notes.md', checks)
     const deck = await store.readWorkspaceBytes(task.id, 'deck.pptx').catch(() => undefined)
     check(checks, 'slides:pptx', Boolean(deck?.subarray(0, 2).every((byte, index) => byte === [0x50, 0x4b][index])), 'Deck is a ZIP-based PPTX file')
+    const pdf = await store.readWorkspaceBytes(task.id, 'deck.pdf').catch(() => undefined)
+    let pdfPages = 0
+    try { pdfPages = pdf ? (await PDFDocument.load(pdf)).getPageCount() : 0 } catch { /* recorded below */ }
+    check(checks, 'slides:pdf', pdfPages === 8, 'Deck includes a parseable eight-page PDF export')
     let parsedOutline: unknown[] | undefined
     try { parsedOutline = outline ? JSON.parse(outline) as unknown[] : undefined } catch { /* recorded below */ }
     check(checks, 'slides:outline', Array.isArray(parsedOutline) && parsedOutline.length === 8, 'Deck outline has eight slides')
