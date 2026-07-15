@@ -432,7 +432,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
         if (!/\.(?:png|jpe?g|gif|svg)$/i.test(filePath)) return json(response, 415, { error: 'Raw rendering is limited to image artifacts' })
         const bytes = await store.readWorkspaceBytes(taskId, filePath)
         const contentType = filePath.endsWith('.svg') ? 'image/svg+xml' : filePath.endsWith('.png') ? 'image/png' : filePath.endsWith('.gif') ? 'image/gif' : 'image/jpeg'
-        response.writeHead(200, { 'Content-Type': contentType, 'Content-Length': bytes.byteLength, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+        response.writeHead(200, { 'Content-Type': contentType, 'Content-Length': bytes.byteLength, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'none'; object-src 'none'; base-uri 'none'" })
         response.end(bytes)
         return
       }
