@@ -31,6 +31,23 @@ const redactUrl = (value: string) => {
   }
 }
 
+export const browserEvidenceFor = (tool: string, input: unknown) => {
+  const rawUrl = isRecord(input) && typeof input.url === 'string' ? input.url : undefined
+  if (!rawUrl) return { tool: tool.replace('mcp__playwright__', '') }
+  try {
+    const url = new URL(rawUrl)
+    if (url.protocol === 'file:') return { tool: tool.replace('mcp__playwright__', ''), url: `file://sandbox-local/${path.posix.basename(url.pathname) || 'document'}` }
+    if (!['http:', 'https:'].includes(url.protocol)) return { tool: tool.replace('mcp__playwright__', '') }
+    url.username = ''
+    url.password = ''
+    url.search = ''
+    url.hash = ''
+    return { tool: tool.replace('mcp__playwright__', ''), url: url.toString() }
+  } catch {
+    return { tool: tool.replace('mcp__playwright__', '') }
+  }
+}
+
 const sanitize = (value: unknown, depth = 0): unknown => {
   if (depth > 6) return '[Max depth]'
   if (typeof value === 'string') {
@@ -297,6 +314,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       let latestJournal = parseClaudeStreamJournal('')
       const browserReviewTools = new Set<string>()
       const browserToolUseIds = new Set<string>()
+      const browserToolEvidence = new Map<string, ReturnType<typeof browserEvidenceFor>>()
       let planApplied = false
       let planExamined = false
       const projectSandboxPlan = async () => {
@@ -327,18 +345,19 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
           let timelineEventId: string | undefined
           const isBrowserToolStart = entry.kind === 'tool_started' && isGovernedBrowserTool(entry.name)
           const isBrowserToolResult = entry.kind === 'tool_completed' && !!entry.toolUseId && browserToolUseIds.has(entry.toolUseId)
+          const browserEvidence = isBrowserToolStart ? browserEvidenceFor(entry.name, entry.input) : isBrowserToolResult && entry.toolUseId ? browserToolEvidence.get(entry.toolUseId) : undefined
           if (entry.kind === 'tool_started') timelineEventId = (await store.appendEvent(task.id, {
             type: 'tool_call_started', lane: 'activity', label: isBrowserToolStart ? `Browser · ${entry.name.replace('mcp__playwright__', '')}` : entry.name,
             content: 'Claude requested a governed workspace tool inside the ONEComputer sandbox.',
-            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, input: entry.input, browserTool: isBrowserToolStart || undefined },
+            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, input: entry.input, browserTool: isBrowserToolStart || undefined, browserEvidence },
           })).id
           if (isBrowserToolStart) {
             browserReviewTools.add(entry.name)
-            if (entry.toolUseId) browserToolUseIds.add(entry.toolUseId)
+            if (entry.toolUseId) { browserToolUseIds.add(entry.toolUseId); browserToolEvidence.set(entry.toolUseId, browserEvidenceFor(entry.name, entry.input)) }
           }
           if (entry.kind === 'tool_completed') timelineEventId = (await store.appendEvent(task.id, {
             type: 'tool_call_completed', lane: 'activity', label: isBrowserToolResult ? 'Browser result' : 'Tool result', content: entry.content,
-            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, isError: entry.isError, browserTool: isBrowserToolResult || undefined },
+            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, isError: entry.isError, browserTool: isBrowserToolResult || undefined, browserEvidence },
           })).id
           if (entry.kind === 'text') await store.appendEvent(task.id, {
             type: 'assistant_text_delta', lane: 'transcript', content: entry.content,
