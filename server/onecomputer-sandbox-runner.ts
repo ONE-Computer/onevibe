@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { OneComputerClient } from './onecomputer-client.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
@@ -138,6 +139,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     let destroyed = false
     let visualLoop: Promise<void> | undefined
     let stopVisualLoop: (() => void) | undefined
+    let lastVisualFrame: { hash: string; path: string } | undefined
     const destroy = async () => {
       if (destroyed || this.options.retainSandbox) return
       await this.client.deleteSandbox(sandbox.id)
@@ -160,13 +162,18 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         if (!visualRuntimeReady) return
         try {
           const frame = await this.client.getVisualScreenshot(sandbox.id, signal)
-          const framePath = `evidence/visual/${Date.now()}-${phase.replace(/[^a-z0-9_-]/gi, '_')}.png`
-          await store.writeWorkspaceBytes(task.id, framePath, frame.png)
+          const imageHash = createHash('sha256').update(frame.png).digest('hex')
+          const deduplicated = lastVisualFrame?.hash === imageHash
+          const framePath = deduplicated ? lastVisualFrame?.path ?? `evidence/visual/${Date.now()}-${phase.replace(/[^a-z0-9_-]/gi, '_')}.png` : `evidence/visual/${Date.now()}-${phase.replace(/[^a-z0-9_-]/gi, '_')}.png`
+          if (!deduplicated) {
+            await store.writeWorkspaceBytes(task.id, framePath, frame.png)
+            lastVisualFrame = { hash: imageHash, path: framePath }
+          }
           await store.appendEvent(task.id, {
-            type: 'artifact_created', lane: 'artifact', label: `X11 frame · ${phase.replace('_', ' ')}`, content: framePath,
+            type: 'artifact_created', lane: 'artifact', label: `X11 frame · ${phase.replaceAll('_', ' ')}${deduplicated ? ' · unchanged' : ''}`, content: framePath,
             payload: {
               kind: 'visual_frame', sandboxId: sandbox.id, capturePhase: phase, causedByEventId, capturedAt: frame.capturedAt,
-              uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(framePath)}&raw=1`,
+              imageHash, deduplicated: deduplicated || undefined, uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(framePath)}&raw=1`,
             },
           })
         } catch (error) {
