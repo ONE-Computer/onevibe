@@ -12,6 +12,8 @@ Linear also serves as the management and architecture review hub:
 - [Release Gates and Evidence Matrix](https://linear.app/onecomputer/document/onevibe-release-gates-and-evidence-matrix-57f4789dc493)
 - [Risks, Decisions, and Open Questions](https://linear.app/onecomputer/document/onevibe-risks-decisions-and-open-questions-528b7de05f59)
 - [Engineering Workstreams and Agent Delegation Model](https://linear.app/onecomputer/document/onevibe-engineering-workstreams-and-agent-delegation-model-2b0ec99f18c5)
+- [ADR-002 — Local Transactional Persistence Driver](https://linear.app/onecomputer/document/adr-002-local-transactional-persistence-driver-ec63c2a70f6c)
+- [Backend Contract Freeze v1](https://linear.app/onecomputer/document/onevibe-backend-contract-freeze-v1-ef85a800f29d)
 
 The current release gate is [ONE-215](https://linear.app/onecomputer/issue/ONE-215):
 
@@ -46,3 +48,5 @@ Read the credential at `../handover/onecomputer-handover-secrets-lean/mac/linear
 The main agent remains product manager, architecture owner, integration reviewer, and release-evidence owner. Specialist agents receive bounded tickets only after shared interfaces are approved. Persistence (`ONE-216`) lands its repository/schema contract before runtime lifecycle (`ONE-217`) and event ingestion (`ONE-219`) implement against it. At most two mutating workstreams run concurrently until those foundations stabilize; read-only research and design audits may run wider.
 
 A specialist cannot change another workstream's public contract, introduce frontend-authoritative state, downgrade a real-provider acceptance test to a fixture, or mark an issue Done. Each handoff must identify its issue, changed files/interfaces, migrations/configuration, focused tests, failure/security analysis, limitations, and reproduction commands. The main agent runs the full gate, integrates, commits, and updates Linear.
+
+Contract Freeze v1 establishes the initial implementation order and ownership. `ONE-216` owns the database driver, migrations, Unit of Work, conversation/turn/message authority, and JSON importer. `ONE-217` adds runtime leases and provider operations through the same transaction boundary. `ONE-218` produces fenced Claude/LiteLLM native envelopes. `ONE-219` owns native ingestion, versioned projection, message deltas, quarantine, and cursor-based SSE. `ONE-220` owns the in-microVM renderer and artifact manifest. Shared identifiers or transaction semantics change only through main-agent review and an ADR when cross-cutting.
