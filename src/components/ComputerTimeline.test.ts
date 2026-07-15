@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -143,6 +143,16 @@ describe('Computer timeline terminal inspection', () => {
       { id: 'other', kind: 'file', title: 'Later', createdAt: '2026-07-16T00:00:03.000Z', runId: 'run-b' },
     ]
     expect(summarizeRunEvidence(items, 'run-a')).toEqual({ runId: 'run-a', cards: 3, toolCards: 1, visualFrames: 1, deliverables: 1, durationMs: 2_000 })
+  })
+
+  it('compares run deliverables using projected metadata only', () => {
+    const items: ComputerItem[] = [
+      { id: 'old-preview', kind: 'preview', title: 'Preview', detail: 'index.html', createdAt: '2026-07-16T00:00:00.000Z', runId: 'run-old' },
+      { id: 'old-file', kind: 'file', title: 'README.md', createdAt: '2026-07-16T00:00:01.000Z', runId: 'run-old' },
+      { id: 'new-preview', kind: 'preview', title: 'Preview', detail: 'index.html', createdAt: '2026-07-16T00:00:02.000Z', runId: 'run-new' },
+      { id: 'new-deck', kind: 'slide', title: 'Deck', detail: 'briefing.pptx', createdAt: '2026-07-16T00:00:03.000Z', runId: 'run-new' },
+    ]
+    expect(compareRunArtifacts(items, 'run-old', 'run-new')).toEqual({ added: ['briefing.pptx'], removed: ['README.md'], unchanged: 1, truncated: false })
   })
 
   it('derives display-only legacy run boundaries from immutable run-start events', () => {

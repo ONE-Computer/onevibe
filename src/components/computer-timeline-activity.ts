@@ -106,6 +106,8 @@ export type RunEvidenceSummary = {
   durationMs?: number
 }
 
+export type RunArtifactDelta = { added: string[]; removed: string[]; unchanged: number; truncated: boolean }
+
 /**
  * Compare run-level evidence only. It deliberately does not inspect file
  * contents or replay controls, so the review surface stays within the same
@@ -122,6 +124,19 @@ export const summarizeRunEvidence = (items: ComputerItem[], runId: string): RunE
     deliverables: runItems.filter((item) => ['file', 'diff', 'preview', 'slide'].includes(item.kind)).length,
     durationMs: times.length > 1 ? Math.max(...times) - Math.min(...times) : undefined,
   }
+}
+
+/** Compare only visible artifact identifiers; never project artifact contents into the rail. */
+export const compareRunArtifacts = (items: ComputerItem[], baselineRunId: string, candidateRunId: string, limit = 30): RunArtifactDelta => {
+  const keys = (runId: string) => new Set(filterItemsByRun(items, runId)
+    .filter((item) => ['file', 'diff', 'preview', 'slide'].includes(item.kind))
+    .map((item) => item.detail ?? item.title)
+    .filter(Boolean))
+  const baseline = keys(baselineRunId)
+  const candidate = keys(candidateRunId)
+  const added = [...candidate].filter((key) => !baseline.has(key)).sort()
+  const removed = [...baseline].filter((key) => !candidate.has(key)).sort()
+  return { added: added.slice(0, limit), removed: removed.slice(0, limit), unchanged: [...candidate].filter((key) => baseline.has(key)).length, truncated: added.length > limit || removed.length > limit }
 }
 
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
