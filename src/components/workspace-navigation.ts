@@ -1,4 +1,4 @@
-export const workspaceTabs = ['dashboard', 'computer', 'observe', 'preview', 'visual', 'slides', 'design', 'database', 'assets', 'code', 'files', 'history', 'evidence', 'handoff', 'settings'] as const
+export const workspaceTabs = ['dashboard', 'computer', 'observe', 'validation', 'preview', 'visual', 'slides', 'design', 'database', 'assets', 'code', 'files', 'history', 'evidence', 'handoff', 'settings'] as const
 export type WorkspaceTab = typeof workspaceTabs[number]
 
 export const workspaceTabFromSearch = (search: string): WorkspaceTab => {
