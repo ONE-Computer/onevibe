@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, matchesRailQuery, runIdsFor, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, matchesRailQuery, runIdsFor, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -69,6 +69,14 @@ describe('Computer timeline terminal inspection', () => {
   it('creates a compact command preview while excluding secret-shaped inputs', () => {
     expect(activityPreviewFor({ input: { command: 'pnpm build', token: 'do-not-show' } })).toBe('$ pnpm build')
     expect(activityPreviewFor({ input: { operation: 'write', paths: ['src/App.tsx', 'src/index.css'], api_key: 'do-not-show' } })).toBe('write · src/App.tsx, src/index.css')
+  })
+
+  it('projects a CLI command without exposing credentials or host paths', () => {
+    const command = commandFor({ command: 'API_KEY=not-for-the-rail node /Users/operator/project/build.mjs --token top-secret' })
+    expect(command).toBe('API_KEY=<redacted> node <host-path> --token=<redacted>')
+    const activity = terminalActivityFor({ id: 'command', kind: 'terminal', title: 'Bash', createdAt: '2026-07-16T00:00:00.000Z', payload: { input: { command: 'pwd' } } }, [])
+    expect(activity.command).toBe('pwd')
+    expect(activity.workspaceLabel).toBe('Sandbox workspace')
   })
 
   it('folds a completed tool result into its originating rail card without changing evidence order', () => {

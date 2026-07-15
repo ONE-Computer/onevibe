@@ -20,11 +20,25 @@ export type ComputerItem = {
 
 const redactedKeys = new Set(['api_key', 'apikey', 'authorization', 'password', 'secret', 'token'])
 
+const redactCommand = (command: string) => command
+  .replace(/\b(authorization|api[_-]?key|token|password|secret)\s*=\s*([^\s'"`]+)/gi, '$1=<redacted>')
+  .replace(/(--(?:api[-_]?key|token|password|secret))(?:=|\s+)([^\s'"`]+)/gi, '$1=<redacted>')
+  .replace(/\bBearer\s+[^\s'"`]+/gi, 'Bearer <redacted>')
+  .replace(/\/(?:Users|home)\/[^\s'"`]+/g, '<host-path>')
+
+const recordValue = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+
+export const commandFor = (value: unknown) => {
+  const input = recordValue(value)
+  return typeof input?.command === 'string' ? redactCommand(input.command) : undefined
+}
+
 const compactValue = (value: unknown): string | undefined => {
   if (typeof value === 'string') return value.length > 104 ? `${value.slice(0, 101)}…` : value
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   const input = value as Record<string, unknown>
-  if (typeof input.command === 'string') return `$ ${input.command.length > 100 ? `${input.command.slice(0, 97)}…` : input.command}`
+  const command = commandFor(input)
+  if (command) return `$ ${command.length > 100 ? `${command.slice(0, 97)}…` : command}`
   const operation = typeof input.operation === 'string' ? input.operation : undefined
   const paths = Array.isArray(input.paths) ? input.paths.filter((path): path is string => typeof path === 'string').slice(0, 2) : []
   if (operation) return `${operation}${paths.length ? ` · ${paths.join(', ')}` : ''}`
@@ -114,12 +128,17 @@ export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) 
   const toolUseId = typeof item.payload?.toolUseId === 'string' ? item.payload.toolUseId : undefined
   const paired = toolUseId ? events.find((event) => event.id !== item.id && event.type === 'tool_call_completed' && event.payload.toolUseId === toolUseId) : undefined
   const request = item.payload?.input ?? paired?.payload.input
+  const command = commandFor(request)
   // A start event often contains a human-readable request summary. Prefer the
   // paired terminal result so the unified rail card reads request → outcome.
   const output = item.eventType === 'tool_call_started' ? paired?.content : item.detail ?? paired?.content
   const failed = item.payload?.isError === true || paired?.payload.isError === true
   const elapsed = paired && item.eventType === 'tool_call_started' ? Date.parse(paired.createdAt) - Date.parse(item.createdAt) : undefined
-  return { request, output, failed, toolUseId, durationMs: elapsed !== undefined && Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : undefined }
+  return {
+    request, output, failed, toolUseId, command,
+    workspaceLabel: command ? 'Sandbox workspace' : undefined,
+    durationMs: elapsed !== undefined && Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : undefined,
+  }
 }
 
 export const causalVisualItemsFor = (eventId: string, items: ComputerItem[]) => items.filter((item) => item.kind === 'screenshot' && item.payload?.causedByEventId === eventId)
