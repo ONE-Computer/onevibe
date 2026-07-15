@@ -3,6 +3,7 @@ import type { PresentationDescriptor, PresentationPanel, RuntimeEvent, TaskSnaps
 export type ComputerItem = {
   id: string
   kind: PresentationPanel
+  eventType?: string
   title: string
   detail?: string
   activityPreview?: string
@@ -13,6 +14,8 @@ export type ComputerItem = {
   uri?: string
   payload?: Record<string, unknown>
   live?: boolean
+  /** Evidence IDs folded into this visible rail card (for example, a tool result). */
+  relatedEventIds?: string[]
 }
 
 const redactedKeys = new Set(['api_key', 'apikey', 'authorization', 'password', 'secret', 'token'])
@@ -39,10 +42,10 @@ export const formatInspectable = (value: unknown, limit = 12_000) => {
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
   const items = task.events.flatMap((event): ComputerItem[] => {
     const presentation = event.payload.presentation as PresentationDescriptor | undefined
-    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff', 'slide', 'approval'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, title: event.label ?? 'Artifact', detail: event.content, activityPreview: presentation.panel === 'terminal' ? activityPreviewFor(event.payload) : undefined, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, uri: presentation.uri, payload: event.payload }]
+    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff', 'slide', 'approval'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, eventType: event.type, title: event.label ?? 'Artifact', detail: event.content, activityPreview: presentation.panel === 'terminal' ? activityPreviewFor(event.payload) : undefined, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, uri: presentation.uri, payload: event.payload }]
     // Compatibility for evidence created before the typed presentation contract.
-    if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', title: event.label ?? 'Tool call', detail: event.content, activityPreview: activityPreviewFor(event.payload), createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
-    if (event.type === 'artifact_created' || event.type === 'artifact_updated') return [{ id: event.id, kind: event.type === 'artifact_updated' ? 'diff' : 'file', title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
+    if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', eventType: event.type, title: event.label ?? 'Tool call', detail: event.content, activityPreview: activityPreviewFor(event.payload), createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
+    if (event.type === 'artifact_created' || event.type === 'artifact_updated') return [{ id: event.id, kind: event.type === 'artifact_updated' ? 'diff' : 'file', eventType: event.type, title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
     return []
   })
   if (task.securityContext?.visualRuntimeReady && task.securityContext.sandboxState !== 'destroyed') items.push({
@@ -50,6 +53,30 @@ export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
     createdAt: task.updatedAt, uri: `/api/tasks/${task.id}/visual/screenshot`, live: true,
   })
   return items
+}
+
+/**
+ * Converts the append-only event list into the compact, artifact-first rail.
+ * A tool start owns its matching terminal result card but never changes the
+ * underlying evidence ordering or hides an unpaired result.
+ */
+export const artifactRailItems = (items: ComputerItem[]) => {
+  const starts = new Map<string, ComputerItem>()
+  for (const item of items) {
+    const toolUseId = typeof item.payload?.toolUseId === 'string' ? item.payload.toolUseId : undefined
+    if (item.kind === 'terminal' && item.eventType === 'tool_call_started' && toolUseId) starts.set(toolUseId, item)
+  }
+  const folded = new Set<string>()
+  const related = new Map<string, string[]>()
+  for (const item of items) {
+    const toolUseId = typeof item.payload?.toolUseId === 'string' ? item.payload.toolUseId : undefined
+    const start = toolUseId ? starts.get(toolUseId) : undefined
+    if (item.kind === 'terminal' && item.eventType === 'tool_call_completed' && start && start.id !== item.id) {
+      folded.add(item.id)
+      related.set(start.id, [...(related.get(start.id) ?? []), item.id])
+    }
+  }
+  return items.filter((item) => !folded.has(item.id)).map((item) => ({ ...item, relatedEventIds: related.get(item.id) }))
 }
 
 export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) => {
@@ -64,6 +91,6 @@ export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) 
 export const causalVisualItemsFor = (eventId: string, items: ComputerItem[]) => items.filter((item) => item.kind === 'screenshot' && item.payload?.causedByEventId === eventId)
 
 export const evidenceItemId = (items: ComputerItem[], eventId: string | null) => {
-  const item = eventId ? items.find((candidate) => candidate.id === eventId) : undefined
+  const item = eventId ? items.find((candidate) => candidate.id === eventId || candidate.relatedEventIds?.includes(eventId)) : undefined
   return item?.eventHash ? item.id : undefined
 }

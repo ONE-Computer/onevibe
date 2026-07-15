@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, causalVisualItemsFor, evidenceItemId, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, evidenceItemId, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -50,5 +50,22 @@ describe('Computer timeline terminal inspection', () => {
   it('creates a compact command preview while excluding secret-shaped inputs', () => {
     expect(activityPreviewFor({ input: { command: 'pnpm build', token: 'do-not-show' } })).toBe('$ pnpm build')
     expect(activityPreviewFor({ input: { operation: 'write', paths: ['src/App.tsx', 'src/index.css'], api_key: 'do-not-show' } })).toBe('write · src/App.tsx, src/index.css')
+  })
+
+  it('folds a completed tool result into its originating rail card without changing evidence order', () => {
+    const started: ComputerItem = { id: 'tool-start', kind: 'terminal', eventType: 'tool_call_started', title: 'Read', createdAt: '2026-07-16T00:00:00.000Z', eventHash: 'start-hash', payload: { toolUseId: 'tool-1', input: { path: 'README.md' } } }
+    const completed: ComputerItem = { id: 'tool-finish', kind: 'terminal', eventType: 'tool_call_completed', title: 'Read complete', createdAt: '2026-07-16T00:00:01.000Z', eventHash: 'finish-hash', payload: { toolUseId: 'tool-1' } }
+    const artifact: ComputerItem = { id: 'artifact', kind: 'file', title: 'README.md', createdAt: '2026-07-16T00:00:02.000Z', eventHash: 'artifact-hash' }
+
+    const rail = artifactRailItems([started, completed, artifact])
+
+    expect(rail.map((item) => item.id)).toEqual(['tool-start', 'artifact'])
+    expect(rail[0].relatedEventIds).toEqual(['tool-finish'])
+    expect(evidenceItemId(rail, 'tool-finish')).toBe('tool-start')
+  })
+
+  it('keeps unpaired result events visible instead of silently discarding audit evidence', () => {
+    const result: ComputerItem = { id: 'orphan-result', kind: 'terminal', eventType: 'tool_call_completed', title: 'Recovered result', createdAt: '2026-07-16T00:00:00.000Z', eventHash: 'result-hash', payload: { toolUseId: 'unknown' } }
+    expect(artifactRailItems([result]).map((item) => item.id)).toEqual(['orphan-result'])
   })
 })
