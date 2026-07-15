@@ -46,13 +46,24 @@ const writeSlides = async (task: Task, store: TaskStore) => {
 }
 
 const writeScaffold = async (task: Task, store: TaskStore) => {
+  const game = task.mode === 'game'
+  const appSource = game
+    ? `import { useState } from 'react'
+export default function App(){const [score,setScore]=useState(0);const [round,setRound]=useState(1);const [message,setMessage]=useState('Find the signal');const catchSignal=()=>{const next=score+round;setScore(next);setMessage(next>=12?'Signal secured — start a new round':'Signal captured');if(next>=12){setRound(1);setScore(0)}else setRound(round+1)};return <main className="game"><p className="eyebrow">ONEVibe playable prototype</p><h1>${task.title.replaceAll('`', '')}</h1><section><div><span>Round</span><strong>{round}</strong></div><div><span>Signal</span><strong>{score}/12</strong></div></section><button className="signal" onClick={catchSignal}>✦</button><p>{message}</p><small>This local interaction is portable source. Any publish action remains subject to an external approval.</small></main>}
+`
+    : `import { useState } from 'react'
+export default function App(){const [approved,setApproved]=useState(false);return <main><h1>${task.title.replaceAll('`', '')}</h1><p>Generated inside ONEVibe.</p><button onClick={()=>setApproved(!approved)}>{approved?'Approved demo':'Request approval demo'}</button></main>}
+`
+  const styles = game
+    ? ':root{font-family:system-ui;color:#eef3ef;background:#090b0a}*{box-sizing:border-box}body{margin:0}.game{min-height:100vh;padding:10vw;display:grid;place-content:center;gap:18px;text-align:center;background:radial-gradient(circle at 50% 25%,#163c26,transparent 35%),#090b0a}.eyebrow{color:#38dc7d;font:11px ui-monospace;letter-spacing:.12em;text-transform:uppercase}.game h1{max-width:720px;margin:0;font-size:clamp(38px,6vw,72px);letter-spacing:-.06em}.game section{display:flex;justify-content:center;gap:30px}.game section div{display:grid;gap:3px}.game span,.game small{color:#9ba79f;font-size:12px}.game strong{font-size:26px}.signal{width:110px;height:110px;margin:auto;border:1px solid #57df91;border-radius:50%;background:#143723;color:#b8ffcf;font-size:42px;cursor:pointer;box-shadow:0 0 55px #1a8b4c66;transition:transform .15s}.signal:hover{transform:scale(1.07)}'
+    : ':root{font-family:system-ui;color:#eef3ef;background:#090b0a}body{margin:0}main{padding:10vw}button{padding:10px}'
   const files: Record<string, string> = {
     'app/package.json': `${JSON.stringify({ private: true, scripts: { dev: 'vite', build: 'tsc -b && vite build', preview: 'vite preview' }, dependencies: { react: '^19.2.7', 'react-dom': '^19.2.7' }, devDependencies: { '@types/react': '^19.2.17', '@types/react-dom': '^19.2.3', '@vitejs/plugin-react': '^6.0.3', typescript: '~6.0.2', vite: '^8.1.1' } }, null, 2)}\n`,
     'app/vite.config.ts': "import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nexport default defineConfig({ plugins: [react()] })\n",
     'app/tsconfig.json': `${JSON.stringify({ compilerOptions: { target: 'ES2022', jsx: 'react-jsx', strict: true, module: 'ESNext', moduleResolution: 'Bundler' }, include: ['src'] }, null, 2)}\n`,
     'app/src/main.tsx': "import React from 'react'\nimport { createRoot } from 'react-dom/client'\nimport './styles.css'\nimport App from './App'\ncreateRoot(document.getElementById('root')!).render(<App />)\n",
-    'app/src/App.tsx': `import { useState } from 'react'\nexport default function App(){const [approved,setApproved]=useState(false);return <main><h1>${task.title.replaceAll('`', '')}</h1><p>Generated inside ONEVibe.</p><button onClick={()=>setApproved(!approved)}>{approved?'Approved demo':'Request approval demo'}</button></main>}\n`,
-    'app/src/styles.css': ':root{font-family:system-ui;color:#eef3ef;background:#090b0a}body{margin:0}main{padding:10vw}button{padding:10px}\n',
+    'app/src/App.tsx': appSource,
+    'app/src/styles.css': `${styles}\n`,
     'app/index.html': '<div id="root"></div><script type="module" src="/src/main.tsx"></script>\n',
     'app/.gitignore': 'node_modules\ndist\n.env*\n',
     'app/.prettierrc': '{"semi":false,"singleQuote":true}\n',

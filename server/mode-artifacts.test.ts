@@ -49,6 +49,20 @@ describe('mode artifacts', () => {
     })
   })
 
+  it('generates a playable interaction loop for game mode', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-game-mode-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Secure signal run', 'demo', 'game')
+    await writeModeArtifacts(task, store)
+
+    expect(await store.readWorkspaceFile(task.id, 'app/src/App.tsx')).toContain('catchSignal')
+    expect(await store.readWorkspaceFile(task.id, 'app/src/styles.css')).toContain('.signal')
+  })
+
   it('writes an explicit static validation report without claiming runtime verification', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-validation-'))
     temporaryRoots.push(root)
