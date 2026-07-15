@@ -33,9 +33,25 @@ const WALLET_TOKEN = process.env.ONEVIBE_WALLET_TOKEN
 const claudeConfigured = Boolean(process.env.ANTHROPIC_API_KEY)
 const store = new TaskStore()
 const activeRuns = new Map<string, AbortController>()
+let oneComputerHealthCache: { checkedAt: number; reachable: boolean } | undefined
 const inputBroker = new UserInputBroker(store)
 const walletService = WALLET_TOKEN ? new WalletApprovalService(store, WALLET_TOKEN) : undefined
 const oneComputerConfigured = Boolean(ONECOMPUTER_API_URL && ONECOMPUTER_SERVICE_TOKEN && (!ONECOMPUTER_SERVICE_TOKEN.startsWith('oc_org_') || ONECOMPUTER_PROJECT_ID))
+
+const oneComputerReachability = async () => {
+  if (!oneComputerConfigured) return undefined
+  const now = Date.now()
+  if (oneComputerHealthCache && now - oneComputerHealthCache.checkedAt < 15_000) return oneComputerHealthCache.reachable
+  try {
+    const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN!, projectId: ONECOMPUTER_PROJECT_ID })
+    await client.health()
+    oneComputerHealthCache = { checkedAt: now, reachable: true }
+  } catch {
+    // Do not send endpoint, credential, or provider error material to the UI.
+    oneComputerHealthCache = { checkedAt: now, reachable: false }
+  }
+  return oneComputerHealthCache.reachable
+}
 
 const json = (response: ServerResponse, status: number, value: unknown) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
@@ -212,7 +228,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       oneComputerSandboxConfigured: oneComputerConfigured,
     })
   }
-  if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, runtimeReadiness({ claudeConfigured, remoteConfigured: Boolean(REMOTE_RUNTIME_URL), oneComputerConfigured }))
+  if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, runtimeReadiness({ claudeConfigured, remoteConfigured: Boolean(REMOTE_RUNTIME_URL), oneComputerConfigured, oneComputerReachable: await oneComputerReachability() }))
 
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
     await store.reconcileExpiredApprovals()
@@ -269,6 +285,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (input.provider === 'claude_sdk' && !claudeConfigured) return json(response, 409, { error: 'Claude SDK is not configured. Set ANTHROPIC_API_KEY in the server environment.' })
     if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) return json(response, 409, { error: 'Remote runtime is not configured' })
     if (input.provider === 'onecomputer' && !oneComputerConfigured) return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL, ONECOMPUTER_SERVICE_TOKEN, and ONECOMPUTER_PROJECT_ID when using an oc_org_ key.' })
+    if (input.provider === 'onecomputer' && await oneComputerReachability() === false) return json(response, 409, { error: 'ONEComputer sandbox runtime is currently unreachable from the ONEVibe API.' })
     return json(response, 201, await store.createSchedule(input))
   }
   if (request.method === 'PATCH' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2]) {
@@ -322,6 +339,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     }
     if (input.provider === 'onecomputer' && !oneComputerConfigured) {
       return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL, ONECOMPUTER_SERVICE_TOKEN, and ONECOMPUTER_PROJECT_ID when using an oc_org_ key.' })
+    }
+    if (input.provider === 'onecomputer' && await oneComputerReachability() === false) {
+      return json(response, 409, { error: 'ONEComputer sandbox runtime is currently unreachable from the ONEVibe API.' })
     }
     const normalizedAttachments = input.attachments.map((attachment) => {
       const name = path.basename(attachment.name).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
@@ -566,6 +586,7 @@ const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | '
   if (schedule.provider === 'claude_sdk' && !claudeConfigured) throw new Error('Claude SDK is not configured. Set ANTHROPIC_API_KEY in the server environment.')
   if (schedule.provider === 'remote' && !REMOTE_RUNTIME_URL) throw new Error('Remote runtime is not configured')
   if (schedule.provider === 'onecomputer' && !oneComputerConfigured) throw new Error('ONEComputer sandbox runtime is not configured')
+  if (schedule.provider === 'onecomputer' && await oneComputerReachability() === false) throw new Error('ONEComputer sandbox runtime is currently unreachable from the ONEVibe API')
   const task = await store.createTask(schedule.prompt, schedule.provider, schedule.mode, schedule.projectId, schedule.id)
   await store.appendEvent(task.id, {
     type: 'activity_delta', lane: 'control', label: trigger === 'manual' ? 'Scheduled run started manually' : 'Scheduled run claimed',

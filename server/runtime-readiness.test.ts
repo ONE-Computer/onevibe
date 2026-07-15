@@ -16,4 +16,9 @@ describe('runtime readiness', () => {
     expect(states.find((state) => state.id === 'onecomputer')).toMatchObject({ available: true, boundary: 'Ephemeral sandbox' })
     expect(JSON.stringify(states)).not.toMatch(/token|secret|api[_-]?key/i)
   })
+
+  it('does not present an unreachable configured sandbox as available', () => {
+    const state = runtimeReadiness({ claudeConfigured: false, remoteConfigured: false, oneComputerConfigured: true, oneComputerReachable: false }).providers.find((provider) => provider.id === 'onecomputer')
+    expect(state).toMatchObject({ available: false, detail: expect.stringMatching(/unreachable/i) })
+  })
 })

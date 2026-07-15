@@ -16,6 +16,13 @@ describe('OneComputerClient', () => {
     expect('decideApproval' in client).toBe(false)
   })
 
+  it('performs a short authenticated provider health probe without projecting credentials', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ status: 'ok', version: '2026.07' }), { status: 200 }))
+    const client = new OneComputerClient({ baseUrl: 'https://onecomputer.example', serviceToken: 'server-only-health', projectId: 'project_abc', fetcher })
+    await expect(client.health()).resolves.toEqual({ status: 'ok', version: '2026.07' })
+    expect(fetcher).toHaveBeenCalledWith('https://onecomputer.example/v1/health', expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer server-only-health', 'X-Project-Id': 'project_abc' }) }))
+  })
+
   it('executes and tears down through authenticated sandbox routes', async () => {
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ exitCode: 0, output: 'ok' }), { status: 200 }))

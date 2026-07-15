@@ -32,6 +32,16 @@ export class OneComputerClient {
     })
   }
 
+  async health(signal?: AbortSignal): Promise<{ status?: string; version?: string }> {
+    const response = await this.fetcher(`${this.baseUrl}/v1/health`, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${this.options.serviceToken}`, ...(this.options.projectId ? { 'X-Project-Id': this.options.projectId } : {}) },
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(5_000)]) : AbortSignal.timeout(5_000),
+    })
+    if (!response.ok) throw new Error(`ONEComputer health returned HTTP ${response.status}`)
+    const body = await response.json().catch(() => ({})) as { status?: unknown; version?: unknown }
+    return { status: typeof body.status === 'string' ? body.status : undefined, version: typeof body.version === 'string' ? body.version : undefined }
+  }
+
   async getSandbox(id: string, signal?: AbortSignal): Promise<OneComputerSandbox> {
     return this.request<OneComputerSandbox>(`/v1/sandboxes/${encodeURIComponent(id)}`, { signal })
   }

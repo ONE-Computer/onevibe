@@ -29,7 +29,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 16. **I** Large free-form brief support — validated to 8,000 characters.
 17. **I** Synthetic-data constraints — accepted as ordinary task instructions.
 18. **P** Local-computer selector — control exists; context mounting is not wired.
-19. **P** Cloud-computer selector — runtime providers and task-derived computer inventory exist; provider lifecycle controls and quota management remain pending.
+19. **P** Cloud-computer selector — runtime providers and task-derived computer inventory exist. Configured ONEComputer readiness now performs a short server-side health probe, and direct task/schedule dispatch refuses a provider known unreachable from the API; provider lifecycle controls and quota management remain pending.
 20. **P** Local-file attachment — the composer stages up to four bounded files in a path-confined `inputs/` directory and records metadata-only evidence. Folder selection, large-file/object storage, and connector mounts remain pending.
 21. **P** Workspace inventory — task-derived, observation-only inventory exposes runtime boundary, lifecycle, gateway attestation, visual-runtime readiness, and links to the governing task. Provider provisioning, termination, restart, quotas, and billing remain pending.
 22. **M** Connected-app context indicators.
