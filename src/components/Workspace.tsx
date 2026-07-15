@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, ArrowRight, Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, Presentation, RefreshCw, Save, Settings2, ShieldCheck, TerminalSquare } from 'lucide-react'
+import { Activity, ArrowLeft, ArrowRight, Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, Presentation, RefreshCw, Save, Settings2, ShieldCheck, Table2, TerminalSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
@@ -6,7 +6,7 @@ import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
 
-type Tab = 'dashboard' | 'computer' | 'preview' | 'visual' | 'slides' | 'code' | 'files' | 'history' | 'evidence' | 'settings'
+type Tab = 'dashboard' | 'computer' | 'preview' | 'visual' | 'slides' | 'database' | 'code' | 'files' | 'history' | 'evidence' | 'settings'
 type SlideOutline = { number: number; title: string; summary: string }
 
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
@@ -29,6 +29,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [slides, setSlides] = useState<SlideOutline[]>([])
   const [speakerNotes, setSpeakerNotes] = useState('')
   const [activeSlide, setActiveSlide] = useState(0)
+  const [dataRows, setDataRows] = useState<string[][]>([])
   const completedSteps = task.plan.filter((step) => step.status === 'completed').length
 
   useEffect(() => {
@@ -51,6 +52,10 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
     void Promise.all([getFile(task.id, 'outline.json'), getFile(task.id, 'speaker-notes.md')]).then(([outline, notes]) => {
       try { setSlides(JSON.parse(outline.content) as SlideOutline[]); setActiveSlide(0); setSpeakerNotes(notes.content) } catch { setSlides([]); setSpeakerNotes('') }
     })
+  }, [tab, task.id, task.mode])
+  useEffect(() => {
+    if (tab !== 'database' || task.mode !== 'data') return
+    void getFile(task.id, 'data.csv').then((result) => setDataRows(result.content.trim().split('\n').filter(Boolean).map((line) => line.split(',')))).catch(() => setDataRows([]))
   }, [tab, task.id, task.mode])
   useEffect(() => {
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setFullscreen(false) }
@@ -90,6 +95,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           <button className={tab === 'computer' ? 'active' : ''} onClick={() => setTab('computer')}><TerminalSquare size={14} /> Computer</button>
           <button className={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}><Globe2 size={14} /> Preview</button>
           {task.mode === 'slides' && <button className={tab === 'slides' ? 'active' : ''} onClick={() => setTab('slides')}><Presentation size={14} /> Deck</button>}
+          {task.mode === 'data' && <button className={tab === 'database' ? 'active' : ''} onClick={() => setTab('database')}><Table2 size={14} /> Data</button>}
           {task.securityContext?.executionBoundary === 'onecomputer_sandbox' && <button className={tab === 'visual' ? 'active' : ''} onClick={() => setTab('visual')}><Eye size={14} /> Live X11</button>}
           <button className={tab === 'code' ? 'active' : ''} onClick={() => setTab('code')}><Code2 size={14} /> Code</button>
           <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><Files size={14} /> Files</button>
@@ -110,6 +116,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
             </motion.div>
           )}
           {tab === 'slides' && <motion.div key="slides" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="deck-pane">{slides.length ? <><aside aria-label="Slide outline thumbnails"><div className="deck-rail-heading"><span>Deck</span><small>{slides.length} slides</small></div>{slides.map((slide, index) => <button key={slide.number} className={index === activeSlide ? 'active' : ''} onClick={() => setActiveSlide(index)} aria-label={`Open slide ${slide.number}: ${slide.title}`}><div className="slide-thumbnail"><span>{String(slide.number).padStart(2, '0')}</span><strong>{slide.title}</strong><i /></div><small>{slide.summary}</small></button>)}</aside><section><div className="deck-review-header"><div><span>ONEVIBE · GOVERNED DECK</span><strong>Slide {String(slides[activeSlide]?.number).padStart(2, '0')} of {String(slides.length).padStart(2, '0')}</strong></div><div className="deck-controls"><button disabled={activeSlide === 0} onClick={() => setActiveSlide((current) => current - 1)} aria-label="Previous slide"><ArrowLeft size={13} /></button><button disabled={activeSlide === slides.length - 1} onClick={() => setActiveSlide((current) => current + 1)} aria-label="Next slide"><ArrowRight size={13} /></button></div></div><div className="deck-slide"><span>Slide {slides[activeSlide]?.number} / {slides.length}</span><h2>{slides[activeSlide]?.title}</h2><p>{slides[activeSlide]?.summary}</p><div className="deck-slide-mark"><Presentation size={15} /><span>Portable PPTX · evidence-bound notes</span></div></div><article className="speaker-notes"><header><div><strong>Speaker notes</strong><span>Reviewable source for this slide</span></div><button onClick={() => { setSelectedFile('speaker-notes.md'); setTab('code') }}>Edit notes <Pencil size={11} /></button></header><p>{speakerNotes.match(new RegExp(`## ${slides[activeSlide]?.number}\\. [^\\n]+\\n\\n([\\s\\S]*?)(?=\\n## |$)`))?.[1]?.trim() ?? 'No notes for this slide.'}</p></article></section></> : <div className="workspace-placeholder"><Presentation size={20} /><strong>Deck outline unavailable</strong><span>Open the Files tab to inspect the portable slide artifacts.</span></div>}</motion.div>}
+          {tab === 'database' && <motion.div key="database" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="database-pane">{dataRows.length ? <><header><div><Table2 size={17} /><div><span>Generated dataset</span><strong>{dataRows.length - 1} rows · {dataRows[0]?.length ?? 0} columns</strong></div></div><button onClick={() => { setSelectedFile('data.csv'); setTab('code') }}>Open CSV source <Code2 size={12} /></button></header><div className="database-table-wrap"><table><thead><tr>{dataRows[0]?.map((cell, index) => <th key={`${cell}-${index}`}>{cell}</th>)}</tr></thead><tbody>{dataRows.slice(1).map((row, index) => <tr key={`${index}-${row.join('-')}`}>{row.map((cell, cellIndex) => <td key={`${cell}-${cellIndex}`}>{cell}</td>)}</tr>)}</tbody></table></div><p><ShieldCheck size={13} /> This is the portable CSV artifact rendered for review. It is not a live connector or external data source.</p></> : <div className="workspace-placeholder"><Table2 size={20} /><strong>Dataset unavailable</strong><span>Open the Files tab to inspect the portable data artifacts.</span></div>}</motion.div>}
           {tab === 'visual' && (
             <motion.div key="visual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="visual-pane">
               {task.securityContext?.sandboxState === 'destroyed' ? <div className="workspace-placeholder"><ShieldCheck size={20} /><strong>Ephemeral display closed</strong><span>The sandbox was destroyed after artifact extraction.</span></div> : task.securityContext?.visualRuntimeReady && !visualError ? <><div className="visual-status"><span className="live-dot" /> Live X11 capture · no VNC · 1 FPS</div><img src={`/api/tasks/${task.id}/visual/screenshot?v=${visualFrame}`} onError={() => setVisualError(true)} alt="Live X11 display from the ONEComputer sandbox" /></> : <div className="workspace-placeholder"><Eye size={20} /><strong>{visualError ? 'Visual frame unavailable' : 'Starting visual runtime'}</strong><span>{visualError ? 'The authenticated capture endpoint did not return a frame.' : 'Xvfb and Chromium are being prepared inside the sandbox.'}</span></div>}
