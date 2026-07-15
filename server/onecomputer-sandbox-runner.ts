@@ -86,11 +86,11 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
     try {
       let visualRuntimeReady = false
-      const captureVisualFrame = async (phase: 'runtime_ready' | 'before_agent' | 'after_agent', causedByEventId?: string) => {
+      const captureVisualFrame = async (phase: string, causedByEventId?: string) => {
         if (!visualRuntimeReady) return
         try {
           const frame = await this.client.getVisualScreenshot(sandbox.id, signal)
-          const framePath = `evidence/visual/${Date.now()}-${phase}.png`
+          const framePath = `evidence/visual/${Date.now()}-${phase.replace(/[^a-z0-9_-]/gi, '_')}.png`
           await store.writeWorkspaceBytes(task.id, framePath, frame.png)
           await store.appendEvent(task.id, {
             type: 'artifact_created', lane: 'artifact', label: `X11 frame · ${phase.replace('_', ' ')}`, content: framePath,
@@ -154,36 +154,62 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         `mkdir -p ${shellQuote(workspace)}`,
         `cd ${shellQuote(workspace)}`,
         `printf %s ${shellQuote(encodedPrompt)} | base64 -d > .onevibe-prompt`,
-        "claude --print --output-format stream-json --verbose --permission-mode bypassPermissions --allowedTools 'Read,Write,Edit,Glob,Grep' \"$(cat .onevibe-prompt)\" > .onevibe-events.jsonl",
+        'rm -f .onevibe-events.jsonl .onevibe-exitcode .onevibe-pid',
+        '(',
+        '  set +e',
+        "  claude --print --output-format stream-json --verbose --permission-mode bypassPermissions --allowedTools 'Read,Write,Edit,Glob,Grep' \"$(cat .onevibe-prompt)\" > .onevibe-events.jsonl 2>&1",
+        '  printf %s "$?" > .onevibe-exitcode',
+        ') < /dev/null > /dev/null 2>&1 &',
+        'printf %s "$!" > .onevibe-pid',
         'rm -f .onevibe-prompt',
-      ].join(' && ')
+      ].join('\n')
       const agentExecution = await store.appendEvent(task.id, {
         type: 'tool_call_started', lane: 'activity', label: 'Execute Claude inside ONEComputer',
         content: 'Prompt is base64-transferred to avoid shell interpretation and the agent receives no Bash tool.',
         payload: { sandboxId: sandbox.id, toolName: 'onecomputer.sandbox.exec', allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep'] },
       })
       await captureVisualFrame('before_agent', agentExecution.id)
-      const execution = await this.client.exec(sandbox.id, command, signal)
-      await captureVisualFrame('after_agent', agentExecution.id)
-      if (execution.exitCode !== 0) throw new Error(`Sandbox Claude process exited ${execution.exitCode}: ${execution.output.slice(-2_000)}`)
-      const journal = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && base64 -w0 .onevibe-events.jsonl`, signal)
-      if (journal.exitCode !== 0) throw new Error('Unable to retrieve sandbox agent event journal')
-      const parsedJournal = parseClaudeStreamJournal(Buffer.from(journal.output.trim(), 'base64').toString('utf8'))
-      for (const entry of parsedJournal.entries) {
-        if (entry.kind === 'tool_started') await store.appendEvent(task.id, {
-          type: 'tool_call_started', lane: 'activity', label: entry.name,
-          content: 'Claude requested a governed workspace tool inside the ONEComputer sandbox.',
-          payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, input: entry.input },
-        })
-        if (entry.kind === 'tool_completed') await store.appendEvent(task.id, {
-          type: 'tool_call_completed', lane: 'activity', label: 'Tool result', content: entry.content,
-          payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, isError: entry.isError },
-        })
-        if (entry.kind === 'text') await store.appendEvent(task.id, {
-          type: 'assistant_text_delta', lane: 'transcript', content: entry.content,
-          payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, source: 'claude_stream_json' },
-        })
+      const spawned = await this.client.exec(sandbox.id, command, signal)
+      if (spawned.exitCode !== 0) throw new Error(`Unable to start sandbox Claude process: ${spawned.output.slice(-2_000)}`)
+      let projectedEntries = 0
+      let latestJournal = parseClaudeStreamJournal('')
+      const projectJournal = async (raw: string) => {
+        const parsedJournal = parseClaudeStreamJournal(raw)
+        for (const entry of parsedJournal.entries.slice(projectedEntries)) {
+          let timelineEventId: string | undefined
+          if (entry.kind === 'tool_started') timelineEventId = (await store.appendEvent(task.id, {
+            type: 'tool_call_started', lane: 'activity', label: entry.name,
+            content: 'Claude requested a governed workspace tool inside the ONEComputer sandbox.',
+            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, input: entry.input },
+          })).id
+          if (entry.kind === 'tool_completed') timelineEventId = (await store.appendEvent(task.id, {
+            type: 'tool_call_completed', lane: 'activity', label: 'Tool result', content: entry.content,
+            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, isError: entry.isError },
+          })).id
+          if (entry.kind === 'text') await store.appendEvent(task.id, {
+            type: 'assistant_text_delta', lane: 'transcript', content: entry.content,
+            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, source: 'claude_stream_json' },
+          })
+          if (timelineEventId) await captureVisualFrame(entry.kind, timelineEventId)
+        }
+        projectedEntries = parsedJournal.entries.length
+        latestJournal = parsedJournal
       }
+      const journalDeadline = Date.now() + 20 * 60_000
+      let agentExitCode: number | undefined
+      while (agentExitCode === undefined) {
+        if (Date.now() >= journalDeadline) throw new Error('Sandbox Claude process exceeded the 20-minute task limit')
+        await wait(this.options.pollMilliseconds ?? 1_000, signal)
+        const snapshot = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && journal_bytes=$(wc -c < .onevibe-events.jsonl 2>/dev/null || printf 0) && if test "$journal_bytes" -gt 4194304; then printf 'oversize:%s\n' "$journal_bytes"; elif test -f .onevibe-exitcode; then printf 'done:'; cat .onevibe-exitcode; printf '\n'; else printf 'running:\n'; fi; if test "$journal_bytes" -le 4194304; then base64 -w0 .onevibe-events.jsonl 2>/dev/null || true; fi`, signal)
+        if (snapshot.exitCode !== 0) throw new Error('Unable to poll sandbox Claude event journal')
+        const [status, encodedJournal = ''] = snapshot.output.split('\n', 2)
+        if (status?.startsWith('oversize:')) throw new Error(`Sandbox Claude event journal exceeded the 4 MiB limit (${status.slice('oversize:'.length)} bytes)`)
+        await projectJournal(Buffer.from(encodedJournal.trim(), 'base64').toString('utf8'))
+        if (status?.startsWith('done:')) agentExitCode = Number(status.slice('done:'.length))
+      }
+      await captureVisualFrame('after_agent', agentExecution.id)
+      if (agentExitCode !== 0) throw new Error(`Sandbox Claude process exited ${agentExitCode}`)
+      const parsedJournal = latestJournal
       if (parsedJournal.result && !parsedJournal.entries.some((entry) => entry.kind === 'text' && entry.content === parsedJournal.result)) await store.appendEvent(task.id, {
         type: 'assistant_text_delta', lane: 'transcript', content: parsedJournal.result,
         payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, source: 'claude_stream_json_result' },
@@ -192,7 +218,6 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         const current = store.getTask(task.id)
         await store.updateTask(task.id, { securityContext: { ...current.securityContext!, runtimeSessionId: parsedJournal.sessionId } })
       }
-
       const listing = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && find . -type f ! -name '.onevibe-events.jsonl' -print0 | base64 -w0`, signal)
       if (listing.exitCode !== 0) throw new Error('Unable to enumerate sandbox artifacts')
       const paths = Buffer.from(listing.output.trim(), 'base64').toString('utf8').split('\0').filter(Boolean).map((item) => item.replace(/^\.\//, ''))
