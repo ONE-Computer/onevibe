@@ -7,7 +7,7 @@ export const ApprovalCard = ({ approval }: { approval: NonNullable<Task['approva
   const action = approval.action.replaceAll('_', ' ')
   const heading = approval.state === 'approved' ? `${action} approved externally` : approval.state === 'denied' ? `${action} was denied externally` : approval.state === 'expired' ? `${action} request expired` : `Approve ${action}`
   const description = approval.state === 'approved' ? `The separate VTI Wallet approved this request${approval.receipt ? ` as ${approval.receipt.signer}` : ''}. ONEVibe records the receipt but never holds approval authority.` : approval.state === 'denied' ? `The separate VTI Wallet denied this request${approval.receipt ? ` as ${approval.receipt.signer}` : ''}. No browser decision was accepted.` : approval.state === 'expired' ? 'The external approval window closed before a decision. Create a new request if the action is still required.' : 'The request is waiting in a separate VTI Wallet. ONEVibe cannot approve its own action.'
-  return <motion.article initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`approval-card ${approval.state}`}>
+  return <motion.article initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`approval-card secure-signal-cut ${approval.state}`}>
     <div className="approval-icon">{approval.state === 'approved' ? <CheckCircle2 size={18} /> : approval.state === 'denied' || approval.state === 'expired' ? <XCircle size={18} /> : <ShieldAlert size={18} />}</div>
     <div className="approval-body">
       <div className="approval-kicker">{pending ? 'OpenVTC approval required' : 'OpenVTC wallet receipt'}</div>

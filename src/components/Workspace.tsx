@@ -136,7 +136,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   }
 
   return (
-    <section className={`workspace ${fullscreen ? 'workspace-fullscreen' : ''}`}>
+    <section className={`workspace secure-signal-cut ${fullscreen ? 'workspace-fullscreen' : ''}`}>
       <header className="workspace-header">
         <div className="window-controls"><i /><i /><i /></div>
         <div className="workspace-tabs">

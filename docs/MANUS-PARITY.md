@@ -74,7 +74,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 55. **I** Design-token generation — shell token system exists.
 56. **I** OKLCH theme values — generated Design artifacts include perceptual OKLCH values alongside hex fallbacks for the Secure Signal background, verified, and pending palette.
 57. **I** Dark and light foundation tokens — persisted system/light/dark preference, pre-paint selection, semantic tokens, focus styling, and reduced-motion handling are implemented.
-58. **M** Cut-corner interface language.
+58. **P** Cut-corner interface language — the primary compose, workspace, and approval surfaces now use a restrained Secure Signal corner treatment in both themes; broader generated-artifact and visual-regression proof remain pending.
 59. **P** Asymmetric editorial layout planning — represented in shell, not generated rationale.
 60. **P** Generated realistic product copy — demo output is prompt-derived but shallow.
 
