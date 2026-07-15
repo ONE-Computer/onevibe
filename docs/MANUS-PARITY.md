@@ -29,7 +29,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 16. **I** Large free-form brief support — validated to 8,000 characters.
 17. **I** Synthetic-data constraints — accepted as ordinary task instructions.
 18. **P** Local-computer selector — control exists; context mounting is not wired.
-19. **P** Cloud-computer selector — runtime providers exist; computer inventory is missing.
+19. **P** Cloud-computer selector — runtime providers and task-derived computer inventory exist; provider lifecycle controls and quota management remain pending.
 20. **P** Local-file attachment — the composer stages up to four bounded files in a path-confined `inputs/` directory and records metadata-only evidence. Folder selection, large-file/object storage, and connector mounts remain pending.
 21. **P** Workspace inventory — task-derived, observation-only inventory exposes runtime boundary, lifecycle, gateway attestation, visual-runtime readiness, and links to the governing task. Provider provisioning, termination, restart, quotas, and billing remain pending.
 22. **M** Connected-app context indicators.
@@ -46,7 +46,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 30. **P** Build Website mode — portable React/Vite output now includes a responsive, accessible enterprise landing-page starter with clear operating-boundary messaging and semantic FAQ disclosure. AI-directed design, screenshot/browser review, richer template packs, and deployment remain pending.
 31. **P** Design mode — concept rationale and design-token artifacts exist; richer visual generation is pending.
 32. **P** Create Games mode — dedicated plan and a portable playable React interaction loop now exist; richer mechanics, game assets, and runtime play-testing remain pending.
-33. **P** Expandable mode catalogue — the composer exposes nine purpose-specific modes with output descriptions and persists the chosen mode. A compact starter gallery now preconfigures editable Website, Briefing, Research, and Internal-tool tasks; deeper per-mode template packs remain pending.
+33. **P** Expandable mode catalogue — the composer exposes nine purpose-specific modes with output descriptions and persists the chosen mode. The starter gallery now preconfigures editable enterprise/SaaS sites, storefronts, dashboards, portfolios, link hubs, decks, research, blogs, and data stories; deeper per-mode template packs remain pending.
 34. **P** E-commerce template — an editable App-mode storefront brief is available; checkout, commerce connectors, and reusable visual packs remain pending.
 35. **P** Landing-page template — editable Enterprise-site and Portfolio Website starters are available in the composer; reusable visual/template packs remain pending.
 36. **P** Dashboard template — an editable Operations-dashboard App starter is available; richer dashboard components and data connectors remain pending.
@@ -64,7 +64,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 45. **P** Automatic concept generation — Design mode writes three deterministic candidates; agent-generated exploration is pending.
 46. **P** Candidate comparison — Design mode emits three structured directions and displays a labelled deterministic heuristic fit for review. It is not a model probability, user-research result, or decision authority.
 47. **I** Automatic concept selection — Design mode records its selected direction in `ideas.md`.
-48. **M** Named design philosophy.
+48. **I** Named design philosophy — Design artifacts declare and render the “Secure Signal” philosophy: evidence-forward enterprise interfaces, calm infrastructure, decisive status, and human approval at consequential boundaries.
 49. **I** Design-principle documentation — Design mode retains `ideas.md`.
 50. **I** Semantic color planning — generated tokens distinguish verified and pending states.
 51. **M** Generated brand artwork.

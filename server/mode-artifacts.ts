@@ -155,7 +155,7 @@ export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
       { id: 'human-checkpoint', name: 'Human Checkpoint', rationale: 'Approval and accountable intent become the visual center of consequential workflows.', confidence: 0.10, selected: false },
     ]
     await store.writeWorkspaceFile(task.id, 'ideas.md', `# Design directions\n\n${directions.map((direction, index) => `${index + 1}. ${direction.name} — ${direction.rationale}`).join('\n')}\n\nSelected: Secure Signal.\n\nSelection confidence is a deterministic starter heuristic, not a model probability or user-research finding.\n`)
-    await store.writeWorkspaceFile(task.id, 'design-directions.json', `${JSON.stringify({ title: task.title, selectionMethod: 'deterministic starter heuristic', directions }, null, 2)}\n`)
+    await store.writeWorkspaceFile(task.id, 'design-directions.json', `${JSON.stringify({ title: task.title, selectionMethod: 'deterministic starter heuristic', philosophy: { name: 'Secure Signal', description: 'Evidence-forward enterprise interfaces: calm infrastructure, decisive status, and human approval at consequential boundaries.' }, directions }, null, 2)}\n`)
     await store.writeWorkspaceFile(task.id, 'design-tokens.json', `${JSON.stringify({ color: { background: '#090b0a', verified: '#38dc7d', pending: '#f1b84b' }, radius: { panel: 14 }, motion: { standard: 180 } }, null, 2)}\n`)
     return ['ideas.md', 'design-directions.json', 'design-tokens.json']
   }
