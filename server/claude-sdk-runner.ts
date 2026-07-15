@@ -57,7 +57,8 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     await store.setPlanStep(task.id, 'workspace', 'running')
 
     const inputToolName = 'mcp__onevibe__request_user_input'
-    const allowedTools = new Set(['Read', 'Write', 'Edit', 'Glob', 'Grep', inputToolName])
+    const planToolName = 'mcp__onevibe__set_task_plan'
+    const allowedTools = new Set(['Read', 'Write', 'Edit', 'Glob', 'Grep', inputToolName, planToolName])
     const onevibeServer = createSdkMcpServer({
       name: 'onevibe', version: '0.1.0', alwaysLoad: true,
       instructions: 'Use request_user_input only when the task cannot safely continue without a human choice or missing value.',
@@ -66,6 +67,11 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       }, async ({ prompt: question, options }) => {
         const answer = await requestUserInput(question, options, signal)
         return { content: [{ type: 'text', text: answer }] }
+      }), tool('set_task_plan', 'Refine the five visible task-plan titles before substantive workspace work. This does not grant execution authority.', {
+        steps: z.array(z.object({ id: z.enum(['scope', 'workspace', 'build', 'verify', 'deliver']), title: z.string().min(4).max(140) })).length(5),
+      }, async ({ steps }) => {
+        await store.updateRuntimePlanTitles(task.id, steps, 'claude_sdk')
+        return { content: [{ type: 'text', text: 'Task plan titles recorded in the governed evidence stream.' }] }
       })],
     })
     const canUseTool = async (toolName: string, input: Record<string, unknown>): Promise<PermissionResult> => {
@@ -105,6 +111,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         systemPrompt: [
           'You are ONEVibe, an enterprise agent operating inside a governed task workspace.',
           'Work only inside the current directory. Never request, expose, or persist credentials.',
+          'Before substantive workspace tools, call set_task_plan with exactly the canonical ordered stages scope, workspace, build, verify, deliver and concise task-specific titles. Do not reorder or omit stages.',
           'Create portable source files and a README. For a website, create index.html with no external dependencies.',
           `The selected creation mode is ${task.mode}. Follow its artifact conventions and produce mode-appropriate source, rationale, and validation notes.`,
           'Do not publish, access external services, or claim security certification. Public release requires a separate VTI Wallet.',

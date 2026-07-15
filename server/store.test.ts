@@ -22,6 +22,26 @@ describe('TaskStore', () => {
     expect(task.plan[1]?.title).toContain('architecture')
   })
 
+  it('refines only the stable runtime plan titles and records the change in evidence', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-runtime-plan-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Create an executive operating review', 'demo')
+    await store.updateRuntimePlanTitles(task.id, [
+      { id: 'scope', title: 'Frame the executive decision' },
+      { id: 'workspace', title: 'Prepare the governed source set' },
+      { id: 'build', title: 'Draft the operating review' },
+      { id: 'verify', title: 'Validate claims and output' },
+      { id: 'deliver', title: 'Package the review and evidence' },
+    ])
+    expect(store.getTask(task.id).plan.map((step) => step.id)).toEqual(['scope', 'workspace', 'build', 'verify', 'deliver'])
+    expect(store.getTask(task.id).plan[0]?.title).toBe('Frame the executive decision')
+    expect(store.listEvents(task.id).some((event) => event.label === 'Task plan refined by runtime')).toBe(true)
+    await expect(store.updateRuntimePlanTitles(task.id, [{ id: 'build', title: 'Wrong order' }])).rejects.toThrow('Runtime plan')
+  })
+
   it('updates a project governed brief durably', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-project-brief-'))
     temporaryRoots.push(root)

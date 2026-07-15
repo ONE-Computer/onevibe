@@ -55,6 +55,23 @@ const planFor = (mode: TaskMode, prompt: string): Task['plan'] => {
   ]
 }
 
+const runtimePlanIds = ['scope', 'workspace', 'build', 'verify', 'deliver'] as const
+export type RuntimePlanTitle = { id: (typeof runtimePlanIds)[number]; title: string }
+
+export const normalizeRuntimePlanTitles = (value: unknown): RuntimePlanTitle[] | undefined => {
+  if (!Array.isArray(value) || value.length !== runtimePlanIds.length) return undefined
+  const steps = value.map((item): RuntimePlanTitle | undefined => {
+    if (!item || typeof item !== 'object') return undefined
+    const candidate = item as Record<string, unknown>
+    if (!runtimePlanIds.includes(candidate.id as RuntimePlanTitle['id']) || typeof candidate.title !== 'string') return undefined
+    const title = candidate.title.trim().replace(/\s+/g, ' ')
+    return title.length >= 4 && title.length <= 140 ? { id: candidate.id as RuntimePlanTitle['id'], title } : undefined
+  })
+  if (steps.some((step) => step === undefined)) return undefined
+  const normalized = steps as RuntimePlanTitle[]
+  return runtimePlanIds.every((id, index) => normalized[index]?.id === id) ? normalized : undefined
+}
+
 export class TaskStore {
   private tasks = new Map<string, Task>()
   private events = new Map<string, RuntimeEvent[]>()
@@ -339,6 +356,22 @@ export class TaskStore {
     await this.appendEvent(taskId, {
       type: 'activity_delta', lane: 'control', label: `Plan step ${status}`,
       content: step.title, payload: { stepId, status, startedAt: step.startedAt, completedAt: step.completedAt },
+    })
+    return updated
+  }
+
+  async updateRuntimePlanTitles(taskId: string, proposed: unknown, source: 'claude_sdk' | 'onecomputer' = 'claude_sdk') {
+    const titles = normalizeRuntimePlanTitles(proposed)
+    if (!titles) throw new Error('Runtime plan must include the five canonical ordered stages with concise titles')
+    const task = this.getTask(taskId)
+    const titleById = new Map(titles.map((step) => [step.id, step.title]))
+    const plan = task.plan.map((step) => ({ ...step, title: titleById.get(step.id as RuntimePlanTitle['id']) ?? step.title }))
+    if (plan.every((step, index) => step.title === task.plan[index]?.title)) return task
+    const updated = await this.updateTask(taskId, { plan })
+    await this.appendEvent(taskId, {
+      type: 'activity_delta', lane: 'control', label: 'Task plan refined by runtime',
+      content: 'The runtime refined the human-readable plan titles while preserving the ordered, durable execution stages.',
+      payload: { source, stages: titles },
     })
     return updated
   }
