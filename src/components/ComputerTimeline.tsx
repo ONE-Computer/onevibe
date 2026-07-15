@@ -72,7 +72,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   }, [railItems, runIds, task.id])
   const active = items[Math.min(selected, Math.max(items.length - 1, 0))]
   const terminalActivity = active?.kind === 'terminal' ? terminalActivityFor(active, task.events) : undefined
-  const relatedVisuals = active?.kind === 'terminal' ? causalVisualItemsFor(active.id, allItems) : []
+  const relatedVisuals = active?.kind === 'terminal' ? causalVisualItemsFor([active.id, ...(active.relatedEventIds ?? [])], allItems) : []
   const visualEvidenceState = active?.kind === 'terminal' ? visualEvidenceStateFor(active, allItems) : 'not_applicable'
   useEffect(() => {
     if (!active?.live) return

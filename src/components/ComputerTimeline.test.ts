@@ -56,6 +56,17 @@ describe('Computer timeline terminal inspection', () => {
     expect(causalVisualItemsFor('event-start', items).map((item) => item.id)).toEqual(['frame-one'])
   })
 
+  it('keeps a causal frame attached when the compact rail card folds its result event', () => {
+    const tool: ComputerItem = { id: 'tool-start', kind: 'terminal', eventType: 'tool_call_started', title: 'Browser navigate', createdAt: '2026-07-16T00:00:00.000Z', payload: { toolUseId: 'tool-1', browserTool: true } }
+    const result: ComputerItem = { id: 'tool-result', kind: 'terminal', eventType: 'tool_call_completed', title: 'Browser navigate complete', createdAt: '2026-07-16T00:00:01.000Z', payload: { toolUseId: 'tool-1' } }
+    const frame: ComputerItem = { id: 'frame', kind: 'screenshot', title: 'Browser frame', createdAt: '2026-07-16T00:00:02.000Z', payload: { causedByEventId: 'tool-result' } }
+    const [railCard] = artifactRailItems([tool, result, frame])
+
+    expect(railCard.relatedEventIds).toEqual(['tool-result'])
+    expect(causalVisualItemsFor([railCard.id, ...(railCard.relatedEventIds ?? [])], [tool, result, frame]).map((item) => item.id)).toEqual(['frame'])
+    expect(visualEvidenceStateFor(railCard, [tool, result, frame])).toBe('captured')
+  })
+
   it('keeps mixed rail semantics explicit and never invents a browser frame', () => {
     const browser: ComputerItem = { id: 'browser-start', kind: 'terminal', title: 'Navigate', createdAt: '2026-07-16T00:00:00.000Z', payload: { browserTool: true } }
     const frame: ComputerItem = { id: 'frame', kind: 'screenshot', title: 'Browser frame', createdAt: '2026-07-16T00:00:01.000Z', payload: { causedByEventId: 'browser-start' } }

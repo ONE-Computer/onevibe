@@ -209,7 +209,15 @@ export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) 
   }
 }
 
-export const causalVisualItemsFor = (eventId: string, items: ComputerItem[]) => items.filter((item) => item.kind === 'screenshot' && item.payload?.causedByEventId === eventId)
+/**
+ * A compact rail card can fold a tool result into its originating start card.
+ * Visual evidence may be causally attached to either immutable event, so use
+ * both IDs when resolving the card's associated frames.
+ */
+export const causalVisualItemsFor = (eventIds: string | string[], items: ComputerItem[]) => {
+  const ids = new Set(Array.isArray(eventIds) ? eventIds : [eventIds])
+  return items.filter((item) => item.kind === 'screenshot' && typeof item.payload?.causedByEventId === 'string' && ids.has(item.payload.causedByEventId))
+}
 
 export type RailCardType = 'cli' | 'visual' | 'deliverable' | 'policy'
 export type VisualEvidenceState = 'captured' | 'unavailable' | 'not_applicable'
