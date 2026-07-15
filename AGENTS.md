@@ -20,3 +20,15 @@ ONEVibe is an open-source, Manus-like agent workspace built as a thin product la
 - `npm run check` is the minimum local gate.
 - UI work must be inspected in the browser at desktop and mobile widths.
 - A feature is complete only when its real enforcement path is exercised; otherwise call it a demo, adapter, preview, or contract.
+
+## Linear execution board
+
+Linear is the source of truth for ONEVibe delivery. Use the dedicated project:
+
+- Project: **ONEVibe — Backend E2E & Manus Parity**
+- URL: https://linear.app/onecomputer/project/onevibe-backend-e2e-and-manus-parity-ff4554221471
+- Active epic: `ONE-215`
+
+The release-critical dependency order is `ONE-216` conversation persistence → `ONE-217` conversation-scoped microVM → `ONE-218` Claude/LiteLLM inside the microVM → `ONE-219` durable event streaming → `ONE-220` sandbox PPTX/PDF → `ONE-221` real-provider E2E. `ONE-222` hardening can proceed alongside the later backend slices. UX (`ONE-223`) and OpenVTC approval integration (`ONE-224`) must not displace this backend gate.
+
+Read `docs/LINEAR-BOARD.md` before changing issue state or scope. The API credential is read only into a shell variable from `../handover/onecomputer-handover-secrets-lean/mac/linear-api-key.txt`; never print, commit, paste, or place it in a URL. Keep one major epic In Progress and attach exact commit/test/provider evidence in issue comments after material slices.
