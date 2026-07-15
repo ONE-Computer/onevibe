@@ -17,6 +17,7 @@ export const ApprovalCard = ({ approval }: { approval: NonNullable<Task['approva
         <span><Fingerprint size={13} /> Intent bound</span><span><Clock3 size={13} /> {pending ? '15 minute expiry' : approval.receipt ? new Date(approval.receipt.decidedAt).toLocaleString() : 'Decision window closed'}</span><span><LockKeyhole size={13} /> Wallet key custody</span>
       </div>
       {pending && <a href={approval.walletUrl} className="wallet-button">Open VTI Wallet <ExternalLink size={14} /></a>}
+      {pending && <details className="wallet-handoff"><summary>What happens in the external wallet?</summary><div className="wallet-phone" aria-label="Illustration of the separate VTI Wallet approval flow"><span>VTI WALLET</span><strong>Review intent</strong><p>{action}</p><i><Fingerprint size={13} /> Sign with wallet key</i><small>This preview is informational. The decision happens only in the separate wallet.</small></div></details>}
     </div>
     <span className="pending-badge">{approval.state}</span>
   </motion.article>
