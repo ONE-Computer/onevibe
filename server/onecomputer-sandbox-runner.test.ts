@@ -105,6 +105,35 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('deletes the known provider sandbox when cancellation occurs during provisioning', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-cancel-provisioning-'))
+    roots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { OneComputerSandboxRuntimeAdapter } = await import('./onecomputer-sandbox-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Cancel while a sandbox provisions', 'onecomputer')
+    const client = {
+      createSandbox: vi.fn(async () => ({ id: 'sandbox-provisioning', state: 'provisioning', provider: 'kasm-local' })),
+      getSandbox: vi.fn(async () => ({ id: 'sandbox-provisioning', state: 'provisioning', provider: 'kasm-local' })),
+      deleteSandbox: vi.fn(async () => undefined),
+      exec: vi.fn(),
+      startVisualRuntime: vi.fn(),
+      getVisualScreenshot: vi.fn(),
+    } as unknown as OneComputerClient
+    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: true, retainSandbox: false, visualRuntime: false, pollMilliseconds: 10_000 })
+    const controller = new AbortController()
+    const run = adapter.run({ task, store, signal: controller.signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+
+    await vi.waitFor(() => expect(store.getTask(task.id).securityContext).toMatchObject({ sandboxId: 'sandbox-provisioning', sandboxState: 'provisioning', executionBoundary: 'onecomputer_sandbox' }))
+    controller.abort()
+
+    await expect(run).rejects.toMatchObject({ name: 'AbortError' })
+    expect(client.deleteSandbox).toHaveBeenCalledWith('sandbox-provisioning')
+    expect(store.getTask(task.id).securityContext).toMatchObject({ sandboxId: 'sandbox-provisioning', sandboxState: 'destroyed' })
+    expect(store.listEvents(task.id).some((event) => event.label === 'Ephemeral sandbox destroyed')).toBe(true)
+  })
+
   it('reuses an explicitly retained sandbox for a continuation', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-retained-'))
     roots.push(root)
