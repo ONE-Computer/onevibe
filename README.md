@@ -52,13 +52,14 @@ ONEVIBE_CLAUDE_MAX_TURNS=24
 ONEVIBE_CLAUDE_MAX_BUDGET_USD=5
 ONEVIBE_WALLET_TOKEN=use-a-long-random-local-wallet-secret
 ONECOMPUTER_API_URL=https://onecomputer.example.com
-ONECOMPUTER_SERVICE_TOKEN=...
+ONECOMPUTER_SERVICE_TOKEN=oc_...  # server-side ONEComputer project or organization API key
+ONECOMPUTER_PROJECT_ID=...        # required when the key is organization-scoped
 ONECOMPUTER_GATEWAY_ENFORCED=false
 ONECOMPUTER_RETAIN_SANDBOX=false
 ONECOMPUTER_VISUAL_RUNTIME=true
 ```
 
-With both ONEComputer variables present, the `onecomputer` runtime uses the real authenticated create, poll, exec, and delete sandbox routes. Tokens are never serialized to task events or sent to the browser. `ONECOMPUTER_GATEWAY_ENFORCED` defaults to false and must only be enabled after the deployed sandbox's egress path has been independently verified.
+With the ONEComputer URL and API key present, the `onecomputer` runtime uses the real authenticated create, poll, exec, and delete sandbox routes. If the API key is organization-scoped, also set `ONECOMPUTER_PROJECT_ID`; the server sends it only as the ONEComputer `X-Project-Id` request header. Tokens and project keys are never serialized to task events or sent to the browser. `ONECOMPUTER_GATEWAY_ENFORCED` defaults to false and must only be enabled after the deployed sandbox's egress path has been independently verified.
 
 When `ONECOMPUTER_VISUAL_RUNTIME` is enabled (the default), ONEVibe asks the sandbox service to start a headless X11 runtime and records a PNG visual frame as task evidence. The browser receives only an authenticated, server-proxied screenshot; it never receives X11, VNC, Chrome DevTools, or sandbox credentials. This is designed for an attested microVM runtime, not as a claim that the local demo or any existing container provider is a microVM.
 

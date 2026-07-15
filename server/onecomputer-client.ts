@@ -8,6 +8,7 @@ export type OneComputerSandbox = {
 export type OneComputerClientOptions = {
   baseUrl: string
   serviceToken: string
+  projectId?: string
   fetcher?: typeof fetch
 }
 
@@ -52,7 +53,7 @@ export class OneComputerClient {
 
   async getVisualScreenshot(id: string, signal?: AbortSignal): Promise<Uint8Array> {
     const response = await this.fetcher(`${this.baseUrl}/v1/sandboxes/${encodeURIComponent(id)}/visual/screenshot`, {
-      headers: { Accept: 'image/png', Authorization: `Bearer ${this.options.serviceToken}` },
+      headers: { Accept: 'image/png', Authorization: `Bearer ${this.options.serviceToken}`, ...(this.options.projectId ? { 'X-Project-Id': this.options.projectId } : {}) },
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
     })
     if (!response.ok) throw new Error(`ONEComputer visual screenshot returned HTTP ${response.status}`)
@@ -65,6 +66,7 @@ export class OneComputerClient {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${this.options.serviceToken}`,
+        ...(this.options.projectId ? { 'X-Project-Id': this.options.projectId } : {}),
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
       },

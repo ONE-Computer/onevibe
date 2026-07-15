@@ -18,6 +18,7 @@ const REMOTE_RUNTIME_URL = process.env.ONEVIBE_RUNTIME_URL
 const REMOTE_RUNTIME_TOKEN = process.env.ONEVIBE_RUNTIME_BEARER_TOKEN
 const ONECOMPUTER_API_URL = process.env.ONECOMPUTER_API_URL
 const ONECOMPUTER_SERVICE_TOKEN = process.env.ONECOMPUTER_SERVICE_TOKEN
+const ONECOMPUTER_PROJECT_ID = process.env.ONECOMPUTER_PROJECT_ID
 const ONECOMPUTER_GATEWAY_ENFORCED = process.env.ONECOMPUTER_GATEWAY_ENFORCED === 'true'
 const ONECOMPUTER_RETAIN_SANDBOX = process.env.ONECOMPUTER_RETAIN_SANDBOX === 'true'
 const ONECOMPUTER_VISUAL_RUNTIME = process.env.ONECOMPUTER_VISUAL_RUNTIME !== 'false'
@@ -26,6 +27,7 @@ const store = new TaskStore()
 const activeRuns = new Map<string, AbortController>()
 const inputBroker = new UserInputBroker(store)
 const walletService = WALLET_TOKEN ? new WalletApprovalService(store, WALLET_TOKEN) : undefined
+const oneComputerConfigured = Boolean(ONECOMPUTER_API_URL && ONECOMPUTER_SERVICE_TOKEN && (!ONECOMPUTER_SERVICE_TOKEN.startsWith('oc_org_') || ONECOMPUTER_PROJECT_ID))
 
 const json = (response: ServerResponse, status: number, value: unknown) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
@@ -68,7 +70,7 @@ const contentHash = (content: string) => createHash('sha256').update(content).di
 const adapterFor = (provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'): RuntimeAdapter => provider === 'remote'
   ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN)
   : provider === 'onecomputer'
-    ? new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN! }), {
+    ? new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN!, projectId: ONECOMPUTER_PROJECT_ID }), {
       gatewayEnforced: ONECOMPUTER_GATEWAY_ENFORCED, retainSandbox: ONECOMPUTER_RETAIN_SANDBOX,
       visualRuntime: ONECOMPUTER_VISUAL_RUNTIME,
     })
@@ -134,7 +136,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       runtime: REMOTE_RUNTIME_URL ? 'remote_available' : 'demo_only',
       approvalAuthority: 'external_vti_wallet',
       walletResolutionConfigured: Boolean(walletService),
-      oneComputerSandboxConfigured: Boolean(ONECOMPUTER_API_URL && ONECOMPUTER_SERVICE_TOKEN),
+      oneComputerSandboxConfigured: oneComputerConfigured,
     })
   }
 
@@ -151,7 +153,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'POST' && url.pathname === '/api/schedules') {
     const input = createScheduleInput.parse(await readBody(request))
     if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) return json(response, 409, { error: 'Remote runtime is not configured' })
-    if (input.provider === 'onecomputer' && (!ONECOMPUTER_API_URL || !ONECOMPUTER_SERVICE_TOKEN)) return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured' })
+    if (input.provider === 'onecomputer' && !oneComputerConfigured) return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL, ONECOMPUTER_SERVICE_TOKEN, and ONECOMPUTER_PROJECT_ID when using an oc_org_ key.' })
     return json(response, 201, await store.createSchedule(input))
   }
   if (request.method === 'PATCH' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2]) {
@@ -197,8 +199,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) {
       return json(response, 409, { error: 'Remote runtime is not configured. Set ONEVIBE_RUNTIME_URL.' })
     }
-    if (input.provider === 'onecomputer' && (!ONECOMPUTER_API_URL || !ONECOMPUTER_SERVICE_TOKEN)) {
-      return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL and ONECOMPUTER_SERVICE_TOKEN.' })
+    if (input.provider === 'onecomputer' && !oneComputerConfigured) {
+      return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL, ONECOMPUTER_SERVICE_TOKEN, and ONECOMPUTER_PROJECT_ID when using an oc_org_ key.' })
     }
     const task = await store.createTask(input.prompt, input.provider, input.mode, input.projectId)
     setTimeout(() => executeTask(task.id, input.prompt, false), 25)
@@ -310,7 +312,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       if (!sandboxId || task.securityContext?.executionBoundary !== 'onecomputer_sandbox') return json(response, 404, { error: 'Task has no ONEComputer visual runtime' })
       if (task.securityContext.sandboxState === 'destroyed') return json(response, 410, { error: 'The ephemeral sandbox has been destroyed' })
       if (!ONECOMPUTER_API_URL || !ONECOMPUTER_SERVICE_TOKEN) return json(response, 503, { error: 'ONEComputer is not configured' })
-      const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL, serviceToken: ONECOMPUTER_SERVICE_TOKEN })
+      const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL, serviceToken: ONECOMPUTER_SERVICE_TOKEN, projectId: ONECOMPUTER_PROJECT_ID })
       const png = await client.getVisualScreenshot(sandboxId)
       response.writeHead(200, {
         'Content-Type': 'image/png', 'Content-Length': png.byteLength,
