@@ -1,4 +1,4 @@
-import { AppWindow, ArrowUp, BarChart3, Bot, ChevronDown, Cloud, FileText, Gamepad2, Globe2, Link2, Monitor, Palette, Paperclip, Presentation, Search, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { AppWindow, ArrowUp, BarChart3, Bot, ChevronDown, Cloud, FileText, Gamepad2, Globe2, Info, Link2, Monitor, Palette, Paperclip, Presentation, Search, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useRef, useState } from 'react'
 import type { Task, TaskAttachment, TaskMode } from '../types'
@@ -55,6 +55,7 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() }
         }}
       />
+      {!compact && <details className="prompt-safety"><summary><Info size={12} /> Before you delegate</summary><p>Do not paste passwords, access tokens, or private keys. Attached files and website references are treated as untrusted context; policy applies at the workspace boundary, and consequential actions require a separate VTI Wallet approval.</p></details>}
       <div className="composer-actions">
         <div className="composer-left">
           {!compact && <button title="Attach files" aria-label="Attach files" onClick={() => fileInput.current?.click()}><Paperclip size={16} /></button>}
