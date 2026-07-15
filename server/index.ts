@@ -79,6 +79,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean) => {
         },
       })
     }
+    await store.beginTurn(task.id, prompt, task.provider)
     await store.appendEvent(task.id, {
       type: 'user_message', lane: 'transcript', content: prompt,
       payload: { continuation },
@@ -122,6 +123,12 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
     return json(response, 200, { tasks: store.listTasks() })
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/search') {
+    const query = url.searchParams.get('q') ?? ''
+    if (query.trim().length < 2) return json(response, 200, { results: [] })
+    return json(response, 200, { results: store.searchMessages(query).map(({ task, message }) => ({ taskId: task.id, taskTitle: task.title, message })) })
   }
 
   if (segments[0] === 'api' && segments[1] === 'wallet') {
@@ -191,6 +198,13 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       await store.updateTask(taskId, { status: 'pending' })
       setTimeout(() => executeTask(taskId, input.prompt, true), 25)
       return json(response, 202, { status: 'queued', taskId })
+    }
+    if (request.method === 'GET' && segments[3] === 'messages') {
+      return json(response, 200, store.listMessages(taskId, {
+        cursor: url.searchParams.get('cursor') ?? undefined,
+        limit: Number(url.searchParams.get('limit') ?? 100),
+        query: url.searchParams.get('q') ?? undefined,
+      }))
     }
     if (request.method === 'POST' && segments[3] === 'inputs' && segments[4]) {
       const input = inputAnswer.parse(await readBody(request))

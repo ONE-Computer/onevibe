@@ -1,7 +1,7 @@
 import { Box, CheckCircle2, ChevronRight, FileCode2, Play, ShieldCheck, TerminalSquare, Wrench } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
-import type { RuntimeEvent, Task } from '../types'
+import type { RuntimeEvent, TaskSnapshot } from '../types'
 import { ApprovalCard } from './ApprovalCard'
 import { UserInputCard } from './UserInputCard'
 
@@ -15,20 +15,7 @@ const iconFor = (event: RuntimeEvent) => {
   return <Box size={14} />
 }
 
-type Props = { task: Task; events: RuntimeEvent[] }
-
-type Message = { id: string; type: 'user_message' | 'assistant_text_delta'; content: string }
-
-const groupTranscript = (events: RuntimeEvent[], fallback: string): Message[] => {
-  const messages: Message[] = []
-  for (const event of events.filter((item) => item.lane === 'transcript')) {
-    if (event.type !== 'user_message' && event.type !== 'assistant_text_delta') continue
-    const last = messages.at(-1)
-    if (event.type === 'assistant_text_delta' && last?.type === 'assistant_text_delta') last.content += event.content ?? ''
-    else messages.push({ id: event.id, type: event.type, content: event.content ?? '' })
-  }
-  return messages.length ? messages : [{ id: 'legacy-prompt', type: 'user_message', content: fallback }]
-}
+type Props = { task: TaskSnapshot; events: RuntimeEvent[] }
 
 const ExpandableCopy = ({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false)
@@ -37,16 +24,16 @@ const ExpandableCopy = ({ content }: { content: string }) => {
 }
 
 export const TaskTimeline = ({ task, events }: Props) => {
-  const transcript = groupTranscript(events, task.prompt)
+  const transcript = task.messages.length ? task.messages : [{ id: 'legacy-prompt', role: 'user' as const, content: task.prompt, status: 'completed' as const, createdAt: task.createdAt }]
   const operational = events.filter((event) => event.lane !== 'transcript' && event.lane !== 'approval')
   return (
     <div className="timeline">
       <AnimatePresence initial={false}>
-        {transcript.map((event) => event.type === 'user_message' ? (
-          <motion.div key={event.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="prompt-bubble"><span>You</span><ExpandableCopy content={event.content} /></motion.div>
-        ) : event.type === 'assistant_text_delta' ? (
-          <motion.div key={event.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="assistant-message">
-            <div className="assistant-orb">O</div><div><strong>ONEVibe</strong><ExpandableCopy content={event.content} /></div>
+        {transcript.map((message) => message.role === 'user' ? (
+          <motion.div key={message.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="prompt-bubble"><span>You · {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><ExpandableCopy content={message.content} /></motion.div>
+        ) : message.role === 'assistant' && (message.content || message.status === 'streaming') ? (
+          <motion.div key={message.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="assistant-message">
+            <div className="assistant-orb">O</div><div><strong>ONEVibe <small>{message.status === 'streaming' ? '· writing' : `· ${new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}</small></strong>{message.content ? <ExpandableCopy content={message.content} /> : <span className="typing-indicator"><i /><i /><i /></span>}</div>
           </motion.div>
         ) : null)}
       </AnimatePresence>

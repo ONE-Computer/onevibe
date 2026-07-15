@@ -67,6 +67,18 @@ export type WorkspaceVersion = {
   evidenceHash: string
 }
 
+export type ChatMessage = {
+  id: string
+  taskId: string
+  turnId: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  status: 'streaming' | 'completed' | 'failed' | 'cancelled'
+  provider?: Task['provider']
+  createdAt: string
+  updatedAt: string
+}
+
 export type Task = {
   id: string
   title: string
@@ -108,6 +120,7 @@ export type Task = {
 export type TaskSnapshot = Task & {
   events: RuntimeEvent[]
   files: WorkspaceFile[]
+  messages: ChatMessage[]
 }
 
 export type EventInput = Omit<RuntimeEvent, 'id' | 'taskId' | 'sequence' | 'createdAt' | 'previousHash' | 'eventHash'>

@@ -84,4 +84,28 @@ describe('TaskStore', () => {
     expect(await store.readWorkspaceFile(source.id, 'artifact.md')).toBe('original')
     expect(await store.readWorkspaceFile(target.id, 'artifact.md')).toBe('changed copy')
   })
+
+  it('persists, paginates, searches, and completes chat turns independently of events', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-chat-history-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Discuss launch policy', 'claude_sdk')
+    await store.beginTurn(task.id, 'Draft the launch policy', task.provider)
+    await store.appendEvent(task.id, { type: 'assistant_text_delta', lane: 'transcript', content: 'First draft. ', payload: {} })
+    await store.appendEvent(task.id, { type: 'assistant_text_delta', lane: 'transcript', content: 'Include Singapore.', payload: {} })
+    await store.appendEvent(task.id, { type: 'run_completed', lane: 'control', status: 'completed', payload: {} })
+
+    const firstPage = store.listMessages(task.id, { limit: 1 })
+    expect(firstPage.messages).toHaveLength(1)
+    expect(firstPage.nextCursor).toBeTruthy()
+    expect(store.listMessages(task.id, { cursor: firstPage.nextCursor, limit: 10 }).messages[0]?.content).toContain('Singapore')
+    expect(store.searchMessages('singapore')[0]?.task.id).toBe(task.id)
+
+    const reloaded = new TaskStore(root)
+    await reloaded.initialize()
+    expect(reloaded.listMessages(task.id).messages).toHaveLength(2)
+    expect(reloaded.listMessages(task.id).messages[1]).toMatchObject({ role: 'assistant', status: 'completed', content: 'First draft. Include Singapore.' })
+  })
 })

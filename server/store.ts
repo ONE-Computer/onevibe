@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
-import type { EventInput, RuntimeEvent, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
+import type { ChatMessage, EventInput, RuntimeEvent, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -39,6 +39,8 @@ const planFor = (mode: TaskMode): Task['plan'] => {
 export class TaskStore {
   private tasks = new Map<string, Task>()
   private events = new Map<string, RuntimeEvent[]>()
+  private messages = new Map<string, ChatMessage[]>()
+  private activeTurns = new Map<string, string>()
   private emitter = new EventEmitter()
   private tasksRoot: string
   private workspacesRoot: string
@@ -73,6 +75,11 @@ export class TaskStore {
         }
         this.tasks.set(task.id, task)
         this.events.set(task.id, storedEvents)
+        const messageFile = path.join(this.tasksRoot, entry.name, 'messages.json')
+        let storedMessages: ChatMessage[] = []
+        try { storedMessages = JSON.parse(await readFile(messageFile, 'utf8')) as ChatMessage[] } catch { storedMessages = this.messagesFromLegacyEvents(task, storedEvents) }
+        this.messages.set(task.id, storedMessages)
+        if (storedMessages.length && !await this.fileExists(messageFile)) await writeJson(messageFile, storedMessages)
       } catch {
         // Ignore incomplete local-demo records. Production storage must fail closed.
       }
@@ -95,6 +102,7 @@ export class TaskStore {
     }
     this.tasks.set(id, task)
     this.events.set(id, [])
+    this.messages.set(id, [])
     await this.persist(task)
     return task
   }
@@ -156,12 +164,60 @@ export class TaskStore {
     existing.push(event)
     this.events.set(taskId, existing)
     await writeJson(path.join(this.tasksRoot, taskId, 'events.json'), existing)
+    if (input.type === 'assistant_text_delta' && input.content) await this.appendAssistantDelta(taskId, input.content)
+    if (input.type === 'run_completed') await this.finishTurn(taskId, 'completed')
+    if (input.type === 'run_failed') await this.finishTurn(taskId, 'failed')
+    if (input.type === 'run_cancelled') await this.finishTurn(taskId, 'cancelled')
     this.emitter.emit(taskId, event)
     return event
   }
 
   listEvents(taskId: string) {
     return this.events.get(taskId) ?? []
+  }
+
+  async beginTurn(taskId: string, content: string, provider: Task['provider']) {
+    const now = new Date().toISOString()
+    const turnId = `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`
+    const existing = this.messages.get(taskId) ?? []
+    existing.push({ id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'user', content, status: 'completed', provider, createdAt: now, updatedAt: now })
+    existing.push({ id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider, createdAt: now, updatedAt: now })
+    this.messages.set(taskId, existing)
+    this.activeTurns.set(taskId, turnId)
+    await this.persistMessages(taskId)
+    return turnId
+  }
+
+  async appendStandaloneMessage(taskId: string, role: ChatMessage['role'], content: string, status: ChatMessage['status'] = 'completed') {
+    const now = new Date().toISOString()
+    const message: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId: `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`, role, content, status, provider: this.getTask(taskId).provider, createdAt: now, updatedAt: now }
+    const existing = this.messages.get(taskId) ?? []
+    existing.push(message)
+    this.messages.set(taskId, existing)
+    await this.persistMessages(taskId)
+    return message
+  }
+
+  listMessages(taskId: string, options: { cursor?: string; limit?: number; query?: string } = {}) {
+    this.getTask(taskId)
+    const query = options.query?.trim().toLocaleLowerCase()
+    const all = (this.messages.get(taskId) ?? []).filter((message) => !query || message.content.toLocaleLowerCase().includes(query))
+    const cursorIndex = options.cursor ? all.findIndex((message) => message.id === options.cursor) : -1
+    const start = cursorIndex >= 0 ? cursorIndex + 1 : 0
+    const limit = Math.min(Math.max(options.limit ?? 100, 1), 200)
+    const messages = all.slice(start, start + limit)
+    return { messages, nextCursor: start + limit < all.length ? messages.at(-1)?.id : undefined, total: all.length }
+  }
+
+  searchMessages(query: string, limit = 50) {
+    const normalized = query.trim().toLocaleLowerCase()
+    if (!normalized) return []
+    const results: Array<{ task: Task; message: ChatMessage }> = []
+    for (const [taskId, messages] of this.messages) {
+      const task = this.getTask(taskId)
+      for (const message of messages) if (message.content.toLocaleLowerCase().includes(normalized)) results.push({ task, message })
+    }
+    return results.sort((a, b) => b.message.createdAt.localeCompare(a.message.createdAt)).slice(0, limit)
   }
 
   subscribe(taskId: string, listener: (event: RuntimeEvent) => void) {
@@ -282,6 +338,7 @@ export class TaskStore {
     entries['ONEVIBE-EVIDENCE.json'] = strToU8(`${JSON.stringify({
       task: this.getTask(taskId),
       events: this.listEvents(taskId),
+      messages: this.listMessages(taskId, { limit: 200 }).messages,
       chainValid: this.verifyChain(taskId),
       exportedAt: new Date().toISOString(),
     }, null, 2)}\n`)
@@ -289,7 +346,7 @@ export class TaskStore {
   }
 
   async snapshot(taskId: string): Promise<TaskSnapshot> {
-    return { ...this.getTask(taskId), events: this.listEvents(taskId), files: await this.listWorkspaceFiles(taskId) }
+    return { ...this.getTask(taskId), events: this.listEvents(taskId), files: await this.listWorkspaceFiles(taskId), messages: this.listMessages(taskId, { limit: 200 }).messages }
   }
 
   verifyChain(taskId: string) {
@@ -307,5 +364,59 @@ export class TaskStore {
 
   private async persist(task: Task) {
     await writeJson(path.join(this.tasksRoot, task.id, 'task.json'), task)
+  }
+
+  private async appendAssistantDelta(taskId: string, content: string) {
+    let turnId = this.activeTurns.get(taskId)
+    const existing = this.messages.get(taskId) ?? []
+    if (!turnId) {
+      const now = new Date().toISOString()
+      turnId = `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`
+      this.activeTurns.set(taskId, turnId)
+      existing.push({ id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider: this.getTask(taskId).provider, createdAt: now, updatedAt: now })
+    }
+    const message = [...existing].reverse().find((item) => item.turnId === turnId && item.role === 'assistant')
+    if (message) { message.content += content; message.updatedAt = new Date().toISOString() }
+    this.messages.set(taskId, existing)
+    await this.persistMessages(taskId)
+  }
+
+  private async finishTurn(taskId: string, status: Extract<ChatMessage['status'], 'completed' | 'failed' | 'cancelled'>) {
+    const turnId = this.activeTurns.get(taskId)
+    if (!turnId) return
+    const message = [...(this.messages.get(taskId) ?? [])].reverse().find((item) => item.turnId === turnId && item.role === 'assistant')
+    if (message) { message.status = status; message.updatedAt = new Date().toISOString() }
+    this.activeTurns.delete(taskId)
+    await this.persistMessages(taskId)
+  }
+
+  private async persistMessages(taskId: string) {
+    await writeJson(path.join(this.tasksRoot, taskId, 'messages.json'), this.messages.get(taskId) ?? [])
+  }
+
+  private messagesFromLegacyEvents(task: Task, events: RuntimeEvent[]) {
+    const messages: ChatMessage[] = []
+    let assistant: ChatMessage | undefined
+    for (const event of events) {
+      if (event.type === 'user_message' && event.content) {
+        const turnId = `legacy_turn_${event.sequence}`
+        messages.push({ id: `legacy_message_${event.sequence}`, taskId: task.id, turnId, role: 'user', content: event.content, status: 'completed', provider: task.provider, createdAt: event.createdAt, updatedAt: event.createdAt })
+        assistant = undefined
+      }
+      if (event.type === 'assistant_text_delta' && event.content) {
+        if (!assistant) {
+          const turnId = messages.at(-1)?.turnId ?? `legacy_turn_${event.sequence}`
+          assistant = { id: `legacy_assistant_${event.sequence}`, taskId: task.id, turnId, role: 'assistant', content: '', status: 'completed', provider: task.provider, createdAt: event.createdAt, updatedAt: event.createdAt }
+          messages.push(assistant)
+        }
+        assistant.content += event.content
+        assistant.updatedAt = event.createdAt
+      }
+    }
+    return messages
+  }
+
+  private async fileExists(filePath: string) {
+    try { await stat(filePath); return true } catch { return false }
   }
 }

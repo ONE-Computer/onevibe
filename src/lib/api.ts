@@ -1,4 +1,4 @@
-import type { Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
+import type { ChatMessage, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 
 const parse = async <T>(response: Response): Promise<T> => {
   const body = await response.json() as T & { error?: string }
@@ -60,3 +60,13 @@ export const requestShare = async (taskId: string) =>
 
 export const getSharedArtifact = async (shareId: string) =>
   parse<{ id: string; title: string; mode: TaskMode; createdAt: string }>(await fetch(`/api/shares/${shareId}`))
+
+export const getMessages = async (taskId: string, cursor?: string, query?: string) => {
+  const params = new URLSearchParams({ limit: '100' })
+  if (cursor) params.set('cursor', cursor)
+  if (query) params.set('q', query)
+  return parse<{ messages: ChatMessage[]; nextCursor?: string; total: number }>(await fetch(`/api/tasks/${taskId}/messages?${params}`))
+}
+
+export const searchChat = async (query: string) =>
+  parse<{ results: Array<{ taskId: string; taskTitle: string; message: ChatMessage }> }>(await fetch(`/api/search?q=${encodeURIComponent(query)}`))

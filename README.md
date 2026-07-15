@@ -12,6 +12,7 @@ The first vertical slice already supports:
 - embedded source editing with diff review, optimistic concurrency, version snapshot, and evidence recording;
 - first-class waiting-for-user requests that resume the parked Claude tool call or demo execution;
 - externally approved, capability-based read-only sharing with signed local wallet receipts;
+- durable multi-turn chat history with streaming state, pagination, cross-task search, migration, and export;
 - a typed Server-Sent Events task timeline;
 - activity, tool, artifact, approval, and control lanes;
 - a path-confined local workspace with generated files and live preview;

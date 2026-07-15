@@ -19,7 +19,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 11. **I** Persistent task routes — `/tasks/:taskId` survives reload and browser navigation.
 12. **I** Concurrent workspace plus conversation.
 13. **I** Agent-mode entry point — primary ONEVibe surface.
-14. **I** Task history surface — persisted sidebar history.
+14. **I** Task history surface — durable turn-based chat history, timestamps/status, cursor pagination, full-text search, reload persistence, and evidence export.
 15. **M** Reusable project context.
 
 ## Prompting, context, and input

@@ -38,6 +38,7 @@ export class UserInputBroker {
     const pending = this.pending.get(requestId)
     if (!pending || pending.taskId !== taskId) throw new Error('Input request not found or no longer active')
     await pending.ready
+    await this.store.appendStandaloneMessage(taskId, 'user', answer)
     await this.store.appendEvent(taskId, {
       type: 'user_input_resolved', lane: 'control', status: 'running', label: 'User input received',
       content: answer, payload: { inputRequestId: requestId },
