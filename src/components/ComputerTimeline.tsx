@@ -33,13 +33,16 @@ const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
 const iconFor = (item: ComputerItem) => item.kind === 'terminal' ? <TerminalSquare size={13} /> : item.kind === 'screenshot' ? <Eye size={13} /> : item.kind === 'preview' ? <Radio size={13} /> : item.kind === 'slide' ? <Presentation size={13} /> : item.kind === 'approval' ? <ShieldCheck size={13} /> : <FileCode2 size={13} />
 
 export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
-  const items = useMemo(() => presentationItems(task), [task])
+  const allItems = useMemo(() => presentationItems(task), [task])
+  const [filter, setFilter] = useState<'all' | PresentationPanel>('all')
+  const items = filter === 'all' ? allItems : allItems.filter((item) => item.kind === filter)
   const [selected, setSelected] = useState(0)
   const [follow, setFollow] = useState(true)
   const [newActivity, setNewActivity] = useState(0)
   const [frame, setFrame] = useState(Date.now())
   const itemKey = items.map((item) => item.id).join('|')
-  useEffect(() => { setFollow(true); setNewActivity(0); setSelected(0) }, [task.id])
+  useEffect(() => { setFollow(true); setNewActivity(0); setSelected(0); setFilter('all') }, [task.id])
+  useEffect(() => { setSelected(0); setFollow(true); setNewActivity(0) }, [filter])
   useEffect(() => {
     if (follow && items.length) { setSelected(items.length - 1); setNewActivity(0); return }
     setNewActivity((current) => Math.max(current, Math.max(0, items.length - selected - 1)))
@@ -59,10 +62,10 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
     if (event.key === 'Home') { event.preventDefault(); move(0) }
     if (event.key === 'End') { event.preventDefault(); resumeLive() }
   }
-  if (!items.length) return <div className="workspace-placeholder"><Wrench size={20} /><strong>No computer activity yet</strong><span>Commands, screenshots, files, and previews will appear here as the agent works.</span></div>
+  if (!allItems.length) return <div className="workspace-placeholder"><Wrench size={20} /><strong>No computer activity yet</strong><span>Commands, screenshots, files, and previews will appear here as the agent works.</span></div>
   return <div className="computer-timeline" onKeyDown={onTimelineKeyDown} tabIndex={0} aria-label="Agent computer artifact timeline">
-    <aside className="computer-history"><div className="computer-history-heading"><span>Agent computer</span><button className={follow ? 'active' : ''} onClick={resumeLive} aria-label="Resume live follow"><Radio size={10} /> {follow ? 'Live' : newActivity ? `${newActivity} new` : 'Resume'}</button></div>{items.map((item, index) => <button key={item.id} className={index === selected ? 'selected' : ''} onClick={() => move(index)} aria-label={`${item.title}, event ${index + 1} of ${items.length}`}><span>{iconFor(item)}</span><div><strong>{item.title}</strong><small>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</small></div></button>)}</aside>
-    <section className="computer-stage"><header><button disabled={selected === 0} onClick={() => move(selected - 1)} aria-label="Previous timeline event"><ArrowLeft size={13} /></button><button disabled={selected >= items.length - 1} onClick={() => move(selected + 1)} aria-label="Next timeline event"><ArrowRight size={13} /></button><div><strong>{active?.title}</strong><span>{active?.detail}</span></div><em>{active?.runId ? `run ${active.runId.slice(-6)} · ` : ''}{selected + 1} / {items.length}{!follow && <b>paused</b>}</em></header>
+    <aside className="computer-history"><div className="computer-history-heading"><span>Agent computer</span><button className={follow ? 'active' : ''} onClick={resumeLive} aria-label="Resume live follow"><Radio size={10} /> {follow ? 'Live' : newActivity ? `${newActivity} new` : 'Resume'}</button></div><div className="computer-filters">{(['all', 'terminal', 'screenshot', 'file', 'preview', 'slide', 'approval', 'diff'] as const).filter((kind) => kind === 'all' || allItems.some((item) => item.kind === kind)).map((kind) => <button key={kind} className={filter === kind ? 'active' : ''} onClick={() => setFilter(kind)}>{kind === 'all' ? 'All' : kind}</button>)}</div>{items.map((item, index) => <button key={item.id} className={index === selected ? 'selected' : ''} onClick={() => move(index)} aria-label={`${item.title}, event ${index + 1} of ${items.length}`}><span>{iconFor(item)}</span><div><strong>{item.title}</strong><small>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</small></div></button>)}</aside>
+    <section className="computer-stage"><header><button disabled={selected === 0} onClick={() => move(selected - 1)} aria-label="Previous timeline event"><ArrowLeft size={13} /></button><button disabled={selected >= items.length - 1} onClick={() => move(selected + 1)} aria-label="Next timeline event"><ArrowRight size={13} /></button><div><strong>{active?.title}</strong><span>{active?.detail}</span></div><em>{active?.runId ? `run ${active.runId.slice(-6)} · ` : ''}{selected + 1} / {items.length}{filter !== 'all' && ` · ${filter}`}{!follow && <b>paused</b>}</em></header>
       {active?.kind === 'screenshot' && active.uri && <div className="computer-visual"><img src={`${active.uri}?v=${frame}`} alt={active.title} /></div>}
       {active?.kind === 'preview' && active.uri && <iframe title={active.title} sandbox="allow-scripts" src={active.uri} />}
       {active?.kind === 'slide' && <div className="computer-file"><Presentation size={28} /><strong>{active.detail ?? active.title}</strong><span>Deck evidence is preserved. Open the Files tab to download the PPTX or inspect the rendered viewer.</span></div>}
