@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
 import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
+import { HighlightedCode } from './HighlightedCode'
 
 type Tab = 'computer' | 'preview' | 'visual' | 'code' | 'files' | 'history' | 'evidence'
 
@@ -103,7 +104,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
               <aside>{files.map((file) => <button key={file.path} className={selectedFile === file.path ? 'active' : ''} onClick={() => setSelectedFile(file.path)}><File size={13} />{file.path}</button>)}</aside>
               <div className="editor-surface">
                 <div className="editor-toolbar"><span>{selectedFile ?? 'No file selected'}</span>{selectedFile && !isBinary(selectedFile) && <><div className="view-switch"><button className={codeView === 'original' ? 'active' : ''} onClick={() => setCodeView('original')}>Original</button><button className={codeView === 'modified' ? 'active' : ''} onClick={() => setCodeView('modified')}>Modified</button><button className={codeView === 'diff' ? 'active' : ''} onClick={() => setCodeView('diff')}>Diff</button></div>{editing ? <button className="save-source" onClick={() => void save()} disabled={draft === content}><Save size={12} /> Save</button> : <button className="edit-source" onClick={() => { setEditing(true); setCodeView('modified') }}><Pencil size={12} /> Edit</button>}</>}</div>
-                {selectedFile && isBinary(selectedFile) ? <pre><code>{`Binary artifact: ${selectedFile}\n\nDownload it from the Files tab.`}</code></pre> : editing && codeView === 'modified' ? <textarea className="source-editor" value={draft} onChange={(event) => setDraft(event.target.value)} spellCheck={false} /> : <pre className={codeView === 'diff' ? 'diff-view' : ''}><code>{codeView === 'diff' ? diff : codeView === 'modified' ? draft : content || '// Select a generated file'}</code></pre>}
+                {selectedFile && isBinary(selectedFile) ? <pre><code>{`Binary artifact: ${selectedFile}\n\nDownload it from the Files tab.`}</code></pre> : editing && codeView === 'modified' ? <textarea className="source-editor" value={draft} onChange={(event) => setDraft(event.target.value)} spellCheck={false} /> : codeView === 'diff' ? <pre className="diff-view"><code>{diff}</code></pre> : <HighlightedCode content={codeView === 'modified' ? draft : content || '// Select a generated file'} />}
               </div>
             </motion.div>
           )}
