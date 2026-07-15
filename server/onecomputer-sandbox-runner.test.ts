@@ -45,9 +45,17 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
       JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'Wrote index.html' }] } }),
       JSON.stringify({ type: 'result', session_id: 'session-1', result: 'Created safely.' }),
     ].join('\n')
+    const sandboxPlan = JSON.stringify({ steps: [
+      { id: 'scope', title: 'Frame the launch outcome' },
+      { id: 'workspace', title: 'Prepare the isolated site workspace' },
+      { id: 'build', title: 'Build the launch page' },
+      { id: 'verify', title: 'Check the portable site artifact' },
+      { id: 'deliver', title: 'Deliver source and evidence' },
+    ] })
     const exec = vi.fn(async (_id: string, command: string) => {
       commands.push(command)
       if (command.includes('find .')) return { exitCode: 0, output: Buffer.from('index.html\0README.md\0').toString('base64') }
+      if (command.includes('test -f .onevibe-plan.json')) return { exitCode: 0, output: Buffer.from(sandboxPlan).toString('base64') }
       if (command.includes('.onevibe-exitcode')) return { exitCode: 0, output: `done:0\n${Buffer.from(streamJournal).toString('base64')}` }
       if (command.endsWith("'index.html'")) return { exitCode: 0, output: Buffer.from('<h1>Sandbox output</h1>').toString('base64') }
       if (command.endsWith("'README.md'")) return { exitCode: 0, output: Buffer.from('# Sandbox output').toString('base64') }
@@ -83,6 +91,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(frames.every((event) => event.payload.capturedAt === '2026-07-16T00:00:00.000Z')).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.label === 'Write' && event.payload.toolUseId === 'tool-1')).toBe(true)
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-1')
+    expect(store.getTask(task.id).plan[0]?.title).toBe('Frame the launch outcome')
+    expect(store.listEvents(task.id).some((event) => event.label === 'Task plan refined by runtime' && event.payload.source === 'onecomputer')).toBe(true)
     expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'destroyed', gatewayEnforced: true })
     expect(store.listEvents(task.id).some((event) => event.label === 'Governed browser automation ready')).toBe(true)
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')

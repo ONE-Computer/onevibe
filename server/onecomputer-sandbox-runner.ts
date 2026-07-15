@@ -194,6 +194,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'You are ONEVibe operating inside a disposable ONEComputer sandbox.',
         `Creation mode: ${task.mode}.`,
         'Work only in the current directory. Create portable source, README.md, and mode-appropriate artifacts.',
+        'Before substantive workspace work, write .onevibe-plan.json containing {"steps":[{"id":"scope","title":"…"},{"id":"workspace","title":"…"},{"id":"build","title":"…"},{"id":"verify","title":"…"},{"id":"deliver","title":"…"}]}. Use concise task-specific titles, keep this control file free of secrets, and do not reorder or omit stages.',
         'For visual output create a self-contained index.html. Do not publish or expose credentials.',
         ...(browserAutomationEnabled ? ['A governed Playwright MCP browser is available inside the sandbox. Use it only for task-relevant browsing; do not log in, save credentials, or perform external write actions.'] : []),
         prompt,
@@ -225,6 +226,30 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       if (spawned.exitCode !== 0) throw new Error(`Unable to start sandbox Claude process: ${spawned.output.slice(-2_000)}`)
       let projectedEntries = 0
       let latestJournal = parseClaudeStreamJournal('')
+      let planApplied = false
+      let planExamined = false
+      const projectSandboxPlan = async () => {
+        if (planApplied || planExamined) return
+        const candidate = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && if test -f .onevibe-plan.json; then plan_bytes=$(wc -c < .onevibe-plan.json); if test "$plan_bytes" -le 32768; then base64 -w0 .onevibe-plan.json; else printf 'oversize:%s' "$plan_bytes"; fi; fi`, signal)
+        if (candidate.exitCode !== 0 || !candidate.output.trim()) return
+        planExamined = true
+        if (candidate.output.startsWith('oversize:')) {
+          await store.appendEvent(task.id, { type: 'activity_delta', lane: 'control', label: 'Sandbox task plan rejected', content: 'The sandbox plan control file exceeded the 32 KiB bound.', payload: { sandboxId: sandbox.id, reason: 'oversize' } })
+          return
+        }
+        try {
+          const decoded = Buffer.from(candidate.output.trim(), 'base64').toString('utf8')
+          const parsed = JSON.parse(decoded) as unknown
+          await store.updateRuntimePlanTitles(task.id, isRecord(parsed) ? parsed.steps : parsed, 'onecomputer')
+          planApplied = true
+        } catch (error) {
+          await store.appendEvent(task.id, {
+            type: 'activity_delta', lane: 'control', label: 'Sandbox task plan rejected',
+            content: error instanceof Error ? error.message.slice(0, 300) : 'The sandbox plan file was invalid.',
+            payload: { sandboxId: sandbox.id, reason: 'invalid_plan' },
+          })
+        }
+      }
       const projectJournal = async (raw: string) => {
         const parsedJournal = parseClaudeStreamJournal(raw)
         for (const entry of parsedJournal.entries.slice(projectedEntries)) {
@@ -246,6 +271,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         }
         projectedEntries = parsedJournal.entries.length
         latestJournal = parsedJournal
+        if (projectedEntries > 0) await projectSandboxPlan()
       }
       const journalDeadline = Date.now() + 20 * 60_000
       let agentExitCode: number | undefined
@@ -272,7 +298,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         const current = store.getTask(task.id)
         await store.updateTask(task.id, { securityContext: { ...current.securityContext!, runtimeSessionId: parsedJournal.sessionId } })
       }
-      const listing = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && find . -type f ! -name '.onevibe-events.jsonl' -print0 | base64 -w0`, signal)
+      const listing = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && find . -type f ! -name '.onevibe-events.jsonl' ! -name '.onevibe-plan.json' -print0 | base64 -w0`, signal)
       if (listing.exitCode !== 0) throw new Error('Unable to enumerate sandbox artifacts')
       const paths = Buffer.from(listing.output.trim(), 'base64').toString('utf8').split('\0').filter(Boolean).map((item) => item.replace(/^\.\//, ''))
       if (paths.length > 100) throw new Error('Sandbox produced more than the 100-file extraction limit')
