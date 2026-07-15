@@ -3,10 +3,11 @@
  * It is intentionally never run as part of unit tests: it creates a real
  * disposable sandbox and requires server-side deployment credentials.
  */
-const baseUrl = (process.env.ONEVIBE_E2E_URL ?? 'http://127.0.0.1:5173').replace(/\/$/, '')
+const baseUrl = (process.env.ONEVIBE_E2E_URL ?? 'http://127.0.0.1:4311').replace(/\/$/, '')
 const timeoutMs = Math.max(60_000, Number(process.env.ONEVIBE_E2E_TIMEOUT_MS ?? 20 * 60_000))
 const requireGateway = process.env.ONEVIBE_E2E_REQUIRE_GATEWAY === 'true'
 const requireVisual = process.env.ONEVIBE_E2E_REQUIRE_VISUAL !== 'false'
+const mode = process.env.ONEVIBE_E2E_MODE === 'website' ? 'website' : 'slides'
 
 type Snapshot = {
   id: string
@@ -38,6 +39,12 @@ const waitForTerminalSnapshot = async (taskId: string) => {
   throw new Error(`Task ${taskId} did not reach a terminal state within ${timeoutMs}ms (last state: ${latest?.status ?? 'unreadable'})`)
 }
 
+const download = async (taskId: string, filePath: string) => {
+  const response = await fetch(`${baseUrl}/api/tasks/${encodeURIComponent(taskId)}/file?path=${encodeURIComponent(filePath)}&download=1`)
+  if (!response.ok) throw new Error(`Unable to download ${filePath}: HTTP ${response.status}`)
+  return new Uint8Array(await response.arrayBuffer())
+}
+
 const main = async () => {
   const readiness = await request<{ providers: Array<{ id: string; available: boolean; detail: string }> }>('/api/runtime')
   const sandbox = readiness.providers.find((provider) => provider.id === 'onecomputer')
@@ -45,11 +52,13 @@ const main = async () => {
   const created = await request<{ id: string }>('/api/tasks', {
     method: 'POST',
     body: JSON.stringify({
-      prompt: 'Create a small accessible governed website with index.html and a concise README. Do not publish or call external services.',
+      prompt: mode === 'slides'
+        ? 'Create a concise five-to-eight slide executive update as a real PPTX deck and a direct PDF export, with speaker notes and a structured outline. Include decision, context, recommendation, risks, and next steps. Do not publish or call external services.'
+        : 'Create a small accessible governed website with index.html and a concise README. Do not publish or call external services.',
       provider: 'onecomputer',
-      mode: 'website',
+      mode,
       projectId: 'project_onevibe',
-      references: [], attachments: [], skills: ['web_build', 'security_review'],
+      references: [], attachments: [], skills: mode === 'slides' ? ['slides', 'security_review'] : ['web_build', 'security_review'],
     }),
   })
   const task = await waitForTerminalSnapshot(created.id)
@@ -59,11 +68,17 @@ const main = async () => {
   if (task.securityContext?.sandboxState !== 'destroyed') throw new Error(`Expected ephemeral sandbox destruction, found ${task.securityContext?.sandboxState ?? 'unknown'}`)
   if (!task.events.some((event) => event.label === 'ONEComputer sandbox ready')) throw new Error('Sandbox readiness event missing')
   if (requireVisual && !task.events.some((event) => event.payload.kind === 'visual_frame')) throw new Error('Required X11 visual evidence missing')
-  const preview = await request<{ content: string }>(`/api/tasks/${encodeURIComponent(task.id)}/file?path=index.html`)
-  if (!preview.content.includes('<')) throw new Error('Expected portable index.html was not extracted')
+  if (mode === 'slides') {
+    const [pptx, pdf] = await Promise.all([download(task.id, 'deck.pptx'), download(task.id, 'deck.pdf')])
+    if (String.fromCharCode(...pptx.subarray(0, 2)) !== 'PK') throw new Error('Sandbox slide task did not produce a ZIP-based PPTX deck')
+    if (String.fromCharCode(...pdf.subarray(0, 5)) !== '%PDF-') throw new Error('Sandbox slide task did not produce a PDF export')
+  } else {
+    const preview = await request<{ content: string }>(`/api/tasks/${encodeURIComponent(task.id)}/file?path=index.html`)
+    if (!preview.content.includes('<')) throw new Error('Expected portable index.html was not extracted')
+  }
   const evidence = await request<{ valid: boolean }>(`/api/tasks/${encodeURIComponent(task.id)}/evidence`)
   if (!evidence.valid) throw new Error('Evidence chain verification failed')
-  console.log(JSON.stringify({ taskId: task.id, status: task.status, gatewayEnforced: task.securityContext?.gatewayEnforced === true, visualEvidence: task.events.filter((event) => event.payload.kind === 'visual_frame').length, evidenceValid: evidence.valid }, null, 2))
+  console.log(JSON.stringify({ taskId: task.id, status: task.status, mode, gatewayEnforced: task.securityContext?.gatewayEnforced === true, visualEvidence: task.events.filter((event) => event.payload.kind === 'visual_frame').length, evidenceValid: evidence.valid }, null, 2))
 }
 
 main().catch((error: unknown) => {

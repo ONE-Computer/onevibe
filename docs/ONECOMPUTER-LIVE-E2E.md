@@ -68,16 +68,16 @@ The ONEVibe runner now persists the provider-returned sandbox ID/state immediate
 
 Run the following after the provider lifecycle change:
 
-1. Start an ephemeral ONEVibe Website task with `provider=onecomputer`.
+1. Start an ephemeral ONEVibe Slides task with `provider=onecomputer`.
 2. Capture evidence for sandbox ID, `provisioning` → `started`, gateway-attestation state, and X11 visual frame.
-3. Run the controlled agent command, extract an `index.html`, and verify the resulting evidence chain.
+3. Run the controlled agent command, extract real `deck.pptx` and `deck.pdf` outputs, verify their magic bytes, and verify the resulting evidence chain.
 4. Cancel a separate task during bootstrap and prove provider-side deletion with no surviving container or sandbox row.
 5. Complete a normal task and prove automatic destruction within the lifecycle SLO.
 6. Verify the browser has only server-proxied PNG frames and never has runtime, VNC, CDP, API-key, or project-header access.
 
 ## Repeatable harness
 
-Once the provider lifecycle repair is deployed and ONEVibe has its server-only ONEComputer configuration, run the controlled Website proof from the ONEVibe repository:
+Once the provider lifecycle repair is deployed and ONEVibe has its server-only ONEComputer configuration, run the controlled Slides proof from the ONEVibe repository:
 
 ```sh
 ONEVIBE_E2E_URL=https://onevibe.example \
@@ -85,4 +85,4 @@ ONEVIBE_E2E_REQUIRE_GATEWAY=true \
 npm run e2e:onecomputer
 ```
 
-The harness refuses to run if the ONEComputer provider is unavailable. It creates one disposable Website task, waits for a terminal result, and verifies the recorded sandbox boundary, optional gateway attestation, ephemeral destruction, readiness evidence, optional X11 frame, extracted `index.html`, and evidence-chain validity. It intentionally does not send credentials to the browser or attempt a provider-side cancellation stress test; retain that as the separate controlled proof in the required-success list.
+The harness refuses to run if the ONEComputer provider is unavailable. It creates one disposable Slides task, waits for a terminal result, and verifies the recorded sandbox boundary, optional gateway attestation, ephemeral destruction, readiness evidence, optional X11 frame, actual PPTX/PDF deck bytes, and evidence-chain validity. Set `ONEVIBE_E2E_MODE=website` only when exercising the older website path. It intentionally does not send credentials to the browser or attempt a provider-side cancellation stress test; retain that as the separate controlled proof in the required-success list.
