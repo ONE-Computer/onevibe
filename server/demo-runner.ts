@@ -90,6 +90,13 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
         result: 'success', mode: task.mode, modeFiles,
       },
     })
+    for (const filePath of modeFiles.filter((path) => path !== 'index.html')) {
+      const isSlideDeck = filePath === 'deck.pptx' || filePath === 'deck.pdf'
+      await store.appendEvent(task.id, {
+        type: 'artifact_created', lane: 'artifact', label: isSlideDeck ? 'Slide deck export' : 'Mode artifact', content: filePath,
+        payload: { executionRoute: 'local_demo', kind: isSlideDeck ? 'slide_deck' : 'mode_artifact', mode: task.mode },
+      })
+    }
     await store.appendEvent(task.id, {
       type: 'artifact_created', lane: 'artifact', label: 'Interactive preview',
       content: 'index.html', payload: { kind: 'website', uri: `/api/tasks/${task.id}/preview`, version: 1 },

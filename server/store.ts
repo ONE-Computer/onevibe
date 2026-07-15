@@ -30,7 +30,7 @@ const panelFor = (input: EventInput): PresentationDescriptor | undefined => {
   const artifactPath = typeof input.content === 'string' ? input.content : undefined
   if (input.payload.kind === 'visual_frame') return { panel: 'screenshot', uri, artifactPath }
   if (input.type === 'artifact_updated') return { panel: 'diff', uri, artifactPath }
-  if (artifactPath?.toLowerCase().endsWith('.pptx')) return { panel: 'slide', uri, artifactPath }
+  if (input.payload.kind === 'slide_deck' || artifactPath?.toLowerCase().endsWith('.pptx')) return { panel: 'slide', uri, artifactPath }
   if (uri) return { panel: 'preview', uri, artifactPath }
   return { panel: 'file', artifactPath }
 }
