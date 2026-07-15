@@ -307,7 +307,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     }
     if (request.method === 'POST' && segments[3] === 'cancel') {
       const task = store.getTask(taskId)
-      if (task.status !== 'running' && task.status !== 'pending') {
+      if (!['running', 'pending', 'waiting_for_user_input', 'waiting_for_approval'].includes(task.status)) {
         return json(response, 409, { error: `Task cannot be cancelled from ${task.status}` })
       }
       const controller = activeRuns.get(taskId)
