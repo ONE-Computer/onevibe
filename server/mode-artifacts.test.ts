@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { spawn } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const temporaryRoots: string[] = []
@@ -51,6 +52,37 @@ describe('mode artifacts', () => {
       scripts: { build: 'tsc -b && vite build', preview: 'vite preview', 'server:dev': 'tsx server/src/index.ts' },
       devDependencies: { '@types/react': expect.any(String), '@types/react-dom': expect.any(String), '@tailwindcss/vite': expect.any(String), '@vitejs/plugin-react': expect.any(String), tailwindcss: expect.any(String) },
     })
+  })
+
+  it('runs the deterministic generated App server health endpoint', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-app-server-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Run generated app server', 'demo', 'app')
+    await writeModeArtifacts(task, store)
+    const port = 48_000 + Math.floor(Math.random() * 1_000)
+    const appRoot = store.workspacePath(task.id, 'app')
+    const command = path.resolve(process.cwd(), 'node_modules/.bin/tsx')
+    const child = spawn(command, ['server/src/index.ts'], { cwd: appRoot, env: { ...process.env, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] })
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Generated app server did not start')), 5_000)
+        child.once('error', (error) => { clearTimeout(timeout); reject(error) })
+        child.stdout.on('data', (chunk: Buffer) => {
+          if (!chunk.toString().includes('Generated app server listening')) return
+          clearTimeout(timeout); resolve()
+        })
+        child.stderr.on('data', (chunk: Buffer) => { clearTimeout(timeout); reject(new Error(chunk.toString())) })
+      })
+      const response = await fetch(`http://127.0.0.1:${port}/health`)
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ status: 'ok', service: 'onevibe-generated-app' })
+    } finally {
+      child.kill()
+    }
   })
 
   it('generates a playable interaction loop for game mode', async () => {
