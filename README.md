@@ -18,6 +18,7 @@ The first vertical slice already supports:
 - durable multi-turn chat history with streaming state, pagination, cross-task search, migration, and export;
 - durable project workspaces with a governed background brief that is attached server-side to each new agent run;
 - persistent schedules (15-minute minimum) that create ordinary project-bound tasks with the same evidence and approval controls;
+- on-demand dispatch for enabled schedules, recorded as a manual schedule trigger in task evidence;
 - up to eight user-supplied website references per task, preserved as untrusted context without server-side fetching;
 - up to four local task attachments (256 KiB each, 1 MiB total), path-confined under `inputs/` and exposed to agents as untrusted workspace input;
 - a typed Server-Sent Events task timeline;
@@ -30,6 +31,15 @@ The first vertical slice already supports:
 - a remote runtime adapter compatible with provider-neutral AgentCore SSE;
 - a native Claude Agent SDK adapter that retains sanitized SDK messages and session identity;
 - an explicitly labelled local demo runtime for development without cloud credentials.
+
+## Try the governed flow locally
+
+1. Run `npm install && npm run dev`, then open `http://localhost:5173`.
+2. Create a **Safe demo** task from a starter (for example, an Operations dashboard or Executive update). The task writes portable source, a preview, an evidence chain, and a static validation report.
+3. Open **Computer** to scrub commands, artifacts, and any captured visual evidence; use **Observe** for task-scoped execution facts.
+4. For a completed task, open **Handoff** to download the source/evidence archive and inspect the safe GitHub review sequence. The browser never creates a repository or uses GitHub credentials.
+5. Create a schedule and use **Run now** to dispatch it through the normal governed task path. The created task records whether its trigger was scheduled or manual.
+6. To exercise the external approval boundary, set `ONEVIBE_WALLET_TOKEN`, request a share, then use the separate wallet CLI below. The browser only displays the pending or resolved receipt; it cannot decide the action.
 
 ## Run locally
 
