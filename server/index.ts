@@ -343,12 +343,13 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       if (task.securityContext.sandboxState === 'destroyed') return json(response, 410, { error: 'The ephemeral sandbox has been destroyed' })
       if (!ONECOMPUTER_API_URL || !ONECOMPUTER_SERVICE_TOKEN) return json(response, 503, { error: 'ONEComputer is not configured' })
       const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL, serviceToken: ONECOMPUTER_SERVICE_TOKEN, projectId: ONECOMPUTER_PROJECT_ID })
-      const png = await client.getVisualScreenshot(sandboxId)
+      const frame = await client.getVisualScreenshot(sandboxId)
       response.writeHead(200, {
-        'Content-Type': 'image/png', 'Content-Length': png.byteLength,
+        'Content-Type': 'image/png', 'Content-Length': frame.png.byteLength,
         'Cache-Control': 'no-store, private', 'X-Content-Type-Options': 'nosniff',
+        ...(frame.capturedAt ? { 'X-OneComputer-Captured-At': frame.capturedAt } : {}),
       })
-      response.end(png)
+      response.end(frame.png)
       return
     }
     if (request.method === 'POST' && segments[3] === 'versions' && segments[4] && segments[5] === 'restore') {

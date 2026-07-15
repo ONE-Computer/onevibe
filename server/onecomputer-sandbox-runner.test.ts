@@ -31,7 +31,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
       exec,
       deleteSandbox: vi.fn(async () => undefined),
       startVisualRuntime: vi.fn(async () => ({ display: ':99', width: 1440, height: 900, browserReady: true })),
-      getVisualScreenshot: vi.fn(async () => Uint8Array.from([0x89, 0x50, 0x4e, 0x47])),
+      getVisualScreenshot: vi.fn(async () => ({ png: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]), capturedAt: '2026-07-16T00:00:00.000Z' })),
     } as unknown as OneComputerClient
     const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: false, visualRuntime: true, pollMilliseconds: 1 })
 
@@ -50,6 +50,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const frames = store.listEvents(task.id).filter((event) => event.payload.kind === 'visual_frame')
     expect(frames.map((event) => event.payload.capturePhase)).toEqual(['runtime_ready', 'before_agent', 'after_agent'])
     expect(frames.slice(1).every((event) => typeof event.payload.causedByEventId === 'string')).toBe(true)
+    expect(frames.every((event) => event.payload.capturedAt === '2026-07-16T00:00:00.000Z')).toBe(true)
     expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'destroyed', gatewayEnforced: false })
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)

@@ -31,10 +31,10 @@ describe('OneComputerClient', () => {
 
   it('retrieves X11 screenshots without exposing the service token', async () => {
     const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47])
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(png, { status: 200, headers: { 'Content-Type': 'image/png' } }))
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(png, { status: 200, headers: { 'Content-Type': 'image/png', 'X-OneComputer-Captured-At': '2026-07-16T00:00:00.000Z' } }))
     const client = new OneComputerClient({ baseUrl: 'https://onecomputer.example', serviceToken: 'oc_org_visual-secret', projectId: 'project_abc', fetcher })
 
-    await expect(client.getVisualScreenshot('sandbox-1')).resolves.toEqual(png)
+    await expect(client.getVisualScreenshot('sandbox-1')).resolves.toEqual({ png, capturedAt: '2026-07-16T00:00:00.000Z' })
     expect(fetcher).toHaveBeenCalledWith('https://onecomputer.example/v1/sandboxes/sandbox-1/visual/screenshot', expect.objectContaining({
       headers: expect.objectContaining({ Authorization: 'Bearer oc_org_visual-secret', Accept: 'image/png', 'X-Project-Id': 'project_abc' }),
     }))

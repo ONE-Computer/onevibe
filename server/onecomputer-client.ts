@@ -13,6 +13,7 @@ export type OneComputerClientOptions = {
 }
 
 export type OneComputerExecResult = { exitCode: number; output: string }
+export type OneComputerVisualFrame = { png: Uint8Array; capturedAt?: string }
 
 export class OneComputerClient {
   private readonly baseUrl: string
@@ -51,13 +52,13 @@ export class OneComputerClient {
     return this.request(`/v1/sandboxes/${encodeURIComponent(id)}/visual/start`, { method: 'POST', signal })
   }
 
-  async getVisualScreenshot(id: string, signal?: AbortSignal): Promise<Uint8Array> {
+  async getVisualScreenshot(id: string, signal?: AbortSignal): Promise<OneComputerVisualFrame> {
     const response = await this.fetcher(`${this.baseUrl}/v1/sandboxes/${encodeURIComponent(id)}/visual/screenshot`, {
       headers: { Accept: 'image/png', Authorization: `Bearer ${this.options.serviceToken}`, ...(this.options.projectId ? { 'X-Project-Id': this.options.projectId } : {}) },
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
     })
     if (!response.ok) throw new Error(`ONEComputer visual screenshot returned HTTP ${response.status}`)
-    return new Uint8Array(await response.arrayBuffer())
+    return { png: new Uint8Array(await response.arrayBuffer()), capturedAt: response.headers.get('X-OneComputer-Captured-At') || undefined }
   }
 
   private async request<T>(pathname: string, init: RequestInit = {}): Promise<T> {

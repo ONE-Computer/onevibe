@@ -54,11 +54,11 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         try {
           const frame = await this.client.getVisualScreenshot(sandbox.id, signal)
           const framePath = `evidence/visual/${Date.now()}-${phase}.png`
-          await store.writeWorkspaceBytes(task.id, framePath, frame)
+          await store.writeWorkspaceBytes(task.id, framePath, frame.png)
           await store.appendEvent(task.id, {
             type: 'artifact_created', lane: 'artifact', label: `X11 frame · ${phase.replace('_', ' ')}`, content: framePath,
             payload: {
-              kind: 'visual_frame', sandboxId: sandbox.id, capturePhase: phase, causedByEventId,
+              kind: 'visual_frame', sandboxId: sandbox.id, capturePhase: phase, causedByEventId, capturedAt: frame.capturedAt,
               uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(framePath)}&raw=1`,
             },
           })
