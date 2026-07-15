@@ -16,6 +16,7 @@ For every supported agent action, render a compact, ordered evidence card in one
 |---|---|---|
 | Tool starts | Tool name, sanitized input/command, running state | Stable tool-use ID and run ID |
 | Tool completes/fails | Output summary, expandable sanitized output, duration, status | Must pair to the originating tool card |
+| Shell/CLI execution | Command, working-directory label, streamed sanitized stdout/stderr, exit state | Must be one chronological card pair; never expose host paths, secrets, or shell access |
 | X11/browser checkpoint | Inline thumbnail, timestamp, expand-to-inspect | Must name the causal tool event or explicitly say it is periodic |
 | File/diff/preview/deck | File type, path, compact preview/thumbnail where safe | Must point to immutable workspace version/evidence event |
 | Approval/policy boundary | Scope, policy decision, external-wallet state | Browser remains request-only; receipt resolves server-side |
@@ -38,10 +39,11 @@ The default view is chronological and auto-follows new activity. A settled task 
 4. **P0d — browser evidence (in progress):** Website, App, and Game outputs now add an explicit sandbox-local `file://` Chromium screenshot after artifact extraction, with hostname resolution blocked. Allowlisted browser-tool starts/results now produce explicitly labelled X11 checkpoints tied to the tool-use ID; next, add browser-native checkpoint metadata (URL/title with secret-aware redaction) without exposing CDP or control credentials.
 5. **P0e — scale and accessibility:** Progressive media loading, keyboard traversal, screen-reader labels, reduced-motion behavior, and performance proof at 10,000 events.
 6. **P0f — real runtime proof:** Exercise the rail against an attested ONEComputer X11/browser runtime—not demo fixtures—with redaction and retention evidence.
+7. **P0g — Manus-style mixed tool stream (next):** Make the rail visibly alternate between the right evidence type for the agent's actual tool call: a compact CLI transcript for command work; an inline X11/browser capture for graphical work; and a file, diff, preview, or slide card for a produced deliverable. Preserve a single scroll position across the mixed stream, bind every card to the same tool-use/run/sequence model, and make visual capture availability explicit rather than fabricating a frame. Validate the interaction against real sandbox sessions before treating the UX as parity.
 
 ## Definition of done
 
-- A real governed task visibly interleaves at least one tool request/result, one causal visual frame, and one produced artifact in chronological order.
+- A real governed task visibly interleaves a CLI command/transcript where shell work occurs, one causal visual frame where graphical work occurs, and one produced artifact in chronological order.
 - A reviewer can return to any immutable card by URL after reload and see the same evidence-bound content.
 - A task with 10,000 cards opens in under two seconds p95 and scrub/card selection responds under 100 ms p95 on reference hardware.
 - Automated tests cover grouping, ordering, pairing, redaction, deep links, reconnect idempotency, live/persisted distinction, and keyboard operation.
