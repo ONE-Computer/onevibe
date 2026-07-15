@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, evidenceItemId, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, evidenceItemId, formatDuration, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -25,6 +25,17 @@ describe('Computer timeline terminal inspection', () => {
     const activity = terminalActivityFor({ id: started.id, kind: 'terminal', eventType: 'tool_call_started', title: 'Bash', createdAt: started.createdAt, detail: started.content, payload: started.payload }, [started, finished])
 
     expect(activity.output).toBe('Build succeeded')
+  })
+
+  it('derives a readable duration from the paired immutable event timestamp', () => {
+    const started = event('event-start', 'tool_call_started', { toolUseId: 'tool-timed', input: { command: 'npm test' } })
+    started.createdAt = '2026-07-16T00:00:00.000Z'
+    const finished = event('event-finish', 'tool_call_completed', { toolUseId: 'tool-timed' }, 'Tests passed')
+    finished.createdAt = '2026-07-16T00:00:02.400Z'
+    const activity = terminalActivityFor({ id: started.id, kind: 'terminal', eventType: 'tool_call_started', title: 'Bash', createdAt: started.createdAt, payload: started.payload }, [started, finished])
+
+    expect(activity.durationMs).toBe(2_400)
+    expect(formatDuration(activity.durationMs)).toBe('2.4s')
   })
 
   it('labels an error result for the operator', () => {

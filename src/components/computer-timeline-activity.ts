@@ -39,6 +39,13 @@ export const formatInspectable = (value: unknown, limit = 12_000) => {
   return text.length > limit ? `${text.slice(0, limit)}\n…[truncated for the activity rail]` : text
 }
 
+export const formatDuration = (milliseconds: number | undefined) => {
+  if (milliseconds === undefined || !Number.isFinite(milliseconds) || milliseconds < 0) return undefined
+  if (milliseconds < 1_000) return `${milliseconds}ms`
+  if (milliseconds < 60_000) return `${(milliseconds / 1_000).toFixed(milliseconds < 10_000 ? 1 : 0)}s`
+  return `${Math.floor(milliseconds / 60_000)}m ${Math.round((milliseconds % 60_000) / 1_000)}s`
+}
+
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
   const items = task.events.flatMap((event): ComputerItem[] => {
     const presentation = event.payload.presentation as PresentationDescriptor | undefined
@@ -87,7 +94,8 @@ export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) 
   // paired terminal result so the unified rail card reads request → outcome.
   const output = item.eventType === 'tool_call_started' ? paired?.content : item.detail ?? paired?.content
   const failed = item.payload?.isError === true || paired?.payload.isError === true
-  return { request, output, failed, toolUseId }
+  const elapsed = paired && item.eventType === 'tool_call_started' ? Date.parse(paired.createdAt) - Date.parse(item.createdAt) : undefined
+  return { request, output, failed, toolUseId, durationMs: elapsed !== undefined && Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : undefined }
 }
 
 export const causalVisualItemsFor = (eventId: string, items: ComputerItem[]) => items.filter((item) => item.kind === 'screenshot' && item.payload?.causedByEventId === eventId)
