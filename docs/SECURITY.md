@@ -36,3 +36,4 @@ Before production, replace or verify:
 6. unauthenticated local API with enterprise identity, tenant isolation, CSRF protection, rate limits, and authorization;
 7. generic iframe preview with authenticated, non-indexed, time-limited isolated origins and strict Permissions Policy.
 8. visual capture with an attested microVM image, a private/loopback-only display and CDP endpoint, redaction before durable evidence storage, per-tenant retention, and explicit policy over when screenshots may be collected.
+9. asynchronous sandbox provisioning that persists an ID before long bootstrap work and supports idempotent cancellation/deletion. A caller must never lose the ability to clean up an ephemeral provider resource after a timeout or disconnect.

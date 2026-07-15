@@ -1,0 +1,50 @@
+# ONEComputer live E2E evidence
+
+## Scope
+
+This runbook records real integration evidence for ONEVibe's `onecomputer` runtime. It is deliberately separate from local-demo and mock-provider tests. Do not mark the production sandbox gate complete until every success criterion below has evidence from the deployed environment.
+
+## Preflight contract
+
+ONEVibe connects to the ONEComputer API through these server-only variables:
+
+```text
+ONECOMPUTER_API_URL=http://onecomputer-api.example
+ONECOMPUTER_SERVICE_TOKEN=oc_...
+ONECOMPUTER_PROJECT_ID=... # mandatory with an oc_org_ organization key
+ONECOMPUTER_GATEWAY_ENFORCED=true # only after independent egress attestation
+```
+
+The API must provide authenticated `POST/GET/DELETE /v1/sandboxes`, `POST /exec`, and the headless visual runtime endpoints. Browser clients must never receive this key, the project header, X11, CDP, or VNC access.
+
+## Live execution attempt
+
+The Azure portal/API service was reachable over an authenticated SSH-forwarded loopback connection:
+
+- `GET /v1/health` returned `200`.
+- `GET /v1/sandboxes` returned `200` and an empty list before the test.
+- A ONEVibe `onecomputer` task successfully reached `POST /v1/sandboxes`; its evidence recorded the real `run_started` boundary and lifecycle transition.
+
+The provider began a Kasm container for the task, but did not return a sandbox record before the task was cancelled. Investigation showed the create path performing lengthy desktop/Claude installation work synchronously before returning or persisting ownership. Cancellation reached ONEVibe; the test container was explicitly removed and the remote sandbox list was again empty.
+
+## Blocking gap: asynchronous provisioning lifecycle
+
+This is an integration blocker, not a reason to weaken the ONEVibe boundary:
+
+1. **Provider API:** create/persist the sandbox identity before optional desktop/Claude bootstrap, then return a stable `provisioning` state immediately.
+2. **Provider API:** expose a pollable state/progress contract and make `DELETE /v1/sandboxes/:id` terminate bootstrap work idempotently.
+3. **ONEVibe:** keep polling state, surface progress as typed evidence, and delete the known sandbox on cancellation, timeout, or post-run cleanup.
+4. **Security gate:** attest default-deny gateway egress before setting `ONECOMPUTER_GATEWAY_ENFORCED=true`; local API reachability is not proof of gateway enforcement.
+
+Until (1) and (2) are implemented, a caller can cancel before it receives an ID, leaving the provider unable to participate in reliable automatic cleanup. That is unacceptable for production ephemeral-workspace guarantees.
+
+## Required successful proof
+
+Run the following after the provider lifecycle change:
+
+1. Start an ephemeral ONEVibe Website task with `provider=onecomputer`.
+2. Capture evidence for sandbox ID, `provisioning` → `started`, gateway-attestation state, and X11 visual frame.
+3. Run the controlled agent command, extract an `index.html`, and verify the resulting evidence chain.
+4. Cancel a separate task during bootstrap and prove provider-side deletion with no surviving container or sandbox row.
+5. Complete a normal task and prove automatic destruction within the lifecycle SLO.
+6. Verify the browser has only server-proxied PNG frames and never has runtime, VNC, CDP, API-key, or project-header access.
