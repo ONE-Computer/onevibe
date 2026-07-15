@@ -2,6 +2,9 @@ import path from 'node:path'
 import type { OneComputerClient } from './onecomputer-client.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
+
 const shellQuote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`
 const wait = (milliseconds: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal.aborted) return reject(new DOMException('Task cancelled', 'AbortError'))
@@ -322,14 +325,6 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       await visualLoop
       await captureVisualFrame('after_agent', agentExecution.id)
       if (agentExitCode !== 0) throw new Error(`Sandbox Claude process exited ${agentExitCode}`)
-      if (browserAutomationEnabled) await store.appendEvent(task.id, {
-        type: 'activity_delta', lane: 'control',
-        label: browserReviewTools.size ? 'Sandbox browser review observed' : 'Sandbox browser review not observed',
-        content: browserReviewTools.size
-          ? `The sandbox used ${[...browserReviewTools].map((tool) => tool.replace('mcp__playwright__', '')).join(', ')}; related X11 checkpoints remain in task evidence.`
-          : 'Browser capability was enabled, but no allowlisted browser tool appeared in the bounded Claude journal. Treat browser validation as incomplete.',
-        payload: { sandboxId: sandbox.id, browserAutomation: true, observed: browserReviewTools.size > 0, tools: [...browserReviewTools] },
-      })
       const parsedJournal = latestJournal
       if (parsedJournal.result && !parsedJournal.entries.some((entry) => entry.kind === 'text' && entry.content === parsedJournal.result)) await store.appendEvent(task.id, {
         type: 'assistant_text_delta', lane: 'transcript', content: parsedJournal.result,
@@ -359,11 +354,53 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         content: `${paths.length} files copied from the disposable boundary.`,
         payload: { sandboxId: sandbox.id, fileCount: paths.length, totalBytes },
       })
+      let generatedArtifactPreview = false
       if (paths.includes('index.html')) {
         await store.updateTask(task.id, { previewPath: `/api/tasks/${task.id}/preview` })
         await store.appendEvent(task.id, {
           type: 'artifact_created', lane: 'artifact', label: 'ONEComputer-generated preview', content: 'index.html',
           payload: { kind: task.mode, uri: `/api/tasks/${task.id}/preview`, sandboxId: sandbox.id },
+        })
+        if (browserAutomationEnabled && ['website', 'app', 'game'].includes(task.mode)) {
+          const screenshotPath = `evidence/visual/browser-review-${Date.now()}.png`
+          const browserReview = await this.client.exec(sandbox.id, [
+            'set -eu',
+            'browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome || true)',
+            'test -n "$browser"',
+            'output=/tmp/onevibe-browser-review.png',
+            'rm -f "$output"',
+            `"$browser" --headless=new --no-sandbox --disable-gpu --window-size=1440,900 --host-resolver-rules=${shellQuote('MAP * 0.0.0.0, EXCLUDE localhost')} --screenshot="$output" ${shellQuote(`file://${workspace}/index.html`)} || "$browser" --headless --no-sandbox --disable-gpu --window-size=1440,900 --host-resolver-rules=${shellQuote('MAP * 0.0.0.0, EXCLUDE localhost')} --screenshot="$output" ${shellQuote(`file://${workspace}/index.html`)}`,
+            'test -s "$output"',
+            'base64 -w0 "$output"',
+          ].join('\n'), signal)
+          const screenshot = Buffer.from(browserReview.output.trim(), 'base64')
+          if (browserReview.exitCode === 0 && screenshot.byteLength <= 5 * 1024 * 1024 && isPng(screenshot)) {
+            await store.writeWorkspaceBytes(task.id, screenshotPath, screenshot)
+            await store.appendEvent(task.id, {
+              type: 'artifact_created', lane: 'artifact', label: 'Sandbox browser preview captured', content: screenshotPath,
+              payload: { kind: 'visual_frame', uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(screenshotPath)}&raw=1`, sandboxId: sandbox.id, capturePhase: 'generated_artifact_review', causedByEventId: agentExecution.id, reviewSurface: 'sandbox_local_file', browserEgress: 'blocked' },
+            })
+            generatedArtifactPreview = true
+          } else {
+            await store.appendEvent(task.id, {
+              type: 'activity_delta', lane: 'control', label: 'Sandbox browser preview unavailable',
+              content: 'The generated artifact could not be rendered into a bounded sandbox-local browser screenshot. Agent browser evidence remains separately recorded.',
+              payload: { sandboxId: sandbox.id, reason: browserReview.exitCode === 0 ? 'invalid_screenshot' : 'browser_command_failed' },
+            })
+          }
+        }
+      }
+      if (browserAutomationEnabled) {
+        const agentTools = [...browserReviewTools]
+        const observed = agentTools.length > 0 || generatedArtifactPreview
+        await store.appendEvent(task.id, {
+          type: 'activity_delta', lane: 'control', label: observed ? 'Sandbox browser review observed' : 'Sandbox browser review not observed',
+          content: generatedArtifactPreview
+            ? 'The generated local artifact was rendered by a sandbox-local headless browser with hostname resolution blocked; the screenshot is preserved in task evidence.'
+            : agentTools.length
+              ? `The sandbox used ${agentTools.map((tool) => tool.replace('mcp__playwright__', '')).join(', ')}; related X11 checkpoints remain in task evidence.`
+              : 'Browser capability was enabled, but no allowlisted browser tool or generated-artifact review appeared in the bounded execution. Treat browser validation as incomplete.',
+          payload: { sandboxId: sandbox.id, browserAutomation: true, observed, agentTools, generatedArtifactPreview },
         })
       }
       await store.setPlanStep(task.id, 'build', 'completed')

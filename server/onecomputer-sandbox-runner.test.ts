@@ -59,6 +59,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const exec = vi.fn(async (_id: string, command: string) => {
       commands.push(command)
       if (command.includes('find .')) return { exitCode: 0, output: Buffer.from('index.html\0README.md\0').toString('base64') }
+      if (command.includes('onevibe-browser-review.png')) return { exitCode: 0, output: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString('base64') }
       if (command.includes('test -f .onevibe-plan.json')) return { exitCode: 0, output: Buffer.from(sandboxPlan).toString('base64') }
       if (command.includes('.onevibe-exitcode')) return { exitCode: 0, output: `done:0\n${Buffer.from(streamJournal).toString('base64')}` }
       if (command.endsWith("'index.html'")) return { exitCode: 0, output: Buffer.from('<h1>Sandbox output</h1>').toString('base64') }
@@ -91,16 +92,18 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(client.getVisualScreenshot).toHaveBeenCalledTimes(5)
     expect((await store.listWorkspaceFiles(task.id)).some((file) => file.path.includes('evidence/visual/'))).toBe(true)
     const frames = store.listEvents(task.id).filter((event) => event.payload.kind === 'visual_frame')
-    expect(frames.map((event) => event.payload.capturePhase)).toEqual(['runtime_ready', 'before_agent', 'tool_started', 'tool_completed', 'after_agent'])
+    expect(frames.map((event) => event.payload.capturePhase)).toEqual(['runtime_ready', 'before_agent', 'tool_started', 'tool_completed', 'after_agent', 'generated_artifact_review'])
     expect(frames.slice(1).every((event) => typeof event.payload.causedByEventId === 'string')).toBe(true)
-    expect(frames.every((event) => event.payload.capturedAt === '2026-07-16T00:00:00.000Z')).toBe(true)
+    expect(frames.filter((event) => event.payload.capturePhase !== 'generated_artifact_review').every((event) => event.payload.capturedAt === '2026-07-16T00:00:00.000Z')).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.label === 'Write' && event.payload.toolUseId === 'tool-1')).toBe(true)
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-1')
     expect(store.getTask(task.id).plan[0]?.title).toBe('Frame the launch outcome')
     expect(store.listEvents(task.id).some((event) => event.label === 'Task plan refined by runtime' && event.payload.source === 'onecomputer')).toBe(true)
     expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'destroyed', gatewayEnforced: true })
     expect(store.listEvents(task.id).some((event) => event.label === 'Governed browser automation ready')).toBe(true)
-    expect(store.listEvents(task.id).some((event) => event.label === 'Sandbox browser review not observed' && event.payload.observed === false)).toBe(true)
+    expect(commands.some((command) => command.includes('onevibe-browser-review.png'))).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.label === 'Sandbox browser review observed' && event.payload.generatedArtifactPreview === true)).toBe(true)
+    expect(frames.at(-1)?.payload.uri).toContain(`/api/tasks/${task.id}/file?path=evidence%2Fvisual%2Fbrowser-review-`)
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)
   })
