@@ -21,11 +21,13 @@ const panelFor = (input: EventInput): PresentationDescriptor | undefined => {
   const supplied = input.payload.presentation
   if (supplied && typeof supplied === 'object' && 'panel' in supplied) return supplied as PresentationDescriptor
   if (input.type === 'tool_call_started' || input.type === 'tool_call_progress' || input.type === 'tool_call_completed') return { panel: 'terminal' }
+  if (input.type === 'approval_requested' || input.type === 'approval_resolved') return { panel: 'approval' }
   if (input.type !== 'artifact_created' && input.type !== 'artifact_updated') return undefined
   const uri = typeof input.payload.uri === 'string' ? input.payload.uri : undefined
   const artifactPath = typeof input.content === 'string' ? input.content : undefined
   if (input.payload.kind === 'visual_frame') return { panel: 'screenshot', uri, artifactPath }
   if (input.type === 'artifact_updated') return { panel: 'diff', uri, artifactPath }
+  if (artifactPath?.toLowerCase().endsWith('.pptx')) return { panel: 'slide', uri, artifactPath }
   if (uri) return { panel: 'preview', uri, artifactPath }
   return { panel: 'file', artifactPath }
 }

@@ -53,10 +53,14 @@ describe('TaskStore', () => {
     const terminal = await store.appendEvent(task.id, { type: 'tool_call_completed', lane: 'activity', label: 'Run command', content: 'done', payload: {} })
     const screenshot = await store.appendEvent(task.id, { type: 'artifact_created', lane: 'artifact', label: 'X11 frame', content: 'evidence/frame.png', payload: { kind: 'visual_frame', uri: '/frame.png' } })
     const diff = await store.appendEvent(task.id, { type: 'artifact_updated', lane: 'artifact', label: 'Source updated', content: 'src/App.tsx', payload: {} })
+    const deck = await store.appendEvent(task.id, { type: 'artifact_created', lane: 'artifact', label: 'Slide deck', content: 'deliverable/briefing.pptx', payload: {} })
+    const approval = await store.appendEvent(task.id, { type: 'approval_requested', lane: 'approval', label: 'External wallet approval', content: 'Awaiting a signed decision', payload: {} })
 
     expect(terminal.payload.presentation).toMatchObject({ panel: 'terminal' })
     expect(screenshot.payload.presentation).toMatchObject({ panel: 'screenshot', uri: '/frame.png' })
     expect(diff.payload.presentation).toMatchObject({ panel: 'diff' })
+    expect(deck.payload.presentation).toMatchObject({ panel: 'slide', artifactPath: 'deliverable/briefing.pptx' })
+    expect(approval.payload.presentation).toMatchObject({ panel: 'approval' })
     expect(store.verifyChain(task.id)).toBe(true)
   })
 

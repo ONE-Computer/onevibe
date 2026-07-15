@@ -8,7 +8,7 @@ export type RunStatus =
   | 'cancelled'
 
 export type EventLane = 'transcript' | 'activity' | 'control' | 'artifact' | 'approval'
-export type PresentationPanel = 'terminal' | 'screenshot' | 'preview' | 'file' | 'diff'
+export type PresentationPanel = 'terminal' | 'screenshot' | 'preview' | 'file' | 'diff' | 'slide' | 'approval'
 export type PresentationDescriptor = { panel: PresentationPanel; uri?: string; artifactPath?: string }
 
 export type EventType =
