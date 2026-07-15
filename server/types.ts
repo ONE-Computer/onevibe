@@ -61,7 +61,7 @@ export type Task = {
   id: string
   title: string
   prompt: string
-  provider: 'demo' | 'remote'
+  provider: 'demo' | 'claude_sdk' | 'remote'
   status: RunStatus
   plan: PlanStep[]
   createdAt: string
@@ -72,6 +72,7 @@ export type Task = {
     sandboxId?: string
     provider?: string
     gatewayEnforced: boolean
+    runtimeSessionId?: string
   }
   approval?: {
     id: string

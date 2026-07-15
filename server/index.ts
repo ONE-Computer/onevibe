@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { z } from 'zod'
 import { DemoRuntimeAdapter } from './demo-runner.js'
+import { ClaudeSdkRuntimeAdapter } from './claude-sdk-runner.js'
 import { OneComputerClient } from './onecomputer-client.js'
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
@@ -33,7 +34,7 @@ const readBody = async (request: IncomingMessage) => {
 
 const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
-  provider: z.enum(['demo', 'remote']).default('demo'),
+  provider: z.enum(['demo', 'claude_sdk', 'remote']).default('demo'),
 })
 
 const route = async (request: IncomingMessage, response: ServerResponse) => {
@@ -60,7 +61,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const task = await store.createTask(input.prompt, input.provider)
     const adapter: RuntimeAdapter = input.provider === 'remote'
       ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN)
-      : new DemoRuntimeAdapter()
+      : input.provider === 'claude_sdk'
+        ? new ClaudeSdkRuntimeAdapter()
+        : new DemoRuntimeAdapter()
     setTimeout(() => {
       const run = async () => {
         if (input.provider === 'remote' && ONECOMPUTER_API_URL && ONECOMPUTER_SERVICE_TOKEN) {

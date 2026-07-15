@@ -13,3 +13,5 @@
 - Captured dated home and completed-task screenshots under `docs/evidence/`.
 - Added the authenticated ONEComputer sandbox client against the verified `/v1/sandboxes` and governed-action routes; deliberately omitted portal approval decisions.
 - Added server-only runtime bearer authentication and portable ZIP export with an evidence manifest.
+- Added a native Claude Agent SDK execution path with host-workspace confinement, explicit tool allowlisting, out-of-workspace denial, separate runtime state, sanitized native event retention, and resumable session identity.
+- Added an offline SDK contract test proving tool denials, secret redaction, artifact discovery, terminal-event ordering, and evidence-chain validity without making a model request.

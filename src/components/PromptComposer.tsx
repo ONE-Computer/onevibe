@@ -8,6 +8,7 @@ type Props = { compact?: boolean; busy?: boolean; onSubmit: (prompt: string, pro
 export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
+  const providers: Task['provider'][] = ['demo', 'claude_sdk', 'remote']
 
   const submit = async () => {
     const value = prompt.trim()
@@ -32,9 +33,9 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
           <button title="Connect context"><Link2 size={16} /></button>
           <span className="composer-divider" />
           <button className="mode-button"><Monitor size={15} /> My computer <ChevronDown size={13} /></button>
-          <button className="mode-button" onClick={() => setProvider(provider === 'demo' ? 'remote' : 'demo')}>
+          <button className="mode-button" onClick={() => setProvider(providers[(providers.indexOf(provider) + 1) % providers.length] ?? 'demo')}>
             {provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}
-            {provider === 'demo' ? 'Safe demo' : 'AgentCore'} <ChevronDown size={13} />
+            {provider === 'demo' ? 'Safe demo' : provider === 'claude_sdk' ? 'Claude SDK' : 'AgentCore'} <ChevronDown size={13} />
           </button>
         </div>
         <div className="composer-right">

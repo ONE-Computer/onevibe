@@ -11,6 +11,7 @@ The first vertical slice already supports:
 - an append-only SHA-256 evidence chain;
 - external-wallet approval requests with no browser approval endpoint;
 - a remote runtime adapter compatible with provider-neutral AgentCore SSE;
+- a native Claude Agent SDK adapter that retains sanitized SDK messages and session identity;
 - an explicitly labelled local demo runtime for development without cloud credentials.
 
 ## Run locally
@@ -25,12 +26,16 @@ Open `http://localhost:5173`. The API listens on `127.0.0.1:4311`.
 ## Runtime modes
 
 - `demo` (default): deterministic local workflow that writes only under `.onevibe/workspaces/<task-id>`.
+- `claude_sdk`: native `@anthropic-ai/claude-agent-sdk` execution with a workspace-only Read/Write/Edit/Glob/Grep tool policy. It uses your server-side Claude credentials and never sends them to the browser.
 - `remote`: set `ONEVIBE_RUNTIME_URL` to a trusted AgentCore/backend SSE endpoint. The server proxies and normalizes the stream; the browser never receives runtime credentials.
 
 Optional server-side integration variables:
 
 ```text
 ONEVIBE_RUNTIME_BEARER_TOKEN=...
+ONEVIBE_CLAUDE_MODEL=claude-sonnet-5
+ONEVIBE_CLAUDE_MAX_TURNS=24
+ONEVIBE_CLAUDE_MAX_BUDGET_USD=5
 ONECOMPUTER_API_URL=https://onecomputer.example.com
 ONECOMPUTER_SERVICE_TOKEN=...
 ```

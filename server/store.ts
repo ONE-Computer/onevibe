@@ -23,16 +23,19 @@ export class TaskStore {
   private emitter = new EventEmitter()
   private tasksRoot: string
   private workspacesRoot: string
+  private runtimeRoot: string
 
   constructor(dataRoot = DEFAULT_DATA_ROOT) {
     const resolvedRoot = path.resolve(dataRoot)
     this.tasksRoot = path.join(resolvedRoot, 'tasks')
     this.workspacesRoot = path.join(resolvedRoot, 'workspaces')
+    this.runtimeRoot = path.join(resolvedRoot, 'runtime')
   }
 
   async initialize() {
     await mkdir(this.tasksRoot, { recursive: true })
     await mkdir(this.workspacesRoot, { recursive: true })
+    await mkdir(this.runtimeRoot, { recursive: true })
     const entries = await readdir(this.tasksRoot, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
@@ -141,6 +144,13 @@ export class TaskStore {
     const root = path.join(this.workspacesRoot, taskId)
     const candidate = path.resolve(root, relativePath)
     assertWithin(root, candidate)
+    return candidate
+  }
+
+  runtimeStatePath(taskId: string) {
+    this.getTask(taskId)
+    const candidate = path.join(this.runtimeRoot, taskId)
+    assertWithin(this.runtimeRoot, candidate)
     return candidate
   }
 
