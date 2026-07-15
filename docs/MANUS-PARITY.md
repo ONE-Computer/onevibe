@@ -125,7 +125,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 97. **I** Artifact reuse controls — follow-up editing, immutable history/restore, provenance-linked copy, wallet-approved read-only share, ZIP, and fullscreen all work.
 98. **P** Multi-format slide export — PPTX is implemented and ZIP-portable; PDF and cloud-drive destinations are pending.
 99. **P** Interactive deck viewer with notes — visual outline thumbnails, previous/next review controls, and an editable speaker-note source flow work. Rendered PPTX thumbnails and PDF export remain pending.
-100. **M** Cross-device clients.
+100. **P** Cross-device access — responsive web UI now exposes installable-web-app metadata and branded app icon for desktop/mobile browsers. Native iOS/Android clients, offline caching, push notification handling, and device-bound wallet integration remain pending.
 
 ## Immediate parity sequence
 

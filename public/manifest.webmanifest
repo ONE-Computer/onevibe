@@ -1,0 +1,17 @@
+{
+  "name": "ONEVibe — Governed AI Workspace",
+  "short_name": "ONEVibe",
+  "description": "A governed agent workspace powered by ONEComputer and OpenVTC.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d0c",
+  "theme_color": "#0b0d0c",
+  "icons": [
+    {
+      "src": "/onevibe-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title>ONEVibe</title>
+  <rect width="512" height="512" rx="112" fill="#0b0d0c"/>
+  <rect x="72" y="72" width="368" height="368" rx="80" fill="#121914" stroke="#3de184" stroke-width="12"/>
+  <path d="M162 168v176l96-88 92 88V168l-92 88z" fill="#3de184"/>
+  <circle cx="258" cy="256" r="27" fill="#0b0d0c"/>
+</svg>
