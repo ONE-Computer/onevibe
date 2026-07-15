@@ -7,7 +7,7 @@ import { TaskPlan } from './components/TaskPlan'
 import { TaskTimeline } from './components/TaskTimeline'
 import { Workspace } from './components/Workspace'
 import { useTask } from './hooks/useTask'
-import { cancelTask, createTask, listTasks } from './lib/api'
+import { cancelTask, createTask, listTasks, sendFollowUp } from './lib/api'
 import type { Task } from './types'
 import './index.css'
 
@@ -46,6 +46,16 @@ export default function App() {
     }
   }
 
+  const continueTask = async (prompt: string) => {
+    if (!activeTaskId) return
+    setCreating(true)
+    try {
+      await sendFollowUp(activeTaskId, prompt)
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
       <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => setActiveTaskId(null)} onSelectTask={setActiveTaskId} /></motion.div>}</AnimatePresence>
@@ -77,7 +87,7 @@ export default function App() {
                     {error && <div className="stream-warning">{error}</div>}
                     <TaskTimeline task={snapshot} events={snapshot.events} />
                     <TaskPlan plan={snapshot.plan} />
-                    <PromptComposer compact busy={creating} onSubmit={startTask} />
+                    <PromptComposer compact busy={creating || snapshot.status === 'running' || snapshot.status === 'pending'} onSubmit={(prompt) => continueTask(prompt)} />
                   </div>
                   <div className="workspace-pane"><Workspace task={snapshot} /></div>
                 </>

@@ -37,6 +37,56 @@ const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'remote']).default('demo'),
 })
+const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
+
+const adapterFor = (provider: 'demo' | 'claude_sdk' | 'remote'): RuntimeAdapter => provider === 'remote'
+  ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN)
+  : provider === 'claude_sdk'
+    ? new ClaudeSdkRuntimeAdapter()
+    : new DemoRuntimeAdapter()
+
+const executeTask = (taskId: string, prompt: string, continuation: boolean) => {
+  const task = store.getTask(taskId)
+  const controller = new AbortController()
+  activeRuns.set(taskId, controller)
+  const adapter = adapterFor(task.provider)
+  const run = async () => {
+    if (task.provider === 'remote' && ONECOMPUTER_API_URL && ONECOMPUTER_SERVICE_TOKEN) {
+      const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL, serviceToken: ONECOMPUTER_SERVICE_TOKEN })
+      const sandbox = await client.createSandbox(`onevibe-${task.id.slice(-8)}`)
+      await store.updateTask(task.id, {
+        securityContext: { mode: 'onecomputer', sandboxId: sandbox.id, provider: sandbox.provider, gatewayEnforced: true },
+      })
+      await store.appendEvent(task.id, {
+        type: 'activity_delta', lane: 'control', label: 'ONEComputer sandbox provisioned',
+        content: 'The remote runtime is attached to an authenticated ONEComputer sandbox contract.',
+        payload: { sandboxId: sandbox.id, provider: sandbox.provider, state: sandbox.state, gatewayEnforced: true },
+      })
+    } else if (!task.securityContext) {
+      await store.updateTask(task.id, { securityContext: { mode: 'local_demo', gatewayEnforced: false } })
+    }
+    await store.appendEvent(task.id, {
+      type: 'user_message', lane: 'transcript', content: prompt,
+      payload: { continuation },
+    })
+    await adapter.run({ task: store.getTask(task.id), store, signal: controller.signal, prompt, continuation })
+  }
+  run().catch(async (error: unknown) => {
+    if (controller.signal.aborted) {
+      await store.appendEvent(task.id, {
+        type: 'run_cancelled', lane: 'control', status: 'cancelled', label: 'Task cancelled',
+        content: 'Execution was stopped by the user. Existing workspace files and evidence were retained.', payload: {},
+      })
+      await store.updateTask(task.id, { status: 'cancelled' })
+      return
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    await store.appendEvent(task.id, {
+      type: 'run_failed', lane: 'control', status: 'failed', label: 'Task failed', content: message, payload: {},
+    })
+    await store.updateTask(task.id, { status: 'failed' })
+  }).finally(() => activeRuns.delete(task.id))
+}
 
 const route = async (request: IncomingMessage, response: ServerResponse) => {
   const url = new URL(request.url ?? '/', `http://${request.headers.host ?? `${HOST}:${PORT}`}`)
@@ -60,49 +110,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       return json(response, 409, { error: 'Remote runtime is not configured. Set ONEVIBE_RUNTIME_URL.' })
     }
     const task = await store.createTask(input.prompt, input.provider)
-    const controller = new AbortController()
-    activeRuns.set(task.id, controller)
-    const adapter: RuntimeAdapter = input.provider === 'remote'
-      ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN)
-      : input.provider === 'claude_sdk'
-        ? new ClaudeSdkRuntimeAdapter()
-        : new DemoRuntimeAdapter()
-    setTimeout(() => {
-      const run = async () => {
-        if (input.provider === 'remote' && ONECOMPUTER_API_URL && ONECOMPUTER_SERVICE_TOKEN) {
-          const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL, serviceToken: ONECOMPUTER_SERVICE_TOKEN })
-          const sandbox = await client.createSandbox(`onevibe-${task.id.slice(-8)}`)
-          await store.updateTask(task.id, {
-            securityContext: { mode: 'onecomputer', sandboxId: sandbox.id, provider: sandbox.provider, gatewayEnforced: true },
-          })
-          await store.appendEvent(task.id, {
-            type: 'activity_delta', lane: 'control', label: 'ONEComputer sandbox provisioned',
-            content: 'The remote runtime is attached to an authenticated ONEComputer sandbox contract.',
-            payload: { sandboxId: sandbox.id, provider: sandbox.provider, state: sandbox.state, gatewayEnforced: true },
-          })
-        } else {
-          await store.updateTask(task.id, {
-            securityContext: { mode: 'local_demo', gatewayEnforced: false },
-          })
-        }
-        await adapter.run({ task: store.getTask(task.id), store, signal: controller.signal })
-      }
-      run().catch(async (error: unknown) => {
-        if (controller.signal.aborted) {
-          await store.appendEvent(task.id, {
-            type: 'run_cancelled', lane: 'control', status: 'cancelled', label: 'Task cancelled',
-            content: 'Execution was stopped by the user. Existing workspace files and evidence were retained.', payload: {},
-          })
-          await store.updateTask(task.id, { status: 'cancelled' })
-          return
-        }
-        const message = error instanceof Error ? error.message : String(error)
-        await store.appendEvent(task.id, {
-          type: 'run_failed', lane: 'control', status: 'failed', label: 'Task failed', content: message, payload: {},
-        })
-        await store.updateTask(task.id, { status: 'failed' })
-      }).finally(() => activeRuns.delete(task.id))
-    }, 25)
+    setTimeout(() => executeTask(task.id, input.prompt, false), 25)
     return json(response, 201, task)
   }
 
@@ -120,6 +128,19 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       if (!controller) return json(response, 409, { error: 'Task execution is not active' })
       controller.abort()
       return json(response, 202, { status: 'cancelling' })
+    }
+    if (request.method === 'POST' && segments[3] === 'messages') {
+      const input = followUpInput.parse(await readBody(request))
+      const task = store.getTask(taskId)
+      if (activeRuns.has(taskId) || task.status === 'running' || task.status === 'pending') {
+        return json(response, 409, { error: 'Wait for the current turn to finish or stop it first' })
+      }
+      if (task.provider === 'remote' && !REMOTE_RUNTIME_URL) {
+        return json(response, 409, { error: 'Remote runtime is not configured' })
+      }
+      await store.updateTask(taskId, { status: 'pending' })
+      setTimeout(() => executeTask(taskId, input.prompt, true), 25)
+      return json(response, 202, { status: 'queued', taskId })
     }
     if (request.method === 'GET' && segments[3] === 'events') {
       response.writeHead(200, {

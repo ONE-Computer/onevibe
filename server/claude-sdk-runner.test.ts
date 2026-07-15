@@ -4,16 +4,20 @@ import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 type QueryInput = {
+  prompt: string
   options: {
     cwd: string
+    resume?: string
     canUseTool: (name: string, input: Record<string, unknown>) => Promise<{ behavior: string }>
   }
 }
 
 const permissionChecks: string[] = []
+const queryCalls: QueryInput[] = []
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: async function* ({ options }: QueryInput) {
+  query: async function* ({ prompt, options }: QueryInput) {
+    queryCalls.push({ prompt, options })
     permissionChecks.push((await options.canUseTool('Write', { file_path: 'index.html' })).behavior)
     permissionChecks.push((await options.canUseTool('Bash', { command: 'curl example.com' })).behavior)
     permissionChecks.push((await options.canUseTool('Read', { file_path: '../../private' })).behavior)
@@ -38,6 +42,7 @@ const temporaryRoots: string[] = []
 
 afterEach(async () => {
   permissionChecks.splice(0)
+  queryCalls.splice(0)
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
@@ -51,7 +56,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     await store.initialize()
     const task = await store.createTask('Build a governed website', 'claude_sdk')
 
-    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal })
+    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false })
 
     const events = store.listEvents(task.id)
     expect(permissionChecks).toEqual(['allow', 'deny', 'deny'])
@@ -62,5 +67,21 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(JSON.stringify(events)).not.toContain('must-not-leak')
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-test')
     expect(store.verifyChain(task.id)).toBe(true)
+  })
+
+  it('resumes the retained Claude session for a follow-up turn', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-claude-resume-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { ClaudeSdkRuntimeAdapter } = await import('./claude-sdk-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Build the first version', 'claude_sdk')
+    await store.updateTask(task.id, { securityContext: { mode: 'local_demo', gatewayEnforced: false, runtimeSessionId: 'session-existing' } })
+
+    await new ClaudeSdkRuntimeAdapter().run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Now add a pricing section', continuation: true })
+
+    expect(queryCalls[0]?.options.resume).toBe('session-existing')
+    expect(queryCalls[0]?.prompt).toBe('Now add a pricing section')
   })
 })

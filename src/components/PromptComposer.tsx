@@ -33,10 +33,10 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
           <button title="Connect context"><Link2 size={16} /></button>
           <span className="composer-divider" />
           <button className="mode-button"><Monitor size={15} /> My computer <ChevronDown size={13} /></button>
-          <button className="mode-button" onClick={() => setProvider(providers[(providers.indexOf(provider) + 1) % providers.length] ?? 'demo')}>
+          {!compact && <button className="mode-button" onClick={() => setProvider(providers[(providers.indexOf(provider) + 1) % providers.length] ?? 'demo')}>
             {provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}
             {provider === 'demo' ? 'Safe demo' : provider === 'claude_sdk' ? 'Claude SDK' : 'AgentCore'} <ChevronDown size={13} />
-          </button>
+          </button>}
         </div>
         <div className="composer-right">
           <span className="policy-chip"><ShieldCheck size={13} /> governed</span>

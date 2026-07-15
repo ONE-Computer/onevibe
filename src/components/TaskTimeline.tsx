@@ -20,13 +20,14 @@ export const TaskTimeline = ({ task, events }: Props) => {
   const operational = events.filter((event) => event.lane !== 'transcript' && event.lane !== 'approval')
   return (
     <div className="timeline">
-      <div className="prompt-bubble"><span>You</span><p>{task.prompt}</p></div>
       <AnimatePresence initial={false}>
-        {transcript.filter((event) => event.type === 'assistant_text_delta').map((event) => (
+        {(transcript.length ? transcript : [{ id: 'legacy-prompt', type: 'user_message', content: task.prompt }]).map((event) => event.type === 'user_message' ? (
+          <motion.div key={event.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="prompt-bubble"><span>You</span><p>{event.content}</p></motion.div>
+        ) : event.type === 'assistant_text_delta' ? (
           <motion.div key={event.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="assistant-message">
             <div className="assistant-orb">O</div><div><strong>ONEVibe</strong><p>{event.content}</p></div>
           </motion.div>
-        ))}
+        ) : null)}
       </AnimatePresence>
       <div className="activity-group">
         <AnimatePresence initial={false}>

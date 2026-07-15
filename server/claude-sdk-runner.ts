@@ -39,7 +39,7 @@ const titleFor = (message: SDKMessage) => {
 export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'claude_sdk'
 
-  async run({ task, store, signal }: RuntimeContext) {
+  async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
     signal.throwIfAborted()
     const workspace = store.workspacePath(task.id)
     const runtimeState = store.runtimeStatePath(task.id)
@@ -75,7 +75,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     let persistedSessionId = task.securityContext?.runtimeSessionId
     let terminal: { success: boolean; content?: string; nativeMessage: Record<string, unknown> } | undefined
     for await (const message of query({
-      prompt: task.prompt,
+      prompt,
       options: {
         abortController,
         cwd: workspace,
@@ -100,6 +100,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         maxTurns: Number(process.env.ONEVIBE_CLAUDE_MAX_TURNS ?? 24),
         maxBudgetUsd: Number(process.env.ONEVIBE_CLAUDE_MAX_BUDGET_USD ?? 5),
         persistSession: true,
+        ...(continuation && task.securityContext?.runtimeSessionId ? { resume: task.securityContext.runtimeSessionId } : {}),
         env: {
           ...process.env,
           CLAUDE_CONFIG_DIR: runtimeState,

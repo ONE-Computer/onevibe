@@ -16,3 +16,4 @@
 - Added a native Claude Agent SDK execution path with host-workspace confinement, explicit tool allowlisting, out-of-workspace denial, separate runtime state, sanitized native event retention, and resumable session identity.
 - Added an offline SDK contract test proving tool denials, secret redaction, artifact discovery, terminal-event ordering, and evidence-chain validity without making a model request.
 - Added user cancellation across local demo, native Claude SDK, and remote SSE execution. Cancellation is server-owned, preserves partial files, and records a terminal `run_cancelled` evidence event.
+- Added multi-turn task continuation. Follow-up messages remain in the same evidence chain and workspace; native Claude turns resume the retained SDK session instead of starting a disconnected conversation.

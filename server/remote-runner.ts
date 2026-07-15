@@ -48,7 +48,7 @@ export class RemoteRuntimeAdapter implements RuntimeAdapter {
 
   constructor(private readonly endpoint: string, private readonly bearerToken?: string) {}
 
-  async run({ task, store, signal }: RuntimeContext) {
+  async run({ task, store, signal, prompt }: RuntimeContext) {
     signal.throwIfAborted()
     await store.updateTask(task.id, { status: 'running' })
     const response = await fetch(this.endpoint, {
@@ -60,7 +60,7 @@ export class RemoteRuntimeAdapter implements RuntimeAdapter {
       },
       body: JSON.stringify({
         provider: 'claude_agentcore',
-        prompt: task.prompt,
+        prompt,
         userId: 'local-onevibe-user',
         projectId: 'onevibe-local',
         runId: task.id,

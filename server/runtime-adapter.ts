@@ -5,6 +5,8 @@ export type RuntimeContext = {
   task: Task
   store: TaskStore
   signal: AbortSignal
+  prompt: string
+  continuation: boolean
 }
 
 export interface RuntimeAdapter {

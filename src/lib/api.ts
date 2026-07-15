@@ -28,3 +28,10 @@ export const getEvidence = async (taskId: string) =>
 
 export const cancelTask = async (taskId: string) =>
   parse<{ status: string }>(await fetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' }))
+
+export const sendFollowUp = async (taskId: string, prompt: string) =>
+  parse<{ status: string; taskId: string }>(await fetch(`/api/tasks/${taskId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  }))

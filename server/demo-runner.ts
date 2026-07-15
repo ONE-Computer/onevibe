@@ -33,7 +33,7 @@ const previewHtml = (title: string) => `<!doctype html>
 export class DemoRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'demo'
 
-  async run({ task, store, signal }: RuntimeContext) {
+  async run({ task, store, signal, prompt }: RuntimeContext) {
     signal.throwIfAborted()
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
@@ -41,10 +41,6 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
       content: 'Local demo runtime started. This proves UX and event contracts, not VM isolation.',
       payload: { executionRoute: 'local_demo', securityBoundary: 'path_confined_process' },
     })
-    await store.appendEvent(task.id, {
-      type: 'user_message', lane: 'transcript', content: task.prompt, payload: {},
-    })
-
     await store.setPlanStep(task.id, 'scope', 'running')
     await pause(320, signal)
     await store.appendEvent(task.id, {
@@ -71,7 +67,7 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
     })
     await pause(500, signal)
     await store.writeWorkspaceFile(task.id, 'index.html', previewHtml(task.title))
-    await store.writeWorkspaceFile(task.id, 'manifest.json', `${JSON.stringify({ name: task.title, generatedBy: 'onevibe-demo', sourcePrompt: task.prompt, public: false }, null, 2)}\n`)
+    await store.writeWorkspaceFile(task.id, 'manifest.json', `${JSON.stringify({ name: task.title, generatedBy: 'onevibe-demo', sourcePrompt: task.prompt, latestInstruction: prompt, public: false }, null, 2)}\n`)
     await store.appendEvent(task.id, {
       type: 'tool_call_completed', lane: 'activity', label: 'Source files written',
       content: 'Three files are available in the task workspace.', payload: { toolName: 'workspace.write', result: 'success' },
