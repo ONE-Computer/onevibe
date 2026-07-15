@@ -71,6 +71,16 @@ export const governedClaudeTools = (browserAutomation: boolean) => [
 
 export const isGovernedBrowserTool = (name: string) => (GOVERNED_BROWSER_TOOLS as readonly string[]).includes(name)
 
+export const sandboxBuildValidationCommand = (workspace: string) => [
+  'set +e',
+  `cd ${shellQuote(`${workspace}/app`)}`,
+  'if test -f package-lock.json; then npm ci --ignore-scripts --no-audit --no-fund; else npm install --ignore-scripts --no-audit --no-fund; fi',
+  'install_code=$?',
+  'if test "$install_code" -eq 0; then npm run build; build_code=$?; else build_code=125; fi',
+  'printf "install:%s build:%s\\n" "$install_code" "$build_code"',
+  'exit "$build_code"',
+].join('\n')
+
 export const parseClaudeStreamJournal = (raw: string) => {
   const entries: ClaudeJournalEntry[] = []
   let result: string | undefined
@@ -432,6 +442,42 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
               ? `The sandbox used ${agentTools.map((tool) => tool.replace('mcp__playwright__', '')).join(', ')}; related X11 checkpoints remain in task evidence.`
               : 'Browser capability was enabled, but no allowlisted browser tool or generated-artifact review appeared in the bounded execution. Treat browser validation as incomplete.',
           payload: { sandboxId: sandbox.id, browserAutomation: true, observed, agentTools, generatedArtifactPreview },
+        })
+      }
+      const sandboxBuildValidationEnabled = this.options.gatewayEnforced && process.env.ONEVIBE_SANDBOX_BUILD_VALIDATION === 'true'
+      const hasBuildableProject = ['website', 'app', 'game'].includes(task.mode) && paths.includes('app/package.json')
+      if (sandboxBuildValidationEnabled && hasBuildableProject) {
+        await store.appendEvent(task.id, {
+          type: 'tool_call_started', lane: 'activity', label: 'Sandbox dependency and build validation',
+          content: 'Installing project dependencies with lifecycle scripts disabled, then running the generated build inside the gateway-attested sandbox.',
+          payload: { executionRoute: 'onecomputer_sandbox', sandboxId: sandbox.id, toolName: 'onecomputer.sandbox.build_validate', input: { packageManager: 'npm', lifecycleScripts: 'disabled' } },
+        })
+        const startedAt = Date.now()
+        const buildResult = await this.client.exec(sandbox.id, sandboxBuildValidationCommand(workspace), signal)
+        const durationMs = Date.now() - startedAt
+        const passed = buildResult.exitCode === 0
+        const reportPath = 'sandbox-build-report.json'
+        await store.writeWorkspaceFile(task.id, reportPath, `${JSON.stringify({
+          version: 1,
+          mode: task.mode,
+          checkedAt: new Date().toISOString(),
+          execution: 'onecomputer_sandbox',
+          gatewayEnforced: true,
+          lifecycleScripts: 'disabled_during_install',
+          passed,
+          exitCode: buildResult.exitCode,
+          durationMs,
+          outputBytes: Buffer.byteLength(buildResult.output),
+          limitation: 'This records a build attempted inside the disposable sandbox. It does not prove dependency provenance, browser behavior, deployment safety, or production policy compliance.',
+        }, null, 2)}\n`)
+        await store.appendEvent(task.id, {
+          type: 'tool_call_completed', lane: 'activity', label: passed ? 'Sandbox build validation passed' : 'Sandbox build validation needs review',
+          content: passed ? 'Dependency installation and the generated build completed inside the gateway-attested sandbox.' : 'The generated build did not complete inside the sandbox; inspect sandbox-build-report.json and the bounded sandbox evidence before handoff.',
+          payload: { executionRoute: 'onecomputer_sandbox', sandboxId: sandbox.id, toolName: 'onecomputer.sandbox.build_validate', passed, exitCode: buildResult.exitCode, durationMs, outputBytes: Buffer.byteLength(buildResult.output) },
+        })
+        await store.appendEvent(task.id, {
+          type: 'artifact_created', lane: 'artifact', label: passed ? 'Sandbox build report passed' : 'Sandbox build report needs review', content: reportPath,
+          payload: { executionRoute: 'onecomputer_sandbox', kind: 'sandbox_build_report', passed, sandboxId: sandbox.id },
         })
       }
       await store.setPlanStep(task.id, 'build', 'completed')

@@ -18,6 +18,16 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(isGovernedBrowserTool('mcp__playwright__browser_evaluate')).toBe(false)
   })
 
+  it('builds generated projects only in the sandbox and disables install lifecycle scripts', async () => {
+    const { sandboxBuildValidationCommand } = await import('./onecomputer-sandbox-runner.js')
+    const command = sandboxBuildValidationCommand('/tmp/onevibe/task-safe')
+    expect(command).toContain("cd '/tmp/onevibe/task-safe/app'")
+    expect(command).toContain('npm ci --ignore-scripts --no-audit --no-fund')
+    expect(command).toContain('npm install --ignore-scripts --no-audit --no-fund')
+    expect(command).toContain('npm run build')
+    expect(command).not.toContain('npm install --no-audit --no-fund')
+  })
+
   it('projects a bounded, redacted Claude stream journal into timeline events', async () => {
     const { parseClaudeStreamJournal } = await import('./onecomputer-sandbox-runner.js')
     const journal = [
