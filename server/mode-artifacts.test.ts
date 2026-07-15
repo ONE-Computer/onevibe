@@ -101,6 +101,9 @@ describe('mode artifacts', () => {
     await writeModeArtifacts(dashboard, store)
     expect(await store.readWorkspaceFile(dashboard.id, 'app/src/App.tsx')).toContain('Focus review queue')
     expect(await store.readWorkspaceFile(dashboard.id, 'index.html')).toContain('Generated operations preview')
+    const journey = await store.createTask('Prototype an internal workflow', 'demo', 'app')
+    await writeModeArtifacts(journey, store)
+    expect(await store.readWorkspaceFile(journey.id, 'app/src/App.tsx')).toContain('GOVERNED ROLE JOURNEY')
   })
 
   it('generates a playable interaction loop for game mode', async () => {
