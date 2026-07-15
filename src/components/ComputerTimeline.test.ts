@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { terminalActivityFor } from './computer-timeline-activity'
+import { causalVisualItemsFor, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -25,5 +25,15 @@ describe('Computer timeline terminal inspection', () => {
 
     expect(activity.output).toBe('Permission denied')
     expect(activity.failed).toBe(true)
+  })
+
+  it('only links screenshot evidence whose causal event is the selected tool call', () => {
+    const items: ComputerItem[] = [
+      { id: 'frame-one', kind: 'screenshot', title: 'X11 frame', createdAt: '2026-07-16T00:00:00.000Z', payload: { causedByEventId: 'event-start' } },
+      { id: 'frame-two', kind: 'screenshot', title: 'X11 frame', createdAt: '2026-07-16T00:00:01.000Z', payload: { causedByEventId: 'different-event' } },
+      { id: 'terminal', kind: 'terminal', title: 'Read', createdAt: '2026-07-16T00:00:02.000Z' },
+    ]
+
+    expect(causalVisualItemsFor('event-start', items).map((item) => item.id)).toEqual(['frame-one'])
   })
 })

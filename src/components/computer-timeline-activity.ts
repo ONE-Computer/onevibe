@@ -41,3 +41,5 @@ export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) 
   const failed = item.payload?.isError === true || paired?.payload.isError === true
   return { request, output, failed, toolUseId }
 }
+
+export const causalVisualItemsFor = (eventId: string, items: ComputerItem[]) => items.filter((item) => item.kind === 'screenshot' && item.payload?.causedByEventId === eventId)
