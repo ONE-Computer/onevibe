@@ -270,6 +270,22 @@ describe('TaskStore', () => {
     await expect(store.projectContextFiles(project.id)).resolves.toEqual([])
   })
 
+  it('edits text-like project knowledge with an optimistic content hash', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-project-knowledge-edit-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const project = await store.createProject('Launch')
+    const withKnowledge = await store.addProjectFile(project.id, { name: 'brief.md', mimeType: 'text/markdown', bytes: Buffer.from('First brief') })
+    const initial = await store.readProjectFile(project.id, withKnowledge.files[0].path)
+    const saved = await store.updateProjectFile(project.id, initial.path, 'Updated brief', initial.contentHash)
+
+    expect(saved.project.files[0]?.size).toBe(Buffer.byteLength('Updated brief'))
+    await expect(store.projectContextFiles(project.id)).resolves.toEqual([expect.stringContaining('Updated brief')])
+    await expect(store.updateProjectFile(project.id, initial.path, 'Lost edit', initial.contentHash)).rejects.toThrow('reload before saving')
+  })
+
   it('persists website references with task context', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-references-'))
     temporaryRoots.push(root)

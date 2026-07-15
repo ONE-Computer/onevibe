@@ -28,6 +28,10 @@ export const addProjectFile = async (projectId: string, file: Pick<TaskAttachmen
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(file),
 }))
 export const removeProjectFile = async (projectId: string, filePath: string) => parse<Project>(await fetch(`/api/projects/${projectId}/files?path=${encodeURIComponent(filePath)}`, { method: 'DELETE' }))
+export const getProjectFile = async (projectId: string, filePath: string) => parse<{ path: string; content: string; contentHash: string }>(await fetch(`/api/projects/${projectId}/files?path=${encodeURIComponent(filePath)}`))
+export const updateProjectFile = async (projectId: string, filePath: string, content: string, expectedHash: string) => parse<{ project: Project; path: string; content: string; contentHash: string }>(await fetch(`/api/projects/${projectId}/files?path=${encodeURIComponent(filePath)}`, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, expectedHash }),
+}))
 export const listSchedules = async () => parse<{ schedules: TaskSchedule[] }>(await fetch('/api/schedules'))
 export const createSchedule = async (input: Pick<TaskSchedule, 'name' | 'prompt' | 'provider' | 'mode' | 'projectId' | 'intervalMinutes'>) => parse<TaskSchedule>(await fetch('/api/schedules', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),

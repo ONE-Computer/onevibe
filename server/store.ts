@@ -250,6 +250,33 @@ export class TaskStore {
     return updated
   }
 
+  async readProjectFile(projectId: string, filePath: string) {
+    const project = this.getProject(projectId)
+    const file = project.files.find((candidate) => candidate.path === filePath)
+    if (!file) throw new Error('Project knowledge file not found')
+    if (!/^(?:text\/|application\/(?:json|yaml|xml))/.test(file.mimeType) && !/\.(?:md|txt|json|ya?ml|csv|xml)$/i.test(file.name)) throw new Error('Only text-like project knowledge files can be edited')
+    const root = path.join(this.projectsRoot, projectId)
+    const target = path.join(root, file.path)
+    assertWithin(root, target)
+    const content = await readFile(target, 'utf8')
+    return { path: file.path, content, contentHash: createHash('sha256').update(content).digest('hex') }
+  }
+
+  async updateProjectFile(projectId: string, filePath: string, content: string, expectedHash: string) {
+    const current = await this.readProjectFile(projectId, filePath)
+    if (current.contentHash !== expectedHash) throw new Error('Project knowledge changed; reload before saving')
+    const project = this.getProject(projectId)
+    const root = path.join(this.projectsRoot, projectId)
+    const target = path.join(root, filePath)
+    assertWithin(root, target)
+    await writeFile(target, content, 'utf8')
+    const updatedAt = new Date().toISOString()
+    const updated = { ...project, files: project.files.map((file) => file.path === filePath ? { ...file, size: Buffer.byteLength(content), createdAt: file.createdAt } : file), updatedAt }
+    this.projects.set(projectId, updated)
+    await this.persistProjects()
+    return { project: updated, path: filePath, content, contentHash: createHash('sha256').update(content).digest('hex') }
+  }
+
   async projectContextFiles(projectId: string) {
     const project = this.getProject(projectId)
     const chunks: string[] = []

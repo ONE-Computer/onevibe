@@ -230,6 +230,17 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (!bytes.length || bytes.byteLength > 256 * 1024) throw new Error('Each project knowledge file must be between 1 byte and 256 KiB')
     return json(response, 201, await store.addProjectFile(segments[2], { name: input.name, mimeType: input.mimeType || 'application/octet-stream', bytes }))
   }
+  if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files') {
+    const filePath = url.searchParams.get('path')
+    if (!filePath) throw new Error('Project knowledge file path is required')
+    return json(response, 200, await store.readProjectFile(segments[2], filePath))
+  }
+  if (request.method === 'PUT' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files') {
+    const filePath = url.searchParams.get('path')
+    if (!filePath) throw new Error('Project knowledge file path is required')
+    const input = editFileInput.parse(await readBody(request))
+    return json(response, 200, await store.updateProjectFile(segments[2], filePath, input.content, input.expectedHash))
+  }
   if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files') {
     const filePath = url.searchParams.get('path')
     if (!filePath) throw new Error('Project knowledge file path is required')
