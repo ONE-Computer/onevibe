@@ -109,6 +109,18 @@ export class TaskStore {
     return task
   }
 
+  findTaskByApproval(approvalId: string) {
+    const task = [...this.tasks.values()].find((candidate) => candidate.approval?.id === approvalId)
+    if (!task) throw new Error('Approval not found')
+    return task
+  }
+
+  findTaskByShare(shareId: string) {
+    const task = [...this.tasks.values()].find((candidate) => candidate.share?.id === shareId)
+    if (!task) throw new Error('Share not found')
+    return task
+  }
+
   async updateTask(id: string, patch: Partial<Task>) {
     const current = this.getTask(id)
     const updated = { ...current, ...patch, id: current.id, updatedAt: new Date().toISOString() }

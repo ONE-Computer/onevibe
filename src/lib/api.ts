@@ -54,3 +54,9 @@ export const answerInput = async (taskId: string, inputRequestId: string, answer
   parse<{ status: string }>(await fetch(`/api/tasks/${taskId}/inputs/${inputRequestId}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answer }),
   }))
+
+export const requestShare = async (taskId: string) =>
+  parse<{ approval?: Task['approval']; share?: NonNullable<Task['share']>; url?: string }>(await fetch(`/api/tasks/${taskId}/share`, { method: 'POST' }))
+
+export const getSharedArtifact = async (shareId: string) =>
+  parse<{ id: string; title: string; mode: TaskMode; createdAt: string }>(await fetch(`/api/shares/${shareId}`))

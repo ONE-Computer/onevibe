@@ -91,6 +91,7 @@ export type Task = {
     state: 'pending' | 'approved' | 'denied' | 'expired'
     walletUrl: string
     expiresAt: string
+    receipt?: { decision: 'approved' | 'denied'; signer: string; decidedAt: string; signature: string }
   }
   inputRequest?: {
     id: string
@@ -98,6 +99,7 @@ export type Task = {
     options: string[]
     createdAt: string
   }
+  share?: { id: string; createdAt: string; approvalId: string }
 }
 
 export type TaskSnapshot = Task & {

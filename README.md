@@ -11,6 +11,7 @@ The first vertical slice already supports:
 - mode-specific Website, Slides, Research, Design, App, and Game workflows, including native PPTX generation;
 - embedded source editing with diff review, optimistic concurrency, version snapshot, and evidence recording;
 - first-class waiting-for-user requests that resume the parked Claude tool call or demo execution;
+- externally approved, capability-based read-only sharing with signed local wallet receipts;
 - a typed Server-Sent Events task timeline;
 - activity, tool, artifact, approval, and control lanes;
 - a path-confined local workspace with generated files and live preview;
@@ -42,11 +43,22 @@ ONEVIBE_RUNTIME_BEARER_TOKEN=...
 ONEVIBE_CLAUDE_MODEL=claude-sonnet-5
 ONEVIBE_CLAUDE_MAX_TURNS=24
 ONEVIBE_CLAUDE_MAX_BUDGET_USD=5
+ONEVIBE_WALLET_TOKEN=use-a-long-random-local-wallet-secret
 ONECOMPUTER_API_URL=https://onecomputer.example.com
 ONECOMPUTER_SERVICE_TOKEN=...
 ```
 
 With both ONEComputer variables present, remote tasks provision through the real authenticated `POST /v1/sandboxes` route before invoking the runtime. Tokens are never serialized to task events or sent to the browser.
+
+The browser can request a share but cannot approve one. In local development, operate the separate wallet CLI from another terminal:
+
+```bash
+npm run wallet -- list
+npm run wallet -- approve <approval-id>
+npm run wallet -- deny <approval-id>
+```
+
+Set `ONEVIBE_WALLET_TOKEN` in both API and wallet CLI environments. Production replaces this local bearer/HMAC bridge with OpenVTC/VTI Wallet asymmetric proof verification.
 
 ## Security status
 

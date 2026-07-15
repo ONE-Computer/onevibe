@@ -103,7 +103,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 
 81. **I** Stateful React interactions — App-family scaffolds include a typed stateful interaction.
 82. **M** Role-journey interaction.
-83. **P** Security-approval demonstration — external request is real in the contract; resolution is not yet connected.
+83. **I** Security-approval demonstration — separate bearer-authenticated wallet CLI signs approve/deny receipts; the browser has no decision authority.
 84. **P** Sandbox-dashboard mockup — security context is visible; management interaction is incomplete.
 85. **P** Mobile-wallet mockup — deep link and approval card exist; wallet simulator/client is pending.
 86. **I** Navigation interaction.
@@ -120,7 +120,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 94. **P** Publish control — external approval is required and publication is withheld; approved deployment is pending.
 95. **M** GitHub handoff action.
 96. **I** Download-as-ZIP source handoff with evidence manifest.
-97. **P** Artifact reuse controls — follow-up editing, immutable version history/restore, provenance-linked copy, ZIP, and fullscreen work; governed sharing is pending.
+97. **I** Artifact reuse controls — follow-up editing, immutable history/restore, provenance-linked copy, wallet-approved read-only share, ZIP, and fullscreen all work.
 98. **P** Multi-format slide export — PPTX is implemented and ZIP-portable; PDF and cloud-drive destinations are pending.
 99. **P** Interactive deck viewer with notes — previous/next preview and speaker notes work; thumbnails and editable notes are pending.
 100. **M** Cross-device clients.

@@ -24,3 +24,4 @@
 - Added independent task copies with copied source, a fresh evidence chain, and a provenance pointer to the source task's terminal evidence hash.
 - Added embedded source editing with Original/Modified/Diff views. Saves require the originally-read SHA-256, reject stale writes, snapshot the workspace first, and record before/after hashes in evidence.
 - Added a server-held user-input broker and native Claude MCP input tool. Tasks enter `waiting_for_user_input`, render options/free text, resume the same execution with the answer, record both transitions, and reject the parked promise on cancellation.
+- Added governed sharing through a separately authenticated wallet API/CLI. The browser can request but cannot decide; approval creates an HMAC-signed receipt, 192-bit capability link, read-only shared shell, and evidence event.

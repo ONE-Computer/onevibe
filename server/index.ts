@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { z } from 'zod'
 import { DemoRuntimeAdapter } from './demo-runner.js'
@@ -9,6 +9,7 @@ import { RemoteRuntimeAdapter } from './remote-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
 import { UserInputBroker } from './user-input-broker.js'
+import { WalletApprovalService } from './wallet-approval-service.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -16,9 +17,11 @@ const REMOTE_RUNTIME_URL = process.env.ONEVIBE_RUNTIME_URL
 const REMOTE_RUNTIME_TOKEN = process.env.ONEVIBE_RUNTIME_BEARER_TOKEN
 const ONECOMPUTER_API_URL = process.env.ONECOMPUTER_API_URL
 const ONECOMPUTER_SERVICE_TOKEN = process.env.ONECOMPUTER_SERVICE_TOKEN
+const WALLET_TOKEN = process.env.ONEVIBE_WALLET_TOKEN
 const store = new TaskStore()
 const activeRuns = new Map<string, AbortController>()
 const inputBroker = new UserInputBroker(store)
+const walletService = WALLET_TOKEN ? new WalletApprovalService(store, WALLET_TOKEN) : undefined
 
 const json = (response: ServerResponse, status: number, value: unknown) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
@@ -45,6 +48,7 @@ const createTaskInput = z.object({
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
+const walletDecision = z.object({ decision: z.enum(['approved', 'denied']), signer: z.string().trim().min(2).max(120) })
 const textFilePattern = /\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|ya?ml|toml|xml|svg|gitignore|prettierrc)$/i
 const contentHash = (content: string) => createHash('sha256').update(content).digest('hex')
 
@@ -110,11 +114,39 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       status: 'healthy',
       runtime: REMOTE_RUNTIME_URL ? 'remote_available' : 'demo_only',
       approvalAuthority: 'external_vti_wallet',
+      walletResolutionConfigured: Boolean(walletService),
     })
   }
 
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
     return json(response, 200, { tasks: store.listTasks() })
+  }
+
+  if (segments[0] === 'api' && segments[1] === 'wallet') {
+    if (!walletService) return json(response, 503, { error: 'External wallet resolution is not configured' })
+    walletService.authorize(request.headers.authorization)
+    if (request.method === 'GET' && segments[2] === 'approvals' && segments.length === 3) {
+      return json(response, 200, { approvals: walletService.listPending() })
+    }
+    if (request.method === 'POST' && segments[2] === 'approvals' && segments[3] && segments[4] === 'decision') {
+      const input = walletDecision.parse(await readBody(request))
+      return json(response, 200, await walletService.decide(segments[3], input.decision, input.signer))
+    }
+  }
+
+  if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'shares' && segments[2]) {
+    const sharedTask = store.findTaskByShare(segments[2])
+    if (segments[3] === 'preview') {
+      const html = await store.readWorkspaceFile(sharedTask.id, 'index.html')
+      response.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-inline'; connect-src 'none'; frame-ancestors 'self'",
+        'Cache-Control': 'public, max-age=60',
+      })
+      response.end(html)
+      return
+    }
+    return json(response, 200, { id: sharedTask.share?.id, title: sharedTask.title, mode: sharedTask.mode, createdAt: sharedTask.share?.createdAt })
   }
 
   if (request.method === 'POST' && url.pathname === '/api/tasks') {
@@ -178,6 +210,22 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       })
       await store.createWorkspaceVersion(copied.id, `Copied from ${source.title}`)
       return json(response, 201, await store.snapshot(copied.id))
+    }
+    if (request.method === 'POST' && segments[3] === 'share') {
+      const task = store.getTask(taskId)
+      if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before requesting a share' })
+      if (task.share) return json(response, 200, { share: task.share, url: `/share/${task.share.id}` })
+      const approvalId = `approval_${randomUUID().replaceAll('-', '').slice(0, 12)}`
+      const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()
+      const walletUrl = `openvtc://trust-task/${approvalId}`
+      const approval = { id: approvalId, action: 'share_artifact', state: 'pending' as const, walletUrl, expiresAt }
+      await store.updateTask(taskId, { approval })
+      await store.appendEvent(taskId, {
+        type: 'approval_requested', lane: 'approval', status: 'waiting_for_approval', label: 'External share approval required',
+        content: 'A separate wallet must approve creation of a read-only share link.',
+        payload: { approvalId, action: 'share_artifact', walletUrl, expiresAt, browserCanApprove: false },
+      })
+      return json(response, 202, { approval })
     }
     if (request.method === 'GET' && segments[3] === 'events') {
       response.writeHead(200, {
@@ -282,7 +330,11 @@ await store.initialize()
 createServer((request, response) => {
   route(request, response).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)
-    const status = error instanceof z.ZodError ? 400 : message === 'Task not found' ? 404 : 500
+    const status = error instanceof z.ZodError ? 400
+      : message === 'Wallet authorization failed' ? 401
+        : /^(?:Task|Approval|Share|Input request) not found/.test(message) ? 404
+          : /(?:not pending|has expired|no longer active)/.test(message) ? 409
+            : 500
     json(response, status, { error: message })
   })
 }).listen(PORT, HOST, () => {
