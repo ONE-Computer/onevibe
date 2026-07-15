@@ -5,7 +5,8 @@ export type PresentationPanel = 'terminal' | 'screenshot' | 'preview' | 'file' |
 export type PresentationDescriptor = { panel: PresentationPanel; uri?: string; artifactPath?: string }
 
 export type ProjectFile = { name: string; path: string; size: number; mimeType: string; createdAt: string }
-export type Project = { id: string; name: string; context: string; files: ProjectFile[]; createdAt: string; updatedAt: string }
+export type ProjectFileVersion = { id: string; path: string; createdAt: string; size: number; contentHash: string }
+export type Project = { id: string; name: string; context: string; files: ProjectFile[]; fileVersions?: Record<string, ProjectFileVersion[]>; createdAt: string; updatedAt: string }
 export type TaskSchedule = { id: string; name: string; prompt: string; provider: Task['provider']; mode: TaskMode; projectId: string; intervalMinutes: number; enabled: boolean; nextRunAt: string; lastRunAt?: string; createdAt: string; updatedAt: string }
 export type EventLane = 'transcript' | 'activity' | 'control' | 'artifact' | 'approval'
 

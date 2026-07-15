@@ -41,11 +41,13 @@ export type Project = {
   name: string
   context: string
   files: ProjectFile[]
+  fileVersions?: Record<string, ProjectFileVersion[]>
   createdAt: string
   updatedAt: string
 }
 
 export type ProjectFile = { name: string; path: string; size: number; mimeType: string; createdAt: string }
+export type ProjectFileVersion = { id: string; path: string; createdAt: string; size: number; contentHash: string }
 
 export type TaskSchedule = {
   id: string

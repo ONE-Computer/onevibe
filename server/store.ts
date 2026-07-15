@@ -17,6 +17,9 @@ const writeJson = async (filePath: string, value: unknown) => {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
+const isEditableProjectFile = (file: { name: string; mimeType: string }) => /^(?:text\/|application\/(?:json|yaml|xml))/.test(file.mimeType) || /\.(?:md|txt|json|ya?ml|csv|xml)$/i.test(file.name)
+const projectVersionPath = (root: string, filePath: string, versionId: string) => path.join(root, '.history', filePath.replace(/[^a-zA-Z0-9._-]/g, '_'), `${versionId}.txt`)
+
 const panelFor = (input: EventInput): PresentationDescriptor | undefined => {
   const supplied = input.payload.presentation
   if (supplied && typeof supplied === 'object' && 'panel' in supplied) return supplied as PresentationDescriptor
@@ -149,6 +152,7 @@ export class TaskStore {
     }
     for (const [id, project] of this.projects) {
       project.files ??= []
+      project.fileVersions ??= {}
       this.projects.set(id, project)
     }
   }
@@ -244,7 +248,10 @@ export class TaskStore {
     const target = path.join(root, file.path)
     assertWithin(root, target)
     await rm(target, { force: true })
-    const updated = { ...project, files: project.files.filter((candidate) => candidate.path !== file.path), updatedAt: new Date().toISOString() }
+    await rm(path.dirname(projectVersionPath(root, file.path, 'placeholder')), { recursive: true, force: true })
+    const fileVersions = { ...(project.fileVersions ?? {}) }
+    delete fileVersions[file.path]
+    const updated = { ...project, files: project.files.filter((candidate) => candidate.path !== file.path), fileVersions, updatedAt: new Date().toISOString() }
     this.projects.set(projectId, updated)
     await this.persistProjects()
     return updated
@@ -254,7 +261,7 @@ export class TaskStore {
     const project = this.getProject(projectId)
     const file = project.files.find((candidate) => candidate.path === filePath)
     if (!file) throw new Error('Project knowledge file not found')
-    if (!/^(?:text\/|application\/(?:json|yaml|xml))/.test(file.mimeType) && !/\.(?:md|txt|json|ya?ml|csv|xml)$/i.test(file.name)) throw new Error('Only text-like project knowledge files can be edited')
+    if (!isEditableProjectFile(file)) throw new Error('Only text-like project knowledge files can be edited')
     const root = path.join(this.projectsRoot, projectId)
     const target = path.join(root, file.path)
     assertWithin(root, target)
@@ -266,15 +273,45 @@ export class TaskStore {
     const current = await this.readProjectFile(projectId, filePath)
     if (current.contentHash !== expectedHash) throw new Error('Project knowledge changed; reload before saving')
     const project = this.getProject(projectId)
+    const file = project.files.find((candidate) => candidate.path === filePath)
+    if (!file) throw new Error('Project knowledge file not found')
     const root = path.join(this.projectsRoot, projectId)
     const target = path.join(root, filePath)
     assertWithin(root, target)
+    const versionId = `rev_${randomUUID().replaceAll('-', '').slice(0, 14)}`
+    const versionTarget = projectVersionPath(root, filePath, versionId)
+    assertWithin(root, versionTarget)
+    await mkdir(path.dirname(versionTarget), { recursive: true })
+    await writeFile(versionTarget, current.content, 'utf8')
     await writeFile(target, content, 'utf8')
     const updatedAt = new Date().toISOString()
-    const updated = { ...project, files: project.files.map((file) => file.path === filePath ? { ...file, size: Buffer.byteLength(content), createdAt: file.createdAt } : file), updatedAt }
+    const version = { id: versionId, path: filePath, createdAt: updatedAt, size: Buffer.byteLength(current.content), contentHash: current.contentHash }
+    const previousVersions = project.fileVersions?.[filePath] ?? []
+    const retainedVersions = [version, ...previousVersions].slice(0, 10)
+    await Promise.all(previousVersions.slice(9).map((old) => rm(projectVersionPath(root, filePath, old.id), { force: true })))
+    const updated = { ...project, files: project.files.map((candidate) => candidate.path === filePath ? { ...candidate, size: Buffer.byteLength(content) } : candidate), fileVersions: { ...(project.fileVersions ?? {}), [filePath]: retainedVersions }, updatedAt }
     this.projects.set(projectId, updated)
     await this.persistProjects()
     return { project: updated, path: filePath, content, contentHash: createHash('sha256').update(content).digest('hex') }
+  }
+
+  listProjectFileVersions(projectId: string, filePath: string) {
+    const project = this.getProject(projectId)
+    const file = project.files.find((candidate) => candidate.path === filePath)
+    if (!file) throw new Error('Project knowledge file not found')
+    if (!isEditableProjectFile(file)) throw new Error('Only text-like project knowledge files have revisions')
+    return project.fileVersions?.[filePath] ?? []
+  }
+
+  async restoreProjectFileVersion(projectId: string, filePath: string, versionId: string, expectedHash: string) {
+    const project = this.getProject(projectId)
+    const version = this.listProjectFileVersions(projectId, filePath).find((candidate) => candidate.id === versionId)
+    if (!version) throw new Error('Project knowledge revision not found')
+    const root = path.join(this.projectsRoot, project.id)
+    const source = projectVersionPath(root, filePath, version.id)
+    assertWithin(root, source)
+    const content = await readFile(source, 'utf8')
+    return this.updateProjectFile(projectId, filePath, content, expectedHash)
   }
 
   async projectContextFiles(projectId: string) {

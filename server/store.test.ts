@@ -284,6 +284,11 @@ describe('TaskStore', () => {
     expect(saved.project.files[0]?.size).toBe(Buffer.byteLength('Updated brief'))
     await expect(store.projectContextFiles(project.id)).resolves.toEqual([expect.stringContaining('Updated brief')])
     await expect(store.updateProjectFile(project.id, initial.path, 'Lost edit', initial.contentHash)).rejects.toThrow('reload before saving')
+    const revisions = store.listProjectFileVersions(project.id, initial.path)
+    expect(revisions).toHaveLength(1)
+    const restored = await store.restoreProjectFileVersion(project.id, initial.path, revisions[0].id, saved.contentHash)
+    expect(restored.content).toBe('First brief')
+    expect(store.listProjectFileVersions(project.id, initial.path)).toHaveLength(2)
   })
 
   it('persists website references with task context', async () => {

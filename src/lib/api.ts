@@ -1,4 +1,4 @@
-import type { ChatMessage, LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { ChatMessage, LibraryItem, Project, ProjectFileVersion, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 const parse = async <T>(response: Response): Promise<T> => {
   const body = await response.json() as T & { error?: string }
@@ -31,6 +31,10 @@ export const removeProjectFile = async (projectId: string, filePath: string) => 
 export const getProjectFile = async (projectId: string, filePath: string) => parse<{ path: string; content: string; contentHash: string }>(await fetch(`/api/projects/${projectId}/files?path=${encodeURIComponent(filePath)}`))
 export const updateProjectFile = async (projectId: string, filePath: string, content: string, expectedHash: string) => parse<{ project: Project; path: string; content: string; contentHash: string }>(await fetch(`/api/projects/${projectId}/files?path=${encodeURIComponent(filePath)}`, {
   method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, expectedHash }),
+}))
+export const listProjectFileVersions = async (projectId: string, filePath: string) => parse<{ versions: ProjectFileVersion[] }>(await fetch(`/api/projects/${projectId}/files/versions?path=${encodeURIComponent(filePath)}`))
+export const restoreProjectFileVersion = async (projectId: string, filePath: string, versionId: string, expectedHash: string) => parse<{ project: Project; path: string; content: string; contentHash: string }>(await fetch(`/api/projects/${projectId}/files/versions/restore?path=${encodeURIComponent(filePath)}&version=${encodeURIComponent(versionId)}`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedHash }),
 }))
 export const listSchedules = async () => parse<{ schedules: TaskSchedule[] }>(await fetch('/api/schedules'))
 export const createSchedule = async (input: Pick<TaskSchedule, 'name' | 'prompt' | 'provider' | 'mode' | 'projectId' | 'intervalMinutes'>) => parse<TaskSchedule>(await fetch('/api/schedules', {

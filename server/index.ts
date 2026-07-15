@@ -80,6 +80,7 @@ const createScheduleInput = z.object({
 const scheduleStateInput = z.object({ enabled: z.boolean() })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000) })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
+const restoreProjectFileInput = z.object({ expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
 const walletDecision = z.object({ decision: z.enum(['approved', 'denied']), signer: z.string().trim().min(2).max(120) })
 const textFilePattern = /\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|ya?ml|toml|xml|svg|gitignore|prettierrc)$/i
@@ -224,24 +225,36 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const input = updateProjectInput.parse(await readBody(request))
     return json(response, 200, await store.updateProjectContext(segments[2], input.context))
   }
-  if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files') {
+  if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments[4] === 'versions') {
+    const filePath = url.searchParams.get('path')
+    if (!filePath) throw new Error('Project knowledge file path is required')
+    return json(response, 200, { versions: store.listProjectFileVersions(segments[2], filePath) })
+  }
+  if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments[4] === 'versions' && segments[5] === 'restore') {
+    const filePath = url.searchParams.get('path')
+    const versionId = url.searchParams.get('version')
+    if (!filePath || !versionId) throw new Error('Project knowledge file path and revision are required')
+    const input = restoreProjectFileInput.parse(await readBody(request))
+    return json(response, 200, await store.restoreProjectFileVersion(segments[2], filePath, versionId, input.expectedHash))
+  }
+  if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments.length === 4) {
     const input = projectAttachment.parse(await readBody(request, 500_000))
     const bytes = Buffer.from(input.dataBase64, 'base64')
     if (!bytes.length || bytes.byteLength > 256 * 1024) throw new Error('Each project knowledge file must be between 1 byte and 256 KiB')
     return json(response, 201, await store.addProjectFile(segments[2], { name: input.name, mimeType: input.mimeType || 'application/octet-stream', bytes }))
   }
-  if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files') {
+  if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments.length === 4) {
     const filePath = url.searchParams.get('path')
     if (!filePath) throw new Error('Project knowledge file path is required')
     return json(response, 200, await store.readProjectFile(segments[2], filePath))
   }
-  if (request.method === 'PUT' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files') {
+  if (request.method === 'PUT' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments.length === 4) {
     const filePath = url.searchParams.get('path')
     if (!filePath) throw new Error('Project knowledge file path is required')
     const input = editFileInput.parse(await readBody(request))
     return json(response, 200, await store.updateProjectFile(segments[2], filePath, input.content, input.expectedHash))
   }
-  if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files') {
+  if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments.length === 4) {
     const filePath = url.searchParams.get('path')
     if (!filePath) throw new Error('Project knowledge file path is required')
     return json(response, 200, await store.removeProjectFile(segments[2], filePath))
