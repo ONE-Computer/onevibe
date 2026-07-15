@@ -31,6 +31,12 @@ const starterTemplates: Array<{ title: string; outcome: string; prompt: string; 
   { title: 'Data decision story', outcome: 'Chart + limitations', mode: 'data', prompt: 'Create a decision-oriented data story with a concise narrative, readable charts, stated assumptions, sample data clearly labelled, and a portable CSV source.' },
 ]
 
+const slideTemplates = [
+  { title: 'Executive update', outcome: 'Decision, progress, risks', prompt: 'Create an executive update deck with the decision in view, progress to date, material risks, options, and a recommended next step.' },
+  { title: 'Product narrative', outcome: 'Problem, approach, proof', prompt: 'Create a product narrative deck that explains the user problem, proposed experience, operating model, proof points, and the next milestone.' },
+  { title: 'Decision brief', outcome: 'Options and recommendation', prompt: 'Create a concise decision brief with context, choices, trade-offs, recommendation, dependencies, and the owner needed for the next decision.' },
+] as const
+
 export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], runtime, onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
@@ -66,6 +72,7 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
         <span>Start from a shape</span>
         <div>{starterTemplates.map((template) => <button key={template.title} type="button" onClick={() => { setPrompt(template.prompt); setMode(template.mode) }}><strong>{template.title}</strong><small>{template.outcome}</small></button>)}</div>
       </motion.div>}
+      {!compact && !prompt && mode === 'slides' && <motion.div className="template-gallery slide-template-gallery" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}><span>Slide narrative</span><div>{slideTemplates.map((template) => <button key={template.title} type="button" onClick={() => setPrompt(template.prompt)}><strong>{template.title}</strong><small>{template.outcome}</small></button>)}</div></motion.div>}
       {!compact && skills.length > 0 && <div className="selected-skills" aria-label="Selected skill packs">{skills.map((skill) => <span key={skill}><Sparkles size={10} /> {skill.replaceAll('_', ' ')}</span>)}</div>}
       <textarea
         value={prompt}

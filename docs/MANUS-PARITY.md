@@ -55,7 +55,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 39. **P** SaaS template — an editable SaaS-launch Website starter is available; pricing, auth, and deployment remain pending.
 40. **P** Link-in-bio template — an editable Link-hub Website starter is available; social connectors and reusable visual packs remain pending.
 41. **P** Blog template — an editable Document-mode Blog starter is available; CMS publishing and editorial workflows remain pending.
-42. **M** Slide-template catalogue and import.
+42. **P** Slide-template catalogue — Slide mode offers editable Executive update, Product narrative, and Decision brief starters. Template import, visual template packs, and external deck ingestion remain pending.
 43. **I** Structured slide outline before rendering — persisted eight-slide `outline.json`.
 44. **I** Template-driven task bootstrapping — seven persisted modes receive distinct plans and artifact contracts.
 
