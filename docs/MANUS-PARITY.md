@@ -116,8 +116,8 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 
 ## Validation, delivery, and reuse
 
-91. **P** Production-build validation and portability — ONEVibe ZIPs source and writes a per-task static artifact-contract report; generated projects are not yet universally dependency-installed and built.
-92. **P** Accessibility-validation step — static preview semantics (language, viewport, title, primary heading) are checked; automated accessibility scans remain pending.
+91. **P** Production-build validation and portability — ONEVibe ZIPs source and writes a versioned per-task static contract report. Generated React/Vite projects now validate their portable dependency/scripts contract and output semantics, but are not yet dependency-installed or built in an attested sandbox.
+92. **P** Accessibility-validation step — static preview semantics plus generated Website landmarks, native FAQ disclosure, compact layout, reduced-motion, and keyboard-focus affordances are checked. Automated accessibility scans remain pending.
 93. **P** Live-preview delivery and agent browser validation — isolated local preview works, and an attested sandbox may surface server-proxied X11 PNG frames; automated browser review, managed HTTPS, and a deployed microVM proof are pending.
 94. **P** Publish control — external approval is required and publication is withheld; approved deployment is pending.
 95. **M** GitHub handoff action.

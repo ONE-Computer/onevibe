@@ -68,14 +68,19 @@ describe('mode artifacts', () => {
     temporaryRoots.push(root)
     const { TaskStore } = await import('./store.js')
     const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const { validateModeArtifacts } = await import('./artifact-validation.js')
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('A secure home for enterprise agents', 'demo', 'website')
     await writeModeArtifacts(task, store)
+    await store.writeWorkspaceFile(task.id, 'index.html', '<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width"><title>Website</title></head><body><h1>Website</h1></body></html>')
+    const validation = await validateModeArtifacts(task, store)
 
     expect(await store.readWorkspaceFile(task.id, 'app/src/App.tsx')).toContain('<details')
     expect(await store.readWorkspaceFile(task.id, 'app/src/App.tsx')).toContain('Workspace boundary active')
     expect(await store.readWorkspaceFile(task.id, 'app/src/styles.css')).toContain('@media(max-width:700px)')
+    expect(validation.checks.find((check) => check.id === 'website:keyboard-focus')?.status).toBe('passed')
+    expect(validation.checks.find((check) => check.id === 'website:faq-disclosure')?.status).toBe('passed')
   })
 
   it('writes an explicit static validation report without claiming runtime verification', async () => {

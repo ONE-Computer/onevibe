@@ -8,7 +8,7 @@ export type ArtifactCheck = {
 }
 
 export type ArtifactValidation = {
-  version: 1
+  version: 2
   mode: TaskMode
   checkedAt: string
   passed: boolean
@@ -73,18 +73,31 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
   }
   if (task.mode === 'website' || task.mode === 'app' || task.mode === 'game') {
     const packageJson = await required(store, task.id, 'app/package.json', checks)
-    await required(store, task.id, 'app/src/App.tsx', checks)
+    const appSource = await required(store, task.id, 'app/src/App.tsx', checks)
     await required(store, task.id, 'app/src/main.tsx', checks)
     await required(store, task.id, 'app/vite.config.ts', checks)
     await required(store, task.id, 'app/tsconfig.json', checks)
     await required(store, task.id, 'app/.gitignore', checks)
+    const styles = await required(store, task.id, 'app/src/styles.css', checks)
+    check(checks, 'app:root-landmark', /<main(?:\s|>)/.test(appSource ?? ''), 'Generated app contains a main landmark')
     try {
-      const manifest = JSON.parse(packageJson ?? '') as { scripts?: { build?: string } }
+      const manifest = JSON.parse(packageJson ?? '') as { scripts?: { build?: string; dev?: string }; dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
       check(checks, 'app:build-script', Boolean(manifest.scripts?.build), 'Portable scaffold declares a build script')
+      check(checks, 'app:dev-script', Boolean(manifest.scripts?.dev), 'Portable scaffold declares a development script')
+      check(checks, 'app:portable-vite-contract', Boolean(manifest.dependencies?.react && manifest.dependencies['react-dom'] && manifest.devDependencies?.vite && manifest.devDependencies.typescript), 'Portable scaffold declares React, Vite, and TypeScript dependencies')
     } catch { check(checks, 'app:build-script', false, 'Portable scaffold declares a build script') }
+    if (task.mode === 'website') {
+      check(checks, 'website:semantic-navigation', /<nav(?:\s|>)/.test(appSource ?? '') && /<footer(?:\s|>)/.test(appSource ?? ''), 'Website includes navigation and footer landmarks')
+      check(checks, 'website:faq-disclosure', /<details(?:\s|>)/.test(appSource ?? '') && /<summary(?:\s|>)/.test(appSource ?? ''), 'Website FAQ uses native disclosure semantics')
+      check(checks, 'website:responsive-layout', /@media\s*\(max-width:/.test(styles ?? ''), 'Website includes a compact-screen layout')
+      check(checks, 'website:reduced-motion', /prefers-reduced-motion/.test(styles ?? ''), 'Website respects reduced-motion preference')
+      check(checks, 'website:keyboard-focus', /:focus-visible/.test(styles ?? ''), 'Website supplies a visible keyboard focus treatment')
+    }
+    if (task.mode === 'app') check(checks, 'app:stateful-interaction', /useState\s*\(/.test(appSource ?? ''), 'App scaffold includes a stateful interaction')
+    if (task.mode === 'game') check(checks, 'game:playable-control', /onClick=/.test(appSource ?? '') && /catchSignal/.test(appSource ?? ''), 'Game scaffold includes an interactive control loop')
   }
   const validation: ArtifactValidation = {
-    version: 1, mode: task.mode, checkedAt: new Date().toISOString(),
+    version: 2, mode: task.mode, checkedAt: new Date().toISOString(),
     passed: checks.every((item) => item.status !== 'failed'), checks,
     limitation: 'Static contract validation only. It does not execute generated code, perform browser automation, inspect third-party dependencies, or prove production deployment safety.',
   }
