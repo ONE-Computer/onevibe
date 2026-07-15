@@ -24,7 +24,7 @@ describe('WalletApprovalService', () => {
     const wallet = new WalletApprovalService(store, token)
 
     expect(() => wallet.authorize('Bearer wrong')).toThrow('authorization failed')
-    expect(wallet.listPending()).toHaveLength(1)
+    expect(wallet.listPending()).toMatchObject([{ taskId: task.id, intent: { version: 1, taskId: task.id, action: 'share_artifact', evidenceHash, intentHash } }])
     const result = await wallet.decide('approval-test', 'approved', 'test-vti-wallet')
 
     expect(result.share?.id.length).toBeGreaterThan(20)

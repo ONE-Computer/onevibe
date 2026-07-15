@@ -14,9 +14,27 @@ export class WalletApprovalService {
   }
 
   listPending() {
-    return this.store.listTasks().filter((task) => task.approval?.state === 'pending').map((task) => ({
-      taskId: task.id, title: task.title, approval: task.approval,
-    }))
+    return this.store.listTasks().flatMap((task) => {
+      const approval = task.approval
+      if (!approval || approval.state !== 'pending') return []
+      return [{
+        taskId: task.id,
+        title: task.title,
+        approval,
+        // This is intentionally the entire wallet-facing review surface. The
+        // wallet receives no browser session, sandbox handle, raw task prompt,
+        // connector credential, or mutable workspace capability.
+        intent: approval.intentHash && approval.evidenceHash ? {
+          version: 1 as const,
+          taskId: task.id,
+          title: task.title,
+          action: approval.action,
+          expiresAt: approval.expiresAt,
+          evidenceHash: approval.evidenceHash,
+          intentHash: approval.intentHash,
+        } : undefined,
+      }]
+    })
   }
 
   async decide(approvalId: string, decision: 'approved' | 'denied', signer: string) {
