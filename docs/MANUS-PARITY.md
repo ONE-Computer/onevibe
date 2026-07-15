@@ -34,7 +34,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 23. **M** GitHub connector.
 24. **M** Gmail connector.
 25. **M** Figma import.
-26. **M** Website-reference input.
+26. **P** Website-reference input — users can attach up to eight HTTP(S) references; they are persisted, bounded, and handed to the agent as untrusted context. Governed fetching, captures, and citation extraction remain pending.
 27. **I** File-selection surface — workspace file tree and viewer.
 28. **M** Prompt safety disclaimer.
 

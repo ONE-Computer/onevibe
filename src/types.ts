@@ -35,6 +35,7 @@ export type Task = {
   mode: TaskMode
   projectId: string
   scheduleId?: string
+  references: string[]
   status: RunStatus
   plan: PlanStep[]
   createdAt: string

@@ -101,6 +101,7 @@ export class TaskStore {
         const task = JSON.parse(await readFile(path.join(this.tasksRoot, entry.name, 'task.json'), 'utf8')) as Task
         task.mode ??= 'general'
         task.projectId ??= 'project_onevibe'
+        task.references ??= []
         const eventFile = path.join(this.tasksRoot, entry.name, 'events.json')
         let storedEvents: RuntimeEvent[] = []
         try {
@@ -121,7 +122,7 @@ export class TaskStore {
     }
   }
 
-  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string): Promise<Task> {
+  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = []): Promise<Task> {
     if (!this.projects.has(projectId)) throw new Error('Project not found')
     const now = new Date().toISOString()
     const id = `task_${randomUUID().replaceAll('-', '').slice(0, 14)}`
@@ -133,6 +134,7 @@ export class TaskStore {
       mode,
       projectId,
       scheduleId,
+      references,
       status: 'pending',
       plan: planFor(mode),
       createdAt: now,

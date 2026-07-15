@@ -137,6 +137,20 @@ describe('TaskStore', () => {
     expect(reloaded.getTask(task.id).projectId).toBe(project.id)
   })
 
+  it('persists website references with task context', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-references-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Review this website', 'demo', 'website', 'project_onevibe', undefined, ['https://example.com/product'])
+
+    expect(task.references).toEqual(['https://example.com/product'])
+    const reloaded = new TaskStore(root)
+    await reloaded.initialize()
+    expect(reloaded.getTask(task.id).references).toEqual(['https://example.com/product'])
+  })
+
   it('claims due schedules once and advances their next governed run', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-schedules-'))
     temporaryRoots.push(root)

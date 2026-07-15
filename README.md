@@ -16,6 +16,7 @@ The first vertical slice already supports:
 - durable multi-turn chat history with streaming state, pagination, cross-task search, migration, and export;
 - durable project workspaces with a governed background brief that is attached server-side to each new agent run;
 - persistent schedules (15-minute minimum) that create ordinary project-bound tasks with the same evidence and approval controls;
+- up to eight user-supplied website references per task, preserved as untrusted context without server-side fetching;
 - a typed Server-Sent Events task timeline;
 - durable plan-step lifecycle timing, including elapsed duration in the task plan and evidence-backed transitions;
 - a Manus-inspired **Computer** panel that records and scrubs agent terminal activity, visual frames, previews, and produced files beside the conversation;

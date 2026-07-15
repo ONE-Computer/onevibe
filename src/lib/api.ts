@@ -8,11 +8,11 @@ const parse = async <T>(response: Response): Promise<T> => {
 
 export const listTasks = async () => parse<{ tasks: Task[] }>(await fetch('/api/tasks'))
 
-export const createTask = async (prompt: string, provider: Task['provider'], mode: TaskMode, projectId = 'project_onevibe') =>
+export const createTask = async (prompt: string, provider: Task['provider'], mode: TaskMode, projectId = 'project_onevibe', references: string[] = []) =>
   parse<Task>(await fetch('/api/tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, provider, mode, projectId }),
+    body: JSON.stringify({ prompt, provider, mode, projectId, references }),
   }))
 
 export const listProjects = async () => parse<{ projects: Project[] }>(await fetch('/api/projects'))
