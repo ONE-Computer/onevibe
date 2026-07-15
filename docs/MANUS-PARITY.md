@@ -85,10 +85,10 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 63. **P** Syntax-highlighted code viewer — line-numbered source exists; token highlighting is pending.
 64. **I** Editable code surface — embedded text editor saves with optimistic hash protection, pre-edit snapshot, and evidence event.
 65. **I** Diff mode — Original, Modified, and line-oriented Diff views are available before save.
-66. **M** Dashboard workspace tab.
+66. **I** Dashboard workspace tab — task progress, artifact, evidence, boundary, and approval summaries are available in the workspace.
 67. **M** Database workspace tab.
 68. **I** Files workspace tab.
-69. **M** Settings workspace tab.
+69. **P** Settings workspace tab — read-only task runtime, security boundary, approval, artifact-contract, and context metadata are visible; organization-wide settings and permission management remain pending.
 70. **I** Workspace expansion — fullscreen overlay with explicit exit and Escape handling.
 71. **I** Vite project generation — Website, App, and Game modes emit a portable Vite scaffold.
 72. **I** React and TypeScript generation as a mode contract.

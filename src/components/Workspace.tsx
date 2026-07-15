@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, ArrowRight, Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, Presentation, RefreshCw, Save, ShieldCheck, TerminalSquare } from 'lucide-react'
+import { Activity, ArrowLeft, ArrowRight, Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, Presentation, RefreshCw, Save, Settings2, ShieldCheck, TerminalSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
@@ -6,7 +6,7 @@ import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
 
-type Tab = 'dashboard' | 'computer' | 'preview' | 'visual' | 'slides' | 'code' | 'files' | 'history' | 'evidence'
+type Tab = 'dashboard' | 'computer' | 'preview' | 'visual' | 'slides' | 'code' | 'files' | 'history' | 'evidence' | 'settings'
 type SlideOutline = { number: number; title: string; summary: string }
 
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
@@ -95,6 +95,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><Files size={14} /> Files</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}><History size={14} /> History</button>
           <button className={tab === 'evidence' ? 'active' : ''} onClick={() => setTab('evidence')}><ShieldCheck size={14} /> Evidence</button>
+          <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}><Settings2 size={14} /> Settings</button>
         </div>
         <div className="workspace-tools"><button title="Make a provenance-linked copy" onClick={() => void copyTask(task.id).then((copy) => window.location.assign(`/tasks/${copy.id}`))}><Copy size={14} /></button><a title="Download source and evidence" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
       </header>
@@ -142,6 +143,19 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
               <div className="evidence-stats"><div><span>Ordered events</span><strong>{task.events.length}</strong></div><div><span>Security boundary</span><strong>{task.securityContext?.gatewayEnforced ? 'gateway' : 'demo'}</strong></div><div><span>External approvals</span><strong>{task.approval ? 1 : 0}</strong></div></div>
               <div className="evidence-log">{task.events.slice(-6).reverse().map((event) => <div key={event.id}><History size={13} /><span>{event.sequence.toString().padStart(2, '0')}</span><strong>{event.label ?? event.type}</strong><code>{event.eventHash.slice(0, 12)}</code></div>)}</div>
               <p className="evidence-note"><Network size={13} /> Local hashes demonstrate ordering only. Production evidence must be anchored outside the workload through OpenVTC.</p>
+            </motion.div>
+          )}
+          {tab === 'settings' && (
+            <motion.div key="settings" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="task-settings-pane">
+              <header><div><Settings2 size={17} /><div><span>Task operating settings</span><strong>Read-only runtime and context record</strong></div></div><em>Secrets never render here</em></header>
+              <div className="task-settings-grid">
+                <article><span>Runtime</span><strong>{task.provider === 'demo' ? 'Safe demo' : task.provider === 'claude_sdk' ? 'Claude Agent SDK' : task.provider === 'onecomputer' ? 'ONEComputer sandbox' : 'Remote runtime'}</strong><small>{task.securityContext?.executionBoundary?.replaceAll('_', ' ') ?? 'Awaiting run boundary'}</small></article>
+                <article><span>Security boundary</span><strong>{task.securityContext?.gatewayEnforced ? 'Gateway attested' : 'No gateway attestation'}</strong><small>{task.securityContext?.sandboxState ? `Sandbox ${task.securityContext.sandboxState}` : 'No sandbox lifecycle recorded'}</small></article>
+                <article><span>Approval authority</span><strong>{task.approval?.state ?? 'No approval pending'}</strong><small>{task.approval ? 'Decision remains outside the browser in VTI Wallet' : 'No consequential action has been requested'}</small></article>
+                <article><span>Artifact contract</span><strong>{task.mode.replaceAll('_', ' ')} mode</strong><small>Validation reports distinguish static evidence from executed runtime checks.</small></article>
+              </div>
+              <section className="task-settings-context"><header><strong>Attached governed context</strong><span>Metadata only · treated as untrusted input</span></header><div>{task.skills.length > 0 ? <article><span>Skill guides</span><p>{task.skills.map((skill) => skill.replaceAll('_', ' ')).join(' · ')}</p></article> : <article><span>Skill guides</span><p>None selected for this task.</p></article>}{task.references.length > 0 ? <article><span>Website references</span><p>{task.references.map((reference) => new URL(reference).hostname).join(' · ')}</p></article> : <article><span>Website references</span><p>None attached.</p></article>}{task.attachments.length > 0 ? <article><span>Local attachments</span><p>{task.attachments.length} bounded file{task.attachments.length === 1 ? '' : 's'} staged under task inputs.</p></article> : <article><span>Local attachments</span><p>None attached.</p></article>}<article><span>Project</span><p>{task.projectId}</p></article></div></section>
+              <p className="task-settings-note"><ShieldCheck size={13} /> Runtime credentials, wallet signing keys, X11/VNC/CDP channels, and provider control-plane access are intentionally absent from the browser.</p>
             </motion.div>
           )}
         </AnimatePresence>
