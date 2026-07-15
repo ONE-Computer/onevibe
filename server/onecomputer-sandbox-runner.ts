@@ -261,6 +261,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       let projectedEntries = 0
       let latestJournal = parseClaudeStreamJournal('')
       const browserReviewTools = new Set<string>()
+      const browserToolUseIds = new Set<string>()
       let planApplied = false
       let planExamined = false
       const projectSandboxPlan = async () => {
@@ -289,21 +290,26 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         const parsedJournal = parseClaudeStreamJournal(raw)
         for (const entry of parsedJournal.entries.slice(projectedEntries)) {
           let timelineEventId: string | undefined
+          const isBrowserToolStart = entry.kind === 'tool_started' && isGovernedBrowserTool(entry.name)
+          const isBrowserToolResult = entry.kind === 'tool_completed' && !!entry.toolUseId && browserToolUseIds.has(entry.toolUseId)
           if (entry.kind === 'tool_started') timelineEventId = (await store.appendEvent(task.id, {
-            type: 'tool_call_started', lane: 'activity', label: entry.name,
+            type: 'tool_call_started', lane: 'activity', label: isBrowserToolStart ? `Browser · ${entry.name.replace('mcp__playwright__', '')}` : entry.name,
             content: 'Claude requested a governed workspace tool inside the ONEComputer sandbox.',
-            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, input: entry.input },
+            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, input: entry.input, browserTool: isBrowserToolStart || undefined },
           })).id
-          if (entry.kind === 'tool_started' && isGovernedBrowserTool(entry.name)) browserReviewTools.add(entry.name)
+          if (isBrowserToolStart) {
+            browserReviewTools.add(entry.name)
+            if (entry.toolUseId) browserToolUseIds.add(entry.toolUseId)
+          }
           if (entry.kind === 'tool_completed') timelineEventId = (await store.appendEvent(task.id, {
-            type: 'tool_call_completed', lane: 'activity', label: 'Tool result', content: entry.content,
-            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, isError: entry.isError },
+            type: 'tool_call_completed', lane: 'activity', label: isBrowserToolResult ? 'Browser result' : 'Tool result', content: entry.content,
+            payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, isError: entry.isError, browserTool: isBrowserToolResult || undefined },
           })).id
           if (entry.kind === 'text') await store.appendEvent(task.id, {
             type: 'assistant_text_delta', lane: 'transcript', content: entry.content,
             payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, source: 'claude_stream_json' },
           })
-          if (timelineEventId) await captureVisualFrame(entry.kind, timelineEventId)
+          if (timelineEventId) await captureVisualFrame(isBrowserToolStart ? 'browser_tool_started' : isBrowserToolResult ? 'browser_tool_completed' : entry.kind, timelineEventId)
         }
         projectedEntries = parsedJournal.entries.length
         latestJournal = parsedJournal

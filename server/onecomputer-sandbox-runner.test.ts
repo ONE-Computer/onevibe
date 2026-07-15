@@ -45,8 +45,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const task = await store.createTask('Build a confidential launch page', 'onecomputer', 'website')
     const commands: string[] = []
     const streamJournal = [
-      JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Write', input: { file_path: 'index.html' } }] } }),
-      JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'Wrote index.html' }] } }),
+      JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Write', input: { file_path: 'index.html' } }, { type: 'tool_use', id: 'tool-2', name: 'mcp__playwright__browser_snapshot', input: {} }] } }),
+      JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'Wrote index.html' }, { type: 'tool_result', tool_use_id: 'tool-2', content: 'Rendered local page' }] } }),
       JSON.stringify({ type: 'result', session_id: 'session-1', result: 'Created safely.' }),
     ].join('\n')
     const sandboxPlan = JSON.stringify({ steps: [
@@ -89,13 +89,15 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(client.deleteSandbox).toHaveBeenCalledWith('sandbox-1')
     expect(store.listEvents(task.id).filter((event) => event.label === 'ONEComputer sandbox state observed').map((event) => event.payload.state)).toEqual(['creating', 'started'])
     expect(client.startVisualRuntime).toHaveBeenCalledWith('sandbox-1', expect.any(AbortSignal))
-    expect(client.getVisualScreenshot).toHaveBeenCalledTimes(5)
+    expect(client.getVisualScreenshot).toHaveBeenCalledTimes(7)
     expect((await store.listWorkspaceFiles(task.id)).some((file) => file.path.includes('evidence/visual/'))).toBe(true)
     const frames = store.listEvents(task.id).filter((event) => event.payload.kind === 'visual_frame')
-    expect(frames.map((event) => event.payload.capturePhase)).toEqual(['runtime_ready', 'before_agent', 'tool_started', 'tool_completed', 'after_agent', 'generated_artifact_review'])
+    expect(frames.map((event) => event.payload.capturePhase)).toEqual(['runtime_ready', 'before_agent', 'tool_started', 'browser_tool_started', 'tool_completed', 'browser_tool_completed', 'after_agent', 'generated_artifact_review'])
     expect(frames.slice(1).every((event) => typeof event.payload.causedByEventId === 'string')).toBe(true)
     expect(frames.filter((event) => event.payload.capturePhase !== 'generated_artifact_review').every((event) => event.payload.capturedAt === '2026-07-16T00:00:00.000Z')).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.label === 'Write' && event.payload.toolUseId === 'tool-1')).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.label === 'Browser · browser_snapshot' && event.payload.toolUseId === 'tool-2' && event.payload.browserTool === true)).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.label === 'Browser result' && event.payload.toolUseId === 'tool-2' && event.payload.browserTool === true)).toBe(true)
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-1')
     expect(store.getTask(task.id).plan[0]?.title).toBe('Frame the launch outcome')
     expect(store.listEvents(task.id).some((event) => event.label === 'Task plan refined by runtime' && event.payload.source === 'onecomputer')).toBe(true)
