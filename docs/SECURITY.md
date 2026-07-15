@@ -9,6 +9,10 @@
 - **OpenVTC/VTI Wallet:** independent approval authority and private-key custody boundary.
 - **Evidence plane:** append-only audit outside the mutable workload.
 
+## Claude Agent SDK credential boundary
+
+The Claude SDK runtime is unavailable until the **server** has an `ANTHROPIC_API_KEY`. ONEVibe exposes only a readiness boolean and a generic setup message to the browser; it never renders, stores in task evidence, or forwards the key to a workspace. In a hosted deployment, inject and rotate the credential with the platform secret manager, then restart the API process. The current adapter does not implement Anthropic Workload Identity Federation, so it must not claim federation-backed authentication.
+
 ## Local-demo controls
 
 - random server-generated task IDs;

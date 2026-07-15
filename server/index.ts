@@ -27,6 +27,9 @@ const ONECOMPUTER_RETAIN_SANDBOX = process.env.ONECOMPUTER_RETAIN_SANDBOX === 't
 const ONECOMPUTER_VISUAL_RUNTIME = process.env.ONECOMPUTER_VISUAL_RUNTIME !== 'false'
 const ONECOMPUTER_BROWSER_AUTOMATION = process.env.ONECOMPUTER_BROWSER_AUTOMATION === 'true'
 const WALLET_TOKEN = process.env.ONEVIBE_WALLET_TOKEN
+// Only this readiness boolean is sent to the browser. Credential material
+// remains server-only and is never copied into task evidence.
+const claudeConfigured = Boolean(process.env.ANTHROPIC_API_KEY)
 const store = new TaskStore()
 const activeRuns = new Map<string, AbortController>()
 const inputBroker = new UserInputBroker(store)
@@ -205,7 +208,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       oneComputerSandboxConfigured: oneComputerConfigured,
     })
   }
-  if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, runtimeReadiness({ remoteConfigured: Boolean(REMOTE_RUNTIME_URL), oneComputerConfigured }))
+  if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, runtimeReadiness({ claudeConfigured, remoteConfigured: Boolean(REMOTE_RUNTIME_URL), oneComputerConfigured }))
 
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
     return json(response, 200, { tasks: store.listTasks() })
@@ -235,6 +238,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'GET' && url.pathname === '/api/schedules') return json(response, 200, { schedules: store.listSchedules() })
   if (request.method === 'POST' && url.pathname === '/api/schedules') {
     const input = createScheduleInput.parse(await readBody(request))
+    if (input.provider === 'claude_sdk' && !claudeConfigured) return json(response, 409, { error: 'Claude SDK is not configured. Set ANTHROPIC_API_KEY in the server environment.' })
     if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) return json(response, 409, { error: 'Remote runtime is not configured' })
     if (input.provider === 'onecomputer' && !oneComputerConfigured) return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL, ONECOMPUTER_SERVICE_TOKEN, and ONECOMPUTER_PROJECT_ID when using an oc_org_ key.' })
     return json(response, 201, await store.createSchedule(input))
@@ -284,6 +288,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 
   if (request.method === 'POST' && url.pathname === '/api/tasks') {
     const input = createTaskInput.parse(await readBody(request, 1_500_000))
+    if (input.provider === 'claude_sdk' && !claudeConfigured) return json(response, 409, { error: 'Claude SDK is not configured. Set ANTHROPIC_API_KEY in the server environment.' })
     if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) {
       return json(response, 409, { error: 'Remote runtime is not configured. Set ONEVIBE_RUNTIME_URL.' })
     }
@@ -330,6 +335,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       }
       if (task.provider === 'remote' && !REMOTE_RUNTIME_URL) {
         return json(response, 409, { error: 'Remote runtime is not configured' })
+      }
+      if (task.provider === 'claude_sdk' && !claudeConfigured) {
+        return json(response, 409, { error: 'Claude SDK is not configured. Set ANTHROPIC_API_KEY in the server environment.' })
       }
       await store.updateTask(taskId, { status: 'pending' })
       setTimeout(() => executeTask(taskId, input.prompt, true), 25)
@@ -512,6 +520,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 
 await store.initialize()
 const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | 'manual') => {
+  if (schedule.provider === 'claude_sdk' && !claudeConfigured) throw new Error('Claude SDK is not configured. Set ANTHROPIC_API_KEY in the server environment.')
+  if (schedule.provider === 'remote' && !REMOTE_RUNTIME_URL) throw new Error('Remote runtime is not configured')
+  if (schedule.provider === 'onecomputer' && !oneComputerConfigured) throw new Error('ONEComputer sandbox runtime is not configured')
   const task = await store.createTask(schedule.prompt, schedule.provider, schedule.mode, schedule.projectId, schedule.id)
   await store.appendEvent(task.id, {
     type: 'activity_delta', lane: 'control', label: trigger === 'manual' ? 'Scheduled run started manually' : 'Scheduled run claimed',
