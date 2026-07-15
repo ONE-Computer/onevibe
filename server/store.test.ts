@@ -120,6 +120,20 @@ describe('TaskStore', () => {
     expect(await store.readWorkspaceFile(target.id, 'artifact.md')).toBe('changed copy')
   })
 
+  it('keeps copied work in its governed project context', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-copy-context-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const project = await store.createProject('Product diligence', 'Keep research inside this project.')
+    const source = await store.createTask('Compare products', 'demo', 'research', project.id, undefined, ['https://example.com/product'])
+    const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode, source.projectId, undefined, source.references)
+
+    expect(copied.projectId).toBe(project.id)
+    expect(copied.references).toEqual(source.references)
+  })
+
   it('persists governed project context and binds new tasks to it', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-projects-'))
     temporaryRoots.push(root)

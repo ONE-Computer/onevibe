@@ -261,7 +261,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'POST' && segments[3] === 'copy') {
       const source = store.getTask(taskId)
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before copying it' })
-      const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode)
+      const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode, source.projectId, undefined, source.references)
       const fileCount = await store.copyWorkspace(source.id, copied.id)
       const sourceHead = store.listEvents(source.id).at(-1)?.eventHash ?? 'GENESIS'
       await store.updateTask(copied.id, {
