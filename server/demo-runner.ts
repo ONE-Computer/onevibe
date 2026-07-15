@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { evaluateAction } from './policy.js'
+import { approvalIntentHash, evidenceHeadFor } from './approval-intent.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 import { writeModeArtifacts } from './mode-artifacts.js'
 import { validateModeArtifacts } from './artifact-validation.js'
@@ -119,13 +120,15 @@ export class DemoRuntimeAdapter implements RuntimeAdapter {
     const approvalId = `approval_${randomUUID().replaceAll('-', '').slice(0, 12)}`
     const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()
     const walletUrl = `openvtc://trust-task/${approvalId}`
+    const evidenceHash = evidenceHeadFor(store.listEvents(task.id))
+    const intentHash = approvalIntentHash({ approvalId, taskId: task.id, action: 'publish_preview', expiresAt, evidenceHash })
     await store.updateTask(task.id, {
-      approval: { id: approvalId, action: 'publish_preview', state: 'pending', walletUrl, expiresAt },
+      approval: { id: approvalId, action: 'publish_preview', intentHash, evidenceHash, state: 'pending', walletUrl, expiresAt },
     })
     await store.appendEvent(task.id, {
       type: 'approval_requested', lane: 'approval', status: 'waiting_for_approval',
       label: 'External approval required', content: publishDecision.reason,
-      payload: { approvalId, action: 'publish_preview', walletUrl, expiresAt, policy: publishDecision, browserCanApprove: false },
+      payload: { approvalId, action: 'publish_preview', intentHash, evidenceHash, walletUrl, expiresAt, policy: publishDecision, browserCanApprove: false },
     })
     await store.appendEvent(task.id, {
       type: 'activity_delta', lane: 'activity', label: 'Safe fallback selected',

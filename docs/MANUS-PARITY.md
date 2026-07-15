@@ -105,7 +105,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 
 81. **I** Stateful React interactions — App-family scaffolds include a typed stateful interaction.
 82. **P** Role-journey interaction — general App scaffolds include an interactive Admin, Manager, and Employee journey that distinguishes company policy, team guardrails, and bounded employee work. Persisted role policy and identity integration remain pending.
-83. **I** Security-approval demonstration — separate bearer-authenticated wallet CLI signs approve/deny receipts; the browser has no decision authority.
+83. **I** Security-approval demonstration — separate bearer-authenticated wallet CLI signs approve/deny receipts bound to a task/action/expiry/evidence-head digest; the browser has no decision authority. This local HMAC adapter is explicitly not credited as an OpenVTC asymmetric receipt.
 84. **P** Sandbox-dashboard mockup — security context and a headless visual-runtime timeline are visible; inventory and management interaction are incomplete.
 85. **P** Mobile-wallet mockup — deep link and approval card exist; wallet simulator/client is pending.
 86. **I** Navigation interaction.

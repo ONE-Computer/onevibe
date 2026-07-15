@@ -18,7 +18,7 @@
 - preview uses generated static files only;
 - ordered events include `previousHash` and `eventHash`;
 - runtime mode and non-production limitations are visible in the UI.
-- local wallet decisions produce HMAC receipts for integration testing; the wallet secret is never serialized into task state or evidence.
+- local wallet decisions produce HMAC receipts for integration testing; each pending approval is bound to a SHA-256 digest of its task, action, expiry, and current evidence head, and that digest is carried into the receipt. The wallet secret is never serialized into task state or evidence. This is still not an OpenVTC asymmetric proof.
 - ONEComputer mode executes Claude through the sandbox API, rejects unsafe artifact paths, caps extraction at 100 files/10 MiB, and deletes the sandbox by default.
 - ONEComputer-mode Claude journals remain in the disposable sandbox. ONEVibe stores only bounded projections of tool and transcript events after redacting credential-like fields; the raw `stream-json` journal is excluded from artifact extraction.
 - The managed sandbox journal is capped at 4 MiB and must write a terminal exit code. ONEVibe fails the task rather than ingesting an oversized or indeterminate journal; sandbox teardown remains the cancellation backstop.

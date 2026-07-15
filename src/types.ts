@@ -65,10 +65,12 @@ export type Task = {
   approval?: {
     id: string
     action: string
+    intentHash?: string
+    evidenceHash?: string
     state: 'pending' | 'approved' | 'denied' | 'expired'
     walletUrl: string
     expiresAt: string
-    receipt?: { decision: 'approved' | 'denied'; signer: string; decidedAt: string; signature: string }
+    receipt?: { decision: 'approved' | 'denied'; signer: string; decidedAt: string; signature: string; intentHash?: string }
   }
   inputRequest?: { id: string; prompt: string; options: string[]; createdAt: string }
   share?: { id: string; createdAt: string; approvalId: string }

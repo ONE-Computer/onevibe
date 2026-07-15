@@ -11,6 +11,7 @@ import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
 import { UserInputBroker } from './user-input-broker.js'
 import { WalletApprovalService } from './wallet-approval-service.js'
+import { approvalIntentHash, evidenceHeadFor } from './approval-intent.js'
 import { runtimeReadiness } from './runtime-readiness.js'
 import type { TaskSchedule } from './types.js'
 
@@ -372,12 +373,14 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       const approvalId = `approval_${randomUUID().replaceAll('-', '').slice(0, 12)}`
       const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()
       const walletUrl = `openvtc://trust-task/${approvalId}`
-      const approval = { id: approvalId, action: 'share_artifact', state: 'pending' as const, walletUrl, expiresAt }
+      const evidenceHash = evidenceHeadFor(store.listEvents(taskId))
+      const intentHash = approvalIntentHash({ approvalId, taskId, action: 'share_artifact', expiresAt, evidenceHash })
+      const approval = { id: approvalId, action: 'share_artifact', intentHash, evidenceHash, state: 'pending' as const, walletUrl, expiresAt }
       await store.updateTask(taskId, { approval })
       await store.appendEvent(taskId, {
         type: 'approval_requested', lane: 'approval', status: 'waiting_for_approval', label: 'External share approval required',
         content: 'A separate wallet must approve creation of a read-only share link.',
-        payload: { approvalId, action: 'share_artifact', walletUrl, expiresAt, browserCanApprove: false },
+        payload: { approvalId, action: 'share_artifact', intentHash, evidenceHash, walletUrl, expiresAt, browserCanApprove: false },
       })
       return json(response, 202, { approval })
     }
