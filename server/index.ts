@@ -530,6 +530,15 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
         response.end(bytes)
         return
       }
+      if (url.searchParams.get('excerpt') === '1') {
+        if (!textFilePattern.test(filePath) || filePath.startsWith('inputs/') || filePath.startsWith('evidence/')) return json(response, 415, { error: 'Rail previews are limited to generated text artifacts' })
+        const file = (await store.listWorkspaceFiles(taskId)).find((candidate) => candidate.path === filePath)
+        if (!file) return json(response, 404, { error: 'Artifact file was not found' })
+        if (file.size > 64 * 1024) return json(response, 413, { error: 'Artifact is too large for a rail preview' })
+        const content = await store.readWorkspaceFile(taskId, filePath)
+        const limit = 12_000
+        return json(response, 200, { path: filePath, content: content.slice(0, limit), truncated: content.length > limit })
+      }
       const content = await store.readWorkspaceFile(taskId, filePath)
       return json(response, 200, { path: filePath, content, contentHash: contentHash(content) })
     }

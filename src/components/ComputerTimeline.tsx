@@ -7,6 +7,10 @@ const iconFor = (item: ComputerItem) => item.kind === 'terminal' ? <TerminalSqua
 const RAIL_ROW_HEIGHT = 68
 const withCacheBust = (uri: string, value: number) => `${uri}${uri.includes('?') ? '&' : '?'}v=${value}`
 const isBrowserEvidence = (value: unknown): value is { tool: string; url?: string } => Boolean(value) && typeof value === 'object' && typeof (value as { tool?: unknown }).tool === 'string' && (typeof (value as { url?: unknown }).url === 'string' || (value as { url?: unknown }).url === undefined)
+const previewableArtifactPath = (item: ComputerItem | undefined) => {
+  if (!item || !['file', 'diff'].includes(item.kind) || !item.detail || item.detail.startsWith('inputs/') || item.detail.startsWith('evidence/')) return undefined
+  return /\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|ya?ml|toml|xml|svg|gitignore|prettierrc)$/i.test(item.detail) ? item.detail : undefined
+}
 
 const ArtifactRailEntry = ({ item, previousRunId, runIds, index, selected, total, events, onMove }: { item: ComputerItem; previousRunId?: string; runIds: string[]; index: number; selected: boolean; total: number; events: TaskSnapshot['events']; onMove: (index: number) => void }) => {
   const activity = item.kind === 'terminal' ? terminalActivityFor(item, events) : undefined
@@ -32,6 +36,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   const [frame, setFrame] = useState(Date.now())
   const [railScrollTop, setRailScrollTop] = useState(0)
   const [railViewportHeight, setRailViewportHeight] = useState(360)
+  const [artifactExcerpt, setArtifactExcerpt] = useState<{ path: string; content: string; truncated: boolean }>()
   const previousFilter = useRef(`${filter}:${runFilter}`)
   const restoredReplayTask = useRef<string | undefined>(undefined)
   const railScrollRef = useRef<HTMLDivElement>(null)
@@ -71,9 +76,20 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
     restoredReplayTask.current = task.id
   }, [railItems, runIds, task.id])
   const active = items[Math.min(selected, Math.max(items.length - 1, 0))]
+  const artifactPath = previewableArtifactPath(active)
   const terminalActivity = active?.kind === 'terminal' ? terminalActivityFor(active, task.events) : undefined
   const relatedVisuals = active?.kind === 'terminal' ? causalVisualItemsFor([active.id, ...(active.relatedEventIds ?? [])], allItems) : []
   const visualEvidenceState = active?.kind === 'terminal' ? visualEvidenceStateFor(active, allItems) : 'not_applicable'
+  useEffect(() => {
+    setArtifactExcerpt(undefined)
+    if (!artifactPath) return
+    const controller = new AbortController()
+    void fetch(`/api/tasks/${task.id}/file?path=${encodeURIComponent(artifactPath)}&excerpt=1`, { signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() as Promise<{ path: string; content: string; truncated: boolean }> : undefined)
+      .then((excerpt) => { if (excerpt && !controller.signal.aborted) setArtifactExcerpt(excerpt) })
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [artifactPath, task.id])
   useEffect(() => {
     if (!active?.live) return
     setFrame(Date.now())
@@ -167,7 +183,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
       {active?.kind === 'preview' && active.uri && <iframe title={active.title} sandbox="allow-scripts" src={active.uri} />}
       {active?.kind === 'slide' && <div className="computer-file"><Presentation size={28} /><strong>{active.detail ?? active.title}</strong><span>Deck evidence is preserved. Open the Files tab to download the PPTX or inspect the rendered viewer.</span></div>}
       {active?.kind === 'approval' && <div className="computer-file"><CheckCircle2 size={28} /><strong>{active.title}</strong><span>{active.detail ?? 'Approval evidence is recorded separately from the browser and can be verified in the task history.'}</span></div>}
-      {(active?.kind === 'file' || active?.kind === 'diff') && <div className="computer-file"><FileCode2 size={28} /><strong>{active.detail ?? active.title}</strong><span>{active.kind === 'diff' ? 'Open the Code tab to inspect the recorded version change.' : 'Open the Files or Code tab to inspect this artifact.'}</span></div>}
+      {(active?.kind === 'file' || active?.kind === 'diff') && <div className={artifactExcerpt ? 'computer-file computer-file-preview' : 'computer-file'}><FileCode2 size={28} /><strong>{active.detail ?? active.title}</strong><span>{active.kind === 'diff' ? 'Recorded source version change.' : 'Generated artifact.'}</span>{artifactExcerpt && <section className="computer-artifact-excerpt"><header><span>Bounded text preview</span><em>{artifactExcerpt.truncated ? 'truncated' : 'complete'}</em></header><pre><code>{formatInspectable(artifactExcerpt.content, 3_000)}</code></pre></section>}{!artifactExcerpt && <small>{artifactPath ? 'Loading safe text preview…' : 'Open the Files or Code tab to inspect this artifact.'}</small>}</div>}
       {active?.kind === 'terminal' && <div className="computer-terminal"><div className="computer-terminal-meta"><span>{terminalActivity?.command ? `CLI command · ${active.title}` : active.title}</span>{terminalActivity?.failed ? <b>tool error</b> : <em>{terminalActivity?.durationMs !== undefined ? `completed in ${formatDuration(terminalActivity.durationMs)}` : 'recorded activity'}</em>}</div>{active.payload?.browserTool === true && <small className="computer-browser-evidence">Governed browser evidence · sandbox only{isBrowserEvidence(active.payload.browserEvidence) && active.payload.browserEvidence.url ? ` · ${active.payload.browserEvidence.url}` : ''}</small>}{terminalActivity?.command ? <section><label>Command · {terminalActivity.workspaceLabel}</label><pre><code>$ {terminalActivity.command}</code></pre></section> : terminalActivity?.request !== undefined && <section><label>Request</label><pre><code>{formatInspectable(terminalActivity.request)}</code></pre></section>}{terminalActivity?.output && <section><label>{terminalActivity.failed ? 'Error output' : terminalActivity.command ? 'Command output' : 'Result'}</label><pre><code>{formatInspectable(terminalActivity.output)}</code></pre></section>}{relatedVisuals.length > 0 && <div className="computer-checkpoints"><span>{relatedVisuals.length} causal visual checkpoint{relatedVisuals.length === 1 ? '' : 's'}</span><div className="computer-checkpoint-gallery">{relatedVisuals.map((visual, index) => <button key={visual.id} onClick={() => inspectVisual(visual.id)} aria-label={`Inspect visual checkpoint ${index + 1} for ${active.title}`}><img src={withCacheBust(visual.uri ?? '', frame)} alt={`Checkpoint ${index + 1}: ${visual.title}`} loading="lazy" /><small>Frame {index + 1} · #{visual.sequence ?? '—'}</small></button>)}</div></div>}{visualEvidenceState === 'unavailable' && <div className="computer-visual-unavailable"><Eye size={14} /><div><strong>No visual checkpoint captured</strong><span>This browser action is preserved as tool evidence only. No screenshot is being implied.</span></div></div>}{terminalActivity?.toolUseId && <small>Tool call {terminalActivity.toolUseId.slice(-8)} · correlated with its paired result and visual checkpoints in this run.</small>}</div>}
     </section>
   </div>
