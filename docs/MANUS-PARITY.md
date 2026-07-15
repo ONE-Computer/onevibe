@@ -47,14 +47,14 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 31. **P** Design mode — concept rationale and design-token artifacts exist; richer visual generation is pending.
 32. **P** Create Games mode — dedicated plan and a portable playable React interaction loop now exist; richer mechanics, game assets, and runtime play-testing remain pending.
 33. **P** Expandable mode catalogue — the composer exposes nine purpose-specific modes with output descriptions and persists the chosen mode. A compact starter gallery now preconfigures editable Website, Briefing, Research, and Internal-tool tasks; deeper per-mode template packs remain pending.
-34. **M** E-commerce / Shopify template.
-35. **P** Landing-page template — an editable Website starter is available in the composer; reusable visual/template packs remain pending.
-36. **M** Dashboard template.
-37. **M** Portfolio template.
-38. **M** Corporate-site template.
-39. **M** SaaS template.
-40. **M** Link-in-bio template.
-41. **M** Blog template.
+34. **P** E-commerce template — an editable App-mode storefront brief is available; checkout, commerce connectors, and reusable visual packs remain pending.
+35. **P** Landing-page template — editable Enterprise-site and Portfolio Website starters are available in the composer; reusable visual/template packs remain pending.
+36. **P** Dashboard template — an editable Operations-dashboard App starter is available; richer dashboard components and data connectors remain pending.
+37. **P** Portfolio template — an editable Portfolio Website starter is available; portfolio-specific visual packs remain pending.
+38. **P** Corporate-site template — an editable Enterprise-site Website starter is available; reusable corporate-site packs remain pending.
+39. **P** SaaS template — an editable SaaS-launch Website starter is available; pricing, auth, and deployment remain pending.
+40. **P** Link-in-bio template — an editable Link-hub Website starter is available; social connectors and reusable visual packs remain pending.
+41. **P** Blog template — an editable Document-mode Blog starter is available; CMS publishing and editorial workflows remain pending.
 42. **M** Slide-template catalogue and import.
 43. **I** Structured slide outline before rendering — persisted eight-slide `outline.json`.
 44. **I** Template-driven task bootstrapping — seven persisted modes receive distinct plans and artifact contracts.

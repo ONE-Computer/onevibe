@@ -19,10 +19,16 @@ const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: ty
 ]
 
 const starterTemplates: Array<{ title: string; outcome: string; prompt: string; mode: TaskMode }> = [
-  { title: 'Ship a website', outcome: 'Responsive site + preview', mode: 'website', prompt: 'Build a polished responsive landing page for a secure enterprise AI workspace. Include a clear value proposition, product flow, and accessible mobile layout.' },
+  { title: 'Enterprise site', outcome: 'Responsive site + preview', mode: 'website', prompt: 'Build a polished responsive enterprise landing page for a secure AI workspace. Include clear positioning, product flow, trust signals, accessible FAQ, and mobile layout.' },
+  { title: 'SaaS launch', outcome: 'Product narrative + CTA', mode: 'website', prompt: 'Create a focused SaaS launch website with a product story, primary workflow, proof points, pricing-ready CTA, FAQ, and an accessible responsive layout.' },
+  { title: 'E-commerce concept', outcome: 'Storefront prototype', mode: 'app', prompt: 'Prototype an e-commerce storefront with a refined product catalogue, product detail, cart interaction, sample inventory, and responsive checkout-ready flow. Use only fictional data.' },
+  { title: 'Operations dashboard', outcome: 'Interactive internal app', mode: 'app', prompt: 'Create a clean internal operations dashboard with a priority queue, status indicators, filtering interaction, realistic fictional sample data, and clear action boundaries.' },
+  { title: 'Portfolio', outcome: 'Personal work showcase', mode: 'website', prompt: 'Build a modern portfolio website with an editorial hero, selected work, case-study cards, an about section, and an accessible contact CTA. Use fictional placeholder content.' },
+  { title: 'Link hub', outcome: 'Compact personal page', mode: 'website', prompt: 'Create a concise personal link hub with a distinctive visual identity, profile summary, grouped links, social/contact actions, and a polished mobile-first layout.' },
   { title: 'Make a briefing', outcome: 'Narrative deck + speaker notes', mode: 'slides', prompt: 'Create an executive update deck: context, decision, delivery plan, risks, and next steps. Keep it concise, evidence-led, and ready to present.' },
   { title: 'Investigate a question', outcome: 'Cited research brief', mode: 'research', prompt: 'Research this question, distinguish evidence from inference, and produce a concise brief with sources, open questions, and recommended next steps.' },
-  { title: 'Prototype an internal tool', outcome: 'Interactive app', mode: 'app', prompt: 'Create a focused internal tool prototype with a clean workflow, realistic sample data, and a responsive interface. Explain the decisions made.' },
+  { title: 'Write a blog', outcome: 'Draft + portable source', mode: 'document', prompt: 'Draft a clear, insightful blog post with a strong opening, structured argument, practical examples, a measured conclusion, and a portable Markdown source for editorial review.' },
+  { title: 'Data decision story', outcome: 'Chart + limitations', mode: 'data', prompt: 'Create a decision-oriented data story with a concise narrative, readable charts, stated assumptions, sample data clearly labelled, and a portable CSV source.' },
 ]
 
 export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], runtime, onSubmit }: Props) => {
