@@ -5,6 +5,7 @@ export type ComputerItem = {
   kind: PresentationPanel
   title: string
   detail?: string
+  activityPreview?: string
   runId?: string
   createdAt: string
   sequence?: number
@@ -14,6 +15,22 @@ export type ComputerItem = {
   live?: boolean
 }
 
+const redactedKeys = new Set(['api_key', 'apikey', 'authorization', 'password', 'secret', 'token'])
+
+const compactValue = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value.length > 104 ? `${value.slice(0, 101)}…` : value
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const input = value as Record<string, unknown>
+  if (typeof input.command === 'string') return `$ ${input.command.length > 100 ? `${input.command.slice(0, 97)}…` : input.command}`
+  const operation = typeof input.operation === 'string' ? input.operation : undefined
+  const paths = Array.isArray(input.paths) ? input.paths.filter((path): path is string => typeof path === 'string').slice(0, 2) : []
+  if (operation) return `${operation}${paths.length ? ` · ${paths.join(', ')}` : ''}`
+  const visible = Object.entries(input).filter(([key]) => !redactedKeys.has(key.toLowerCase())).slice(0, 2)
+  return visible.length ? visible.map(([key, candidate]) => `${key}=${typeof candidate === 'string' ? candidate : '…'}`).join(' · ') : undefined
+}
+
+export const activityPreviewFor = (payload?: Record<string, unknown>) => compactValue(payload?.input)
+
 export const formatInspectable = (value: unknown, limit = 12_000) => {
   const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
   return text.length > limit ? `${text.slice(0, limit)}\n…[truncated for the activity rail]` : text
@@ -22,9 +39,9 @@ export const formatInspectable = (value: unknown, limit = 12_000) => {
 export const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
   const items = task.events.flatMap((event): ComputerItem[] => {
     const presentation = event.payload.presentation as PresentationDescriptor | undefined
-    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff', 'slide', 'approval'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, uri: presentation.uri, payload: event.payload }]
+    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff', 'slide', 'approval'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, title: event.label ?? 'Artifact', detail: event.content, activityPreview: presentation.panel === 'terminal' ? activityPreviewFor(event.payload) : undefined, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, uri: presentation.uri, payload: event.payload }]
     // Compatibility for evidence created before the typed presentation contract.
-    if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', title: event.label ?? 'Tool call', detail: event.content, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
+    if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', title: event.label ?? 'Tool call', detail: event.content, activityPreview: activityPreviewFor(event.payload), createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
     if (event.type === 'artifact_created' || event.type === 'artifact_updated') return [{ id: event.id, kind: event.type === 'artifact_updated' ? 'diff' : 'file', title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, runId: event.runId, sequence: event.sequence, eventHash: event.eventHash, payload: event.payload }]
     return []
   })

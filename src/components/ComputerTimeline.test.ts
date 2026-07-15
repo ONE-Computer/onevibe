@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { causalVisualItemsFor, evidenceItemId, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, causalVisualItemsFor, evidenceItemId, terminalActivityFor, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -45,5 +45,10 @@ describe('Computer timeline terminal inspection', () => {
 
     expect(evidenceItemId(items, 'recorded-frame')).toBe('recorded-frame')
     expect(evidenceItemId(items, 'live-x11')).toBeUndefined()
+  })
+
+  it('creates a compact command preview while excluding secret-shaped inputs', () => {
+    expect(activityPreviewFor({ input: { command: 'pnpm build', token: 'do-not-show' } })).toBe('$ pnpm build')
+    expect(activityPreviewFor({ input: { operation: 'write', paths: ['src/App.tsx', 'src/index.css'], api_key: 'do-not-show' } })).toBe('write · src/App.tsx, src/index.css')
   })
 })
