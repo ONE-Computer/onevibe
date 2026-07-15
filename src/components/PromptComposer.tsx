@@ -1,10 +1,22 @@
-import { ArrowUp, ChevronDown, Cloud, Link2, Monitor, Paperclip, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { AppWindow, ArrowUp, BarChart3, Bot, ChevronDown, Cloud, FileText, Gamepad2, Globe2, Link2, Monitor, Palette, Paperclip, Presentation, Search, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useRef, useState } from 'react'
 import type { Task, TaskAttachment, TaskMode } from '../types'
 
 type DraftAttachment = Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string; size: number }
 type Props = { compact?: boolean; busy?: boolean; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[]) => Promise<void> }
+
+const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: typeof Bot }> = [
+  { id: 'general', label: 'Agent', detail: 'Flexible governed task', icon: Bot },
+  { id: 'website', label: 'Website', detail: 'Responsive site and preview', icon: Globe2 },
+  { id: 'slides', label: 'Slides', detail: 'Deck, notes, and PPTX', icon: Presentation },
+  { id: 'document', label: 'Document', detail: 'Brief, report, or memo', icon: FileText },
+  { id: 'research', label: 'Research', detail: 'Evidence-led investigation', icon: Search },
+  { id: 'data', label: 'Data story', detail: 'Decision narrative and charts', icon: BarChart3 },
+  { id: 'design', label: 'Design', detail: 'Directions and design tokens', icon: Palette },
+  { id: 'app', label: 'App', detail: 'Interactive React application', icon: AppWindow },
+  { id: 'game', label: 'Game', detail: 'Playable web experience', icon: Gamepad2 },
+]
 
 export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
@@ -13,10 +25,11 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
   const [referenceDraft, setReferenceDraft] = useState('')
   const [references, setReferences] = useState<string[]>([])
   const [referencesOpen, setReferencesOpen] = useState(false)
+  const [modePickerOpen, setModePickerOpen] = useState(false)
   const [attachments, setAttachments] = useState<DraftAttachment[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
   const providers: Task['provider'][] = ['demo', 'claude_sdk', 'onecomputer', 'remote']
-  const modes: TaskMode[] = ['general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']
+  const selectedMode = modeCatalog.find((candidate) => candidate.id === mode) ?? modeCatalog[0]!
 
   const submit = async () => {
     const value = prompt.trim()
@@ -47,7 +60,7 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
           {!compact && <button title="Attach files" aria-label="Attach files" onClick={() => fileInput.current?.click()}><Paperclip size={16} /></button>}
           {!compact && <button title="Connect website reference" aria-label="Connect website reference" onClick={() => setReferencesOpen((value) => !value)}><Link2 size={16} /></button>}
           <span className="composer-divider" />
-          {!compact && <button className="mode-button" onClick={() => setMode(modes[(modes.indexOf(mode) + 1) % modes.length] ?? 'general')}><Monitor size={15} /> {mode === 'general' ? 'Agent' : mode[0]?.toUpperCase() + mode.slice(1)} <ChevronDown size={13} /></button>}
+          {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen((value) => !value)}><Monitor size={15} /> {selectedMode.label} <ChevronDown size={13} /></button>{modePickerOpen && <motion.div className="mode-catalog" role="menu" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: .98 }}>{modeCatalog.map((candidate) => { const Icon = candidate.icon; return <button key={candidate.id} role="menuitem" className={candidate.id === mode ? 'selected' : ''} onClick={() => { setMode(candidate.id); setModePickerOpen(false) }}><Icon size={15} /><span><strong>{candidate.label}</strong><small>{candidate.detail}</small></span>{candidate.id === mode && <ShieldCheck size={13} />}</button> })}</motion.div>}</div>}
           {!compact && <button className="mode-button" onClick={() => setProvider(providers[(providers.indexOf(provider) + 1) % providers.length] ?? 'demo')}>
             {provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}
             {provider === 'demo' ? 'Safe demo' : provider === 'claude_sdk' ? 'Claude SDK' : provider === 'onecomputer' ? 'ONEComputer' : 'AgentCore'} <ChevronDown size={13} />
