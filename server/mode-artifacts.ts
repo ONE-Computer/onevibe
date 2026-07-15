@@ -78,8 +78,12 @@ const writeSlidePdf = async (task: Task, store: TaskStore, slides: Array<[string
   await store.writeWorkspaceBytes(task.id, 'deck.pdf', await pdf.save())
 }
 
-const writeSlides = async (task: Task, store: TaskStore) => {
-  const slides = slideOutlineFor(task)
+export type StructuredSlide = { title: string; summary: string }
+
+export const writeStructuredSlides = async (task: Task, store: TaskStore, outline: StructuredSlide[]) => {
+  if (task.mode !== 'slides') throw new Error('Structured slide rendering is only available for slide tasks')
+  if (outline.length !== 8) throw new Error('A ONEVibe deck must contain exactly eight slides')
+  const slides: Array<[string, string]> = outline.map(({ title, summary }) => [title.trim(), summary.trim()])
   const moduleValue: unknown = PptxGenJS
   const PptxConstructor = typeof moduleValue === 'function' ? moduleValue : (moduleValue as { default: unknown }).default
   // PptxGenJS has different default-import shapes under native Node and TSX/Vitest transforms; both expose this constructor.
@@ -88,14 +92,14 @@ const writeSlides = async (task: Task, store: TaskStore) => {
   deck.layout = 'LAYOUT_WIDE'
   deck.author = 'ONEVibe'
   deck.subject = task.prompt
-  for (const [title, summary] of slides) {
+  for (const [slideIndex, [title, summary]] of slides.entries()) {
     const slide = deck.addSlide()
     slide.background = { color: '090B0A' }
     slide.addShape(deck.ShapeType.rect, { x: 0.45, y: 0.45, w: 0.08, h: 0.35, fill: { color: '38DC7D' }, line: { color: '38DC7D' } })
-    slide.addText('ONEVIBE / GOVERNED AGENT WORKSPACE', { x: 0.7, y: 0.43, w: 6, h: 0.3, fontFace: 'Aptos Mono', fontSize: 9, color: '38DC7D', charSpacing: 1.5 })
-    slide.addText(title, { x: 0.7, y: 1.55, w: 11.8, h: 1.5, fontFace: 'Aptos Display', fontSize: 34, bold: true, color: 'F3F6F4', breakLine: false, margin: 0 })
-    slide.addText(summary, { x: 0.72, y: 3.25, w: 9.7, h: 1.1, fontFace: 'Aptos', fontSize: 17, color: '9AA59E', margin: 0, breakLine: false })
-    slide.addText(`${slides.indexOf(slides.find((item) => item[0] === title)!) + 1}`.padStart(2, '0'), { x: 11.9, y: 6.75, w: 0.7, h: 0.3, fontFace: 'Aptos Mono', fontSize: 9, color: '647068', align: 'right' })
+    slide.addText('ONEVIBE / GOVERNED AGENT WORKSPACE', { x: 0.7, y: 0.43, w: 6, h: 0.3, fontFace: 'Arial', fontSize: 9, bold: true, color: '38DC7D', charSpacing: 1.5 })
+    slide.addText(title, { x: 0.7, y: 1.55, w: 11.8, h: 1.5, fontFace: 'Arial', fontSize: slideIndex === 0 ? 44 : 38, bold: true, color: 'F3F6F4', breakLine: false, margin: 0 })
+    slide.addText(summary, { x: 0.72, y: 3.25, w: 9.7, h: 1.1, fontFace: 'Arial', fontSize: 18, color: '9AA59E', margin: 0, breakLine: false })
+    slide.addText(String(slideIndex + 1).padStart(2, '0'), { x: 11.9, y: 6.75, w: 0.7, h: 0.3, fontFace: 'Arial', fontSize: 9, color: '647068', align: 'right' })
   }
   const bytes = await deck.write({ outputType: 'uint8array', compression: true })
   if (!(bytes instanceof Uint8Array)) throw new Error('PPTX generator returned an unexpected output type')
@@ -107,6 +111,8 @@ const writeSlides = async (task: Task, store: TaskStore) => {
   await store.writeWorkspaceFile(task.id, 'index.html', shell('ONEVibe deck', `<div id="deck">${cards}</div><p><button id="previous">Previous</button> <button id="next">Next</button></p>`, `const slides=[...document.querySelectorAll('.slide')];let active=0;function show(){slides.forEach((s,i)=>s.hidden=i!==active)};previous.onclick=()=>{active=(active-1+slides.length)%slides.length;show()};next.onclick=()=>{active=(active+1)%slides.length;show()};show()`))
   return ['index.html', 'outline.json', 'speaker-notes.md', 'deck.pptx', 'deck.pdf']
 }
+
+const writeSlides = (task: Task, store: TaskStore) => writeStructuredSlides(task, store, slideOutlineFor(task).map(([title, summary]) => ({ title, summary })))
 
 const writeScaffold = async (task: Task, store: TaskStore) => {
   const game = task.mode === 'game'

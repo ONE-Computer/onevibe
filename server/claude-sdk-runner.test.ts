@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type QueryInput = {
   prompt: string
@@ -43,7 +43,10 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 const temporaryRoots: string[] = []
 
+beforeEach(() => vi.stubEnv('ANTHROPIC_API_KEY', 'test-server-only-key'))
+
 afterEach(async () => {
+  vi.unstubAllEnvs()
   permissionChecks.splice(0)
   queryCalls.splice(0)
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))

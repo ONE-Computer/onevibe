@@ -21,4 +21,10 @@ describe('runtime readiness', () => {
     const state = runtimeReadiness({ claudeConfigured: false, remoteConfigured: false, oneComputerConfigured: true, oneComputerReachable: false }).providers.find((provider) => provider.id === 'onecomputer')
     expect(state).toMatchObject({ available: false, detail: expect.stringMatching(/unreachable/i) })
   })
+
+  it('identifies LiteLLM without exposing endpoint or credentials', () => {
+    const state = runtimeReadiness({ claudeConfigured: true, claudeTransport: 'litellm', remoteConfigured: false, oneComputerConfigured: false }).providers.find((provider) => provider.id === 'claude_sdk')
+    expect(state).toMatchObject({ available: true, label: 'Claude SDK · LiteLLM', detail: expect.stringMatching(/LiteLLM gateway/) })
+    expect(JSON.stringify(state)).not.toMatch(/127\.0\.0\.1|credential.*value/i)
+  })
 })

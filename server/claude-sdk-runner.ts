@@ -5,6 +5,8 @@ import { z } from 'zod'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 import { materializeTaskSkills } from './skill-packs.js'
+import { claudeProviderConfig } from './claude-provider-config.js'
+import { writeStructuredSlides } from './mode-artifacts.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
@@ -44,6 +46,8 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
 
   async run({ task, store, signal, prompt, continuation, requestUserInput }: RuntimeContext) {
     signal.throwIfAborted()
+    const provider = claudeProviderConfig()
+    if (!provider.configured) throw new Error('Claude SDK provider is not configured.')
     const workspace = store.workspacePath(task.id)
     const runtimeState = store.runtimeStatePath(task.id)
     await mkdir(workspace, { recursive: true })
@@ -53,7 +57,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     await store.appendEvent(task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'Claude Agent SDK started',
       content: 'Native SDK messages are preserved and projected into the ONEVibe task timeline.',
-      payload: { executionRoute: 'claude_agent_sdk', model: process.env.ONEVIBE_CLAUDE_MODEL ?? 'claude-sonnet-5' },
+      payload: { executionRoute: 'claude_agent_sdk', transport: provider.transport, model: provider.model },
     })
     if (materializedSkills.length) await store.appendEvent(task.id, {
       type: 'activity_delta', lane: 'control', label: 'Claude skill packs materialized',
@@ -65,21 +69,33 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
 
     const inputToolName = 'mcp__onevibe__request_user_input'
     const planToolName = 'mcp__onevibe__set_task_plan'
-    const allowedTools = new Set(['Read', 'Write', 'Edit', 'Glob', 'Grep', inputToolName, planToolName])
+    const slideToolName = 'mcp__onevibe__render_slide_deck'
+    const allowedTools = new Set(['Read', 'Write', 'Edit', 'Glob', 'Grep', inputToolName, planToolName, ...(task.mode === 'slides' ? [slideToolName] : [])])
+    const inputTool = tool('request_user_input', 'Pause the task and ask the user a focused question.', {
+      prompt: z.string().min(1).max(2_000), options: z.array(z.string().min(1).max(200)).max(8).default([]),
+    }, async ({ prompt: question, options }) => {
+      const answer = await requestUserInput(question, options, signal)
+      return { content: [{ type: 'text', text: answer }] }
+    })
+    const planTool = tool('set_task_plan', 'Refine the five visible task-plan titles before substantive workspace work. This does not grant execution authority.', {
+      steps: z.array(z.object({ id: z.enum(['scope', 'workspace', 'build', 'verify', 'deliver']), title: z.string().min(4).max(140) })).length(5),
+    }, async ({ steps }) => {
+      await store.updateRuntimePlanTitles(task.id, steps, 'claude_sdk')
+      return { content: [{ type: 'text', text: 'Task plan titles recorded in the governed evidence stream.' }] }
+    })
+    const slideTool = tool('render_slide_deck', 'Render exactly eight structured slides into a portable ONEComputer-styled PPTX, PDF, HTML preview, outline, and speaker notes.', {
+      slides: z.array(z.object({
+        title: z.string().trim().min(3).max(100),
+        summary: z.string().trim().min(20).max(300),
+      })).length(8),
+    }, async ({ slides }) => {
+      const files = await writeStructuredSlides(task, store, slides)
+      return { content: [{ type: 'text', text: `Rendered and validated ${slides.length} slides into: ${files.join(', ')}` }] }
+    })
     const onevibeServer = createSdkMcpServer({
       name: 'onevibe', version: '0.1.0', alwaysLoad: true,
       instructions: 'Use request_user_input only when the task cannot safely continue without a human choice or missing value.',
-      tools: [tool('request_user_input', 'Pause the task and ask the user a focused question.', {
-        prompt: z.string().min(1).max(2_000), options: z.array(z.string().min(1).max(200)).max(8).default([]),
-      }, async ({ prompt: question, options }) => {
-        const answer = await requestUserInput(question, options, signal)
-        return { content: [{ type: 'text', text: answer }] }
-      }), tool('set_task_plan', 'Refine the five visible task-plan titles before substantive workspace work. This does not grant execution authority.', {
-        steps: z.array(z.object({ id: z.enum(['scope', 'workspace', 'build', 'verify', 'deliver']), title: z.string().min(4).max(140) })).length(5),
-      }, async ({ steps }) => {
-        await store.updateRuntimePlanTitles(task.id, steps, 'claude_sdk')
-        return { content: [{ type: 'text', text: 'Task plan titles recorded in the governed evidence stream.' }] }
-      })],
+      tools: task.mode === 'slides' ? [inputTool, planTool, slideTool] : [inputTool, planTool],
     })
     const canUseTool = async (toolName: string, input: Record<string, unknown>): Promise<PermissionResult> => {
       if (!allowedTools.has(toolName)) {
@@ -114,17 +130,18 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       options: {
         abortController,
         cwd: workspace,
-        model: process.env.ONEVIBE_CLAUDE_MODEL ?? 'claude-sonnet-5',
+        model: provider.model,
         systemPrompt: [
           'You are ONEVibe, an enterprise agent operating inside a governed task workspace.',
-          'Work only inside the current directory. Never request, expose, or persist credentials.',
+          `Your only writable and readable task workspace is ${workspace}. Use this exact absolute path for every file tool. Never access its parent directories.`,
+          'Work only inside the task workspace. Never request, expose, or persist credentials.',
           'Before substantive workspace tools, call set_task_plan with exactly the canonical ordered stages scope, workspace, build, verify, deliver and concise task-specific titles. Do not reorder or omit stages.',
           'Create portable source files and a README. For a website, create index.html with no external dependencies.',
           `The selected creation mode is ${task.mode}. Follow its artifact conventions and produce mode-appropriate source, rationale, and validation notes.`,
+          ...(task.mode === 'slides' ? ['For this slide task, you must call render_slide_deck exactly once with eight substantive slides. Do not attempt to construct PPTX or PDF bytes with file tools.'] : []),
           'Do not publish, access external services, or claim security certification. Public release requires a separate VTI Wallet.',
         ].join(' '),
         tools: [...allowedTools],
-        allowedTools: [...allowedTools],
         mcpServers: { onevibe: onevibeServer },
         canUseTool,
         permissionMode: 'default',
@@ -141,7 +158,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         persistSession: true,
         ...(continuation && task.securityContext?.runtimeSessionId ? { resume: task.securityContext.runtimeSessionId } : {}),
         env: {
-          ...process.env,
+          ...provider.childEnv,
           CLAUDE_CONFIG_DIR: runtimeState,
           CLAUDE_AGENT_SDK_CLIENT_APP: 'onevibe/0.1.0',
         },
