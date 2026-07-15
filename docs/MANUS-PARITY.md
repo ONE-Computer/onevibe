@@ -112,7 +112,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 87. **P** FAQ accordion interaction as generated output — Website mode includes semantic `details`/`summary` disclosure; agent-directed content and browser-reviewed interaction remain pending.
 88. **P** Development observability — task-scoped event-derived duration, tool activity/errors, X11 evidence count, artifact count, runtime boundary, and gateway-attestation state are rendered in the workspace. Provider metrics, network flows, organization telemetry, and export remain pending.
 89. **I** Icon-system integration — Lucide.
-90. **M** Generated-asset storage proxy.
+90. **P** Generated-asset delivery — path-confined workspace image artifacts can be rendered and downloaded in the Assets tab through a server-only raw-file route. External object storage, transformations, retention, and signed delivery URLs remain pending.
 
 ## Validation, delivery, and reuse
 
