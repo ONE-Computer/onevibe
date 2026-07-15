@@ -62,7 +62,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 ## Website ideation and design
 
 45. **P** Automatic concept generation — Design mode writes three deterministic candidates; agent-generated exploration is pending.
-46. **M** Candidate probability display.
+46. **P** Candidate comparison — Design mode emits three structured directions and displays a labelled deterministic heuristic fit for review. It is not a model probability, user-research result, or decision authority.
 47. **I** Automatic concept selection — Design mode records its selected direction in `ideas.md`.
 48. **M** Named design philosophy.
 49. **I** Design-principle documentation — Design mode retains `ideas.md`.

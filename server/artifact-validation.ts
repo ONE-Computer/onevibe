@@ -68,7 +68,9 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
   }
   if (task.mode === 'design') {
     await required(store, task.id, 'ideas.md', checks)
+    const directions = await required(store, task.id, 'design-directions.json', checks)
     const tokens = await required(store, task.id, 'design-tokens.json', checks)
+    try { const parsed = JSON.parse(directions ?? '') as { directions?: unknown[] }; check(checks, 'design:directions-json', Array.isArray(parsed.directions) && parsed.directions.length >= 3, 'Design directions include at least three reviewable options') } catch { check(checks, 'design:directions-json', false, 'Design directions are valid JSON') }
     try { JSON.parse(tokens ?? '') ; check(checks, 'design:tokens-json', true, 'Design tokens are valid JSON') } catch { check(checks, 'design:tokens-json', false, 'Design tokens are valid JSON') }
   }
   if (task.mode === 'website' || task.mode === 'app' || task.mode === 'game') {

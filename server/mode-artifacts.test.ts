@@ -115,6 +115,20 @@ describe('mode artifacts', () => {
     expect(await store.readWorkspaceFile(task.id, 'app/src/styles.css')).toContain('.signal')
   })
 
+  it('generates reviewable design directions with labelled heuristic confidence', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-design-mode-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Design a governed agent workspace', 'demo', 'design')
+    await writeModeArtifacts(task, store)
+    const directions = JSON.parse(await store.readWorkspaceFile(task.id, 'design-directions.json')) as { selectionMethod: string; directions: unknown[] }
+    expect(directions.selectionMethod).toContain('heuristic')
+    expect(directions.directions).toHaveLength(3)
+  })
+
   it('generates a responsive website with an accessible FAQ interaction', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-website-mode-'))
     temporaryRoots.push(root)

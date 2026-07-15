@@ -141,9 +141,15 @@ export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
     return ['index.html', 'data.csv', 'analysis.json']
   }
   if (task.mode === 'design') {
-    await store.writeWorkspaceFile(task.id, 'ideas.md', '# Design directions\n\n1. Secure Signal — evidence-forward enterprise interface.\n2. Quiet Infrastructure — calm, sparse operational canvas.\n3. Human Checkpoint — approval and intent as the visual center.\n\nSelected: Secure Signal.\n')
+    const directions = [
+      { id: 'secure-signal', name: 'Secure Signal', rationale: 'Evidence-forward enterprise interface with clear operational status and decisive hierarchy.', confidence: 0.72, selected: true },
+      { id: 'quiet-infrastructure', name: 'Quiet Infrastructure', rationale: 'Calm, sparse operational canvas that makes policy and infrastructure feel understandable.', confidence: 0.18, selected: false },
+      { id: 'human-checkpoint', name: 'Human Checkpoint', rationale: 'Approval and accountable intent become the visual center of consequential workflows.', confidence: 0.10, selected: false },
+    ]
+    await store.writeWorkspaceFile(task.id, 'ideas.md', `# Design directions\n\n${directions.map((direction, index) => `${index + 1}. ${direction.name} — ${direction.rationale}`).join('\n')}\n\nSelected: Secure Signal.\n\nSelection confidence is a deterministic starter heuristic, not a model probability or user-research finding.\n`)
+    await store.writeWorkspaceFile(task.id, 'design-directions.json', `${JSON.stringify({ title: task.title, selectionMethod: 'deterministic starter heuristic', directions }, null, 2)}\n`)
     await store.writeWorkspaceFile(task.id, 'design-tokens.json', `${JSON.stringify({ color: { background: '#090b0a', verified: '#38dc7d', pending: '#f1b84b' }, radius: { panel: 14 }, motion: { standard: 180 } }, null, 2)}\n`)
-    return ['ideas.md', 'design-tokens.json']
+    return ['ideas.md', 'design-directions.json', 'design-tokens.json']
   }
   if (task.mode === 'website' || task.mode === 'app' || task.mode === 'game') return writeScaffold(task, store)
   return []
