@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises'
 import { createSdkMcpServer, query, tool, type PermissionResult, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
+import { validateModeArtifacts } from './artifact-validation.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
@@ -202,6 +203,12 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       await beginBuild()
       await store.setPlanStep(task.id, 'build', 'completed')
       await store.setPlanStep(task.id, 'verify', 'running')
+      const validation = await validateModeArtifacts(store.getTask(task.id), store)
+      await store.appendEvent(task.id, {
+        type: 'artifact_created', lane: 'artifact', label: validation.passed ? 'Static artifact contract passed' : 'Static artifact contract needs review',
+        content: 'validation-report.json',
+        payload: { executionRoute: 'claude_agent_sdk', kind: 'validation_report', passed: validation.passed, checkCount: validation.checks.length },
+      })
       await store.setPlanStep(task.id, 'verify', 'completed')
       await store.setPlanStep(task.id, 'deliver', 'running')
       await store.setPlanStep(task.id, 'deliver', 'completed')

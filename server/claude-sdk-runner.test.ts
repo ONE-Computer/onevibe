@@ -65,6 +65,8 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(events.some((event) => event.type === 'assistant_text_delta')).toBe(true)
     expect(events.some((event) => event.type === 'tool_call_started')).toBe(true)
     expect(events.some((event) => event.type === 'artifact_created')).toBe(true)
+    expect(events.some((event) => event.label === 'Static artifact contract needs review')).toBe(true)
+    expect(await store.readWorkspaceFile(task.id, 'validation-report.json')).toContain('Static contract validation only')
     expect(events.at(-1)?.type).toBe('run_completed')
     expect(JSON.stringify(events)).not.toContain('must-not-leak')
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-test')
