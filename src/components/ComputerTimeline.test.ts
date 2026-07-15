@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, evidenceItemId, formatDuration, matchesRailQuery, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, defaultComputerItem, evidenceItemId, formatDuration, matchesRailQuery, terminalActivityFor, virtualRailRange, type ComputerItem } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -86,6 +86,14 @@ describe('Computer timeline terminal inspection', () => {
   it('keeps unpaired result events visible instead of silently discarding audit evidence', () => {
     const result: ComputerItem = { id: 'orphan-result', kind: 'terminal', eventType: 'tool_call_completed', title: 'Recovered result', createdAt: '2026-07-16T00:00:00.000Z', eventHash: 'result-hash', payload: { toolUseId: 'unknown' } }
     expect(artifactRailItems([result]).map((item) => item.id)).toEqual(['orphan-result'])
+  })
+
+  it('opens settled work on its latest visual deliverable while active work follows the newest event', () => {
+    const terminal: ComputerItem = { id: 'terminal', kind: 'terminal', title: 'Write source', createdAt: '2026-07-16T00:00:01.000Z' }
+    const preview: ComputerItem = { id: 'preview', kind: 'preview', title: 'Interactive preview', createdAt: '2026-07-16T00:00:02.000Z' }
+    const control: ComputerItem = { id: 'control', kind: 'approval', title: 'Approval pending', createdAt: '2026-07-16T00:00:03.000Z' }
+    expect(defaultComputerItem([terminal, preview, control], true)?.id).toBe('preview')
+    expect(defaultComputerItem([terminal, preview, control], false)?.id).toBe('control')
   })
 
   it('windows a long rail while retaining an overscan buffer for smooth scrolling', () => {

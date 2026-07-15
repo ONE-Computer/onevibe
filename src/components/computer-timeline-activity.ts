@@ -99,6 +99,13 @@ export const artifactRailItems = (items: ComputerItem[]) => {
   return items.filter((item) => !folded.has(item.id)).map((item) => ({ ...item, relatedEventIds: related.get(item.id) }))
 }
 
+/** A settled task opens on its delivered visual output, not its final receipt. */
+export const defaultComputerItem = (items: ComputerItem[], settled: boolean) => {
+  if (!items.length) return undefined
+  if (!settled) return items.at(-1)
+  return [...items].reverse().find((item) => item.kind === 'screenshot' || item.kind === 'preview' || item.kind === 'slide') ?? items.at(-1)
+}
+
 export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) => {
   const toolUseId = typeof item.payload?.toolUseId === 'string' ? item.payload.toolUseId : undefined
   const paired = toolUseId ? events.find((event) => event.id !== item.id && event.type === 'tool_call_completed' && event.payload.toolUseId === toolUseId) : undefined

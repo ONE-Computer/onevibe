@@ -20,7 +20,7 @@ For every supported agent action, render a compact, ordered evidence card in one
 | File/diff/preview/deck | File type, path, compact preview/thumbnail where safe | Must point to immutable workspace version/evidence event |
 | Approval/policy boundary | Scope, policy decision, external-wallet state | Browser remains request-only; receipt resolves server-side |
 
-The default view is chronological and auto-follows new activity. Pausing preserves the reader's position and shows an accessible “new activity” affordance. Selecting a card opens a detail pane without replacing the scroll position. The conversation remains visible beside the rail on desktop and becomes a clear route/tab on compact screens.
+The default view is chronological and auto-follows new activity. A settled task opens on its latest visual deliverable (frame, preview, or deck) rather than a trailing control receipt. Pausing preserves the reader's position and shows an accessible “new activity” affordance. Selecting a card opens a detail pane without replacing the scroll position. The conversation remains visible beside the rail on desktop and becomes a clear route/tab on compact screens.
 
 ## Security and evidence invariants
 
