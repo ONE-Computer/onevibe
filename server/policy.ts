@@ -6,12 +6,12 @@ export type PolicyDecision = {
 }
 
 export const evaluateAction = (action: string): PolicyDecision => {
-  if (action === 'publish_preview') {
+  if (action === 'publish_preview' || action === 'share_artifact') {
     return {
       decision: 'approval_required',
-      policyId: 'global.external-publication.v1',
-      reason: 'Public exposure requires a separate manager wallet decision.',
-      controls: ['external_wallet', 'intent_binding', '15_minute_expiry', 'no_web_approval'],
+      policyId: action === 'share_artifact' ? 'global.external-sharing.v1' : 'global.external-publication.v1',
+      reason: action === 'share_artifact' ? 'External artifact sharing requires a separate manager wallet decision.' : 'Public exposure requires a separate manager wallet decision.',
+      controls: ['external_wallet', 'intent_binding', '15_minute_expiry', 'no_web_approval', ...(action === 'share_artifact' ? ['read_only_share'] : [])],
     }
   }
   if (action === 'read_workspace' || action === 'write_workspace') {

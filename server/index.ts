@@ -13,6 +13,7 @@ import { UserInputBroker } from './user-input-broker.js'
 import { WalletApprovalService } from './wallet-approval-service.js'
 import { approvalIntentHash, evidenceHeadFor } from './approval-intent.js'
 import { runtimeReadiness } from './runtime-readiness.js'
+import { evaluateAction } from './policy.js'
 import type { TaskSchedule } from './types.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
@@ -407,6 +408,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       const task = store.getTask(taskId)
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before requesting a share' })
       if (task.share) return json(response, 200, { share: task.share, url: `/share/${task.share.id}` })
+      const policy = evaluateAction('share_artifact')
+      if (policy.decision !== 'approval_required') return json(response, 403, { error: `Sharing is not permitted by ${policy.policyId}` })
       const approvalId = `approval_${randomUUID().replaceAll('-', '').slice(0, 12)}`
       const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString()
       const walletUrl = `openvtc://trust-task/${approvalId}`
@@ -417,7 +420,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       await store.appendEvent(taskId, {
         type: 'approval_requested', lane: 'approval', status: 'waiting_for_approval', label: 'External share approval required',
         content: 'A separate wallet must approve creation of a read-only share link.',
-        payload: { approvalId, action: 'share_artifact', intentHash, evidenceHash, walletUrl, expiresAt, browserCanApprove: false },
+        payload: { approvalId, action: 'share_artifact', intentHash, evidenceHash, walletUrl, expiresAt, policy, browserCanApprove: false },
       })
       return json(response, 202, { approval })
     }
