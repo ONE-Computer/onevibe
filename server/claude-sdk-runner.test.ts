@@ -24,6 +24,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
     permissionChecks.push((await options.canUseTool('Bash', { command: 'curl example.com' })).behavior)
     permissionChecks.push((await options.canUseTool('Read', { file_path: '../../private' })).behavior)
     await writeFile(path.join(options.cwd, 'index.html'), '<h1>Governed</h1>')
+    await writeFile(path.join(options.cwd, 'README.md'), '# Governed workspace')
     yield { type: 'system', subtype: 'init', session_id: 'session-test' }
     yield {
       type: 'stream_event', session_id: 'session-test', parent_tool_use_id: null,
@@ -65,6 +66,8 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(events.some((event) => event.type === 'assistant_text_delta')).toBe(true)
     expect(events.some((event) => event.type === 'tool_call_started')).toBe(true)
     expect(events.some((event) => event.type === 'artifact_created')).toBe(true)
+    expect(events.some((event) => event.label === 'Claude SDK workspace recorded' && event.payload.fileCount === 2)).toBe(true)
+    expect(events.some((event) => event.label === 'Claude SDK artifact' && event.content === 'README.md')).toBe(true)
     expect(events.some((event) => event.label === 'Static artifact contract needs review')).toBe(true)
     expect(await store.readWorkspaceFile(task.id, 'validation-report.json')).toContain('Static contract validation only')
     expect(events.at(-1)?.type).toBe('run_completed')

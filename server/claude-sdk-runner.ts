@@ -197,6 +197,19 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     signal.removeEventListener('abort', abort)
     signal.throwIfAborted()
     const files = await store.listWorkspaceFiles(task.id)
+    const deliverableFiles = files.filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')).slice(0, 50)
+    await store.appendEvent(task.id, {
+      type: 'tool_call_completed', lane: 'activity', label: 'Claude SDK workspace recorded',
+      content: `${deliverableFiles.length} portable file${deliverableFiles.length === 1 ? '' : 's'} recorded from the governed SDK workspace.`,
+      payload: { executionRoute: 'claude_agent_sdk', fileCount: deliverableFiles.length, truncated: files.length - deliverableFiles.length > 0 },
+    })
+    for (const file of deliverableFiles) {
+      if (file.path === 'index.html') continue
+      await store.appendEvent(task.id, {
+        type: 'artifact_created', lane: 'artifact', label: 'Claude SDK artifact', content: file.path,
+        payload: { executionRoute: 'claude_agent_sdk', kind: 'source_file', size: file.size },
+      })
+    }
     const hasPreview = files.some((file) => file.path === 'index.html')
     if (hasPreview) {
       await store.updateTask(task.id, { previewPath: `/api/tasks/${task.id}/preview` })
