@@ -71,6 +71,9 @@ export const sendFollowUp = async (taskId: string, prompt: string) =>
     body: JSON.stringify({ prompt }),
   }))
 
+export const cancelQueuedGuidance = async (taskId: string, guidanceId: string) =>
+  parse<Task>(await fetch(`/api/tasks/${taskId}/messages/${encodeURIComponent(guidanceId)}`, { method: 'DELETE' }))
+
 export const getVersions = async (taskId: string) =>
   parse<{ versions: WorkspaceVersion[] }>(await fetch(`/api/tasks/${taskId}/versions`))
 

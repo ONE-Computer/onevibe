@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, CodeXml, Link2, Menu, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert } from 'lucide-react'
+import { Bell, ChevronDown, CodeXml, Link2, Menu, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useState } from 'react'
 import { PromptComposer } from './components/PromptComposer'
@@ -13,7 +13,7 @@ import { Library } from './components/Library'
 import { Computers } from './components/Computers'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelTask, createProject, createSchedule, createTask, getRuntimeReadiness, listLibrary, listProjects, listSchedules, listTasks, removeProjectFile, requestShare, restoreProjectFileVersion, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile } from './lib/api'
+import { addProjectFile, cancelQueuedGuidance, cancelTask, createProject, createSchedule, createTask, getRuntimeReadiness, listLibrary, listProjects, listSchedules, listTasks, removeProjectFile, requestShare, restoreProjectFileVersion, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile } from './lib/api'
 import type { LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
@@ -43,7 +43,7 @@ export default function App() {
   const [creating, setCreating] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const { snapshot, connected, error } = useTask(activeTaskId)
+  const { snapshot, connected, error, refresh: refreshSnapshot } = useTask(activeTaskId)
 
   const refreshTasks = useCallback(async () => {
     const result = await listTasks()
@@ -113,6 +113,10 @@ export default function App() {
   const editProjectFile = async (projectId: string, filePath: string, content: string, expectedHash: string) => {
     const result = await updateProjectFile(projectId, filePath, content, expectedHash)
     setProjects((current) => current.map((item) => item.id === result.project.id ? result.project : item))
+  }
+  const retractQueuedGuidance = async (taskId: string, guidanceId: string) => {
+    await cancelQueuedGuidance(taskId, guidanceId)
+    await Promise.all([refreshSnapshot(), refreshTasks()])
   }
   const restoreProjectFile = async (projectId: string, filePath: string, versionId: string, expectedHash: string) => {
     const result = await restoreProjectFileVersion(projectId, filePath, versionId, expectedHash)
@@ -188,6 +192,7 @@ export default function App() {
                     {error && <div className="stream-warning">{error}</div>}
                     <TaskTimeline task={snapshot} events={snapshot.events} />
                     <TaskPlan plan={snapshot.plan} />
+                    {snapshot.queuedGuidance.length > 0 && <section className="guidance-queue"><header><div><ShieldCheck size={13} /><strong>Queued guidance</strong></div><span>Applies after this provider turn</span></header>{snapshot.queuedGuidance.map((guidance, index) => <article key={guidance.id}><div><span>Next {index + 1}</span><p>{guidance.prompt}</p></div><button type="button" onClick={() => void retractQueuedGuidance(snapshot.id, guidance.id)} aria-label={`Remove queued guidance ${index + 1}`} title="Remove before it reaches the provider"><X size={13} /></button></article>)}<footer>Removing a message keeps only cancellation metadata in the evidence ledger.</footer></section>}
                     <PromptComposer compact busy={creating || Boolean(snapshot.inputRequest)} queueable={snapshot.status === 'running' || snapshot.status === 'pending'} runtime={runtime} onSubmit={(prompt) => continueTask(prompt)} />
                   </div>
                   <div className="workspace-pane"><Workspace task={snapshot} /></div>

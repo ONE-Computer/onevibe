@@ -418,6 +418,19 @@ export class TaskStore {
     return guidance
   }
 
+  async cancelQueuedGuidance(taskId: string, guidanceId: string) {
+    const task = this.getTask(taskId)
+    const guidance = task.queuedGuidance.find((candidate) => candidate.id === guidanceId)
+    if (!guidance) throw new Error('Queued guidance not found')
+    await this.updateTask(taskId, { queuedGuidance: task.queuedGuidance.filter((candidate) => candidate.id !== guidanceId) })
+    await this.appendEvent(taskId, {
+      type: 'guidance_cancelled', lane: 'control', label: 'Queued guidance cancelled',
+      content: 'A queued follow-up was removed before it was sent to the provider.',
+      payload: { guidanceId, promptLength: guidance.prompt.length, appliesAfterRun: task.activeRunId },
+    })
+    return this.getTask(taskId)
+  }
+
   async setPlanStep(taskId: string, stepId: string, status: Task['plan'][number]['status']) {
     const task = this.getTask(taskId)
     const current = task.plan.find((step) => step.id === stepId)

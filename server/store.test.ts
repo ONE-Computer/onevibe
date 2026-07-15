@@ -352,6 +352,22 @@ describe('TaskStore', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('lets a user retract queued guidance while retaining a metadata-only control event', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-guidance-cancel-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Build a report', 'demo')
+    const guidance = await store.queueGuidance(task.id, 'Do not include the customer identifier.')
+    await store.cancelQueuedGuidance(task.id, guidance.id)
+
+    expect(store.getTask(task.id).queuedGuidance).toEqual([])
+    const event = store.listEvents(task.id).at(-1)
+    expect(event).toMatchObject({ type: 'guidance_cancelled', payload: { guidanceId: guidance.id, promptLength: guidance.prompt.length } })
+    expect(JSON.stringify(event)).not.toContain(guidance.prompt)
+  })
+
   it('persists metadata for path-confined task attachments', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-attachments-'))
     temporaryRoots.push(root)

@@ -367,6 +367,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       setTimeout(() => executeTask(taskId, input.prompt, true), 25)
       return json(response, 202, { status: 'queued', taskId })
     }
+    if (request.method === 'DELETE' && segments[3] === 'messages' && segments[4]) {
+      return json(response, 200, await store.cancelQueuedGuidance(taskId, segments[4]))
+    }
     if (request.method === 'GET' && segments[3] === 'messages') {
       return json(response, 200, store.listMessages(taskId, {
         cursor: url.searchParams.get('cursor') ?? undefined,

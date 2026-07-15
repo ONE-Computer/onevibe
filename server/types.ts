@@ -25,6 +25,7 @@ export type EventType =
   | 'user_input_requested'
   | 'user_input_resolved'
   | 'guidance_queued'
+  | 'guidance_cancelled'
   | 'guidance_applied'
   | 'artifact_created'
   | 'artifact_updated'
