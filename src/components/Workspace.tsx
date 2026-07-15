@@ -1,4 +1,4 @@
-import { Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, RefreshCw, Save, ShieldCheck, TerminalSquare } from 'lucide-react'
+import { Activity, Check, Code2, Copy, Download, Eye, File, Files, Globe2, History, Maximize2, Minimize2, Network, Pencil, RefreshCw, Save, ShieldCheck, TerminalSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
@@ -6,7 +6,7 @@ import type { TaskSnapshot, WorkspaceFile, WorkspaceVersion } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
 
-type Tab = 'computer' | 'preview' | 'visual' | 'code' | 'files' | 'history' | 'evidence'
+type Tab = 'dashboard' | 'computer' | 'preview' | 'visual' | 'code' | 'files' | 'history' | 'evidence'
 
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
 const isBinary = (filePath: string) => /\.(pptx|pdf|png|jpe?g|gif|zip)$/i.test(filePath)
@@ -25,6 +25,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [fullscreen, setFullscreen] = useState(false)
   const [visualFrame, setVisualFrame] = useState(0)
   const [visualError, setVisualError] = useState(false)
+  const completedSteps = task.plan.filter((step) => step.status === 'completed').length
 
   useEffect(() => {
     void getFiles(task.id).then((result) => {
@@ -75,6 +76,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
       <header className="workspace-header">
         <div className="window-controls"><i /><i /><i /></div>
         <div className="workspace-tabs">
+          <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}><Activity size={14} /> Dashboard</button>
           <button className={tab === 'computer' ? 'active' : ''} onClick={() => setTab('computer')}><TerminalSquare size={14} /> Computer</button>
           <button className={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}><Globe2 size={14} /> Preview</button>
           {task.securityContext?.executionBoundary === 'onecomputer_sandbox' && <button className={tab === 'visual' ? 'active' : ''} onClick={() => setTab('visual')}><Eye size={14} /> Live X11</button>}
@@ -88,6 +90,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
       <div className="workspace-meta"><span className="live-dot" /> local.onevibe.dev/{task.id.slice(-6)}<span className="workspace-policy"><ShieldCheck size={12} /> {task.securityContext?.gatewayEnforced ? 'ONEComputer gateway enforced' : 'local policy demo'}</span></div>
       <div className="workspace-body">
         <AnimatePresence mode="wait">
+          {tab === 'dashboard' && <motion.div key="dashboard" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="dashboard-pane"><header><div><span>Task workspace</span><strong>{task.status.replaceAll('_', ' ')}</strong></div><p>{task.securityContext?.executionBoundary === 'onecomputer_sandbox' ? 'ONEComputer sandbox boundary' : task.securityContext?.executionBoundary === 'remote_runtime' ? 'Remote runtime boundary' : 'Local task workspace'}</p></header><div className="dashboard-grid"><article><span>Plan progress</span><strong>{completedSteps} / {task.plan.length}</strong><small>{task.plan.find((step) => step.status === 'running')?.title ?? 'No active plan step'}</small></article><article><span>Portable artifacts</span><strong>{files.filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')).length}</strong><small>{files.length} files in workspace</small></article><article><span>Evidence events</span><strong>{task.events.length}</strong><small>{task.activeRunId ? `Active run ${task.activeRunId.slice(-6)}` : 'No active run'}</small></article><article><span>Approval boundary</span><strong>{task.approval?.state ?? 'none'}</strong><small>{task.approval ? 'Decision remains in VTI Wallet' : 'No consequential action pending'}</small></article></div><section className="dashboard-boundary"><ShieldCheck size={17} /><div><strong>{task.securityContext?.gatewayEnforced ? 'Gateway enforcement attested' : 'Policy boundary visible'}</strong><span>{task.securityContext?.gatewayEnforced ? 'Runtime reports gateway enforcement for this task.' : 'This task does not claim production gateway attestation.'}</span></div></section></motion.div>}
           {tab === 'computer' && <motion.div key="computer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="computer-pane"><ComputerTimeline task={task} /></motion.div>}
           {tab === 'preview' && (
             <motion.div key="preview" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="preview-pane">
