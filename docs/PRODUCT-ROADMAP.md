@@ -67,7 +67,7 @@ The 12-month objective is **1:1 behavioral parity across all 100 ledger items**,
 
 **Phase acceptance gate:** all P0 core-loop, side-timeline, and boundary tests pass for 14 consecutive days; no critical/high findings; ≥95% golden tasks complete; production-like non-demo runs have attested microVM + gateway; wallet proof is externally verifiable; beta design partners achieve ≥25% four-week WVO retention. The side timeline must render every supported event automatically, preserve immutable replay across reload/reconnect, meet its p95 performance targets, and retain complete hot history for at least 30 days. Failure holds external beta.
 
-The detailed acceptance contract for the artifact-first rail, including tool/result grouping, causal inline visual frames, and the browser-security boundary, is maintained in [`SIDE-ARTIFACT-RAIL.md`](SIDE-ARTIFACT-RAIL.md). It is intentionally a P0 implementation requirement rather than a visual-design aspiration.
+The detailed acceptance contract for the artifact-first rail, including tool/result grouping, causal inline visual frames, and the browser-security boundary, is maintained in [`SIDE-ARTIFACT-RAIL.md`](SIDE-ARTIFACT-RAIL.md). It is intentionally a P0 implementation requirement rather than a visual-design aspiration. The required OpenVTC wallet handoff, including the distinction between generic governed-action approval and authentication step-up, is defined in [`OPENVTC-APPROVAL-INTEGRATION.md`](OPENVTC-APPROVAL-INTEGRATION.md).
 
 ### Phase 2 — Connected team workflows (3–6 months)
 
