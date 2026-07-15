@@ -10,7 +10,7 @@ export const PromptComposer = ({ compact = false, busy = false, onSubmit }: Prop
   const [provider, setProvider] = useState<Task['provider']>('demo')
   const [mode, setMode] = useState<TaskMode>('general')
   const providers: Task['provider'][] = ['demo', 'claude_sdk', 'onecomputer', 'remote']
-  const modes: TaskMode[] = ['general', 'website', 'slides', 'research', 'design', 'app', 'game']
+  const modes: TaskMode[] = ['general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']
 
   const submit = async () => {
     const value = prompt.trim()

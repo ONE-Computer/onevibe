@@ -63,11 +63,28 @@ const writeScaffold = async (task: Task, store: TaskStore) => {
 
 export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
   if (task.mode === 'slides') return writeSlides(task, store)
+  if (task.mode === 'document') {
+    const document = `# ${task.title}\n\n## Purpose\n\n${task.prompt}\n\n## Executive summary\n\nThis portable document was drafted in a governed ONEVibe workspace. It separates the requested outcome from the operating boundary: actions that can change external state remain subject to policy and, where required, a separate wallet approval.\n\n## Recommended next steps\n\n1. Review the substantive content with the accountable owner.\n2. Validate source material and assumptions before external distribution.\n3. Request an external approval for any publication or connector write.\n\n## Provenance\n\nThis file is exported with the task evidence manifest.\n`
+    await store.writeWorkspaceFile(task.id, 'document.md', document)
+    await store.writeWorkspaceFile(task.id, 'document.json', `${JSON.stringify({ title: task.title, format: 'markdown', generatedBy: 'onevibe', requiresReview: true }, null, 2)}\n`)
+    await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, `<div class="eyebrow">Governed document</div><h1>${escapeHtml(task.title)}</h1><div class="card"><strong>Executive summary</strong><p>${escapeHtml(task.prompt)}</p></div><div class="grid"><article class="card"><strong>Portable</strong><p>Markdown source is ready for review, editing, and export.</p></article><article class="card"><strong>Accountable</strong><p>External distribution remains subject to the configured approval policy.</p></article></div>`))
+    return ['index.html', 'document.md', 'document.json']
+  }
   if (task.mode === 'research') {
     await store.writeWorkspaceFile(task.id, 'report.md', `# ${task.title}\n\n## Research question\n\n${task.prompt}\n\n## Findings\n\nThis local demo establishes the evidence-oriented artifact contract. Native Claude mode performs the substantive research.\n\n## Limitations\n\nNo external sources were accessed by the deterministic demo runtime.\n`)
     await store.writeWorkspaceFile(task.id, 'sources.json', '[]\n')
     await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, `<div class="eyebrow">Evidence-backed research</div><h1>${escapeHtml(task.title)}</h1><div class="grid"><article class="card"><strong>Question</strong><p>${escapeHtml(task.prompt)}</p></article><article class="card"><strong>Boundary</strong><p>No external sources were accessed in demo mode.</p></article></div>`))
     return ['index.html', 'report.md', 'sources.json']
+  }
+  if (task.mode === 'data') {
+    const rows = [['Stage', 'Workspaces'], ['Requested', '120'], ['Policy checked', '112'], ['Sandbox ready', '97'], ['Delivered', '84']]
+    const csv = rows.map((row) => row.join(',')).join('\n') + '\n'
+    const data = rows.slice(1).map(([label, value]) => ({ label, value: Number(value) }))
+    const bars = data.map((item) => `<div class="bar"><span>${escapeHtml(item.label)}</span><i style="width:${item.value / 1.2}%"></i><b>${item.value}</b></div>`).join('')
+    await store.writeWorkspaceFile(task.id, 'data.csv', csv)
+    await store.writeWorkspaceFile(task.id, 'analysis.json', `${JSON.stringify({ metric: 'workspace progression', data, limitation: 'Deterministic sample data; connect an approved source for real analysis.' }, null, 2)}\n`)
+    await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, `<style>.chart{margin-top:34px;padding:25px;border:1px solid #29332d;background:#101411}.chart h2{margin:0 0 22px;font-size:18px}.bar{display:grid;grid-template-columns:110px minmax(30px,1fr) 35px;gap:12px;align-items:center;margin:13px 0;color:#aeb8b1;font-size:13px}.bar i{height:11px;background:linear-gradient(90deg,#36dc7d,#91edb6);border-radius:99px}.bar b{color:#eaf2ec}.note{font-size:13px}</style><div class="eyebrow">Evidence-aware data story</div><h1>${escapeHtml(task.title)}</h1><p>${escapeHtml(task.prompt)}</p><section class="chart"><h2>Workspace progression</h2>${bars}</section><p class="note">Sample data only. The data.csv and analysis.json files make assumptions inspectable before any decision is made.</p>`))
+    return ['index.html', 'data.csv', 'analysis.json']
   }
   if (task.mode === 'design') {
     await store.writeWorkspaceFile(task.id, 'ideas.md', '# Design directions\n\n1. Secure Signal — evidence-forward enterprise interface.\n2. Quiet Infrastructure — calm, sparse operational canvas.\n3. Human Checkpoint — approval and intent as the visual center.\n\nSelected: Secure Signal.\n')

@@ -29,7 +29,7 @@ export type EventType =
   | 'run_cancelled'
 
 export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'blocked'
-export type TaskMode = 'general' | 'website' | 'slides' | 'research' | 'design' | 'app' | 'game'
+export type TaskMode = 'general' | 'website' | 'slides' | 'document' | 'research' | 'data' | 'design' | 'app' | 'game'
 
 export type Project = {
   id: string

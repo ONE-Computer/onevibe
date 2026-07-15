@@ -47,7 +47,7 @@ const readBody = async (request: IncomingMessage) => {
 const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).default('demo'),
-  mode: z.enum(['general', 'website', 'slides', 'research', 'design', 'app', 'game']).default('general'),
+  mode: z.enum(['general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']).default('general'),
   projectId: z.string().regex(/^project_[a-z0-9]+$/).default('project_onevibe'),
 })
 const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), context: z.string().trim().max(8_000).default('') })

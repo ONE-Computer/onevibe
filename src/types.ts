@@ -1,5 +1,5 @@
 export type RunStatus = 'pending' | 'running' | 'waiting_for_approval' | 'waiting_for_user_input' | 'completed' | 'failed' | 'cancelled'
-export type TaskMode = 'general' | 'website' | 'slides' | 'research' | 'design' | 'app' | 'game'
+export type TaskMode = 'general' | 'website' | 'slides' | 'document' | 'research' | 'data' | 'design' | 'app' | 'game'
 
 export type Project = { id: string; name: string; context: string; createdAt: string; updatedAt: string }
 export type EventLane = 'transcript' | 'activity' | 'control' | 'artifact' | 'approval'

@@ -40,7 +40,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 
 ## Creation modes and templates
 
-29. **I** Create Slides mode — mode-specific plan, eight-slide outline, interactive preview, notes, and genuine PPTX output.
+29. **I** Create Slides mode — mode-specific plan, eight-slide outline, interactive preview, notes, and genuine PPTX output. ONEVibe also has explicit portable Document and Data-story modes with inspectable source/metadata.
 30. **P** Build Website mode — website artifacts and isolated preview work; mode-specific workflow is pending.
 31. **P** Design mode — concept rationale and design-token artifacts exist; richer visual generation is pending.
 32. **P** Create Games mode — dedicated plan and app scaffold exist; playable game generation is pending.

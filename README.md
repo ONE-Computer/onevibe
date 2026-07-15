@@ -8,7 +8,7 @@ The first vertical slice already supports:
 - server-owned cancellation that retains partial source and evidence;
 - multi-turn follow-up instructions that resume the same task workspace and Claude SDK session;
 - immutable workspace version history and evidence-recorded restore;
-- mode-specific Website, Slides, Research, Design, App, and Game workflows, including native PPTX generation;
+- mode-specific Website, Slides, Documents, Research, Data stories, Design, App, and Game workflows, including native PPTX generation;
 - per-task static artifact validation reports for generated previews, portable app scaffolds, slide decks, research manifests, and design tokens;
 - embedded source editing with diff review, optimistic concurrency, version snapshot, and evidence recording;
 - first-class waiting-for-user requests that resume the parked Claude tool call or demo execution;

@@ -48,11 +48,23 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
     try { parsedOutline = outline ? JSON.parse(outline) as unknown[] : undefined } catch { /* recorded below */ }
     check(checks, 'slides:outline', Array.isArray(parsedOutline) && parsedOutline.length === 8, 'Deck outline has eight slides')
   }
+  if (task.mode === 'document') {
+    const document = await required(store, task.id, 'document.md', checks)
+    const metadata = await required(store, task.id, 'document.json', checks)
+    check(checks, 'document:structure', Boolean(document?.includes('## Executive summary') && document.includes('## Provenance')), 'Document has summary and provenance sections')
+    try { JSON.parse(metadata ?? '') ; check(checks, 'document:metadata-json', true, 'Document metadata is valid JSON') } catch { check(checks, 'document:metadata-json', false, 'Document metadata is valid JSON') }
+  }
   if (task.mode === 'research') {
     const report = await required(store, task.id, 'report.md', checks)
     const sources = await required(store, task.id, 'sources.json', checks)
     check(checks, 'research:findings', Boolean(report?.includes('## Findings')), 'Research report distinguishes findings')
     try { JSON.parse(sources ?? '') ; check(checks, 'research:sources-json', true, 'Sources manifest is valid JSON') } catch { check(checks, 'research:sources-json', false, 'Sources manifest is valid JSON') }
+  }
+  if (task.mode === 'data') {
+    const csv = await required(store, task.id, 'data.csv', checks)
+    const analysis = await required(store, task.id, 'analysis.json', checks)
+    check(checks, 'data:rows', Boolean(csv?.split('\n').filter(Boolean).length && csv.split('\n').filter(Boolean).length >= 2), 'Dataset contains a header and at least one row')
+    try { JSON.parse(analysis ?? '') ; check(checks, 'data:analysis-json', true, 'Analysis manifest is valid JSON') } catch { check(checks, 'data:analysis-json', false, 'Analysis manifest is valid JSON') }
   }
   if (task.mode === 'design') {
     await required(store, task.id, 'ideas.md', checks)
