@@ -48,6 +48,28 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     }
 
     try {
+      let visualRuntimeReady = false
+      const captureVisualFrame = async (phase: 'runtime_ready' | 'before_agent' | 'after_agent', causedByEventId?: string) => {
+        if (!visualRuntimeReady) return
+        try {
+          const frame = await this.client.getVisualScreenshot(sandbox.id, signal)
+          const framePath = `evidence/visual/${Date.now()}-${phase}.png`
+          await store.writeWorkspaceBytes(task.id, framePath, frame)
+          await store.appendEvent(task.id, {
+            type: 'artifact_created', lane: 'artifact', label: `X11 frame · ${phase.replace('_', ' ')}`, content: framePath,
+            payload: {
+              kind: 'visual_frame', sandboxId: sandbox.id, capturePhase: phase, causedByEventId,
+              uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(framePath)}&raw=1`,
+            },
+          })
+        } catch (error) {
+          await store.appendEvent(task.id, {
+            type: 'activity_delta', lane: 'activity', label: 'X11 evidence capture unavailable',
+            content: error instanceof Error ? error.message.slice(0, 300) : 'Visual capture failed',
+            payload: { sandboxId: sandbox.id, capturePhase: phase, causedByEventId, visualCapture: 'failed' },
+          })
+        }
+      }
       let live = sandbox
       const deadline = Date.now() + 4 * 60_000
       while (live.state !== 'started') {
@@ -68,6 +90,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       })
       if (this.options.visualRuntime) {
         const visual = await this.client.startVisualRuntime(sandbox.id, signal)
+        visualRuntimeReady = visual.browserReady
         const current = store.getTask(task.id)
         await store.updateTask(task.id, { securityContext: { ...current.securityContext!, visualRuntimeReady: visual.browserReady } })
         await store.appendEvent(task.id, {
@@ -75,13 +98,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
           content: `X11 ${visual.display} · ${visual.width}×${visual.height} · screenshot stream available without VNC.`,
           payload: { sandboxId: sandbox.id, transport: 'authenticated_png', ...visual },
         })
-        const frame = await this.client.getVisualScreenshot(sandbox.id, signal)
-        const framePath = `evidence/visual/${Date.now()}-runtime-ready.png`
-        await store.writeWorkspaceBytes(task.id, framePath, frame)
-        await store.appendEvent(task.id, {
-          type: 'artifact_created', lane: 'artifact', label: 'X11 runtime frame', content: framePath,
-          payload: { kind: 'visual_frame', presentation: 'screenshot', sandboxId: sandbox.id, uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(framePath)}&raw=1` },
-        })
+        await captureVisualFrame('runtime_ready')
       }
       await store.setPlanStep(task.id, 'workspace', 'completed')
       await store.setPlanStep(task.id, 'build', 'running')
@@ -103,12 +120,14 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         "claude --print --output-format text --permission-mode bypassPermissions --allowedTools 'Read,Write,Edit,Glob,Grep' \"$(cat .onevibe-prompt)\" > .onevibe-result.txt",
         'rm -f .onevibe-prompt',
       ].join(' && ')
-      await store.appendEvent(task.id, {
+      const agentExecution = await store.appendEvent(task.id, {
         type: 'tool_call_started', lane: 'activity', label: 'Execute Claude inside ONEComputer',
         content: 'Prompt is base64-transferred to avoid shell interpretation and the agent receives no Bash tool.',
         payload: { sandboxId: sandbox.id, toolName: 'onecomputer.sandbox.exec', allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep'] },
       })
+      await captureVisualFrame('before_agent', agentExecution.id)
       const execution = await this.client.exec(sandbox.id, command, signal)
+      await captureVisualFrame('after_agent', agentExecution.id)
       if (execution.exitCode !== 0) throw new Error(`Sandbox Claude process exited ${execution.exitCode}: ${execution.output.slice(-2_000)}`)
       const result = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && base64 -w0 .onevibe-result.txt`, signal)
       if (result.exitCode !== 0) throw new Error('Unable to retrieve sandbox agent result')
