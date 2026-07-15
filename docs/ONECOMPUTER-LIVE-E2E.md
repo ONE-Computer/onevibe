@@ -27,6 +27,12 @@ The Azure portal/API service was reachable over an authenticated SSH-forwarded l
 
 The provider began a Kasm container for the task, but did not return a sandbox record before the task was cancelled. Investigation showed the create path performing lengthy desktop/Claude installation work synchronously before returning or persisting ownership. Cancellation reached ONEVibe; the test container was explicitly removed and the remote sandbox list was again empty.
 
+## Azure runtime audit — 2026-07-15
+
+A subsequent read-only audit of `onecomputer-openvtc.eastus2.cloudapp.azure.com` confirmed that the public `/api/health` and `/v1/health` endpoints return `200` through nginx. The runtime is not an orphaned compose deployment: `onecomputer-web.service`, `onecomputer-gateway.service`, the Gitea CI bridge, and the OpenVTC DIDComm/VTA/wallet services are active under systemd.
+
+The audit also found three long-lived Kasm containers whose names identify prior E2E experiments, plus several days-old one-off `tsx` desktop inspection/restart commands. These must be reconciled through the provider's sandbox records and idempotent `DELETE` path before cleanup; blindly calling Docker would risk leaving the control-plane ownership record inconsistent. This is a lifecycle-hygiene finding, not proof that the active API can satisfy the required successful proof below.
+
 ## Blocking gap: asynchronous provisioning lifecycle
 
 This is an integration blocker, not a reason to weaken the ONEVibe boundary:
