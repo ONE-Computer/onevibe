@@ -19,7 +19,7 @@ const starterPrompts = [
 
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([])
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const { snapshot, connected, error } = useTask(activeTaskId)
@@ -31,6 +31,11 @@ export default function App() {
 
   useEffect(() => { void refreshTasks() }, [refreshTasks])
   useEffect(() => {
+    const onPopState = () => setActiveTaskId(window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+  useEffect(() => {
     if (!snapshot) return
     setTasks((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))
   }, [snapshot])
@@ -41,9 +46,15 @@ export default function App() {
       const task = await createTask(prompt, provider)
       setTasks((current) => [task, ...current])
       setActiveTaskId(task.id)
+      window.history.pushState({}, '', `/tasks/${task.id}`)
     } finally {
       setCreating(false)
     }
+  }
+
+  const navigateToTask = (taskId: string | null) => {
+    setActiveTaskId(taskId)
+    window.history.pushState({}, '', taskId ? `/tasks/${taskId}` : '/')
   }
 
   const continueTask = async (prompt: string) => {
@@ -58,7 +69,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => setActiveTaskId(null)} onSelectTask={setActiveTaskId} /></motion.div>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar tasks={tasks} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} /></motion.div>}</AnimatePresence>
       <main className="main-shell">
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><span className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></span></div>

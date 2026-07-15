@@ -1,4 +1,4 @@
-import { Check, Code2, Download, File, Files, Globe2, History, Maximize2, Network, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Check, Code2, Download, File, Files, Globe2, History, Maximize2, Minimize2, Network, RefreshCw, ShieldCheck } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { getEvidence, getFile, getFiles } from '../lib/api'
@@ -14,6 +14,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
   const [selectedFile, setSelectedFile] = useState<string | null>(task.files[0]?.path ?? null)
   const [content, setContent] = useState('')
   const [chainValid, setChainValid] = useState<boolean | null>(null)
+  const [fullscreen, setFullscreen] = useState(false)
 
   useEffect(() => {
     void getFiles(task.id).then((result) => {
@@ -26,11 +27,16 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
     void getFile(task.id, selectedFile).then((result) => setContent(result.content))
   }, [selectedFile, task.id])
   useEffect(() => { if (tab === 'evidence') void getEvidence(task.id).then((result) => setChainValid(result.valid)) }, [tab, task.id, task.events.length])
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setFullscreen(false) }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [])
 
   const activePreview = useMemo(() => `${task.previewPath ?? `/api/tasks/${task.id}/preview`}?v=${task.events.length}`, [task.events.length, task.id, task.previewPath])
 
   return (
-    <section className="workspace">
+    <section className={`workspace ${fullscreen ? 'workspace-fullscreen' : ''}`}>
       <header className="workspace-header">
         <div className="window-controls"><i /><i /><i /></div>
         <div className="workspace-tabs">
@@ -39,7 +45,7 @@ export const Workspace = ({ task }: { task: TaskSnapshot }) => {
           <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}><Files size={14} /> Files</button>
           <button className={tab === 'evidence' ? 'active' : ''} onClick={() => setTab('evidence')}><ShieldCheck size={14} /> Evidence</button>
         </div>
-        <div className="workspace-tools"><a title="Download source and evidence" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button><Maximize2 size={14} /></button></div>
+        <div className="workspace-tools"><a title="Download source and evidence" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
       </header>
       <div className="workspace-meta"><span className="live-dot" /> local.onevibe.dev/{task.id.slice(-6)}<span className="workspace-policy"><ShieldCheck size={12} /> {task.securityContext?.gatewayEnforced ? 'ONEComputer gateway enforced' : 'local policy demo'}</span></div>
       <div className="workspace-body">

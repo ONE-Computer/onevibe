@@ -13,10 +13,10 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 5. **M** Per-step elapsed time.
 6. **I** Narrated execution — typed transcript deltas from demo, SDK, or remote runtime.
 7. **P** Interruptible follow-up chat — resumable same-session follow-ups work after a turn; mid-run steering is pending.
-8. **M** Expandable task messages.
+8. **I** Expandable task messages — long user and grouped assistant turns collapse and expand in place.
 9. **P** Structured waiting state — schema and approval waiting exist; general user-input loop is pending.
 10. **M** Terminal-input request state.
-11. **M** Persistent task routes — selection is currently in React state.
+11. **I** Persistent task routes — `/tasks/:taskId` survives reload and browser navigation.
 12. **I** Concurrent workspace plus conversation.
 13. **I** Agent-mode entry point — primary ONEVibe surface.
 14. **I** Task history surface — persisted sidebar history.
@@ -87,7 +87,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 67. **M** Database workspace tab.
 68. **I** Files workspace tab.
 69. **M** Settings workspace tab.
-70. **M** Workspace expansion.
+70. **I** Workspace expansion — fullscreen overlay with explicit exit and Escape handling.
 71. **M** Vite project generation.
 72. **M** React and TypeScript generation as a mode contract.
 73. **M** Tailwind CSS integration as a generated scaffold.
