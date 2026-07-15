@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, CodeXml, Menu, PanelLeftClose, Share2, ShieldCheck, Sparkles, Square } from 'lucide-react'
+import { Bell, ChevronDown, CodeXml, Menu, PanelLeftClose, Share2, ShieldCheck, Sparkles, Square, TriangleAlert } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useState } from 'react'
 import { PromptComposer } from './components/PromptComposer'
@@ -39,6 +39,7 @@ export default function App() {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { snapshot, connected, error } = useTask(activeTaskId)
 
   const refreshTasks = useCallback(async () => {
@@ -118,6 +119,13 @@ export default function App() {
       setCreating(false)
     }
   }
+  const notifications = tasks.flatMap((task) => {
+    const items: Array<{ id: string; task: Task; label: string; detail: string; tone: 'approval' | 'queue' | 'failure' }> = []
+    if (task.approval?.state === 'pending') items.push({ id: `${task.id}:approval`, task, label: 'Wallet approval needed', detail: task.approval.action.replaceAll('_', ' '), tone: 'approval' })
+    if (task.queuedGuidance.length) items.push({ id: `${task.id}:guidance`, task, label: `${task.queuedGuidance.length} guidance queued`, detail: 'Will resume after the active turn', tone: 'queue' })
+    if (task.status === 'failed') items.push({ id: `${task.id}:failed`, task, label: 'Task needs attention', detail: 'Review the governed task evidence', tone: 'failure' })
+    return items
+  }).slice(0, 8)
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
@@ -125,7 +133,7 @@ export default function App() {
       <main className="main-shell">
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><span className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></span></div>
-          <div className="topbar-right"><span className={`connection ${connected ? 'online' : ''}`}><i />{connected ? 'Live' : 'Local'}</span><ThemeToggle /><button className="icon-button" type="button" aria-label="Notifications"><Bell size={16} /></button><button className="share-button" disabled={!snapshot} onClick={() => { if (!snapshot) return; if (snapshot.share) window.open(`/share/${snapshot.share.id}`, '_blank'); else void requestShare(snapshot.id) }}><Share2 size={14} /> {snapshot?.share ? 'Open share' : snapshot?.approval?.action === 'share_artifact' && snapshot.approval.state === 'pending' ? 'Approval pending' : 'Share'}</button><a className="github-button" href="https://github.com/one-computer" target="_blank" rel="noreferrer"><CodeXml size={15} /> GitHub</a></div>
+          <div className="topbar-right"><span className={`connection ${connected ? 'online' : ''}`}><i />{connected ? 'Live' : 'Local'}</span><ThemeToggle /><div className="notification-wrap"><button className="icon-button" type="button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}><Bell size={16} />{notifications.length > 0 && <i className="notification-count">{notifications.length}</i>}</button>{notificationsOpen && <motion.div className="notification-panel" initial={{ opacity: 0, y: -5, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}><header><strong>Activity</strong><span>{notifications.length ? `${notifications.length} needs attention` : 'All clear'}</span></header>{notifications.length ? notifications.map((item) => <button key={item.id} className={item.tone} onClick={() => { setNotificationsOpen(false); navigateToTask(item.task.id) }}><span>{item.tone === 'failure' ? <TriangleAlert size={14} /> : item.tone === 'approval' ? <ShieldCheck size={14} /> : <Sparkles size={14} />}</span><div><strong>{item.label}</strong><small>{item.task.title} · {item.detail}</small></div></button>) : <p>No approvals, queued guidance, or failed tasks.</p>}</motion.div>}</div><button className="share-button" disabled={!snapshot} onClick={() => { if (!snapshot) return; if (snapshot.share) window.open(`/share/${snapshot.share.id}`, '_blank'); else void requestShare(snapshot.id) }}><Share2 size={14} /> {snapshot?.share ? 'Open share' : snapshot?.approval?.action === 'share_artifact' && snapshot.approval.state === 'pending' ? 'Approval pending' : 'Share'}</button><a className="github-button" href="https://github.com/one-computer" target="_blank" rel="noreferrer"><CodeXml size={15} /> GitHub</a></div>
         </header>
 
         <AnimatePresence mode="wait">
