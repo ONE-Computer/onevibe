@@ -35,3 +35,4 @@
 - Added durable projects. A project owns a name and governed background brief; new tasks bind to that project and the API attaches the context server-side to the agent run while retaining the user prompt as a separate transcript event.
 - Added first-class Document and Data-story creation modes. Documents produce portable Markdown plus structured metadata; data stories produce CSV, analysis metadata, and an inspectable visual preview. Both participate in the same evidence and validation path as existing modes.
 - Added durable plan-step timing. Running/completed/blocked transitions persist timestamps, emit ordered evidence, and render elapsed duration; terminal task events remain last in the event chain.
+- Moved Computer panel classification into the durable server event contract. Tool and artifact events now carry a typed terminal/screenshot/preview/file/diff descriptor in their hashed payload, with a UI-only compatibility fallback for older evidence.

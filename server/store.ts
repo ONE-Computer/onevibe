@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
-import type { ChatMessage, EventInput, Project, RuntimeEvent, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
+import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskMode, TaskSnapshot, WorkspaceFile, WorkspaceVersion } from './types.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -15,6 +15,19 @@ const assertWithin = (root: string, candidate: string) => {
 const writeJson = async (filePath: string, value: unknown) => {
   await mkdir(path.dirname(filePath), { recursive: true })
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+const panelFor = (input: EventInput): PresentationDescriptor | undefined => {
+  const supplied = input.payload.presentation
+  if (supplied && typeof supplied === 'object' && 'panel' in supplied) return supplied as PresentationDescriptor
+  if (input.type === 'tool_call_started' || input.type === 'tool_call_progress' || input.type === 'tool_call_completed') return { panel: 'terminal' }
+  if (input.type !== 'artifact_created' && input.type !== 'artifact_updated') return undefined
+  const uri = typeof input.payload.uri === 'string' ? input.payload.uri : undefined
+  const artifactPath = typeof input.content === 'string' ? input.content : undefined
+  if (input.payload.kind === 'visual_frame') return { panel: 'screenshot', uri, artifactPath }
+  if (input.type === 'artifact_updated') return { panel: 'diff', uri, artifactPath }
+  if (uri) return { panel: 'preview', uri, artifactPath }
+  return { panel: 'file', artifactPath }
 }
 
 const planFor = (mode: TaskMode): Task['plan'] => {
@@ -193,6 +206,7 @@ export class TaskStore {
   async appendEvent(taskId: string, input: EventInput) {
     const existing = this.events.get(taskId) ?? []
     const previousHash = existing.at(-1)?.eventHash ?? 'GENESIS'
+    const presentation = panelFor(input)
     const unsigned = {
       taskId,
       sequence: existing.length,
@@ -201,7 +215,7 @@ export class TaskStore {
       status: input.status,
       label: input.label,
       content: input.content,
-      payload: input.payload,
+      payload: { ...input.payload, ...(presentation ? { presentation } : {}) },
       createdAt: new Date().toISOString(),
       previousHash,
     }

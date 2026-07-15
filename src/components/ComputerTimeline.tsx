@@ -1,10 +1,10 @@
 import { ArrowLeft, ArrowRight, Eye, FileCode2, Radio, TerminalSquare, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { TaskSnapshot } from '../types'
+import type { PresentationDescriptor, PresentationPanel, TaskSnapshot } from '../types'
 
 type ComputerItem = {
   id: string
-  kind: 'terminal' | 'screenshot' | 'preview' | 'file'
+  kind: PresentationPanel
   title: string
   detail?: string
   createdAt: string
@@ -15,12 +15,11 @@ type ComputerItem = {
 
 const presentationItems = (task: TaskSnapshot): ComputerItem[] => {
   const items = task.events.flatMap((event): ComputerItem[] => {
+    const presentation = event.payload.presentation as PresentationDescriptor | undefined
+    if (presentation && ['terminal', 'screenshot', 'preview', 'file', 'diff'].includes(presentation.panel)) return [{ id: event.id, kind: presentation.panel, title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, uri: presentation.uri, payload: event.payload }]
+    // Compatibility for evidence created before the typed presentation contract.
     if (event.type.startsWith('tool_call')) return [{ id: event.id, kind: 'terminal', title: event.label ?? 'Tool call', detail: event.content, createdAt: event.createdAt, payload: event.payload }]
-    if (event.type === 'artifact_created' || event.type === 'artifact_updated') {
-      const uri = typeof event.payload.uri === 'string' ? event.payload.uri : undefined
-      const kind = event.payload.kind === 'visual_frame' ? 'screenshot' : uri ? 'preview' : 'file'
-      return [{ id: event.id, kind, title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, uri, payload: event.payload }]
-    }
+    if (event.type === 'artifact_created' || event.type === 'artifact_updated') return [{ id: event.id, kind: event.type === 'artifact_updated' ? 'diff' : 'file', title: event.label ?? 'Artifact', detail: event.content, createdAt: event.createdAt, payload: event.payload }]
     return []
   })
   if (task.securityContext?.visualRuntimeReady && task.securityContext.sandboxState !== 'destroyed') items.push({
@@ -52,7 +51,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
     <section className="computer-stage"><header><button disabled={selected === 0} onClick={() => move(selected - 1)}><ArrowLeft size={13} /></button><button disabled={selected >= items.length - 1} onClick={() => move(selected + 1)}><ArrowRight size={13} /></button><div><strong>{active?.title}</strong><span>{active?.detail}</span></div><em>{selected + 1} / {items.length}</em></header>
       {active?.kind === 'screenshot' && active.uri && <div className="computer-visual"><img src={`${active.uri}?v=${frame}`} alt={active.title} /></div>}
       {active?.kind === 'preview' && active.uri && <iframe title={active.title} sandbox="allow-scripts" src={active.uri} />}
-      {active?.kind === 'file' && <div className="computer-file"><FileCode2 size={28} /><strong>{active.detail ?? active.title}</strong><span>Open the Files or Code tab to inspect this artifact.</span></div>}
+      {(active?.kind === 'file' || active?.kind === 'diff') && <div className="computer-file"><FileCode2 size={28} /><strong>{active.detail ?? active.title}</strong><span>{active.kind === 'diff' ? 'Open the Code tab to inspect the recorded version change.' : 'Open the Files or Code tab to inspect this artifact.'}</span></div>}
       {active?.kind === 'terminal' && <pre><code>{[active.detail, active.payload ? JSON.stringify(active.payload, null, 2).slice(0, 24_000) : ''].filter(Boolean).join('\n\n')}</code></pre>}
     </section>
   </div>

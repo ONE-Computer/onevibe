@@ -43,6 +43,23 @@ describe('TaskStore', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('projects typed presentation panels into immutable event evidence', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-presentations-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Render computer timeline', 'demo')
+    const terminal = await store.appendEvent(task.id, { type: 'tool_call_completed', lane: 'activity', label: 'Run command', content: 'done', payload: {} })
+    const screenshot = await store.appendEvent(task.id, { type: 'artifact_created', lane: 'artifact', label: 'X11 frame', content: 'evidence/frame.png', payload: { kind: 'visual_frame', uri: '/frame.png' } })
+    const diff = await store.appendEvent(task.id, { type: 'artifact_updated', lane: 'artifact', label: 'Source updated', content: 'src/App.tsx', payload: {} })
+
+    expect(terminal.payload.presentation).toMatchObject({ panel: 'terminal' })
+    expect(screenshot.payload.presentation).toMatchObject({ panel: 'screenshot', uri: '/frame.png' })
+    expect(diff.payload.presentation).toMatchObject({ panel: 'diff' })
+    expect(store.verifyChain(task.id)).toBe(true)
+  })
+
   it('rejects workspace traversal', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-store-'))
     temporaryRoots.push(root)

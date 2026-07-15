@@ -17,7 +17,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 9. **I** Structured waiting state — runtime parks durably, UI renders the focused request, and an answer resumes the same execution.
 10. **I** Terminal-input request state — native Claude can invoke the ONEVibe input MCP tool and receive the user's answer as its tool result.
 11. **I** Persistent task routes — `/tasks/:taskId` survives reload and browser navigation.
-12. **I** Concurrent workspace plus conversation and Computer timeline — task events are rendered as a scrub-able terminal, visual-frame, artifact, and preview record beside the conversation.
+12. **I** Concurrent workspace plus conversation and Computer timeline — server-classified, evidence-backed task events render as a scrub-able terminal, visual-frame, artifact, diff, and preview record beside the conversation.
 13. **I** Agent-mode entry point — primary ONEVibe surface.
 14. **I** Task history surface — durable turn-based chat history, timestamps/status, cursor pagination, full-text search, reload persistence, and evidence export.
 15. **P** Reusable project context — persisted projects, governed background briefs, and task-to-project binding are implemented; project-level files, permissions, and connectors are pending.
