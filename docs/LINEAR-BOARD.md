@@ -14,6 +14,7 @@ Linear also serves as the management and architecture review hub:
 - [Engineering Workstreams and Agent Delegation Model](https://linear.app/onecomputer/document/onevibe-engineering-workstreams-and-agent-delegation-model-2b0ec99f18c5)
 - [ADR-002 — Local Transactional Persistence Driver](https://linear.app/onecomputer/document/adr-002-local-transactional-persistence-driver-ec63c2a70f6c)
 - [Backend Contract Freeze v1](https://linear.app/onecomputer/document/onevibe-backend-contract-freeze-v1-ef85a800f29d)
+- [POC E2E Scope and Exit Criteria](https://linear.app/onecomputer/document/onevibe-poc-e2e-scope-and-exit-criteria-b8cb69cb2ba9)
 
 The current release gate is [ONE-215](https://linear.app/onecomputer/issue/ONE-215):
 
@@ -26,10 +27,16 @@ The current release gate is [ONE-215](https://linear.app/onecomputer/issue/ONE-2
 7. `ONE-222` — isolation, short-lived credentials, quotas, egress, and reconciliation.
 8. `ONE-223` — bind the Manus-style UX to the proven backend.
 9. `ONE-224` — add ONEComputer policy and external OpenVTC approvals after backend stabilization.
+10. `ONE-225` — make ONEComputer allocation idempotent and provider operations recoverable; blocks safe lease creation.
+11. `ONE-226` — integrate and attest a real microVM boundary without host Docker-socket exposure; blocks the final production gate.
 
 ## Product invariant
 
 The correctness-first model is **one durable conversation → one microVM lease**. Follow-up turns reuse the same lease, workspace, and Claude session; different conversations must never share a lease. Pooling, snapshots, and warm reuse are deferred until the real-provider E2E proves isolation, restart recovery, artifact extraction, cancellation, and teardown.
+
+Current ONEComputer Kasm/Daytona adapters are development sandbox providers, not yet accepted microVM evidence. In particular, the Kasm implementation adds `NET_ADMIN` and mounts the host Docker socket. `ONE-226` owns the replacement/attestation gate. `ONE-225` owns the missing idempotent allocation-operation API required to recover safely when provider creation times out after remote acceptance.
+
+Neither platform enhancement blocks the immediate POC. The POC may use the current provider to prove one conversation reuses one development sandbox across turns, another conversation receives a different sandbox, Claude runs there through LiteLLM, history survives reload, and PPTX/PDF artifacts originate inside and extract from that sandbox. The evidence and UI must say `development sandbox`; production microVM/isolation claims remain blocked by `ONE-226`, and create-timeout ambiguity remains an explicit `ONE-225` limitation.
 
 ## API access
 
