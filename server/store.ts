@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
+import type Database from 'better-sqlite3'
 import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
+import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, type MessageRecord, type UnitOfWork } from './persistence/index.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -90,6 +92,8 @@ export class TaskStore {
   private projectsRoot: string
   private projectsFile: string
   private schedulesFile: string
+  private database?: Database.Database
+  private unitOfWork?: UnitOfWork
 
   constructor(dataRoot = DEFAULT_DATA_ROOT) {
     const resolvedRoot = path.resolve(dataRoot)
@@ -108,6 +112,10 @@ export class TaskStore {
     await mkdir(this.runtimeRoot, { recursive: true })
     await mkdir(this.versionsRoot, { recursive: true })
     await mkdir(this.projectsRoot, { recursive: true })
+    this.database = openDatabase(path.join(path.dirname(this.tasksRoot), 'onevibe.sqlite'))
+    runMigrations(this.database)
+    this.unitOfWork = new SqliteUnitOfWork(this.database)
+    await this.importLegacyConversationState()
     try {
       const stored = JSON.parse(await readFile(this.projectsFile, 'utf8')) as Project[]
       for (const project of stored) this.projects.set(project.id, project)
@@ -142,11 +150,8 @@ export class TaskStore {
         }
         this.tasks.set(task.id, task)
         this.events.set(task.id, storedEvents)
-        const messageFile = path.join(this.tasksRoot, entry.name, 'messages.json')
-        let storedMessages: ChatMessage[] = []
-        try { storedMessages = JSON.parse(await readFile(messageFile, 'utf8')) as ChatMessage[] } catch { storedMessages = this.messagesFromLegacyEvents(task, storedEvents) }
+        const storedMessages = this.readMessages(task)
         this.messages.set(task.id, storedMessages)
-        if (storedMessages.length && !await this.fileExists(messageFile)) await writeJson(messageFile, storedMessages)
       } catch {
         // Ignore incomplete local-demo records. Production storage must fail closed.
       }
@@ -183,6 +188,9 @@ export class TaskStore {
     this.tasks.set(id, task)
     this.events.set(id, [])
     this.messages.set(id, [])
+    this.requireUnitOfWork().run((repositories) => repositories.conversations.insert({
+      id, title: task.title, status: 'active', createdAt: now, updatedAt: now,
+    }))
     await this.persist(task)
     return task
   }
@@ -557,16 +565,22 @@ export class TaskStore {
     const turnId = `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`
     const task = this.getTask(taskId)
     const resetPlan = task.plan.some((step) => step.status !== 'pending')
-    const existing = this.messages.get(taskId) ?? []
-    existing.push({ id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'user', content, status: 'completed', provider, createdAt: now, updatedAt: now })
-    existing.push({ id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider, createdAt: now, updatedAt: now })
+    const existing = this.readMessages(task)
+    const userMessage: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'user', content, status: 'completed', provider, createdAt: now, updatedAt: now }
+    const assistantMessage: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider, createdAt: now, updatedAt: now }
+    const ordinal = existing.filter((message) => message.role === 'user').length
+    this.requireUnitOfWork().run((repositories) => {
+      repositories.turns.insert({ id: turnId, conversationId: taskId, clientRequestId: turnId, ordinal, status: 'running', createdAt: now, startedAt: now, completedAt: null })
+      repositories.messages.append(this.toMessageRecord(userMessage, existing.length))
+      repositories.messages.append(this.toMessageRecord(assistantMessage, existing.length + 1))
+    })
+    existing.push(userMessage, assistantMessage)
     this.messages.set(taskId, existing)
     this.activeTurns.set(taskId, turnId)
     await this.updateTask(taskId, {
       activeRunId: turnId,
       ...(resetPlan ? { plan: task.plan.map((step) => ({ id: step.id, title: step.title, status: 'pending' as const })) } : {}),
     })
-    await this.persistMessages(taskId)
     if (resetPlan) await this.appendEvent(taskId, {
       type: 'activity_delta', lane: 'control', label: 'Plan reset for new run',
       content: 'The new turn has a fresh plan lifecycle. Prior run timing and completion remain preserved in the immutable evidence history.',
@@ -578,17 +592,17 @@ export class TaskStore {
   async appendStandaloneMessage(taskId: string, role: ChatMessage['role'], content: string, status: ChatMessage['status'] = 'completed') {
     const now = new Date().toISOString()
     const message: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId: `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`, role, content, status, provider: this.getTask(taskId).provider, createdAt: now, updatedAt: now }
-    const existing = this.messages.get(taskId) ?? []
+    const existing = this.readMessages(this.getTask(taskId))
+    this.requireUnitOfWork().run((repositories) => repositories.messages.append({ ...this.toMessageRecord(message, existing.length), turnId: null }))
     existing.push(message)
     this.messages.set(taskId, existing)
-    await this.persistMessages(taskId)
     return message
   }
 
   listMessages(taskId: string, options: { cursor?: string; limit?: number; query?: string } = {}) {
-    this.getTask(taskId)
+    const task = this.getTask(taskId)
     const query = options.query?.trim().toLocaleLowerCase()
-    const all = (this.messages.get(taskId) ?? []).filter((message) => !query || message.content.toLocaleLowerCase().includes(query))
+    const all = this.readMessages(task).filter((message) => !query || message.content.toLocaleLowerCase().includes(query))
     const cursorIndex = options.cursor ? all.findIndex((message) => message.id === options.cursor) : -1
     const start = cursorIndex >= 0 ? cursorIndex + 1 : 0
     const limit = Math.min(Math.max(options.limit ?? 100, 1), 200)
@@ -600,8 +614,8 @@ export class TaskStore {
     const normalized = query.trim().toLocaleLowerCase()
     if (!normalized) return []
     const results: Array<{ task: Task; message: ChatMessage }> = []
-    for (const [taskId, messages] of this.messages) {
-      const task = this.getTask(taskId)
+    for (const task of this.tasks.values()) {
+      const messages = this.readMessages(task)
       for (const message of messages) if (message.content.toLocaleLowerCase().includes(normalized)) results.push({ task, message })
     }
     return results.sort((a, b) => b.message.createdAt.localeCompare(a.message.createdAt)).slice(0, limit)
@@ -796,31 +810,108 @@ export class TaskStore {
 
   private async appendAssistantDelta(taskId: string, content: string) {
     let turnId = this.activeTurns.get(taskId)
-    const existing = this.messages.get(taskId) ?? []
+    const task = this.getTask(taskId)
+    const existing = this.readMessages(task)
     if (!turnId) {
       const now = new Date().toISOString()
       turnId = `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`
       this.activeTurns.set(taskId, turnId)
-      existing.push({ id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider: this.getTask(taskId).provider, createdAt: now, updatedAt: now })
+      const assistant: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider: task.provider, createdAt: now, updatedAt: now }
+      this.requireUnitOfWork().run((repositories) => {
+        repositories.turns.insert({
+          id: turnId!, conversationId: taskId, clientRequestId: turnId!,
+          ordinal: new Set(existing.map((candidate) => candidate.turnId)).size,
+          status: 'running', createdAt: now, startedAt: now, completedAt: null,
+        })
+        repositories.messages.append(this.toMessageRecord(assistant, existing.length))
+      })
+      existing.push(assistant)
     }
     const message = [...existing].reverse().find((item) => item.turnId === turnId && item.role === 'assistant')
-    if (message) { message.content += content; message.updatedAt = new Date().toISOString() }
+    if (message) {
+      const updated = this.requireUnitOfWork().run((repositories) => {
+        const record = repositories.messages.listByConversation(taskId, -1, 500).find((candidate) => candidate.id === message.id)
+        if (!record) throw new Error(`Assistant message ${message.id} is missing from durable history`)
+        return repositories.messages.appendAssistantDelta(message.id, record.revision, content)
+      })
+      Object.assign(message, this.fromMessageRecord(task, updated))
+    }
     this.messages.set(taskId, existing)
-    await this.persistMessages(taskId)
   }
 
   private async finishTurn(taskId: string, status: Extract<ChatMessage['status'], 'completed' | 'failed' | 'cancelled'>) {
     const turnId = this.activeTurns.get(taskId)
     if (!turnId) return
-    const message = [...(this.messages.get(taskId) ?? [])].reverse().find((item) => item.turnId === turnId && item.role === 'assistant')
-    if (message) { message.status = status; message.updatedAt = new Date().toISOString() }
+    const task = this.getTask(taskId)
+    const messages = this.readMessages(task)
+    const message = [...messages].reverse().find((item) => item.turnId === turnId && item.role === 'assistant')
+    const completedAt = new Date().toISOString()
+    this.requireUnitOfWork().run((repositories) => {
+      const turn = repositories.turns.findById(turnId)
+      if (!turn) throw new Error(`Turn ${turnId} is missing from durable history`)
+      repositories.turns.transition(turnId, turn.status, { ...turn, status, completedAt })
+      if (message) {
+        const record = repositories.messages.listByConversation(taskId, -1, 500).find((candidate) => candidate.id === message.id)
+        if (!record) throw new Error(`Assistant message ${message.id} is missing from durable history`)
+        repositories.messages.reviseAssistant(message.id, record.revision, JSON.stringify({ text: message.content, provider: message.provider, updatedAt: completedAt }), status)
+      }
+    })
+    this.messages.set(taskId, this.readMessages(task))
     this.activeTurns.delete(taskId)
     if (this.getTask(taskId).activeRunId === turnId) await this.updateTask(taskId, { activeRunId: undefined })
-    await this.persistMessages(taskId)
   }
 
-  private async persistMessages(taskId: string) {
-    await writeJson(path.join(this.tasksRoot, taskId, 'messages.json'), this.messages.get(taskId) ?? [])
+  private requireUnitOfWork() {
+    if (!this.unitOfWork) throw new Error('TaskStore is not initialized')
+    return this.unitOfWork
+  }
+
+  private toMessageRecord(message: ChatMessage, sequence: number): MessageRecord {
+    return {
+      id: message.id, conversationId: message.taskId, turnId: message.turnId, sequence, role: message.role,
+      contentJson: JSON.stringify({ text: message.content, provider: message.provider, updatedAt: message.updatedAt }),
+      revision: 0, status: message.status, createdAt: message.createdAt,
+    }
+  }
+
+  private fromMessageRecord(task: Task, record: MessageRecord): ChatMessage {
+    const content = JSON.parse(record.contentJson) as { text?: unknown; provider?: unknown; updatedAt?: unknown }
+    return {
+      id: record.id, taskId: record.conversationId, turnId: record.turnId ?? `legacy_turn_${record.sequence}`,
+      role: record.role === 'tool' ? 'system' : record.role,
+      content: typeof content.text === 'string' ? content.text : '', status: record.status,
+      provider: content.provider === 'demo' || content.provider === 'claude_sdk' || content.provider === 'onecomputer' || content.provider === 'remote' ? content.provider : task.provider,
+      createdAt: record.createdAt, updatedAt: typeof content.updatedAt === 'string' ? content.updatedAt : record.createdAt,
+    }
+  }
+
+  private readMessages(task: Task): ChatMessage[] {
+    return this.requireUnitOfWork().run((repositories) => repositories.messages.listByConversation(task.id, -1, 500))
+      .map((record) => this.fromMessageRecord(task, record))
+  }
+
+  private async importLegacyConversationState() {
+    const unitOfWork = this.requireUnitOfWork()
+    const state = unitOfWork.run((repositories) => repositories.idempotency.find('migration', 'task-store-json-v1'))
+    if (state?.state === 'completed') return
+    const requestHash = createHash('sha256').update('task-store-json-v1').digest('hex')
+    if (!state) unitOfWork.run((repositories) => repositories.idempotency.claim('migration', 'task-store-json-v1', requestHash, new Date().toISOString()))
+    const importer = new LegacyJsonImporter({
+      legacyRoot: this.tasksRoot,
+      unitOfWork,
+      compatibility: {
+        messagesFor: async ({ sourceDirectory, task }) => {
+          const typedTask = task as unknown as Task
+          let events: RuntimeEvent[] = []
+          try { events = JSON.parse(await readFile(path.join(sourceDirectory, 'events.json'), 'utf8')) as RuntimeEvent[] } catch { /* no legacy events */ }
+          return this.messagesFromLegacyEvents(typedTask, events)
+        },
+      },
+    })
+    const report = await importer.importAll()
+    const fatal = report.quarantined.filter((item) => item.code === 'changed_source' || item.code === 'transaction_failed')
+    if (fatal.length) throw new Error(`Legacy conversation import failed: ${fatal.map((item) => `${item.sourceId}: ${item.reason}`).join('; ')}`)
+    unitOfWork.run((repositories) => repositories.idempotency.complete('migration', 'task-store-json-v1', JSON.stringify(report), new Date().toISOString()))
   }
 
   private messagesFromLegacyEvents(task: Task, events: RuntimeEvent[]) {
@@ -845,7 +936,4 @@ export class TaskStore {
     return messages
   }
 
-  private async fileExists(filePath: string) {
-    try { await stat(filePath); return true } catch { return false }
-  }
 }

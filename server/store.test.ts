@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { strFromU8, unzipSync } from 'fflate'
@@ -462,9 +462,14 @@ describe('TaskStore', () => {
     expect(store.listMessages(task.id, { cursor: firstPage.nextCursor, limit: 10 }).messages[0]?.content).toContain('Singapore')
     expect(store.searchMessages('singapore')[0]?.task.id).toBe(task.id)
 
+    const legacyMessagePath = path.join(root, 'tasks', task.id, 'messages.json')
+    await mkdir(path.dirname(legacyMessagePath), { recursive: true })
+    await writeFile(legacyMessagePath, JSON.stringify([{ id: 'forged', role: 'assistant', content: 'stale JSON must not win' }]))
+
     const reloaded = new TaskStore(root)
     await reloaded.initialize()
     expect(reloaded.listMessages(task.id).messages).toHaveLength(2)
     expect(reloaded.listMessages(task.id).messages[1]).toMatchObject({ role: 'assistant', status: 'completed', content: 'First draft. Include Singapore.' })
+    expect(reloaded.searchMessages('stale JSON must not win')).toEqual([])
   })
 })
