@@ -42,10 +42,12 @@ describe('mode artifacts', () => {
 
     expect(await store.readWorkspaceFile(task.id, 'app/src/App.tsx')).toContain('useState')
     expect(await store.readWorkspaceFile(task.id, 'app/vite.config.ts')).toContain('defineConfig')
+    expect(await store.readWorkspaceFile(task.id, 'app/vite.config.ts')).toContain('@tailwindcss/vite')
+    expect(await store.readWorkspaceFile(task.id, 'app/src/components/ui/Button.tsx')).toContain('ButtonHTMLAttributes')
     expect((await store.listWorkspaceFiles(task.id)).map((file) => file.path)).toContain('app/.gitignore')
     expect(JSON.parse(await store.readWorkspaceFile(task.id, 'app/package.json'))).toMatchObject({
       scripts: { build: 'tsc -b && vite build', preview: 'vite preview' },
-      devDependencies: { '@types/react': expect.any(String), '@types/react-dom': expect.any(String), '@vitejs/plugin-react': expect.any(String) },
+      devDependencies: { '@types/react': expect.any(String), '@types/react-dom': expect.any(String), '@tailwindcss/vite': expect.any(String), '@vitejs/plugin-react': expect.any(String), tailwindcss: expect.any(String) },
     })
   })
 

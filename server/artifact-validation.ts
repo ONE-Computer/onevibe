@@ -78,6 +78,8 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
     await required(store, task.id, 'app/vite.config.ts', checks)
     await required(store, task.id, 'app/tsconfig.json', checks)
     await required(store, task.id, 'app/.gitignore', checks)
+    const button = await required(store, task.id, 'app/src/components/ui/Button.tsx', checks)
+    const classNames = await required(store, task.id, 'app/src/lib/cn.ts', checks)
     const styles = await required(store, task.id, 'app/src/styles.css', checks)
     check(checks, 'app:root-landmark', /<main(?:\s|>)/.test(appSource ?? ''), 'Generated app contains a main landmark')
     try {
@@ -85,7 +87,9 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
       check(checks, 'app:build-script', Boolean(manifest.scripts?.build), 'Portable scaffold declares a build script')
       check(checks, 'app:dev-script', Boolean(manifest.scripts?.dev), 'Portable scaffold declares a development script')
       check(checks, 'app:portable-vite-contract', Boolean(manifest.dependencies?.react && manifest.dependencies['react-dom'] && manifest.devDependencies?.vite && manifest.devDependencies.typescript), 'Portable scaffold declares React, Vite, and TypeScript dependencies')
+      check(checks, 'app:tailwind-vite-contract', Boolean(manifest.devDependencies?.tailwindcss && manifest.devDependencies?.['@tailwindcss/vite'] && /@import\s+["']tailwindcss["']/.test(styles ?? '')), 'Portable scaffold declares Tailwind with the Vite integration')
     } catch { check(checks, 'app:build-script', false, 'Portable scaffold declares a build script') }
+    check(checks, 'app:component-foundation', Boolean(button?.includes('ButtonHTMLAttributes') && classNames?.includes('export const cn')), 'Portable scaffold includes a typed Button component and class-name helper')
     if (task.mode === 'website') {
       check(checks, 'website:semantic-navigation', /<nav(?:\s|>)/.test(appSource ?? '') && /<footer(?:\s|>)/.test(appSource ?? ''), 'Website includes navigation and footer landmarks')
       check(checks, 'website:faq-disclosure', /<details(?:\s|>)/.test(appSource ?? '') && /<summary(?:\s|>)/.test(appSource ?? ''), 'Website FAQ uses native disclosure semantics')

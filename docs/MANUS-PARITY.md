@@ -92,8 +92,8 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 70. **I** Workspace expansion — fullscreen overlay with explicit exit and Escape handling.
 71. **I** Vite project generation — Website, App, and Game modes emit a portable Vite scaffold.
 72. **I** React and TypeScript generation as a mode contract.
-73. **M** Tailwind CSS integration as a generated scaffold.
-74. **M** Component-library scaffold.
+73. **P** Tailwind CSS integration as a generated scaffold — generated React/Vite projects include Tailwind 4 plus the Vite plugin, but dependency installation/build proof remains sandbox-gated.
+74. **P** Component-library scaffold — projects include a typed reusable Button and `cn` helper; richer component catalogue and visual-regression proof remain pending.
 75. **M** Server scaffold.
 76. **M** Shared-code scaffold.
 77. **M** Package lock generation.
