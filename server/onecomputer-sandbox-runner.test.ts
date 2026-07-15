@@ -80,4 +80,30 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)
   })
+
+  it('reuses an explicitly retained sandbox for a continuation', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-retained-'))
+    roots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { OneComputerSandboxRuntimeAdapter } = await import('./onecomputer-sandbox-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Continue sandbox work', 'onecomputer')
+    const journal = Buffer.from(JSON.stringify({ type: 'result', session_id: 'session-retained', result: 'Done.' })).toString('base64')
+    const client = {
+      createSandbox: vi.fn(async () => ({ id: 'sandbox-retained', state: 'started', provider: 'kasm-local' })),
+      getSandbox: vi.fn(async () => ({ id: 'sandbox-retained', state: 'started', provider: 'kasm-local' })),
+      exec: vi.fn(async (_id: string, command: string) => command.includes('find .') ? { exitCode: 0, output: Buffer.from('README.md\0').toString('base64') } : command.endsWith("'README.md'") ? { exitCode: 0, output: Buffer.from('# retained').toString('base64') } : command.includes('.onevibe-exitcode') ? { exitCode: 0, output: `done:0\n${journal}` } : { exitCode: 0, output: '' }),
+      deleteSandbox: vi.fn(async () => undefined),
+      startVisualRuntime: vi.fn(async () => ({ display: ':99', width: 1440, height: 900, browserReady: false })),
+      getVisualScreenshot: vi.fn(),
+    } as unknown as OneComputerClient
+    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false, pollMilliseconds: 1 })
+    await adapter.run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+    await adapter.run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Continue with a revision', continuation: true, requestUserInput: async () => 'unused' })
+    expect(client.createSandbox).toHaveBeenCalledTimes(1)
+    expect(client.getSandbox).toHaveBeenCalled()
+    expect(client.deleteSandbox).not.toHaveBeenCalled()
+    expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer retained sandbox resumed')).toBe(true)
+  })
 })

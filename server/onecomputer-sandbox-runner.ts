@@ -57,7 +57,8 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
   async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
     signal.throwIfAborted()
-    if (continuation) throw new Error('ONEComputer sandbox continuation requires a retained sandbox and is not enabled yet')
+    const retainedSandboxId = task.securityContext?.sandboxId
+    if (continuation && (!this.options.retainSandbox || !retainedSandboxId || task.securityContext?.sandboxState === 'destroyed')) throw new Error('ONEComputer sandbox continuation requires an explicitly retained active sandbox')
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'ONEComputer sandbox execution started',
@@ -67,7 +68,9 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     await store.setPlanStep(task.id, 'scope', 'completed')
     await store.setPlanStep(task.id, 'workspace', 'running')
 
-    const sandbox = await this.client.createSandbox(`onevibe-${task.id.slice(-8)}`, signal)
+    const sandbox = continuation
+      ? await this.client.getSandbox(retainedSandboxId!, signal)
+      : await this.client.createSandbox(`onevibe-${task.id.slice(-8)}`, signal)
     let destroyed = false
     let visualLoop: Promise<void> | undefined
     let stopVisualLoop: (() => void) | undefined
@@ -123,9 +126,9 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         },
       })
       await store.appendEvent(task.id, {
-        type: 'activity_delta', lane: 'control', label: 'ONEComputer sandbox ready',
-        content: `${sandbox.provider ?? 'configured'} provider started an isolated task boundary.`,
-        payload: { sandboxId: sandbox.id, provider: sandbox.provider, state: live.state, gatewayEnforced: this.options.gatewayEnforced },
+        type: 'activity_delta', lane: 'control', label: continuation ? 'ONEComputer retained sandbox resumed' : 'ONEComputer sandbox ready',
+        content: continuation ? `${sandbox.provider ?? 'configured'} retained the task boundary for this continuation.` : `${sandbox.provider ?? 'configured'} provider started an isolated task boundary.`,
+        payload: { sandboxId: sandbox.id, provider: sandbox.provider, state: live.state, gatewayEnforced: this.options.gatewayEnforced, continuation },
       })
       if (this.options.visualRuntime) {
         const visual = await this.client.startVisualRuntime(sandbox.id, signal)
