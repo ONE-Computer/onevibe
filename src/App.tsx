@@ -250,12 +250,10 @@ export default function App() {
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="ambient-grid" />
               <div className="home-content">
-                <div className="home-badge"><ShieldCheck size={14} /> {projects.find((project) => project.id === activeProjectId)?.name ?? 'ONEVibe product'} · ONEComputer security</div>
                 <h1>What will you<br /><span>build safely?</span></h1>
-                <p>Give your team a capable cloud agent without surrendering control of data, tools, or approvals.</p>
+                <p>A capable cloud agent, with your data, tools, and approvals under your control.</p>
                 <PromptComposer busy={creating} skills={selectedSkills} runtime={runtime} onSubmit={startTask} />
                 <div className="starter-prompts">{starterPrompts.map((prompt) => <button key={prompt} onClick={() => void startTask(prompt)}>{prompt}<span>↗</span></button>)}</div>
-                <div className="home-assurance"><span><i /> Disposable workspaces</span><span><i /> Default-deny policy</span><span><i /> Separate wallet approval</span></div>
               </div>
             </motion.section>
           ) : (
