@@ -59,6 +59,10 @@ The Compose path intentionally does not pretend to use Postgres yet. `DATABASE_U
 
 The proposed auth/database contract is recorded in [`AUTH-POSTGRES-ADR.md`](AUTH-POSTGRES-ADR.md). It is intentionally a migration design, not evidence that auth, Postgres, or multi-user isolation already exist.
 
+## Execution-path diagnostics
+
+`GET /api/diagnostics` is an authenticated, bounded status contract for the Computers view. It reports whether the server-controlled LiteLLM boundary is configured, whether the current request is session-scoped, which local persistence driver is active, provider readiness, the configured sandbox boundary, and the count of secret-free MCP declarations. It never returns credentials, prompts, raw provider payloads, or production attestation claims. The Postgres contract and cloud/microVM boundaries remain explicit follow-up work until their runtime proofs exist.
+
 ## Implemented production adapters
 
 - `RemoteRuntimeAdapter` consumes the AgentCore/backend typed SSE contract. Its optional bearer token remains server-side.
