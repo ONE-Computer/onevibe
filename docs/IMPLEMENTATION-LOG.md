@@ -4,7 +4,7 @@
 
 - Expanded the shared `isLiteLlmRelayUrl` guard used by the Claude SDK and ONEComputer worker to reject known Anthropic, OpenAI, Bedrock, Gemini, Groq, Mistral, Cohere, xAI, and DeepSeek first-party hosts when they are mislabeled as LiteLLM relays.
 - Added regression coverage for OpenAI, Bedrock, Gemini, and Groq endpoints. A relay must remain an operator-controlled HTTP(S) endpoint without embedded credentials; the server never silently falls back to a first-party provider.
-- Focused provider tests, lint, build, and the full test suite pass (51 files / 256 tests).
+- Focused provider tests, lint, build, and the full test suite pass (51 files / 257 tests).
 
 ## 2026-07-17 — enforce the hardened container contract in CI
 
@@ -814,3 +814,8 @@ baseline harness in CI.
 - Added a reviewed npm override that replaces the vulnerable nested `esbuild@0.18.20` pulled by `@esbuild-kit/core-utils` with patched `esbuild@0.25.12`. The override is intentionally narrow and is retained in the lockfile; it avoids the incompatible `npm audit fix --force` downgrade path for Better Auth/Drizzle Kit.
 - Added `npm audit --omit=dev --audit-level=moderate` to the required GitHub Actions verification job. `npm audit --omit=dev` now reports zero vulnerabilities, `npm ls` reports the overridden dependency as patched, and `npm run db:check` remains green.
 - This closes only the dependency advisory gate. It does not close Postgres runtime, production auth, deployment, sandbox attestation, or provider acceptance.
+
+## 2026-07-17 — patched dependency image container proof
+
+- Rebuilt `onevibe-ci:local` after the lockfile override and started it with a read-only root filesystem, only bounded `/tmp` and data tmpfs mounts, all Linux capabilities dropped, `no-new-privileges`, and UID 10001. `/api/health` returned `healthy`; the configured image user and runtime UID were both verified.
+- This is a local container hardening proof. The image still runs the SQLite-backed application and is not a Postgres deployment or production sandbox-attestation proof.
