@@ -7,6 +7,7 @@
 - Filtered provider thinking-token telemetry from the operational rail and assistant-ui trace. The UI continues to show bounded operational/tool evidence and explicitly states that hidden chain-of-thought is not exposed.
 - History now labels deterministic conversations as `Simulation · no model call`, so older demo records cannot be mistaken for provider-backed conversations.
 - Browser verification after reload: real Claude chat showed a direct answer, 0 portable artifacts, no thinking-token cards, and no console errors. Full `npm run check` passed with 37 test files / 207 tests.
+- Post-fix live rerun: chat `task_4ec98deee76e41`, demo `task_a01f60f606c349`, and artifact/Bash `task_9ea262fa183949` passed with 23 live SSE frames, 46 replay frames, two chat turns, one bounded Bash call, valid evidence, and restart recovery.
 
 ## 2026-07-16 — repeatable truthful Claude acceptance gate
 

@@ -7,6 +7,7 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 - A browser reload of real chat task `task_4e120a8439f240` exposed two presentation defects: internal `.claude/skills` guides inflated the portable-artifact count to 2, and five `Claude SDK · thinking tokens` records appeared in both the assistant trace and Activity rail.
 - The fix keeps skill materialization runtime-private, filters internal workspace paths from snapshots/Files/Library/direct file access, and removes thinking-token telemetry from user-facing operational projections. The provider's hidden reasoning remains intentionally unavailable.
 - After reload, the same task displayed 0 portable artifacts, only bounded project/skill/run lifecycle evidence, and no browser console errors. The old deterministic history entry is visibly labelled `Simulation · no model call`.
+- Post-fix live rerun: chat `task_4ec98deee76e41`, demo `task_a01f60f606c349`, artifact/Bash `task_9ea262fa183949`; 23 live SSE frames, 46 replay frames, two chat turns, one bounded Bash call, valid evidence, and restart recovery.
 
 ## 2026-07-16 — isolated local Claude chat and terminal acceptance gate
 
