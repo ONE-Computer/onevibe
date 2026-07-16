@@ -82,7 +82,7 @@ Reference: `plan/05-ui-overhaul.md`
 - [ ] **P5-03** Add toast system — `sonner` library; wire all 12 currently-swallowed async errors
 - [x] **P5-04** Fix all dead controls — removed the two decorative Settings controls, made workspace refresh reload task files, and replaced the hardcoded skills count with the live catalog size
 - [x] **P5-05** Add conversation search UI — sidebar search debounces against the server-backed `/api/conversations?q=...` contract and retains the loaded-history fallback for short queries
-- [ ] **P5-06** Add schedule delete — `DELETE /api/schedules/:id` + trash icon + confirm dialog
+- [x] **P5-06** Add schedule delete — `DELETE /api/schedules/:id` + trash icon + confirm dialog; existing tasks remain durable after schedule removal
 - [ ] **P5-07** Add library item delete — `DELETE /api/library/:taskId` + remove action
 - [ ] **P5-08** Add history restore confirmation — confirm dialog + loading state + toast
 - [ ] **P5-09** Fix evidence log — replace `slice(-6)` with paginated "Show all N events" affordance

@@ -23,6 +23,11 @@
 - Completed P5-05 locally: the sidebar search input debounces server-backed conversation search so unloaded history is discoverable through `/api/conversations?q=...`; short queries retain the loaded-summary filter and empty/error states remain explicit.
 - Verification: `npm run lint` and `npm run build` pass. This slice does not claim auth-backed search isolation; that remains part of Phase 4.
 
+## 2026-07-17 — make schedule deletion real
+
+- Completed P5-06 locally: added durable `DELETE /api/schedules/:id`, a confirmed trash action in the Schedules view, and regression coverage proving schedule removal persists while previously dispatched tasks remain intact.
+- Verification: focused store suite passes (40 tests), lint passes, and the production build passes. The confirmation is a user-intent guard, not an authorization boundary; auth and multi-user ownership remain open.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.

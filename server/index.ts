@@ -414,6 +414,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const input = scheduleStateInput.parse(await readBody(request))
     return json(response, 200, await store.setScheduleEnabled(segments[2], input.enabled))
   }
+  if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2]) {
+    return json(response, 200, await store.deleteSchedule(segments[2]))
+  }
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2] && segments[3] === 'run') {
     const schedule = await store.claimScheduleNow(segments[2])
     const task = await dispatchSchedule(schedule, 'manual')

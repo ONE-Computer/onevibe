@@ -464,6 +464,13 @@ export class TaskStore {
     return updated
   }
 
+  async deleteSchedule(id: string) {
+    if (!this.schedules.has(id)) throw new Error('Schedule not found')
+    this.schedules.delete(id)
+    await this.persistSchedules()
+    return { id, deleted: true as const }
+  }
+
   async claimScheduleNow(id: string, now = new Date()) {
     const schedule = this.schedules.get(id)
     if (!schedule) throw new Error('Schedule not found')

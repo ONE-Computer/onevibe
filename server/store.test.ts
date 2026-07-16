@@ -610,6 +610,25 @@ describe('TaskStore', () => {
     expect(claimed.nextRunAt).toBe('2026-07-16T01:00:00.000Z')
   })
 
+  it('deletes a schedule durably without deleting its existing tasks', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-schedule-delete-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const schedule = await store.createSchedule({ name: 'Retire me', prompt: 'Review the queue', provider: 'demo', mode: 'research', projectId: 'project_onevibe', intervalMinutes: 60 })
+    const task = await store.createTask('Task from schedule', 'demo', 'research', 'project_onevibe', schedule.id)
+
+    expect(await store.deleteSchedule(schedule.id)).toEqual({ id: schedule.id, deleted: true })
+    expect(store.listSchedules()).toHaveLength(0)
+    expect(store.getTask(task.id).scheduleId).toBe(schedule.id)
+
+    const reloaded = new TaskStore(root)
+    await reloaded.initialize()
+    expect(reloaded.listSchedules()).toHaveLength(0)
+    expect(reloaded.getTask(task.id).scheduleId).toBe(schedule.id)
+  })
+
   it('persists, paginates, searches, and completes chat turns independently of events', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-chat-history-'))
     temporaryRoots.push(root)
