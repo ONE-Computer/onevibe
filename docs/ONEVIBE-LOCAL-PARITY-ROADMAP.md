@@ -90,6 +90,8 @@ Creation outputs now have a deterministic provenance manifest for local determin
 
 The default local LiteLLM slide gate is now green for the current route: task `task_e1a9c636a57a45` passed with the encoded 12-turn/$2 policy, eight-slide PPTX/PDF outputs, seven hashed manifest outputs, and valid evidence. The coordinator retains its 15-minute turn deadline and bounded cleanup grace; future model/gateway changes must rerun this gate.
 
+The slide review surface now includes page-like responsive previews, notes, navigation, and thumbnails. Because the renderer prompt changed after the last passing live run, the next acceptance run must re-prove the default LiteLLM slide gate against this exact commit.
+
 ## Delegated audit synthesis — 2026-07-16
 
 The audits confirm a local release **NO-GO** until the runtime closes these reliability gaps: cancellation/process quiescence, restart reconciliation, the SSE replay/subscription race, provider early-EOF handling, crash recovery between native events and transcript projection, and durable retry identity. These are now tracked in `ONE-231`.
