@@ -2,8 +2,8 @@ import { Activity, ExternalLink, Eye, MonitorCog, Plus, ShieldCheck, TerminalSqu
 import { motion } from 'framer-motion'
 import { useEffect, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { getRuntimeDiagnostics, testRuntime } from '../lib/api'
-import type { RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, Task } from '../types'
+import { getRuntimeDiagnostics, testMcpConfig, testRuntime } from '../lib/api'
+import type { McpHealth, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, Task } from '../types'
 import { statusLabel } from '../lib/runtime-labels'
 
 type Props = { tasks: Task[]; onOpenTask: (taskId: string) => void; runtime?: RuntimeReadiness; mcpConfigs: RuntimeMcpConfig[]; onCreateMcpConfig: (input: Pick<RuntimeMcpConfig, 'name' | 'command' | 'args'>) => Promise<void>; onDeleteMcpConfig: (config: RuntimeMcpConfig) => Promise<void> }
@@ -27,6 +27,8 @@ export const Computers = ({ tasks, onOpenTask, runtime, mcpConfigs, onCreateMcpC
   const [mcpCommand, setMcpCommand] = useState('')
   const [mcpArgs, setMcpArgs] = useState('')
   const [mcpSaving, setMcpSaving] = useState(false)
+  const [mcpHealth, setMcpHealth] = useState<Record<string, McpHealth>>({})
+  const [mcpTesting, setMcpTesting] = useState<string | null>(null)
   const [diagnostics, setDiagnostics] = useState<RuntimeDiagnostics>()
   const computers = tasks.filter((task) => task.securityContext).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   useEffect(() => { void getRuntimeDiagnostics().then(setDiagnostics).catch((reason: unknown) => toast.error(reason instanceof Error ? reason.message : 'Unable to load execution diagnostics')) }, [])
@@ -51,6 +53,16 @@ export const Computers = ({ tasks, onOpenTask, runtime, mcpConfigs, onCreateMcpC
       setMcpName(''); setMcpCommand(''); setMcpArgs('')
     } finally { setMcpSaving(false) }
   }
+  const runMcpHealth = async (config: RuntimeMcpConfig) => {
+    setMcpTesting(config.id)
+    try {
+      const result = await testMcpConfig(config.id)
+      setMcpHealth((current) => ({ ...current, [config.id]: result }))
+    } catch (reason) {
+      setMcpHealth((current) => ({ ...current, [config.id]: { id: config.id, status: 'offline', detail: 'Health request failed at the ONEVibe API.' } }))
+      toast.error(reason instanceof Error ? reason.message : 'MCP health check failed')
+    } finally { setMcpTesting(null) }
+  }
   return <section className="computers-view">
     <header><div><span className="task-kicker">Runtimes</span><h1>Computers</h1><p>Task-derived inventory of the runtimes ONEVibe has observed. This view is read-only: it does not provision, restart, terminate, or otherwise control an infrastructure provider.</p></div><MonitorCog size={28} /></header>
     {runtime && <section className="runtime-health-panel" aria-label="Runtime health"><header><div><span>Runtime registry</span><strong>Connectivity checks</strong></div><small>Server-side probes only · no model prompt is sent</small></header><div className="runtime-health-grid">{runtime.providers.map((provider) => { const result = health[provider.id]; const status = result?.status ?? provider.healthStatus ?? (provider.available ? 'unknown' : 'not_configured'); return <article key={provider.id}><div><span className={`runtime-health-dot ${status}`} /><strong>{provider.label}</strong></div><small>{result?.detail ?? provider.detail}</small>{result?.latencyMs !== undefined && <span>{result.latencyMs} ms</span>}{provider.healthCheckedAt && !result && <time dateTime={provider.healthCheckedAt}>Checked {new Date(provider.healthCheckedAt).toLocaleTimeString()}</time>}<button type="button" disabled={testing === provider.id} onClick={() => void runHealthCheck(provider.id)}>{testing === provider.id ? 'Testing…' : result || provider.healthStatus ? 'Test again' : 'Test runtime'}</button></article> })}</div></section>}
@@ -64,7 +76,7 @@ export const Computers = ({ tasks, onOpenTask, runtime, mcpConfigs, onCreateMcpC
         <label>Arguments<input value={mcpArgs} onChange={(event) => setMcpArgs(event.target.value)} placeholder="-y @example/mcp-server" maxLength={2_000} /></label>
         <button type="submit" disabled={mcpSaving || !mcpName.trim() || !mcpCommand.trim()}><Plus size={14} /> {mcpSaving ? 'Saving…' : 'Add server'}</button>
       </form>
-      {mcpConfigs.length ? <ul className="mcp-config-list">{mcpConfigs.map((config) => <li key={config.id}><div><strong>{config.name}</strong><code>{config.command}{config.args.length ? ` ${config.args.join(' ')}` : ''}</code></div><button type="button" onClick={() => void onDeleteMcpConfig(config)} aria-label={`Remove ${config.name}`} title="Remove MCP server"><Trash2 size={14} /></button></li>)}</ul> : <div className="mcp-config-empty">No MCP servers configured. Add a declaration to make it available to the next Claude tool-use turn.</div>}
+      {mcpConfigs.length ? <ul className="mcp-config-list">{mcpConfigs.map((config) => { const result = mcpHealth[config.id]; return <li key={config.id}><div><strong>{config.name}</strong><code>{config.command}{config.args.length ? ` ${config.args.join(' ')}` : ''}</code>{result && <small className={`mcp-health-status ${result.status}`}>{result.status === 'online' ? `${result.toolCount ?? 0} tools · ${result.latencyMs ?? 0} ms` : result.detail}</small>}</div><div className="mcp-config-actions"><button type="button" disabled={mcpTesting === config.id} onClick={() => void runMcpHealth(config)}>{mcpTesting === config.id ? 'Testing…' : 'Test'}</button><button type="button" onClick={() => void onDeleteMcpConfig(config)} aria-label={`Remove ${config.name}`} title="Remove MCP server"><Trash2 size={14} /></button></div></li> })}</ul> : <div className="mcp-config-empty">No MCP servers configured. Add a declaration to make it available to the next Claude tool-use turn.</div>}
     </section>
     {!computers.length ? <div className="computers-empty"><MonitorCog size={22} /><strong>No governed runtimes observed</strong><span>Start a task to record its execution boundary, lifecycle evidence, and visual-runtime readiness here.</span></div> : <div className="computers-grid">{computers.map((task) => {
       const context = task.securityContext!

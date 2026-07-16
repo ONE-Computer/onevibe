@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { McpCapabilityFacade } from './mcp-facade.js'
+import { McpCapabilityFacade, probeMcpConfig } from './mcp-facade.js'
 
 const fixtureServer = `
 process.stdin.setEncoding('utf8')
@@ -56,5 +56,13 @@ describe('MCP capability facade', () => {
     const facade = new McpCapabilityFacade([])
     await expect(facade.search('lookup', controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
     facade.close()
+  })
+
+  it('probes a server without returning process output or retaining a client', async () => {
+    const result = await probeMcpConfig({
+      id: 'fixture', name: 'Fixture MCP', command: process.execPath, args: ['-e', fixtureServer], env: { SECRET: 'must-not-be-forwarded' },
+    })
+    expect(result).toMatchObject({ status: 'online', toolCount: 1 })
+    expect(result.detail).not.toContain('fixture executed')
   })
 })

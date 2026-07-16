@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationSummary, LibraryItem, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 export type SkillCatalogEntry = SkillInstallation
 export type SkillOption = Pick<SkillCatalogEntry, 'id' | 'title' | 'summary' | 'source' | 'installed' | 'contentUrl'> & { selectable?: boolean }
@@ -80,6 +80,7 @@ export const installSkill = async (skillId: TaskSkill) => parse<SkillInstallatio
 }))
 export const removeSkill = async (skillId: TaskSkill) => parse<{ id: string; deleted: true }>(await fetch(`/api/skills/${encodeURIComponent(skillId)}`, { method: 'DELETE' }))
 export const listMcpConfigs = async () => parse<{ configs: RuntimeMcpConfig[] }>(await fetch('/api/mcp'))
+export const testMcpConfig = async (id: string) => parse<McpHealth>(await fetch(`/api/mcp/${encodeURIComponent(id)}/health`))
 export const createMcpConfig = async (input: Pick<RuntimeMcpConfig, 'name' | 'command' | 'args'>) => parse<RuntimeMcpConfig>(await fetch('/api/mcp', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
 }))

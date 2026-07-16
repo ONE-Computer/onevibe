@@ -30,6 +30,7 @@ import { isInternalWorkspacePath } from './artifact-path.js'
 import { serveStatic } from './static-files.js'
 import { AuthService } from './auth.js'
 import { resolvePersistenceConfig } from './persistence/driver-config.js'
+import { probeMcpConfig } from './mcp-facade.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -419,6 +420,12 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     return json(response, 200, { id: segments[2], deleted: true })
   }
   if (request.method === 'GET' && url.pathname === '/api/mcp') return json(response, 200, { configs: store.listMcpConfigs(actorUserId) })
+  if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'mcp' && segments[2] && segments[3] === 'health' && segments.length === 4) {
+    const config = store.listMcpConfigs(actorUserId).find((candidate) => candidate.id === segments[2])
+    if (!config) return json(response, 404, { error: 'MCP configuration not found' })
+    const health = await probeMcpConfig({ ...config, env: {} })
+    return json(response, 200, { id: config.id, ...health })
+  }
   if (request.method === 'POST' && url.pathname === '/api/mcp') {
     const input = mcpConfigInput.parse(await readBody(request))
     if (['sh', 'bash', 'zsh', 'fish', 'cmd', 'powershell'].includes(path.basename(input.command).toLowerCase())) {

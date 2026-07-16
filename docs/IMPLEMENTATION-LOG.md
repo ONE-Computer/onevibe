@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — add bounded MCP health probing
+
+- Added `GET /api/mcp/:id/health`, scoped through the authenticated owner inventory, which starts the declared stdio server with the existing secret-free environment boundary, performs initialization and `tools/list`, and returns only `online`/`offline`, bounded latency, tool count, and generic failure detail.
+- Added a real Test action in Computers and regression coverage proving a healthy fixture catalog, an offline process, and cross-owner `404` isolation. The probe closes its child process and does not return stderr, tool results, environment values, or credentials.
+- This closes the local MCP health visibility slice only. Production secret brokering, external-server attestation, rate limiting, and protected provider materialization remain open.
+
 ## 2026-07-17 — validate legacy import relationships before Postgres writes
 
 - Moved Postgres legacy-import relationship validation into `server/persistence/import-validation.ts` so it can be tested without importing or executing the CLI entrypoint.

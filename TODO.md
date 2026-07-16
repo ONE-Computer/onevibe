@@ -8,7 +8,7 @@
 >
 > **Current state**: The local-first foundation is substantially implemented: backend-offline recovery, truthful simulation labelling, durable SSE replay/reconnect, LiteLLM-only routing, provider-neutral runtime lifecycle, runtime health/routing, task workspaces, durable guidance queueing, assistant-ui conversation rendering, owner-scoped local auth, an opt-in MCP capability facade, and the initial skill marketplace boundary are in place. Remaining release blockers are live provider acceptance, Postgres/runtime deployment, sandbox attestation, production MCP secret/health controls, document/provider/browser evidence, and the remaining professional-UI gates. See `HANDOVER.md` and `plan/00-gap-analysis.md`.
 >
-> **Release gate**: `npm run check` must stay green (oxlint + 250 vitest tests + tsc build + e2e harness typecheck) after every task.
+> **Release gate**: `npm run check` must stay green (oxlint + 251 vitest tests + tsc build + e2e harness typecheck) after every task.
 
 > **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The Claude SDK configuration now fails closed unless the server-controlled relay is configured; Codex/AgentCore remain blocked until their adapters also use the same boundary.
 
@@ -98,7 +98,7 @@ Reference: `plan/05-ui-overhaul.md`
 **Target: users add MCP servers; ONEVibe routes tool calls through them; skill marketplace works.**
 Reference: `plan/06-mcp-extensions.md`
 
-- [x] **P6-01** Add MCP config management — local SQLite-backed UI to add/remove MCP servers; store in `runtime_mcp_configs` (not on-disk JSON); inject secret-free declarations into adapters that support `'tool_use'`. Authenticated ownership and a production secret broker remain part of P4.
+- [x] **P6-01** Add MCP config management — local SQLite-backed UI to add/remove/test MCP servers; store in `runtime_mcp_configs` (not on-disk JSON); inject secret-free declarations into adapters that support `'tool_use'`. Authenticated ownership and a production secret broker remain part of P4.
 - [ ] **P6-02** Add skill marketplace — GitHub-backed catalog, SHA-256 verified install/remove UI, owner-scoped persistence, task selection validation, and provider materialization are implemented locally; keep open until the catalog is available from the pushed GitHub repository and a protected Claude/LiteLLM run proves marketplace content materialization.
 - [x] **P6-03** Add two-tool MCP facade — opt-in server-owned stdio facade exposes `search_capabilities` + `execute_capability`, bounds output/time/process environment, and executes only IDs returned by the same catalog; production secret brokering, health diagnostics, authenticated ownership, and protected provider acceptance remain open
 - [x] **P6-04** Add agent context diagnostics — authenticated `/api/diagnostics` and a Computers status panel now report the LiteLLM model boundary, session scope, persistence driver/contract, runtime readiness, sandbox boundary, and MCP declaration count without returning credentials, prompts, or provider payloads. This is local operational visibility, not production attestation.

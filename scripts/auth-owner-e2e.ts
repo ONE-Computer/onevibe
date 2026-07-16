@@ -153,6 +153,9 @@ const main = async () => {
     assert.equal(scheduleA.response.status, 201, JSON.stringify(scheduleA.body))
     const mcpA = await request<{ id: string }>(baseUrl, '/api/mcp', { method: 'POST', body: JSON.stringify({ name: 'Owner A MCP', command: 'node', args: ['fixture.mjs'] }) }, ownerA.cookie)
     assert.equal(mcpA.response.status, 201, JSON.stringify(mcpA.body))
+    const mcpHealth = await request<{ id: string; status: string }>(baseUrl, `/api/mcp/${mcpA.body.id}/health`, {}, ownerA.cookie)
+    assert.equal(mcpHealth.response.status, 200)
+    assert.equal(mcpHealth.body.status, 'offline')
     const created = await request<{ id: string }>(baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ prompt: 'Say hello briefly.', provider: 'demo', mode: 'chat', projectId: projectA.body.id, references: [], attachments: [], skills: [] }) }, ownerA.cookie)
     assert.equal(created.response.status, 201, JSON.stringify(created.body))
 
@@ -191,12 +194,15 @@ const main = async () => {
     const forbiddenMcp = await request<{ error?: string }>(baseUrl, `/api/mcp/${mcpA.body.id}`, { method: 'DELETE' }, ownerB.cookie)
     assert.equal(forbiddenMcp.response.status, 404)
     assert.equal(forbiddenMcp.body.error, 'MCP configuration not found')
+    const forbiddenMcpHealth = await request<{ error?: string }>(baseUrl, `/api/mcp/${mcpA.body.id}/health`, {}, ownerB.cookie)
+    assert.equal(forbiddenMcpHealth.response.status, 404)
+    assert.equal(forbiddenMcpHealth.body.error, 'MCP configuration not found')
     const ownerATask = await request<{ id: string; ownerUserId?: string }>(baseUrl, `/api/tasks/${created.body.id}`, {}, ownerA.cookie)
     assert.equal(ownerATask.response.status, 200)
     assert.equal(ownerATask.body.id, created.body.id)
     assert.equal(ownerATask.body.ownerUserId, ownerA.userId)
 
-    console.log(JSON.stringify({ auth: 'better-auth email OTP through loopback delivery fixture', unauthorizedStatus: unauthorized.response.status, ownerA: ownerA.userId, ownerB: ownerB.userId, taskId: created.body.id, ownerBTaskCount: ownerBTasks.body.tasks.length, forbiddenStatuses: [forbiddenTask.response.status, forbiddenMove.response.status, forbiddenTags.response.status, forbiddenProjectUpdate.response.status, forbiddenProjectFile.response.status, forbiddenSchedule.response.status, forbiddenMcp.response.status], ownerReadStatus: ownerATask.response.status, productionLimitations: ['real email delivery', 'Postgres repository/runtime', 'organization membership'] }, null, 2))
+    console.log(JSON.stringify({ auth: 'better-auth email OTP through loopback delivery fixture', unauthorizedStatus: unauthorized.response.status, ownerA: ownerA.userId, ownerB: ownerB.userId, taskId: created.body.id, ownerBTaskCount: ownerBTasks.body.tasks.length, forbiddenStatuses: [forbiddenTask.response.status, forbiddenMove.response.status, forbiddenTags.response.status, forbiddenProjectUpdate.response.status, forbiddenProjectFile.response.status, forbiddenSchedule.response.status, forbiddenMcp.response.status, forbiddenMcpHealth.response.status], ownerReadStatus: ownerATask.response.status, productionLimitations: ['real email delivery', 'Postgres repository/runtime', 'organization membership'] }, null, 2))
   } finally {
     await api.stop(); await rm(dataRoot, { recursive: true, force: true }); await new Promise<void>((resolve) => mail.server.close(() => resolve()))
   }

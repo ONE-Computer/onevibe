@@ -1,7 +1,7 @@
 # ONEVibe — Agent Handover Document
 
 > **Date**: 2026-07-17
-> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, a tested opt-in MCP capability facade, truthful demo skill status, a GitHub-catalog skill marketplace boundary, feature-gated Better Auth, authenticated owner scoping, and a reviewed Drizzle/Postgres import proof are present. LiteLLM-only enforcement remains mandatory. The running application is still SQLite-backed; protected Claude/provider acceptance, production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, and MCP secret brokering/health remain open.
+> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, bounded MCP health probing, a tested opt-in MCP capability facade, truthful demo skill status, a GitHub-catalog skill marketplace boundary, feature-gated Better Auth, authenticated owner scoping, and a reviewed Drizzle/Postgres import proof are present. LiteLLM-only enforcement remains mandatory. The running application is still SQLite-backed; protected Claude/provider acceptance, production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, MCP secret brokering, and external MCP health/attestation remain open.
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
@@ -43,7 +43,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
-| Tests | `server/*.test.ts`, `src/components/*.test.ts`, `scripts/*.test.ts` | 250 tests passing |
+| Tests | `server/*.test.ts`, `src/components/*.test.ts`, `scripts/*.test.ts` | 251 tests passing |
 | Container | `Dockerfile`, `docker-compose.yml` | Local hardened image verified; SQLite volume only until Postgres/auth slices land |
 
 ### What is critically broken
@@ -74,7 +74,7 @@ Do not configure a direct Anthropic API key as a substitute for the relay. Local
 ```bash
 npm run check
 # = oxlint src server scripts
-# + vitest run (250 tests at this handover update)
+# + vitest run (251 tests at this handover update)
 # + tsc -b
 # + tsc -p tsconfig.server.json
 # + vite build

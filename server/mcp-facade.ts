@@ -9,6 +9,7 @@ const MAX_RESULTS = 10
 type JsonRpcResponse = { id?: number; result?: unknown; error?: { message?: string } }
 type McpTool = { name: string; description?: string; inputSchema?: unknown }
 export type McpCapability = { id: string; name: string; description: string; server: string; inputSchema?: unknown }
+export type McpHealth = { status: 'online' | 'offline'; detail: string; toolCount?: number; latencyMs?: number }
 
 const safeEnv = (): NodeJS.ProcessEnv => ({
   PATH: process.env.PATH ?? '/usr/bin:/bin',
@@ -170,4 +171,21 @@ export class McpCapabilityFacade {
   }
 
   close() { for (const client of this.clients.values()) client.close(); this.clients.clear() }
+}
+
+/** Probe a configured MCP declaration without retaining a client or exposing process output. */
+export const probeMcpConfig = async (config: McpConfig, timeoutMs = REQUEST_TIMEOUT_MS): Promise<McpHealth> => {
+  const startedAt = Date.now()
+  const client = new McpStdioClient(config, timeoutMs)
+  try {
+    const tools = await client.listTools()
+    return { status: 'online', detail: 'MCP server initialized and returned its tool catalog.', toolCount: tools.length, latencyMs: Date.now() - startedAt }
+  } catch (error) {
+    const detail = error instanceof Error && /timed out/i.test(error.message)
+      ? 'MCP server initialization timed out.'
+      : 'MCP server could not initialize or return its tool catalog.'
+    return { status: 'offline', detail, latencyMs: Date.now() - startedAt }
+  } finally {
+    client.close()
+  }
 }
