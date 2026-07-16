@@ -21,7 +21,7 @@ import { conversationSummaryFromTask, upsertConversation } from './lib/conversat
 import { getAuthSession, signOut as signOutAuth } from './lib/auth'
 import { providerLabel, statusLabel } from './lib/runtime-labels'
 import { useComposerStore, useSessionStore, useUiStore, viewFromLocation, type AppView } from './lib/stores'
-import type { ConversationSummary, LibraryItem, Project, RuntimeMcpConfig, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
+import type { ConversationSummary, LibraryItem, Project, RuntimeMcpConfig, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
 const starterPrompts = [
@@ -47,7 +47,6 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [schedules, setSchedules] = useState<TaskSchedule[]>([])
   const [library, setLibrary] = useState<LibraryItem[]>([])
-  const [runtime, setRuntime] = useState<RuntimeReadiness>()
   const [mcpConfigs, setMcpConfigs] = useState<RuntimeMcpConfig[]>([])
   const { activeProjectId, setActiveProjectId, view, setView, activeTaskId, setActiveTaskId, sidebarOpen, setSidebarOpen, mobileInspectorOpen, setMobileInspectorOpen, notificationsOpen, setNotificationsOpen, backendOffline, setBackendOffline, retryingBackend, setRetryingBackend } = useUiStore()
   const { selectedSkills, setSelectedSkills, creating, setCreating } = useComposerStore()
@@ -55,6 +54,8 @@ export default function App() {
   const { snapshot, connected, error, retry: retryConnection, refresh: refreshSnapshot } = useTask(activeTaskId)
   const skillQuery = useQuery({ queryKey: ['skills'], queryFn: listSkills, staleTime: 60_000 })
   const skillCatalog = skillQuery.data?.skills.map(({ id, title, summary }) => ({ id, title, summary })) ?? fallbackSkillCatalog
+  const runtimeQuery = useQuery({ queryKey: ['runtime'], queryFn: getRuntimeReadiness, staleTime: 15_000, retry: 1, refetchOnWindowFocus: false })
+  const runtime = runtimeQuery.data
 
   const refreshAuth = useCallback(async () => {
     try { setAuthState(await getAuthSession()) } catch { setAuthState({ enabled: false, session: null }) } finally { setAuthLoading(false) }
@@ -97,18 +98,10 @@ export default function App() {
   useEffect(() => { persistSelectedSkills(selectedSkills) }, [selectedSkills])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)).catch((reason: unknown) => reportError(reason, 'Unable to load schedules')) }, [])
   useEffect(() => { void listMcpConfigs().then(({ configs }) => setMcpConfigs(configs)).catch((reason: unknown) => reportError(reason, 'Unable to load MCP servers')) }, [])
-  const loadRuntimeReadiness = useCallback(async () => {
-    try {
-      const next = await getRuntimeReadiness()
-      setRuntime(next)
-      setBackendOffline(false)
-      return next
-    } catch (reason) {
-      if (isBackendOfflineError(reason)) setBackendOffline(true)
-      throw reason
-    }
-  }, [setBackendOffline])
-  useEffect(() => { void loadRuntimeReadiness().catch(() => undefined) }, [loadRuntimeReadiness])
+  useEffect(() => {
+    if (runtimeQuery.data) setBackendOffline(false)
+    else if (runtimeQuery.error && isBackendOfflineError(runtimeQuery.error)) setBackendOffline(true)
+  }, [runtimeQuery.data, runtimeQuery.error, setBackendOffline])
   useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }).catch((reason: unknown) => reportError(reason, 'Unable to load projects')) }, [activeProjectId, setActiveProjectId])
   useEffect(() => {
     const onPopState = () => {
@@ -319,7 +312,8 @@ export default function App() {
   const retryBackend = async () => {
     setRetryingBackend(true)
     try {
-      await loadRuntimeReadiness()
+      const result = await runtimeQuery.refetch()
+      if (result.error) throw result.error
     } catch (reason) {
       // The banner remains visible and gives the operator another explicit retry.
       reportError(reason, 'Backend is still offline')

@@ -69,7 +69,7 @@ Skill selection is also provider-owned: Claude-backed adapters materialize the s
 
 The SPA mounts Sonner once at the application shell and routes recoverable request failures through user-visible toasts while retaining page-local states for task streams and validation reports. Toasts are notification surfaces only: they do not imply that a request succeeded, replace durable server evidence, or suppress the backend-offline banner.
 
-The current state boundary has three Zustand stores: `useUiStore` owns navigation, inspector, and connection presentation state; `useComposerStore` owns selected skill guides and submission state; `useSessionStore` owns the authenticated session probe. TanStack Query is mounted at the root and currently owns the cached Skills catalog query. Tasks, conversations, projects, schedules, Library, runtime readiness, and MCP declarations remain server-backed data held by the transitional App layer until the query/mutation migration is complete. The durable task SSE stream remains outside Query as an append-only event projection.
+The current state boundary has three Zustand stores: `useUiStore` owns navigation, inspector, and connection presentation state; `useComposerStore` owns selected skill guides and submission state; `useSessionStore` owns the authenticated session probe. TanStack Query is mounted at the root and currently owns the cached Skills catalog and runtime-readiness queries. Tasks, conversations, projects, schedules, Library, and MCP declarations remain server-backed data held by the transitional App layer until the query/mutation migration is complete. The durable task SSE stream remains outside Query as an append-only event projection.
 
 ## Implemented production adapters
 

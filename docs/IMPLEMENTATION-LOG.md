@@ -681,5 +681,6 @@ baseline harness in CI.
 # 2026-07-17 — TanStack Query foundation
 
 - Mounted a single QueryClient at the SPA root with bounded retry, stale-time, and no focus refetch. Migrated the Skills catalog from a hand-written effect/local fetch into a cached query with an explicit fallback and visible error toast.
+- Migrated the bounded runtime-readiness snapshot into a second cached query; backend-offline state is derived from query failure/data and the explicit retry button refetches that query.
 - Kept task/SSE state on `useTask`: an append-only replayable event stream is not treated as ordinary query data. Remaining collection queries and mutations are intentionally open under P5-02.
 - Focused verification: lint, 46 test files / 236 tests, and production build passed.
