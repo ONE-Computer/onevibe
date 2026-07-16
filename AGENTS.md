@@ -45,6 +45,8 @@ Documentation is part of every material slice. Update `docs/IMPLEMENTATION-LOG.m
 
 For parity work, read `docs/MANUS-PARITY.md` and `docs/OPENWEBUI-COWORK-PARITY.md`. Open WebUI is a reference study, not an imported runtime or trust boundary. Preserve the ONEComputer distinction between a provider tool, a sandbox observation, a portable artifact, and an externally approved action; do not close a parity item merely because a cosmetic mock renders.
 
+For agent-authored application deployment, read `docs/TTCLAW-VIBE-DEPLOY-ARCHITECTURE.md`. Keep workspace authoring, validation, immutable preview, external VTI Wallet approval, broker build/deploy, asynchronous job polling, and health verification as separate contracts. The sandbox and web UI must never receive Azure/registry credentials or arbitrary deployment authority; a deployment button in the browser is only a view/request surface, never an approval authority.
+
 For AWS/Bedrock runtime work, read `docs/AGENTCORE-AWS-RUNTIME.md` and the referenced files in `/Users/gini/Desktop/agentcore-claude-codex-runtime-harness`. Reuse the standard refreshable AWS provider-chain pattern and explicit Bedrock configuration. Never mount `~/.aws`, copy profile credentials, or place static `AWS_*` values in a retained sandbox.
 
 For local Claude E2E, use the protected host-only LiteLLM relay configuration documented outside this repository; run against a temporary `ONEVIBE_DATA_DIR` and a separate API port. Record the exact model alias because a Claude-compatible Anthropic API response is not proof of an Anthropic or Bedrock model. Never copy router secrets into the repository, task workspace, browser state, or evidence. Treat `.claude/` and `.onevibe-*` as runtime internals, not deliverables.
