@@ -1,6 +1,6 @@
 # Auth and Postgres target architecture
 
-Status: proposed; implementation remains open under P4-01, P4-02, P4-03, and P4-06.
+Status: proposed; the feature-gated Better Auth SQLite foundation is implemented, while the authenticated data-plane owner contract remains open under P4-01, P4-02, P4-03, and P4-06.
 
 ## Decision
 
@@ -43,3 +43,9 @@ The current local demo remains available without auth so deterministic provider 
 - The LiteLLM-only route remains enforced in every runtime adapter under authenticated and unauthenticated configuration tests.
 
 Until these gates pass, `Dockerfile` and `docker-compose.yml` are only a hardened local container path backed by SQLite—not a cloud multi-tenant deployment.
+
+## Current foundation slice
+
+`server/auth.ts` now creates a Better Auth instance against the existing local SQLite handle when `ONEVIBE_AUTH_ENABLED=true`, runs the Better Auth schema migration, mounts the `/api/auth/*` handler, uses hashed email OTP storage, and requires a real `ONEVIBE_AUTH_OTP_WEBHOOK_URL`. Missing secret or delivery configuration fails at startup. The local unauthenticated mode remains available for deterministic tests.
+
+The authenticated data plane intentionally fails closed with `auth_ownership_not_ready` because tasks and projects do not yet carry a server-derived owner ID. This prevents the dangerous intermediate state where login exists but authenticated users still share the legacy global store. The next implementation must add owner-scoped repositories and the login/session UI before enabling the feature in a deployed environment.

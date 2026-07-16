@@ -26,6 +26,7 @@ import { awaitTurnSettlement, createTurnDeadline, resolveTurnTimeoutMs, TURN_CLE
 import { writeDocumentReviewArtifacts } from './mode-artifacts.js'
 import { isInternalWorkspacePath } from './artifact-path.js'
 import { serveStatic } from './static-files.js'
+import { AuthService } from './auth.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -48,6 +49,7 @@ const TURN_TIMEOUT_MS = resolveTurnTimeoutMs()
 const claudeProvider = claudeProviderConfig()
 const claudeConfigured = claudeProvider.configured
 const store = new TaskStore()
+let authService: AuthService | undefined
 const activeRuns = new Map<string, AbortController>()
 const activeAdapters = new Map<string, RuntimeAdapter>()
 let oneComputerHealthCache: { checkedAt: number; reachable: boolean } | undefined
@@ -337,6 +339,16 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   const url = new URL(request.url ?? '/', `http://${request.headers.host ?? `${HOST}:${PORT}`}`)
   const segments = url.pathname.split('/').filter(Boolean)
 
+  if (request.method === 'GET' && url.pathname === '/api/auth/session') {
+    if (!authService?.isEnabled) return json(response, 200, { enabled: false, session: null })
+    return json(response, 200, { enabled: true, session: await authService.getSession(request) })
+  }
+  if (url.pathname.startsWith('/api/auth/')) {
+    if (!authService?.isEnabled) return json(response, 404, { error: 'Authentication is disabled in this local mode' })
+    await authService.handle(request, response)
+    return
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/health') {
     return json(response, 200, {
       status: 'healthy',
@@ -344,7 +356,15 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       approvalAuthority: 'external_vti_wallet',
       walletResolutionConfigured: Boolean(walletService),
       oneComputerSandboxConfigured: oneComputerConfigured,
+      authEnabled: Boolean(authService?.isEnabled),
     })
+  }
+  if (authService?.isEnabled) {
+    const session = await authService.getSession(request)
+    if (!session) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
+    // Ownership columns are not wired into TaskStore yet. Fail closed rather than
+    // allowing an authenticated session to access the shared local store.
+    return json(response, 503, { error: 'Authenticated data-plane ownership is not enabled yet', code: 'auth_ownership_not_ready' })
   }
   if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, await runtimeSnapshot())
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'runtime' && segments[2] === 'test' && segments[3] && segments.length === 4) {
@@ -812,6 +832,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 }
 
 await store.initialize()
+authService = new AuthService(store.databaseHandle())
+await authService.initialize()
 void runtimeSnapshot().catch(() => undefined)
 const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | 'manual') => {
   const providerState = (await providerAvailability(schedule.provider)).state

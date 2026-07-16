@@ -611,3 +611,11 @@ baseline harness in CI.
 - Added a Computers view MCP configuration panel with add/remove controls and a permanent explanation that credentials are not accepted. New declarations are passed only to adapters advertising `tool_use`; the Claude Agent SDK receives them as MCP server declarations alongside the built-in ONEVibe server.
 - This is a local single-user declaration boundary, not production MCP governance. Authenticated ownership, secret references/brokering, per-organization isolation, and external-server health diagnostics remain open under the cloud/auth and Phase 6 work.
 - Verification: `npm run check` passed with 43 test files / 228 tests, lint, production build, and E2E harness typecheck. Boundary remains host-process local proof; no microVM, OpenVTC, or production egress claim.
+
+# 2026-07-17 — feature-gated Better Auth foundation
+
+- Added `better-auth` against the existing SQLite handle. When `ONEVIBE_AUTH_ENABLED=true`, startup requires a 32-character `BETTER_AUTH_SECRET`, a real `ONEVIBE_AUTH_OTP_WEBHOOK_URL`, trusted origins, and runs Better Auth migrations in the same local database file.
+- Mounted the standard Better Auth Node handler under `/api/auth/*`, added an explicit `/api/auth/session` probe, and exposed `authEnabled` in the health response without exposing secrets or OTPs.
+- Email OTPs are stored hashed and are delivered only through the configured webhook. No development OTP logging or browser-returned OTP was added.
+- The protected data plane currently fails closed with `auth_ownership_not_ready` after session authentication because TaskStore owner/org scoping is not implemented. This is intentional: a login surface must not create the illusion of multi-user isolation over the current global local store.
+- Enabled-mode smoke: Better Auth schema startup succeeded; `/api/auth/session` returned `{enabled:true,session:null}`; `/api/tasks` returned HTTP 401 without a session. Unauthenticated local mode remains unchanged. This slice does not close P4-01/P4-02.

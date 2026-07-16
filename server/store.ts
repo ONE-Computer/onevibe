@@ -303,6 +303,11 @@ export class TaskStore {
     this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.transition(id, expected, next))
   }
 
+  databaseHandle(): Database.Database {
+    if (!this.database) throw new Error('TaskStore is not initialized')
+    return this.database
+  }
+
   listMcpConfigs(): RuntimeMcpConfig[] {
     return this.requireUnitOfWork().run((repositories) => repositories.mcpConfigs.list().map((record) => {
       let args: unknown

@@ -1,7 +1,7 @@
 # ONEVibe — Agent Handover Document
 
 > **Date**: 2026-07-16
-> **Status**: Roadmap and local backend foundation are implemented through the RuntimeRegistry/routing phase. LiteLLM-only enforcement, canonical runtime lifecycle, bounded startup health, mode-aware selection, and explicit user-selected fallback are in the current branch. Cloud auth, Postgres migration, deployment, and production attestation remain open.
+> **Status**: Roadmap and local backend foundation are implemented through the RuntimeRegistry/routing phase, with governed MCP declarations and a feature-gated Better Auth foundation added. LiteLLM-only enforcement, canonical runtime lifecycle, bounded startup health, mode-aware selection, and explicit user-selected fallback are in the current branch. Authenticated owner scoping, Postgres migration, deployment, and production attestation remain open.
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
@@ -41,7 +41,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
-| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 227 tests passing |
+| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 228 tests passing |
 | Container | `Dockerfile`, `docker-compose.yml` | Local hardened image verified; SQLite volume only until Postgres/auth slices land |
 
 ### What is critically broken
