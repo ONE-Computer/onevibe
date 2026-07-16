@@ -4,7 +4,7 @@ ONEVibe uses `@assistant-ui/react` as a presentation and interaction layer over 
 
 ## Authority model
 
-- SQLite remains authoritative for conversations, turns, messages, run state, and evidence. Runtime events live in the versioned `runtime_events` ledger; per-task `events.json` files are legacy migration input only.
+- SQLite remains authoritative for conversations, turns, messages, run state, and evidence. Provider-native envelopes live in the versioned `native_events` ledger; typed runtime events live in the `runtime_events` ledger and link back to native IDs through `native_event_projections`. Per-task `events.json` files are legacy migration input only.
 - The ONEVibe API and SSE stream remain authoritative for writes and live updates.
 - `useExternalStoreRuntime` projects the server-owned `TaskSnapshot.messages` into assistant-ui.
 - Sending through the assistant-ui composer calls the existing task continuation endpoint. The browser does not append an optimistic durable message or own a queue.
@@ -30,6 +30,8 @@ The browser may optimistically reorder a summary only from a newer authoritative
 Each `runtime_event` SSE frame carries its durable event ID. On automatic EventSource reconnect, the browser sends `Last-Event-ID`; the server validates that the cursor belongs to the requested task and replays only events with a greater sequence from the SQLite runtime-event ledger. A malformed or cross-task cursor returns HTTP 400. Heartbeats keep intermediaries from silently expiring an otherwise idle stream, and the server advertises a bounded 1.5-second reconnect interval.
 
 The client still deduplicates by event ID and reconciles with a full authoritative snapshot when a stream opens. Event-caused snapshot reads pass through a coalescing scheduler: overlapping requests produce at most one trailing reconciliation instead of racing one request per delta. Reconnection clears the warning only after the SSE connection opens; terminal history never masquerades as a broken live run.
+
+Native provider ingestion is transactional. Claude Agent SDK, ONEComputer sandbox journals, and remote runtime frames pass through the shared bounded redaction helper; hidden reasoning and credential fields are omitted before persistence. A source cursor is idempotent within `(conversation, run, source)`, one native envelope may produce multiple versioned runtime projections, and the projection offset advances only in the same SQLite transaction as those links. Replayed journal frames therefore do not duplicate transcript/tool evidence, while a later projector can re-read the native envelope without granting the browser access to the raw provider stream.
 
 ## Tool activity projection
 

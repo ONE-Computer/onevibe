@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ConversationRecord, MessageRecord, RuntimeEventRecord, TurnRecord } from './contracts.js'
+import type { ConversationRecord, MessageRecord, NativeEventRecord, RuntimeEventRecord, TurnRecord } from './contracts.js'
 import { openDatabase } from './database.js'
 import { IdempotencyConflictError, InvalidCursorError, OptimisticConflictError } from './errors.js'
 import { runMigrations } from './migrations.js'
@@ -29,6 +29,12 @@ const runtimeEvent = (sequence: number, overrides: Partial<RuntimeEventRecord> =
   type: 'activity_delta', lane: 'control', status: null, label: `Event ${sequence}`, content: null,
   payloadJson: JSON.stringify({ sequence }), createdAt: t0, previousHash: sequence === 0 ? 'GENESIS' : hash('a'),
   eventHash: hash(String.fromCharCode(97 + sequence)), ...overrides,
+})
+const nativeEvent = (sequence: number, overrides: Partial<NativeEventRecord> = {}): NativeEventRecord => ({
+  id: `conversation-1:native:${sequence}`,
+  conversationId: 'conversation-1', runId: 'turn-1', source: 'claude_agent_sdk', sourceEventId: `sdk-${sequence}`,
+  sourceSequence: sequence, nativeType: 'assistant', payloadJson: JSON.stringify({ sequence }), payloadHash: hash(String.fromCharCode(97 + sequence)),
+  receivedAt: t0, ...overrides,
 })
 
 function databaseAt(filename?: string): { database: Database.Database; filename: string } {
@@ -144,6 +150,24 @@ describe('SQLite repositories', () => {
       expect(repositories.runtimeEvents.listByConversation('conversation-1').map((event) => event.sequence)).toEqual([0, 1])
       expect(repositories.runtimeEvents.listByConversation('conversation-1', 0).map((event) => event.sequence)).toEqual([1])
       expect(() => repositories.runtimeEvents.append(runtimeEvent(1, { id: 'duplicate' }))).toThrow(OptimisticConflictError)
+    } finally { database.close() }
+  })
+
+  it('persists native envelopes, projection links, and monotonic source offsets idempotently', () => {
+    const { database } = databaseAt()
+    try {
+      const repositories = createSqliteRepositories(database)
+      repositories.conversations.insert(conversation())
+      repositories.nativeEvents.append(nativeEvent(0))
+      repositories.runtimeEvents.append(runtimeEvent(0))
+      repositories.nativeEvents.appendProjection({ nativeEventId: 'conversation-1:native:0', projectionIndex: 0, runtimeEventId: 'conversation-1:event:0', projectorVersion: 1, projectedAt: t1 })
+      repositories.nativeEvents.setOffset({ conversationId: 'conversation-1', runId: 'turn-1', source: 'claude_agent_sdk', projectorVersion: 1, lastSourceSequence: 0, updatedAt: t1 })
+      expect(repositories.nativeEvents.findBySourceEvent('conversation-1', 'turn-1', 'claude_agent_sdk', 'sdk-0')).toMatchObject({ sourceSequence: 0 })
+      expect(repositories.nativeEvents.listByConversation('conversation-1', 'turn-1', 'claude_agent_sdk').map((event) => event.sourceSequence)).toEqual([0])
+      expect(repositories.nativeEvents.getOffset('conversation-1', 'turn-1', 'claude_agent_sdk', 1)).toMatchObject({ lastSourceSequence: 0 })
+      expect(() => repositories.nativeEvents.append(nativeEvent(0, { id: 'duplicate', sourceEventId: 'other' }))).toThrow(OptimisticConflictError)
+      repositories.nativeEvents.setOffset({ conversationId: 'conversation-1', runId: 'turn-1', source: 'claude_agent_sdk', projectorVersion: 1, lastSourceSequence: -1, updatedAt: t0 })
+      expect(repositories.nativeEvents.getOffset('conversation-1', 'turn-1', 'claude_agent_sdk', 1)?.lastSourceSequence).toBe(0)
     } finally { database.close() }
   })
 

@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { OneComputerClient } from './onecomputer-client.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
+import type { EventInput } from './types.js'
+import { sanitizeNativePayload } from './native-events.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 import { skillPacksFor } from './skill-packs.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
@@ -411,28 +413,35 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       }
       const projectJournal = async (raw: string) => {
         const parsedJournal = parseClaudeStreamJournal(raw)
-        for (const entry of parsedJournal.entries.slice(projectedEntries)) {
+        for (const [entryOffset, entry] of parsedJournal.entries.slice(projectedEntries).entries()) {
           let timelineEventId: string | undefined
           const isBrowserToolStart = entry.kind === 'tool_started' && isGovernedBrowserTool(entry.name)
           const isBrowserToolResult = entry.kind === 'tool_completed' && !!entry.toolUseId && browserToolUseIds.has(entry.toolUseId)
           const browserEvidence = isBrowserToolStart ? browserEvidenceFor(entry.name, entry.input) : isBrowserToolResult && entry.toolUseId ? browserToolEvidence.get(entry.toolUseId) : undefined
-          if (entry.kind === 'tool_started') timelineEventId = (await store.appendEvent(task.id, {
+          const projections: EventInput[] = []
+          if (entry.kind === 'tool_started') projections.push({
             type: 'tool_call_started', lane: 'activity', label: isBrowserToolStart ? `Browser · ${entry.name.replace('mcp__playwright__', '')}` : entry.name,
             content: 'Claude requested a governed workspace tool inside the ONEComputer sandbox.',
             payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, input: entry.input, browserTool: isBrowserToolStart || undefined, browserEvidence },
-          })).id
+          })
           if (isBrowserToolStart) {
             browserReviewTools.add(entry.name)
             if (entry.toolUseId) { browserToolUseIds.add(entry.toolUseId); browserToolEvidence.set(entry.toolUseId, browserEvidenceFor(entry.name, entry.input)) }
           }
-          if (entry.kind === 'tool_completed') timelineEventId = (await store.appendEvent(task.id, {
+          if (entry.kind === 'tool_completed') projections.push({
             type: 'tool_call_completed', lane: 'activity', label: isBrowserToolResult ? 'Browser result' : 'Tool result', content: entry.content,
             payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, toolUseId: entry.toolUseId, isError: entry.isError, browserTool: isBrowserToolResult || undefined, browserEvidence },
-          })).id
-          if (entry.kind === 'text') await store.appendEvent(task.id, {
+          })
+          if (entry.kind === 'text') projections.push({
             type: 'assistant_text_delta', lane: 'transcript', content: entry.content,
             payload: { executionRoute: 'onecomputer_sandbox', parentToolCallId: agentExecution.id, source: 'claude_stream_json' },
           })
+          const sourceSequence = projectedEntries + entryOffset
+          const ingested = await store.ingestNativeEvent(task.id, {
+            source: 'onecomputer_sandbox', sourceEventId: `${entry.kind}:${sourceSequence}`,
+            sourceSequence, nativeType: entry.kind, payload: sanitizeNativePayload(entry), projections,
+          })
+          timelineEventId = ingested.events.find((event) => event.type === 'tool_call_started' || event.type === 'tool_call_completed')?.id
           if (timelineEventId) await captureVisualFrame(isBrowserToolStart ? 'browser_tool_started' : isBrowserToolResult ? 'browser_tool_completed' : entry.kind, timelineEventId)
         }
         projectedEntries = parsedJournal.entries.length

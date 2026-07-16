@@ -1,5 +1,6 @@
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 import type { EventInput, EventLane, EventType, RunStatus } from './types.js'
+import { sanitizeNativePayload } from './native-events.js'
 
 type SseFrame = { event: string; data: unknown }
 
@@ -72,6 +73,7 @@ export class RemoteRuntimeAdapter implements RuntimeAdapter {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let sourceSequence = 0
     while (true) {
       const { done, value } = await reader.read()
       buffer += decoder.decode(value, { stream: !done })
@@ -81,7 +83,14 @@ export class RemoteRuntimeAdapter implements RuntimeAdapter {
         const frame = parseBlock(block)
         if (!frame || frame.event !== 'runtime_event') continue
         const event = normalize(frame.data)
-        if (event) await store.appendEvent(task.id, event)
+        if (event) {
+          const candidate = isRecord(frame.data) && typeof frame.data.id === 'string' ? frame.data.id : `${frame.event}:${sourceSequence}`
+          await store.ingestNativeEvent(task.id, {
+            source: 'remote_runtime', sourceEventId: candidate, sourceSequence, nativeType: event.type,
+            payload: sanitizeNativePayload(frame.data), projections: [event],
+          })
+          sourceSequence += 1
+        }
       }
       if (done) break
     }

@@ -5,7 +5,8 @@ import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
-import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type UnitOfWork } from './persistence/index.js'
+import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
+import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type UnitOfWork } from './persistence/index.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -63,6 +64,8 @@ const planFor = (mode: TaskMode, prompt: string): Task['plan'] => {
 const runtimePlanIds = ['scope', 'workspace', 'build', 'verify', 'deliver'] as const
 export type RuntimePlanTitle = { id: (typeof runtimePlanIds)[number]; title: string }
 
+const NATIVE_PROJECTOR_VERSION = 1
+
 export const normalizeRuntimePlanTitles = (value: unknown): RuntimePlanTitle[] | undefined => {
   if (!Array.isArray(value) || value.length !== runtimePlanIds.length) return undefined
   const steps = value.map((item): RuntimePlanTitle | undefined => {
@@ -75,6 +78,41 @@ export const normalizeRuntimePlanTitles = (value: unknown): RuntimePlanTitle[] |
   if (steps.some((step) => step === undefined)) return undefined
   const normalized = steps as RuntimePlanTitle[]
   return runtimePlanIds.every((id, index) => normalized[index]?.id === id) ? normalized : undefined
+}
+
+const runtimeEventRecordFor = (repositories: Repositories, taskId: string, runId: string | undefined, input: EventInput): RuntimeEventRecord => {
+  const existing = repositories.runtimeEvents.listByConversation(taskId)
+  const previousHash = existing.at(-1)?.eventHash ?? 'GENESIS'
+  const payload = { ...input.payload }
+  const unsigned = {
+    taskId,
+    ...(runId ? { runId } : {}),
+    sequence: existing.length,
+    type: input.type,
+    lane: input.lane,
+    status: input.status,
+    label: input.label,
+    content: input.content,
+    payload,
+    createdAt: new Date().toISOString(),
+    previousHash,
+  }
+  const eventHash = createHash('sha256').update(JSON.stringify(unsigned)).digest('hex')
+  return {
+    id: `${taskId}:event:${existing.length}`,
+    conversationId: taskId,
+    runId: runId ?? null,
+    sequence: existing.length,
+    type: input.type,
+    lane: input.lane,
+    status: input.status ?? null,
+    label: input.label ?? null,
+    content: input.content ?? null,
+    payloadJson: JSON.stringify(payload),
+    createdAt: unsigned.createdAt,
+    previousHash,
+    eventHash,
+  }
 }
 
 export class TaskStore {
@@ -583,42 +621,15 @@ export class TaskStore {
 
   async appendEvent(taskId: string, input: EventInput) {
     const runId = this.getTask(taskId).activeRunId
-    const presentation = panelFor(input)
     let event: RuntimeEvent | undefined
     for (let attempt = 0; attempt < 4 && !event; attempt += 1) {
       try {
         event = this.requireUnitOfWork().run((repositories) => {
-          const existing = repositories.runtimeEvents.listByConversation(taskId)
-          const previousHash = existing.at(-1)?.eventHash ?? 'GENESIS'
-          const unsigned = {
-            taskId,
-            ...(runId ? { runId } : {}),
-            sequence: existing.length,
-            type: input.type,
-            lane: input.lane,
-            status: input.status,
-            label: input.label,
-            content: input.content,
+          const presentation = panelFor(input)
+          const record = runtimeEventRecordFor(repositories, taskId, runId, {
+            ...input,
             payload: { ...input.payload, ...(presentation ? { presentation } : {}) },
-            createdAt: new Date().toISOString(),
-            previousHash,
-          }
-          const eventHash = createHash('sha256').update(JSON.stringify(unsigned)).digest('hex')
-          const record: RuntimeEventRecord = {
-            id: `${taskId}:event:${existing.length}`,
-            conversationId: taskId,
-            runId: runId ?? null,
-            sequence: existing.length,
-            type: input.type,
-            lane: input.lane,
-            status: input.status ?? null,
-            label: input.label ?? null,
-            content: input.content ?? null,
-            payloadJson: JSON.stringify(unsigned.payload),
-            createdAt: unsigned.createdAt,
-            previousHash,
-            eventHash,
-          }
+          })
           repositories.runtimeEvents.append(record)
           return this.runtimeEventFromRecord(record)
         })
@@ -634,6 +645,87 @@ export class TaskStore {
     if (input.type === 'run_cancelled') await this.finishTurn(taskId, 'cancelled')
     this.emitter.emit(taskId, event)
     return event
+  }
+
+  /**
+   * Persist a provider-native envelope and all of its typed projections in
+   * one SQLite transaction. Replaying the same source cursor is a no-op.
+   */
+  async ingestNativeEvent(taskId: string, input: NativeEventInput) {
+    const task = this.getTask(taskId)
+    const runId = task.activeRunId
+    if (!runId) throw new Error('Native events require an active durable turn')
+    const normalized = normalizeNativeEvent(input)
+    let result: { nativeEventId: string; events: RuntimeEvent[] } | undefined
+    for (let attempt = 0; attempt < 4 && !result; attempt += 1) {
+      try {
+        result = this.requireUnitOfWork().run((repositories) => {
+          const existing = repositories.nativeEvents.findBySourceEvent(taskId, runId, normalized.source, normalized.sourceEventId)
+          if (existing) return { nativeEventId: existing.id, events: [] }
+
+          const sourceSequence = normalized.sourceSequence
+          const nativeEventId = nativeEventIdFor(taskId, runId, normalized)
+          const nativeRecord: NativeEventRecord = {
+            id: nativeEventId,
+            conversationId: taskId,
+            runId,
+            source: normalized.source,
+            sourceEventId: normalized.sourceEventId,
+            sourceSequence,
+            nativeType: normalized.nativeType,
+            payloadJson: normalized.payloadJson,
+            payloadHash: normalized.payloadHash,
+            receivedAt: new Date().toISOString(),
+          }
+          repositories.nativeEvents.append(nativeRecord)
+          const events: RuntimeEvent[] = []
+          normalized.projections.forEach((projection, projectionIndex) => {
+            const presentation = panelFor(projection)
+            const record = runtimeEventRecordFor(repositories, taskId, runId, {
+              ...projection,
+              payload: {
+                ...projection.payload,
+                ...(presentation ? { presentation } : {}),
+                nativeEventId,
+                nativeSource: normalized.source,
+                nativeType: normalized.nativeType,
+                nativeSourceEventId: normalized.sourceEventId,
+              },
+            })
+            repositories.runtimeEvents.append(record)
+            repositories.nativeEvents.appendProjection({
+              nativeEventId,
+              projectionIndex,
+              runtimeEventId: record.id,
+              projectorVersion: NATIVE_PROJECTOR_VERSION,
+              projectedAt: new Date().toISOString(),
+            })
+            events.push(this.runtimeEventFromRecord(record))
+          })
+          if (normalized.projections.length > 0) repositories.nativeEvents.setOffset({
+            conversationId: taskId,
+            runId,
+            source: normalized.source,
+            projectorVersion: NATIVE_PROJECTOR_VERSION,
+            lastSourceSequence: sourceSequence,
+            updatedAt: new Date().toISOString(),
+          })
+          return { nativeEventId, events }
+        })
+      } catch (error) {
+        if (!(error instanceof OptimisticConflictError) || attempt === 3) throw error
+      }
+    }
+    if (!result) throw new Error('Native event ingestion did not produce a result')
+    this.events.set(taskId, this.readEventsFromDatabase(taskId))
+    for (const event of result.events) {
+      if (event.type === 'assistant_text_delta' && event.content) await this.appendAssistantDelta(taskId, event.content)
+      if (event.type === 'run_completed') await this.finishTurn(taskId, 'completed')
+      if (event.type === 'run_failed') await this.finishTurn(taskId, 'failed')
+      if (event.type === 'run_cancelled') await this.finishTurn(taskId, 'cancelled')
+      this.emitter.emit(taskId, event)
+    }
+    return result
   }
 
   listEvents(taskId: string) {

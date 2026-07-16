@@ -73,6 +73,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('Build a confidential launch page', 'onecomputer', 'website')
+    await store.beginTurn(task.id, task.prompt, task.provider)
     const commands: string[] = []
     const streamJournal = [
       JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Write', input: { file_path: 'index.html' } }, { type: 'tool_use', id: 'tool-2', name: 'mcp__playwright__browser_snapshot', input: {} }] } }),
@@ -176,6 +177,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('Retry provider polling', 'onecomputer', 'general')
+    await store.beginTurn(task.id, task.prompt, task.provider)
     const journal = Buffer.from(JSON.stringify({ type: 'result', session_id: 'session-poll-retry', result: 'Done.' })).toString('base64')
     let journalPolls = 0
     const exec = vi.fn(async (_id: string, command: string) => {
@@ -217,6 +219,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('Cancel while a sandbox provisions', 'onecomputer')
+    await store.beginTurn(task.id, task.prompt, task.provider)
     const client = {
       createSandbox: vi.fn(async () => ({ id: 'sandbox-provisioning', state: 'provisioning', provider: 'kasm-local' })),
       getSandbox: vi.fn(async () => ({ id: 'sandbox-provisioning', state: 'provisioning', provider: 'kasm-local' })),
@@ -249,6 +252,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('Continue sandbox work', 'onecomputer')
+    await store.beginTurn(task.id, task.prompt, task.provider)
     const journal = Buffer.from(JSON.stringify({ type: 'result', session_id: 'session-retained', result: 'Done.' })).toString('base64')
     const commands: string[] = []
     const client = {
@@ -264,6 +268,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     } as unknown as OneComputerClient
     const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false, pollMilliseconds: 1 })
     await adapter.run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+    await store.beginTurn(task.id, 'Continue with a revision', task.provider)
     await adapter.run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Continue with a revision', continuation: true, requestUserInput: async () => 'unused' })
     expect(client.createSandbox).toHaveBeenCalledTimes(1)
     expect(client.getSandbox).toHaveBeenCalled()

@@ -63,6 +63,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('Build a governed website', 'claude_sdk')
+    await store.beginTurn(task.id, task.prompt, task.provider)
 
     await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'test answer' })
 
@@ -92,6 +93,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     await store.initialize()
     const task = await store.createTask('Build the first version', 'claude_sdk')
     await store.updateTask(task.id, { securityContext: { mode: 'local_demo', gatewayEnforced: false, runtimeSessionId: 'session-existing' } })
+    await store.beginTurn(task.id, 'Now add a pricing section', task.provider)
 
     await new ClaudeSdkRuntimeAdapter().run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Now add a pricing section', continuation: true, requestUserInput: async () => 'test answer' })
 

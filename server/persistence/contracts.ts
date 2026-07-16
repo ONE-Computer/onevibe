@@ -132,6 +132,45 @@ export interface RuntimeEventRepository {
   append(record: RuntimeEventRecord): void
 }
 
+export interface NativeEventRecord {
+  id: string
+  conversationId: string
+  runId: string
+  source: string
+  sourceEventId: string
+  sourceSequence: number
+  nativeType: string
+  payloadJson: string
+  payloadHash: string
+  receivedAt: string
+}
+
+export interface NativeEventProjectionRecord {
+  nativeEventId: string
+  projectionIndex: number
+  runtimeEventId: string
+  projectorVersion: number
+  projectedAt: string
+}
+
+export interface NativeProjectionOffset {
+  conversationId: string
+  runId: string
+  source: string
+  projectorVersion: number
+  lastSourceSequence: number
+  updatedAt: string
+}
+
+export interface NativeEventRepository {
+  findBySourceEvent(conversationId: string, runId: string, source: string, sourceEventId: string): NativeEventRecord | undefined
+  listByConversation(conversationId: string, runId?: string, source?: string, afterSourceSequence?: number, limit?: number): NativeEventRecord[]
+  append(record: NativeEventRecord): void
+  appendProjection(record: NativeEventProjectionRecord): void
+  getOffset(conversationId: string, runId: string, source: string, projectorVersion: number): NativeProjectionOffset | undefined
+  setOffset(record: NativeProjectionOffset): void
+}
+
 export interface IdempotencyRepository {
   claim(scope: string, key: string, requestHash: string, createdAt: string): boolean
   complete(scope: string, key: string, responseJson: string, completedAt: string): void
@@ -158,6 +197,7 @@ export interface Repositories {
   turns: TurnRepository
   messages: MessageRepository
   runtimeEvents: RuntimeEventRepository
+  nativeEvents: NativeEventRepository
   idempotency: IdempotencyRepository
   legacyImports: LegacyImportRepository
   runtimeLeases: RuntimeLeaseRepository

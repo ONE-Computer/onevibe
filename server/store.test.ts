@@ -88,6 +88,33 @@ describe('TaskStore', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('atomically persists a native envelope with typed projections and redacts hidden reasoning', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-native-events-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Project native SDK events', 'claude_sdk')
+    await store.beginTurn(task.id, task.prompt, task.provider)
+    const first = await store.ingestNativeEvent(task.id, {
+      source: 'claude_agent_sdk', sourceEventId: 'sdk-0', sourceSequence: 0, nativeType: 'assistant',
+      payload: { message: { content: [{ type: 'thinking', thinking: 'private reasoning' }] }, access_token: 'must-not-leak' },
+      projections: [{ type: 'assistant_text_delta', lane: 'transcript', content: 'Visible answer', payload: { executionRoute: 'claude_agent_sdk' } }],
+    })
+    const replay = await store.ingestNativeEvent(task.id, {
+      source: 'claude_agent_sdk', sourceEventId: 'sdk-0', sourceSequence: 0, nativeType: 'assistant',
+      payload: { message: { content: [{ type: 'thinking', thinking: 'duplicate' }] } },
+      projections: [{ type: 'assistant_text_delta', lane: 'transcript', content: 'Duplicate answer', payload: {} }],
+    })
+    expect(first.events).toHaveLength(1)
+    expect(replay.events).toHaveLength(0)
+    expect(store.listMessages(task.id).messages.at(-1)?.content).toBe('Visible answer')
+    expect(JSON.stringify(store.listEvents(task.id))).not.toContain('private reasoning')
+    expect(JSON.stringify(store.listEvents(task.id))).not.toContain('must-not-leak')
+    expect(store.listEvents(task.id).at(-1)?.payload).toMatchObject({ nativeEventId: first.nativeEventId, nativeSource: 'claude_agent_sdk' })
+    expect(store.verifyChain(task.id)).toBe(true)
+  })
+
   it('imports legacy events once before treating SQLite as authoritative', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-legacy-events-'))
     temporaryRoots.push(root)

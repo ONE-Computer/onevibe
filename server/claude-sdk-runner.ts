@@ -2,7 +2,9 @@ import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
 import { createSdkMcpServer, query, tool, type PermissionResult, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
+import type { EventInput } from './types.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
+import { sanitizeNativePayload } from './native-events.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 import { materializeTaskSkills } from './skill-packs.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
@@ -10,19 +12,6 @@ import { writeStructuredSlides } from './mode-artifacts.js'
 import { portableArtifactKind } from './artifact-path.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
-
-const sanitize = (value: unknown, depth = 0): unknown => {
-  if (depth > 7) return '[Max depth]'
-  if (typeof value === 'string') return value.length > 64_000 ? `${value.slice(0, 64_000)}…[truncated]` : value
-  if (Array.isArray(value)) return value.slice(0, 250).map((item) => sanitize(item, depth + 1))
-  if (!isRecord(value)) return value
-  const result: Record<string, unknown> = {}
-  for (const [key, item] of Object.entries(value)) {
-    if (/authorization|cookie|token|secret|api[_-]?key|password/i.test(key)) result[key] = '[REDACTED]'
-    else result[key] = sanitize(item, depth + 1)
-  }
-  return result
-}
 
 const getContent = (message: SDKMessage) => {
   if (!('message' in message) || !isRecord(message.message)) return []
@@ -118,7 +107,9 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     signal.addEventListener('abort', abort, { once: true })
     if (signal.aborted) abortController.abort()
     let persistedSessionId = task.securityContext?.runtimeSessionId
-    let terminal: { success: boolean; content?: string; nativeMessage: Record<string, unknown> } | undefined
+    let terminal: { success: boolean; content?: string } | undefined
+    let terminalNativeEventId: string | undefined
+    let nativeSequence = 0
     let buildStarted = false
     const beginBuild = async () => {
       if (buildStarted) return
@@ -176,30 +167,27 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         })
         persistedSessionId = sessionId
       }
-      const nativeMessage = sanitize(message) as Record<string, unknown>
+      const nativeMessage = sanitizeNativePayload(message) as Record<string, unknown>
       const delta = textDelta(message)
-      if (delta) {
-        await store.appendEvent(task.id, {
-          type: 'assistant_text_delta', lane: 'transcript', content: delta,
-          payload: { executionRoute: 'claude_agent_sdk', nativeType: message.type, nativeMessage },
-        })
-        continue
-      }
-
+      const projections: EventInput[] = []
+      if (delta) projections.push({
+        type: 'assistant_text_delta', lane: 'transcript', content: delta,
+        payload: { executionRoute: 'claude_agent_sdk' },
+      })
       for (const block of getContent(message)) {
         if (block.type === 'tool_use' && typeof block.name === 'string') {
           await beginBuild()
-          await store.appendEvent(task.id, {
+          projections.push({
             type: 'tool_call_started', lane: 'activity', label: block.name,
             content: 'Claude requested a governed workspace tool.',
-            payload: { executionRoute: 'claude_agent_sdk', toolUseId: block.id, input: sanitize(block.input), nativeMessage },
+            payload: { executionRoute: 'claude_agent_sdk', toolUseId: block.id, input: sanitizeNativePayload(block.input) },
           })
         }
         if (block.type === 'tool_result') {
-          await store.appendEvent(task.id, {
+          projections.push({
             type: 'tool_call_completed', lane: 'activity', label: 'Tool result',
             content: typeof block.content === 'string' ? block.content.slice(0, 2_000) : undefined,
-            payload: { executionRoute: 'claude_agent_sdk', toolUseId: block.tool_use_id, isError: block.is_error, nativeMessage },
+            payload: { executionRoute: 'claude_agent_sdk', toolUseId: block.tool_use_id, isError: block.is_error },
           })
         }
       }
@@ -209,15 +197,22 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         terminal = {
           success,
           content: 'result' in message && typeof message.result === 'string' ? message.result : undefined,
-          nativeMessage,
         }
-      } else {
-        await store.appendEvent(task.id, {
+      } else if (!projections.length) {
+        projections.push({
           type: 'activity_delta', lane: 'activity', label: titleFor(message),
           content: message.type === 'system' && 'content' in message && typeof message.content === 'string' ? message.content : undefined,
-          payload: { executionRoute: 'claude_agent_sdk', nativeType: message.type, nativeMessage },
+          payload: { executionRoute: 'claude_agent_sdk' },
         })
       }
+      const messageRecord = message as unknown as Record<string, unknown>
+      const sourceSequence = nativeSequence++
+      const sourceEventId = typeof messageRecord.uuid === 'string' ? messageRecord.uuid : `${message.type}:${sourceSequence}`
+      const ingested = await store.ingestNativeEvent(task.id, {
+        source: 'claude_agent_sdk', sourceEventId, sourceSequence, nativeType: message.type,
+        payload: nativeMessage, projections,
+      })
+      if (message.type === 'result') terminalNativeEventId = ingested.nativeEventId
     }
 
     signal.removeEventListener('abort', abort)
@@ -265,7 +260,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       label: terminal ? (success ? 'Claude Agent SDK completed' : 'Claude Agent SDK failed') : 'Claude Agent SDK stream closed',
       content: terminal?.content ?? (terminal ? undefined : 'The SDK stream ended without an explicit result message.'),
       payload: terminal
-        ? { executionRoute: 'claude_agent_sdk', nativeType: 'result', nativeMessage: terminal.nativeMessage }
+        ? { executionRoute: 'claude_agent_sdk', nativeType: 'result', nativeEventId: terminalNativeEventId }
         : { executionRoute: 'claude_agent_sdk' },
     })
     await store.updateTask(task.id, { status: success ? 'completed' : 'failed' })

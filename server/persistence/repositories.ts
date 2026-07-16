@@ -9,6 +9,10 @@ import type {
   MessagePage,
   MessageRecord,
   MessageRepository,
+  NativeEventProjectionRecord,
+  NativeEventRecord,
+  NativeEventRepository,
+  NativeProjectionOffset,
   RuntimeEventRecord,
   RuntimeEventRepository,
   Repositories,
@@ -28,6 +32,10 @@ type RuntimeEventRow = {
   id: string; conversation_id: string; run_id: string | null; sequence: number; type: string; lane: string;
   status: string | null; label: string | null; content: string | null; payload_json: string; created_at: string;
   previous_hash: string; event_hash: string;
+}
+type NativeEventRow = {
+  id: string; conversation_id: string; run_id: string; source: string; source_event_id: string;
+  source_sequence: number; native_type: string; payload_json: string; payload_hash: string; received_at: string;
 }
 
 const conversationFromRow = (row: ConversationRow): ConversationRecord => ({
@@ -283,6 +291,107 @@ export class SqliteRuntimeEventRepository implements RuntimeEventRepository {
   }
 }
 
+const nativeEventFromRow = (row: NativeEventRow): NativeEventRecord => ({
+  id: row.id,
+  conversationId: row.conversation_id,
+  runId: row.run_id,
+  source: row.source,
+  sourceEventId: row.source_event_id,
+  sourceSequence: row.source_sequence,
+  nativeType: row.native_type,
+  payloadJson: row.payload_json,
+  payloadHash: row.payload_hash,
+  receivedAt: row.received_at,
+})
+
+type NativeProjectionRow = {
+  conversation_id: string; run_id: string; source: string; projector_version: number;
+  last_source_sequence: number; updated_at: string;
+}
+
+export class SqliteNativeEventRepository implements NativeEventRepository {
+  constructor(private readonly database: Database.Database) {}
+
+  findBySourceEvent(conversationId: string, runId: string, source: string, sourceEventId: string): NativeEventRecord | undefined {
+    const row = this.database.prepare(`
+      SELECT * FROM native_events
+      WHERE conversation_id = ? AND run_id = ? AND source = ? AND source_event_id = ?
+    `).get(conversationId, runId, source, sourceEventId) as NativeEventRow | undefined
+    return row && nativeEventFromRow(row)
+  }
+
+  listByConversation(conversationId: string, runId?: string, source?: string, afterSourceSequence = -1, limit = 10_000): NativeEventRecord[] {
+    if (!Number.isSafeInteger(afterSourceSequence) || afterSourceSequence < -1) throw new RangeError('Native event cursor is invalid')
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50_000) throw new RangeError('Native event limit is invalid')
+    const rows = this.database.prepare(`
+      SELECT * FROM native_events
+      WHERE conversation_id = ?
+        AND (? IS NULL OR run_id = ?)
+        AND (? IS NULL OR source = ?)
+        AND source_sequence > ?
+      ORDER BY source_sequence ASC LIMIT ?
+    `).all(conversationId, runId ?? null, runId ?? null, source ?? null, source ?? null, afterSourceSequence, limit) as NativeEventRow[]
+    return rows.map(nativeEventFromRow)
+  }
+
+  append(record: NativeEventRecord): void {
+    if (!Number.isSafeInteger(record.sourceSequence) || record.sourceSequence < 0) throw new RangeError('Native event source sequence is invalid')
+    try {
+      const parsed = JSON.parse(record.payloadJson) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new TypeError('Native event payload must be an object')
+    } catch (error) {
+      throw new TypeError(`Native event payload must be valid JSON: ${error instanceof Error ? error.message : 'invalid'}`)
+    }
+    try {
+      const result = this.database.prepare(`
+        INSERT INTO native_events(
+          id, conversation_id, run_id, source, source_event_id, source_sequence,
+          native_type, payload_json, payload_hash, received_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        record.id, record.conversationId, record.runId, record.source, record.sourceEventId,
+        record.sourceSequence, record.nativeType, record.payloadJson, record.payloadHash, record.receivedAt,
+      )
+      if (result.changes !== 1) throw new OptimisticConflictError(`Native event ${record.id} was not appended`)
+    } catch (error) {
+      if (error instanceof OptimisticConflictError) throw error
+      if ((error instanceof Error ? error.message : '').includes('UNIQUE constraint failed: native_events')) {
+        throw new OptimisticConflictError(`Native event ${record.sourceEventId} conflicts with the current source cursor`)
+      }
+      throw error
+    }
+  }
+
+  appendProjection(record: NativeEventProjectionRecord): void {
+    const result = this.database.prepare(`
+      INSERT INTO native_event_projections(native_event_id, projection_index, runtime_event_id, projector_version, projected_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(record.nativeEventId, record.projectionIndex, record.runtimeEventId, record.projectorVersion, record.projectedAt)
+    if (result.changes !== 1) throw new OptimisticConflictError(`Native event projection ${record.nativeEventId}/${record.projectionIndex} was not appended`)
+  }
+
+  getOffset(conversationId: string, runId: string, source: string, projectorVersion: number): NativeProjectionOffset | undefined {
+    const row = this.database.prepare(`
+      SELECT * FROM native_projection_offsets
+      WHERE conversation_id = ? AND run_id = ? AND source = ? AND projector_version = ?
+    `).get(conversationId, runId, source, projectorVersion) as NativeProjectionRow | undefined
+    return row && {
+      conversationId: row.conversation_id, runId: row.run_id, source: row.source,
+      projectorVersion: row.projector_version, lastSourceSequence: row.last_source_sequence, updatedAt: row.updated_at,
+    }
+  }
+
+  setOffset(record: NativeProjectionOffset): void {
+    this.database.prepare(`
+      INSERT INTO native_projection_offsets(conversation_id, run_id, source, projector_version, last_source_sequence, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(conversation_id, run_id, source, projector_version)
+      DO UPDATE SET last_source_sequence = excluded.last_source_sequence, updated_at = excluded.updated_at
+      WHERE excluded.last_source_sequence >= native_projection_offsets.last_source_sequence
+    `).run(record.conversationId, record.runId, record.source, record.projectorVersion, record.lastSourceSequence, record.updatedAt)
+  }
+}
+
 export class SqliteLegacyImportRepository implements LegacyImportRepository {
   constructor(private readonly database: Database.Database) {}
 
@@ -313,6 +422,7 @@ export function createSqliteRepositories(database: Database.Database): Repositor
     turns: new SqliteTurnRepository(database),
     messages: new SqliteMessageRepository(database),
     runtimeEvents: new SqliteRuntimeEventRepository(database),
+    nativeEvents: new SqliteNativeEventRepository(database),
     idempotency: new SqliteIdempotencyRepository(database),
     legacyImports: new SqliteLegacyImportRepository(database),
     runtimeLeases: new SqliteRuntimeLeaseRepository(database),
