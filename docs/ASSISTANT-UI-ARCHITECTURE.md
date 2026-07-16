@@ -57,6 +57,14 @@ Artifact actions are same-origin and same-task only. The browser accepts a suppl
 
 At widths up to 960px the sidebar starts closed so the task remains usable. Opening it creates a modal backdrop and an in-panel close control; selecting a task or primary view closes it again. The collapsed grid has one real content column—never a zero-width placeholder—so both conversation and workspace surfaces remain reachable at mobile breakpoints.
 
+## Upstream reference and virtualization
+
+The upstream assistant-ui repository is pinned locally at `/Users/gini/Desktop/Project ONEComputer/reference/assistant-ui`, commit `595fcba` (`https://github.com/assistant-ui/assistant-ui`). The study focused on three patterns: `useExternalStoreRuntime` for external persistence, `ThreadPrimitive.Unstable_MessageById` with `@tanstack/react-virtual` for large transcripts, and artifact panels that are derived from assistant-ui state rather than becoming a second persistence system.
+
+ONEVibe adapts those patterns to its own authority boundary. The virtualized thread groups durable message IDs into user/assistant turns, keeps the transcript in a bounded scroll region, follows the newest activity while the reviewer is at the bottom, and exposes an accessible jump-to-latest affordance after the reviewer scrolls away. The Computer/artifact rail remains a ONEVibe surface because it is driven by the signed runtime-event ledger and must continue to show evidence even when the assistant-ui transcript is virtualized. We do not import the upstream demo's mock store, browser-owned thread list, or provider runtime.
+
+The responsive review gate now includes desktop light/dark rendering, a 390x844 viewport with a reachable sidebar control, internal transcript scrolling, jump-to-latest behavior, and the existing bounded artifact actions. Reduced-motion behavior must continue to disable smooth scrolling and non-essential transitions.
+
 ## Failure and migration rules
 
 - Never introduce browser-local conversation arrays as a fallback.

@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { ArrowUp, CheckCircle2, Copy, Download, Eye, FileText, LoaderCircle, Paperclip, Presentation, ShieldCheck, TriangleAlert, X } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FC } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { ArrowDown, ArrowUp, CheckCircle2, Copy, Download, Eye, FileText, LoaderCircle, Paperclip, Presentation, ShieldCheck, TriangleAlert, X } from 'lucide-react'
 import {
   AssistantRuntimeProvider,
   ActionBarPrimitive,
@@ -50,6 +51,95 @@ const AssistantMessage = () => {
   return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb">O</div><div><strong>ONEVibe <small>{running ? '· writing' : `· ${timestamp(createdAt)}`}</small></strong><MessagePrimitive.Parts components={{ tools: { Fallback: ToolCallCard } }} /><ArtifactCards artifacts={artifacts} />{running && <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>}<MessageActions /></div></MessagePrimitive.Root>
 }
 
+type MessageRow = { id: string; role: 'user' | 'assistant' | 'system' }
+type Turn = { id: string; messageIds: string[] }
+type MessageComponents = ComponentProps<typeof ThreadPrimitive.Unstable_MessageById>['components']
+
+const useThreadMessageRows = (): readonly MessageRow[] => {
+  const previous = useRef<readonly MessageRow[]>([])
+  return useAuiState((state) => {
+    const messages = state.thread.messages
+    const cached = previous.current
+    if (cached.length === messages.length && cached.every((row, index) => row.id === messages[index]?.id && row.role === messages[index]?.role)) return cached
+    const next = messages.map(({ id, role }) => ({ id, role }))
+    previous.current = next
+    return next
+  })
+}
+
+const turnsFor = (messages: readonly MessageRow[]): Turn[] => {
+  const turns: Turn[] = []
+  for (const message of messages) {
+    const last = turns.at(-1)
+    if (message.role === 'user' || !last) turns.push({ id: message.id, messageIds: [message.id] })
+    else last.messageIds.push(message.id)
+  }
+  return turns
+}
+
+const MESSAGE_COMPONENTS: MessageComponents = { UserMessage, AssistantMessage }
+
+const VirtualizedMessages: FC<{ taskId: string }> = ({ taskId }) => {
+  const rows = useThreadMessageRows()
+  const turns = useMemo(() => turnsFor(rows), [rows])
+  const isRunning = useAuiState((state) => state.thread.isRunning)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const sticky = useRef(true)
+  const previousRunning = useRef(false)
+  const didInitialJump = useRef<string | undefined>(undefined)
+  const [atBottom, setAtBottom] = useState(true)
+  const virtualizer = useVirtualizer({
+    count: turns.length,
+    estimateSize: () => 180,
+    getItemKey: (index) => turns[index]?.id ?? index,
+    getScrollElement: () => scrollRef.current,
+    initialRect: { height: 600, width: 600 },
+    overscan: 5,
+  })
+  const jumpToBottom = useCallback(() => {
+    sticky.current = true
+    if (turns.length > 0) virtualizer.scrollToIndex(turns.length - 1, { align: 'end' })
+    requestAnimationFrame(() => { if (scrollRef.current && sticky.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight })
+  }, [turns.length, virtualizer])
+
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+    const onScroll = () => {
+      const bottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 8
+      if (bottom) sticky.current = true
+      setAtBottom(bottom)
+    }
+    const stopFollowing = () => { sticky.current = false }
+    const onWheel = (event: WheelEvent) => { if (event.deltaY < 0) stopFollowing() }
+    element.addEventListener('scroll', onScroll, { passive: true })
+    element.addEventListener('wheel', onWheel, { passive: true })
+    element.addEventListener('touchmove', stopFollowing, { passive: true })
+    return () => { element.removeEventListener('scroll', onScroll); element.removeEventListener('wheel', onWheel); element.removeEventListener('touchmove', stopFollowing) }
+  }, [])
+
+  useEffect(() => {
+    const element = scrollRef.current
+    const content = contentRef.current
+    if (!element || !content) return
+    const observer = new ResizeObserver(() => { if (sticky.current) element.scrollTop = element.scrollHeight })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [])
+
+  useLayoutEffect(() => {
+    if (taskId !== didInitialJump.current && turns.length > 0) { didInitialJump.current = taskId; jumpToBottom() }
+    if (isRunning && !previousRunning.current) jumpToBottom()
+    previousRunning.current = isRunning
+  }, [isRunning, jumpToBottom, taskId, turns.length])
+
+  const virtualItems = virtualizer.getVirtualItems()
+  const paddingTop = virtualItems[0]?.start ?? 0
+  const paddingBottom = Math.max(0, virtualizer.getTotalSize() - (virtualItems.at(-1)?.end ?? 0))
+  return <div className="aui-thread-scroll" ref={scrollRef}><div className="aui-thread-content" ref={contentRef} style={{ paddingTop, paddingBottom }}>{virtualItems.map((item) => <div key={item.key} ref={virtualizer.measureElement} data-index={item.index} className="aui-thread-turn">{turns[item.index]?.messageIds.map((messageId) => <ThreadPrimitive.Unstable_MessageById key={messageId} messageId={messageId} components={MESSAGE_COMPONENTS} />)}</div>)} </div>{!atBottom && <button type="button" className="aui-thread-jump" onClick={jumpToBottom} aria-label="Scroll to latest activity" title="Scroll to latest activity"><ArrowDown size={14} /></button>}</div>
+}
+
 type Props = { task: TaskSnapshot; busy: boolean; onSubmit: (prompt: string, attachments?: DraftFollowUpAttachment[]) => Promise<void> }
 
 export const AssistantThread = ({ task, busy, onSubmit }: Props) => {
@@ -82,5 +172,5 @@ export const AssistantThread = ({ task, busy, onSubmit }: Props) => {
     isSendDisabled: busy || Boolean(task.inputRequest),
   })
 
-  return <AssistantRuntimeProvider runtime={runtime}><ThreadPrimitive.Root className="aui-thread"><ThreadPrimitive.Viewport className="aui-thread-viewport"><ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} /><ThreadPrimitive.ViewportFooter className="aui-thread-footer"><ComposerPrimitive.Root className="aui-composer"><input ref={fileInput} className="file-input" type="file" multiple onChange={(event) => { void chooseFiles(event.target.files); event.currentTarget.value = '' }} />{attachments.length > 0 && <div className="aui-composer-files">{attachments.map((file) => <span key={`${file.name}-${file.size}`}><Paperclip size={10} />{file.name}<small>{Math.ceil(file.size / 1024)} KB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== file))}><X size={10} /></button></span>)}</div>}{attachmentError && <p className="aui-attachment-error">{attachmentError}</p>}<ComposerPrimitive.Input aria-label="Continue this governed task" placeholder={task.status === 'running' ? 'Add guidance for the next provider turn…' : 'Continue this task…'} rows={1} /><div className="aui-composer-meta"><span><ShieldCheck size={11} /> {task.status === 'running' ? 'Durably queued while this turn runs' : 'Bound to this conversation workspace'}</span><div><button type="button" className="aui-attach" aria-label="Attach files to this turn" title="Attach files to this turn" disabled={attachments.length >= 4 || busy} onClick={() => fileInput.current?.click()}><Paperclip size={14} /></button><ComposerPrimitive.Send className="aui-send" aria-label="Send message"><ArrowUp size={15} /></ComposerPrimitive.Send></div></div></ComposerPrimitive.Root></ThreadPrimitive.ViewportFooter></ThreadPrimitive.Viewport></ThreadPrimitive.Root></AssistantRuntimeProvider>
+  return <AssistantRuntimeProvider runtime={runtime}><ThreadPrimitive.Root className="aui-thread"><VirtualizedMessages taskId={task.id} /><div className="aui-thread-footer"><ComposerPrimitive.Root className="aui-composer"><input ref={fileInput} className="file-input" type="file" multiple onChange={(event) => { void chooseFiles(event.target.files); event.currentTarget.value = '' }} />{attachments.length > 0 && <div className="aui-composer-files">{attachments.map((file) => <span key={`${file.name}-${file.size}`}><Paperclip size={10} />{file.name}<small>{Math.ceil(file.size / 1024)} KB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== file))}><X size={10} /></button></span>)}</div>}{attachmentError && <p className="aui-attachment-error">{attachmentError}</p>}<ComposerPrimitive.Input aria-label="Continue this governed task" placeholder={task.status === 'running' ? 'Add guidance for the next provider turn…' : 'Continue this task…'} rows={1} /><div className="aui-composer-meta"><span><ShieldCheck size={11} /> {task.status === 'running' ? 'Durably queued while this turn runs' : 'Bound to this conversation workspace'}</span><div><button type="button" className="aui-attach" aria-label="Attach files to this turn" title="Attach files to this turn" disabled={attachments.length >= 4 || busy} onClick={() => fileInput.current?.click()}><Paperclip size={14} /></button><ComposerPrimitive.Send className="aui-send" aria-label="Send message"><ArrowUp size={15} /></ComposerPrimitive.Send></div></div></ComposerPrimitive.Root></div></ThreadPrimitive.Root></AssistantRuntimeProvider>
 }

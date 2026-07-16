@@ -150,3 +150,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .secure-signal{position:relative}.secure-signal::after{content:"";position:absolute;right:-1px;top:-1px;width:16px;height:16px;pointer-events:none;background:linear-gradient(135deg,transparent 47%,var(--accent-border) 48%,var(--accent-border) 52%,var(--surface-canvas) 53%)}.secure-signal-cut{border-radius:0!important;clip-path:polygon(0 0,calc(100% - 15px) 0,100% 15px,100% 100%,15px 100%,0 calc(100% - 15px))}.secure-signal-cut:focus-within{filter:drop-shadow(0 0 0 var(--accent))}.workspace.secure-signal-cut{box-shadow:var(--shadow-soft),0 0 0 1px var(--border-default)}.approval-card.secure-signal-cut{border-radius:0!important}.approval-card.secure-signal-cut .wallet-phone{border-radius:0 12px 0 12px}@media(max-width:600px){.secure-signal-cut{clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}.secure-signal::after{width:12px;height:12px}}
 .aui-thread-footer{background:linear-gradient(transparent,var(--surface-canvas) 24%)}
 .aui-thread-loading{margin:20px 0;padding:14px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--surface-raised);color:var(--text-faint);font:9px 'IBM Plex Mono'}
+.aui-thread{display:flex;flex-direction:column;min-height:0;height:clamp(360px,calc(100vh - 250px),680px)}
+.aui-thread-scroll{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth}
+.aui-thread-footer{flex-shrink:0}
+.aui-thread-content{width:100%;max-width:760px;margin:0 auto;padding-inline:2px}
+.aui-thread-turn{display:flex;flex-direction:column;gap:18px;padding:9px 0;contain:layout style}
+.aui-thread-jump{position:sticky;bottom:12px;left:50%;display:grid;place-items:center;width:30px;height:30px;margin:-44px auto 12px;border:1px solid var(--border-default);border-radius:50%;background:var(--surface-raised);color:var(--text-secondary);box-shadow:var(--shadow-soft);cursor:pointer;z-index:6}
+.aui-thread-jump:hover{border-color:var(--accent-border);color:var(--accent);transform:translateY(-1px)}
+@media(max-width:600px){.aui-thread-content{padding-inline:0}.aui-thread-turn{gap:14px;padding:7px 0}}
