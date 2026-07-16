@@ -99,8 +99,9 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
   }
   if (task.mode === 'website' || task.mode === 'app' || task.mode === 'game') {
     const packageJson = await required(store, task.id, 'app/package.json', checks)
+    const appIndex = await required(store, task.id, 'app/index.html', checks)
     const appSource = await required(store, task.id, 'app/src/App.tsx', checks)
-    await required(store, task.id, 'app/src/main.tsx', checks)
+    const appEntry = await required(store, task.id, 'app/src/main.tsx', checks)
     await required(store, task.id, 'app/vite.config.ts', checks)
     await required(store, task.id, 'app/tsconfig.json', checks)
     await required(store, task.id, 'app/.gitignore', checks)
@@ -108,6 +109,8 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
     const classNames = await required(store, task.id, 'app/src/lib/cn.ts', checks)
     const styles = await required(store, task.id, 'app/src/styles.css', checks)
     check(checks, 'app:root-landmark', /<main(?:\s|>)/.test(appSource ?? ''), 'Generated app contains a main landmark')
+    check(checks, 'app:html-shell', Boolean(/<html[^>]+lang=["']en["']/i.test(appIndex ?? '') && /name=["']viewport["']/i.test(appIndex ?? '') && /id=["']root["']/.test(appIndex ?? '')), 'Generated app has a language, viewport, and root HTML shell')
+    check(checks, 'app:entry-wiring', Boolean(/from ['"]\.\/App['"]/.test(appEntry ?? '') && /styles\.css/.test(appEntry ?? '')), 'Generated app entry wires the React root and styles')
     try {
       const manifest = JSON.parse(packageJson ?? '') as { scripts?: { build?: string; dev?: string; 'server:dev'?: string; 'server:check'?: string }; dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
       check(checks, 'app:build-script', Boolean(manifest.scripts?.build), 'Portable scaffold declares a build script')

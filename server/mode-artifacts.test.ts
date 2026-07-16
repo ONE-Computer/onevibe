@@ -89,6 +89,7 @@ describe('mode artifacts', () => {
     await writeModeArtifacts(task, store)
 
     expect(await store.readWorkspaceFile(task.id, 'app/src/App.tsx')).toContain('useState')
+    expect(await store.readWorkspaceFile(task.id, 'app/index.html')).toContain('name="viewport"')
     expect(await store.readWorkspaceFile(task.id, 'app/vite.config.ts')).toContain('defineConfig')
     expect(await store.readWorkspaceFile(task.id, 'app/vite.config.ts')).toContain('@tailwindcss/vite')
     expect(await store.readWorkspaceFile(task.id, 'app/src/components/ui/Button.tsx')).toContain('ButtonHTMLAttributes')

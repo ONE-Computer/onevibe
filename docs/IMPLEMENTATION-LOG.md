@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-16 — website shell contract and browser review
+
+- Strengthened generated Website/App/Game artifacts with a portable `app/index.html` shell: language metadata, viewport metadata, description/title, root mount, and Vite entry wiring.
+- Extended server validation to require the HTML shell and verify that `app/src/main.tsx` imports the generated `App` and stylesheet. This catches an incomplete scaffold before it is presented as a finished artifact.
+- Browser-reviewed a real persisted Website task (`task_82dc25cf69d24c`) through an isolated local API/Vite pair. The task completed with 5/5 plan steps, 29 static checks, 16 files, a generated preview, the artifact rail, the activity/plan surface, and the separate VTI Wallet approval boundary.
+- At 390×844, the browser review found no horizontal overflow (`scrollWidth=375`), the sidebar was hidden/collapsed, and the composer/task content remained usable. This is shell/UI evidence only; it does not claim that dependencies were installed, the generated app was built, or browser-tested inside the generated artifact itself.
+- The remaining website parity gate is to install/build a generated project in a bounded runtime, capture browser/a11y evidence from that built output, and automate the new-task → stream → artifact → follow-up → reload flow.
+
 ## 2026-07-16 — product-lead queue and delegation cadence
 
 - Reframed the next phase as five bounded workstreams: a local API golden flow, document round-trip, quoted-CSV/data lineage, website build/review, and browser golden-flow coverage.

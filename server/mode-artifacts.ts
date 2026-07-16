@@ -354,7 +354,7 @@ export default function App(){const [role,setRole]=useState(initialRole);const c
     'app/src/styles.css': `${styles}\n`,
     'app/src/lib/cn.ts': "export const cn = (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' ')\n",
     'app/src/components/ui/Button.tsx': "import type { ButtonHTMLAttributes } from 'react'\nimport { cn } from '../../lib/cn'\n\nexport const Button = ({ className, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => <button className={cn('inline-flex items-center justify-center rounded-md bg-emerald-400 px-3 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300', className)} {...props} />\n",
-    'app/index.html': '<div id="root"></div><script type="module" src="/src/main.tsx"></script>\n',
+    'app/index.html': '<!doctype html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="description" content="Generated ONEVibe workspace application" /><title>Generated ONEVibe application</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>\n',
     'app/.gitignore': 'node_modules\ndist\n.env*\n',
     'app/.prettierrc': '{"semi":false,"singleQuote":true}\n',
   }

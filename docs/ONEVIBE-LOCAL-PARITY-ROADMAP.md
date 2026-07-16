@@ -2,6 +2,12 @@
 
 Updated: 2026-07-16
 
+## Current release posture — 2026-07-16
+
+The local backend and conversation gate is green. Website parity is in progress: the generated scaffold now has a validated portable HTML shell and the ONEVibe task screen has been browser-reviewed at desktop and 390×844 mobile widths, but the generated project itself has not yet been dependency-installed, built, or browser-tested. Keep Website/App/Game creation at **P1 / partial** until that evidence exists.
+
+The next delegated reviews are read-only and non-authoritative: one agent is auditing backend P0/P1 risks, one is auditing Manus/OpenWebUI interaction parity, and one is auditing roadmap/Linear hygiene. The main agent retains ownership of shared contracts, integration, full checks, Linear updates, and release claims.
+
 ## Operating decision
 
 The active product is ONEVibe: a reliable local-first agent workspace with Manus-level interaction quality. ONEComputer, Azure, OpenVTC/VTI approvals, attested microVMs, and enterprise identity are later enforcement and platform tracks. They remain in Linear, but they do not compete with the local release gate.
