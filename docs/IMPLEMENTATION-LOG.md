@@ -796,3 +796,9 @@ baseline harness in CI.
 - Expanded the Better Auth owner-scope acceptance harness to create an organization, verify an unlisted organization before membership, add a second authenticated user, verify member visibility, reject member-admin mutations, reject owner self-removal, and prove the member still cannot see the owner's task inventory.
 - Re-stated in the handover that every model request and agentic turn must traverse the server-controlled LiteLLM relay for data sovereignty, routing, cost control, and optimization. Direct first-party Anthropic traffic remains prohibited in local, test, emergency, and release paths; the Claude SDK is only a harness using Anthropic-compatible transport variables pointed at LiteLLM.
 - Verification: `npm run check`, `npm run db:check`, and `npm run e2e:auth-owner` passed. This is local SQLite/auth evidence only; Postgres-backed org authorization, production delivery, provider acceptance, and sandbox isolation remain open.
+
+## 2026-07-17 — expanded authenticated route-isolation proof
+
+- Extended `scripts/auth-owner-e2e.ts` beyond the first owner-scope pass: a second authenticated user now receives empty conversation, Library, and server-side search results; every representative task subroute (messages, SSE events, files, versions, preview, evidence, and download) returns the same owner-scoped `404` boundary; org member administration remains `403` for non-owners and `409` for owner self-removal.
+- This closes a local HTTP negative-coverage slice for ONE-253 without implying that organization membership is yet a data-plane grant. The running store remains SQLite-backed and organization policy does not widen task/project/runtime access.
+- Verification: `npm run e2e:auth-owner` and `npm run check:e2e-harness` passed. Production email, Postgres repositories/runtime, org-backed authorization, provider acceptance, and sandbox isolation remain open.

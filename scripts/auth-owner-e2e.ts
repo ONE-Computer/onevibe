@@ -199,6 +199,15 @@ const main = async () => {
     const ownerBMcp = await request<{ configs: Array<{ id: string }> }>(baseUrl, '/api/mcp', {}, ownerB.cookie)
     assert.equal(ownerBMcp.response.status, 200)
     assert.deepEqual(ownerBMcp.body.configs, [])
+    const ownerBConversations = await request<{ conversations: Array<{ id: string }> }>(baseUrl, '/api/conversations', {}, ownerB.cookie)
+    assert.equal(ownerBConversations.response.status, 200)
+    assert.deepEqual(ownerBConversations.body.conversations, [])
+    const ownerBLibrary = await request<{ items: Array<{ task: { id: string } }> }>(baseUrl, '/api/library', {}, ownerB.cookie)
+    assert.equal(ownerBLibrary.response.status, 200)
+    assert.deepEqual(ownerBLibrary.body.items, [])
+    const ownerBSearch = await request<{ results: Array<{ taskId: string }> }>(baseUrl, '/api/search?q=hello', {}, ownerB.cookie)
+    assert.equal(ownerBSearch.response.status, 200)
+    assert.deepEqual(ownerBSearch.body.results, [])
 
     const forbiddenTask = await request<{ error?: string }>(baseUrl, `/api/tasks/${created.body.id}`, {}, ownerB.cookie)
     assert.equal(forbiddenTask.response.status, 404)
@@ -224,12 +233,25 @@ const main = async () => {
     const forbiddenMcpHealth = await request<{ error?: string }>(baseUrl, `/api/mcp/${mcpA.body.id}/health`, {}, ownerB.cookie)
     assert.equal(forbiddenMcpHealth.response.status, 404)
     assert.equal(forbiddenMcpHealth.body.error, 'MCP configuration not found')
+    const forbiddenTaskSubroutes = await Promise.all([
+      request<{ error?: string }>(baseUrl, `/api/tasks/${created.body.id}/messages`, {}, ownerB.cookie),
+      request<{ error?: string }>(baseUrl, `/api/tasks/${created.body.id}/events`, {}, ownerB.cookie),
+      request<{ error?: string }>(baseUrl, `/api/tasks/${created.body.id}/files`, {}, ownerB.cookie),
+      request<{ error?: string }>(baseUrl, `/api/tasks/${created.body.id}/versions`, {}, ownerB.cookie),
+      request<{ error?: string }>(baseUrl, `/api/tasks/${created.body.id}/preview`, {}, ownerB.cookie),
+      request<{ error?: string }>(baseUrl, `/api/tasks/${created.body.id}/evidence`, {}, ownerB.cookie),
+      request<{ error?: string }>(baseUrl, `/api/tasks/${created.body.id}/download`, {}, ownerB.cookie),
+    ])
+    for (const result of forbiddenTaskSubroutes) {
+      assert.equal(result.response.status, 404, JSON.stringify(result.body))
+      assert.equal(result.body.error, 'Task not found')
+    }
     const ownerATask = await request<{ id: string; ownerUserId?: string }>(baseUrl, `/api/tasks/${created.body.id}`, {}, ownerA.cookie)
     assert.equal(ownerATask.response.status, 200)
     assert.equal(ownerATask.body.id, created.body.id)
     assert.equal(ownerATask.body.ownerUserId, ownerA.userId)
 
-    console.log(JSON.stringify({ auth: 'better-auth email OTP through loopback delivery fixture', unauthorizedStatus: unauthorized.response.status, ownerA: ownerA.userId, ownerB: ownerB.userId, organizationId: organization.body.id, taskId: created.body.id, ownerBTaskCount: ownerBTasks.body.tasks.length, forbiddenStatuses: [forbiddenTask.response.status, forbiddenMove.response.status, forbiddenTags.response.status, forbiddenProjectUpdate.response.status, forbiddenProjectFile.response.status, forbiddenSchedule.response.status, forbiddenMcp.response.status, forbiddenMcpHealth.response.status, forbiddenOrganizationMutation.response.status, forbiddenOwnerRemoval.response.status], ownerReadStatus: ownerATask.response.status, productionLimitations: ['real email delivery', 'Postgres repository/runtime', 'organization-backed data authorization', 'provider/sandbox isolation'] }, null, 2))
+    console.log(JSON.stringify({ auth: 'better-auth email OTP through loopback delivery fixture', unauthorizedStatus: unauthorized.response.status, ownerA: ownerA.userId, ownerB: ownerB.userId, organizationId: organization.body.id, taskId: created.body.id, ownerBTaskCount: ownerBTasks.body.tasks.length, ownerBConversationCount: ownerBConversations.body.conversations.length, ownerBLibraryCount: ownerBLibrary.body.items.length, ownerBSearchCount: ownerBSearch.body.results.length, forbiddenStatuses: [forbiddenTask.response.status, forbiddenMove.response.status, forbiddenTags.response.status, forbiddenProjectUpdate.response.status, forbiddenProjectFile.response.status, forbiddenSchedule.response.status, forbiddenMcp.response.status, forbiddenMcpHealth.response.status, ...forbiddenTaskSubroutes.map((result) => result.response.status), forbiddenOrganizationMutation.response.status, forbiddenOwnerRemoval.response.status], ownerReadStatus: ownerATask.response.status, productionLimitations: ['real email delivery', 'Postgres repository/runtime', 'organization-backed data authorization', 'provider/sandbox isolation'] }, null, 2))
   } finally {
     await api.stop(); await rm(dataRoot, { recursive: true, force: true }); await new Promise<void>((resolve) => mail.server.close(() => resolve()))
   }
