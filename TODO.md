@@ -84,8 +84,8 @@ Reference: `plan/05-ui-overhaul.md`
 - [x] **P5-05** Add conversation search UI — sidebar search debounces against the server-backed `/api/conversations?q=...` contract and retains the loaded-history fallback for short queries
 - [x] **P5-06** Add schedule delete — `DELETE /api/schedules/:id` + trash icon + confirm dialog; existing tasks remain durable after schedule removal
 - [ ] **P5-07** Add library item delete — `DELETE /api/library/:taskId` + remove action
-- [ ] **P5-08** Add history restore confirmation — confirm dialog + loading state + toast
-- [ ] **P5-09** Fix evidence log — replace `slice(-6)` with paginated "Show all N events" affordance
+- [x] **P5-08** Add history restore confirmation — confirm dialog, loading state, success/error status, and evidence-backed refresh
+- [x] **P5-09** Fix evidence log — latest-six view now has an explicit "Show all N events" toggle without discarding the durable event ledger
 - [ ] **P5-10** Fix status labels — `statusLabel(status)` canonical map; `providerLabel(id)` canonical map; replace all raw enum rendering
 - [ ] **P5-11** Fix accessibility — `<time dateTime>` everywhere, `readableBytes` helper consistently, `alt` text on images, `<time>` null-guard in `index.html`
 - [ ] **P5-12** Fix working trace — chevron on `<details>`, open by default when running, 240-char truncation replaced with expand link

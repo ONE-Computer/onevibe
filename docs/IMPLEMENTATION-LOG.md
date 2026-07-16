@@ -33,6 +33,11 @@
 - Completed the remaining P5-13 skill-capacity UX slice: once four guides are selected, unselected skill buttons are disabled and explain how to make room. This makes the existing server/client four-skill limit visible instead of silently ignoring the fifth click.
 - Full `npm run check` passes with 43 test files and 226 tests, lint, production build, and E2E harness typecheck.
 
+## 2026-07-17 — close history and evidence-log dead ends
+
+- Completed P5-08: workspace history restore now requires explicit confirmation, shows a disabled in-flight state, refreshes authoritative files after the server restore, and exposes success/error status without pretending a browser-only mutation occurred.
+- Completed P5-09: the evidence rail keeps a concise latest-six default but now offers an explicit all-events toggle with durable sequence/hash identifiers, so older evidence is not hidden behind an irreversible slice.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.
