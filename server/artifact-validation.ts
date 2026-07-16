@@ -56,6 +56,10 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
   if (task.mode === 'document') {
     const document = await required(store, task.id, 'document.md', checks)
     const metadata = await required(store, task.id, 'document.json', checks)
+    const pdf = await store.readWorkspaceBytes(task.id, 'document.pdf').catch(() => undefined)
+    let pdfPages = 0
+    try { pdfPages = pdf ? (await PDFDocument.load(pdf)).getPageCount() : 0 } catch { /* recorded below */ }
+    check(checks, 'document:pdf', pdfPages > 0, 'Document includes a parseable source-derived PDF export')
     check(checks, 'document:structure', Boolean(/^##\s+Executive summary\s*$/im.test(document ?? '') && /^##\s+Provenance\s*$/im.test(document ?? '')), 'Document has summary and provenance sections')
     try { JSON.parse(metadata ?? '') ; check(checks, 'document:metadata-json', true, 'Document metadata is valid JSON') } catch { check(checks, 'document:metadata-json', false, 'Document metadata is valid JSON') }
   }

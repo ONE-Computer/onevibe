@@ -225,7 +225,7 @@ describe('mode artifacts', () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-creation-modes-'))
     temporaryRoots.push(root)
     const { TaskStore } = await import('./store.js')
-    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const { writeModeArtifacts, writeDocumentReviewArtifacts } = await import('./mode-artifacts.js')
     const { validateModeArtifacts } = await import('./artifact-validation.js')
     const store = new TaskStore(root)
     await store.initialize()
@@ -237,6 +237,13 @@ describe('mode artifacts', () => {
     await writeModeArtifacts(data, store)
 
     expect(await store.readWorkspaceFile(document.id, 'document.md')).toContain('## Provenance')
+    expect(await store.readWorkspaceFile(document.id, 'index.html')).toContain('Source-derived document preview')
+    const beforePdf = await store.readWorkspaceBytes(document.id, 'document.pdf')
+    await expect(PDFDocument.load(beforePdf).then((pdf) => pdf.getPageCount())).resolves.toBeGreaterThan(0)
+    await store.writeWorkspaceFile(document.id, 'document.md', '# Revised brief\n\n## Executive summary\n\nA revised summary.\n\n## Provenance\n\nEdited locally.\n')
+    await writeDocumentReviewArtifacts(document, store)
+    expect(await store.readWorkspaceFile(document.id, 'index.html')).toContain('A revised summary.')
+    expect(Buffer.compare(Buffer.from(beforePdf), Buffer.from(await store.readWorkspaceBytes(document.id, 'document.pdf')))).not.toBe(0)
     expect(await store.readWorkspaceFile(data.id, 'data.csv')).toContain('Stage,Workspaces')
     expect((await validateModeArtifacts(document, store)).passed).toBe(true)
     expect((await validateModeArtifacts(data, store)).passed).toBe(true)
@@ -253,7 +260,7 @@ describe('mode artifacts', () => {
     const data = await store.createTask('Explain data; secret=data-never-show', 'demo', 'data')
 
     for (const [task, secret, expectedPaths] of [
-      [document, 'doc-never-show', ['index.html', 'document.md', 'document.json']],
+      [document, 'doc-never-show', ['index.html', 'document.md', 'document.json', 'document.pdf']],
       [data, 'data-never-show', ['index.html', 'data.csv', 'analysis.json']],
     ] as const) {
       const files = await writeModeArtifacts(task, store)
@@ -271,12 +278,14 @@ describe('mode artifacts', () => {
     temporaryRoots.push(root)
     const { TaskStore } = await import('./store.js')
     const { validateModeArtifacts } = await import('./artifact-validation.js')
+    const { writeDocumentReviewArtifacts } = await import('./mode-artifacts.js')
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('Validate heading semantics', 'demo', 'document')
     await store.writeWorkspaceFile(task.id, 'index.html', '<html lang="en"><head><meta name="viewport"><title>Brief</title></head><body><h1>Brief</h1></body></html>')
     await store.writeWorkspaceFile(task.id, 'document.md', '# Brief\n\n## Executive Summary\n\nA concise summary.\n\n## Provenance\n\nReviewed locally.\n')
     await store.writeWorkspaceFile(task.id, 'document.json', '{"title":"Brief"}\n')
+    await writeDocumentReviewArtifacts(task, store)
 
     const validation = await validateModeArtifacts(task, store)
 

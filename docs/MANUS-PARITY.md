@@ -42,7 +42,7 @@ This is the implementation gate, not a marketing checklist. **I** means behavior
 
 ## Creation modes and templates
 
-29. **I** Create Slides mode — mode-specific plan, eight-slide outline, interactive preview, notes, genuine PPTX, and deterministic eight-page PDF output. ONEVibe also has explicit portable Document and Data-story modes with inspectable source/metadata.
+29. **P** Creation modes — Slides has a mode-specific plan, eight-slide outline, interactive preview, notes, genuine PPTX, and deterministic eight-page PDF output. Document mode now derives a responsive HTML review surface and parseable PDF from `document.md`, and regenerates both after source edits/restores; Data-story mode has inspectable CSV/metadata. Native document export and richer data-story review remain pending.
 30. **P** Build Website mode — portable React/Vite output now includes a responsive, accessible enterprise landing-page starter with clear operating-boundary messaging and semantic FAQ disclosure. AI-directed design, screenshot/browser review, richer template packs, and deployment remain pending.
 31. **P** Design mode — concept rationale and design-token artifacts exist; richer visual generation is pending.
 32. **P** Create Games mode — dedicated plan and a portable playable React interaction loop now exist; richer mechanics, game assets, and runtime play-testing remain pending.

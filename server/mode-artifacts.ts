@@ -104,6 +104,122 @@ const wrapPdfText = (text: string, maxWidth: number, font: { widthOfTextAtSize: 
   return lines
 }
 
+type DocumentBlock = { kind: 'h1' | 'h2' | 'h3' | 'paragraph' | 'bullet'; text: string }
+
+const documentBlocks = (source: string): DocumentBlock[] => {
+  const blocks: DocumentBlock[] = []
+  let paragraph: string[] = []
+  const flushParagraph = () => {
+    const text = paragraph.join(' ').replace(/\s+/g, ' ').trim()
+    if (text) blocks.push({ kind: 'paragraph', text })
+    paragraph = []
+  }
+  for (const line of source.replace(/\r\n/g, '\n').split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) {
+      flushParagraph()
+      continue
+    }
+    const heading = /^(#{1,3})\s+(.+)$/.exec(trimmed)
+    if (heading) {
+      flushParagraph()
+      blocks.push({ kind: `h${heading[1]!.length}` as DocumentBlock['kind'], text: heading[2]!.trim() })
+      continue
+    }
+    const bullet = /^[-*+]\s+(.+)$/.exec(trimmed)
+    if (bullet) {
+      flushParagraph()
+      blocks.push({ kind: 'bullet', text: bullet[1]!.trim() })
+      continue
+    }
+    paragraph.push(trimmed)
+  }
+  flushParagraph()
+  return blocks
+}
+
+const documentPreviewBody = (title: string, source: string) => {
+  const blocks = documentBlocks(source)
+  let listOpen = false
+  const html: string[] = []
+  const closeList = () => {
+    if (listOpen) html.push('</ul>')
+    listOpen = false
+  }
+  for (const block of blocks) {
+    if (block.kind === 'bullet') {
+      if (!listOpen) {
+        html.push('<ul>')
+        listOpen = true
+      }
+      html.push(`<li>${escapeHtml(block.text)}</li>`)
+      continue
+    }
+    closeList()
+    const tag = block.kind
+    html.push(`<${tag}>${escapeHtml(block.text)}</${tag}>`)
+  }
+  closeList()
+  return `<div class="eyebrow">Source-derived document preview</div><h1>${escapeHtml(title)}</h1><article class="card document-source">${html.join('')}</article>`
+}
+
+const pdfSafeText = (value: string) => value.replace(/[^\x20-\x7E]/g, '?')
+
+const writeDocumentPdf = async (task: Task, store: TaskStore, blocks: DocumentBlock[]) => {
+  const pdf = await PDFDocument.create()
+  const artifactDate = new Date(task.createdAt)
+  pdf.setTitle(`${task.title} — ONEVibe document`)
+  pdf.setAuthor('ONEVibe')
+  pdf.setSubject('Source-derived governed document export')
+  pdf.setCreator('ONEVibe governed workspace')
+  pdf.setCreationDate(artifactDate)
+  pdf.setModificationDate(artifactDate)
+  const regular = await pdf.embedFont(StandardFonts.Helvetica)
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
+  const mono = await pdf.embedFont(StandardFonts.Courier)
+  const margin = 54
+  const width = 612
+  const height = 792
+  let page = pdf.addPage([width, height])
+  let y = height - margin
+  const nextPage = () => {
+    page = pdf.addPage([width, height])
+    y = height - margin
+  }
+  const drawLines = (text: string, font: typeof regular, size: number, color: ReturnType<typeof rgb>, indent = 0) => {
+    const lines = wrapPdfText(pdfSafeText(text), width - (margin * 2) - indent, font, size)
+    for (const line of lines) {
+      if (y < margin + size) nextPage()
+      page.drawText(line, { x: margin + indent, y, size, font, color })
+      y -= size * 1.35
+    }
+  }
+  page.drawText('ONEVIBE / SOURCE-DERIVED DOCUMENT', { x: margin, y, size: 9, font: mono, color: rgb(0.22, 0.68, 0.38) })
+  y -= 34
+  for (const block of blocks) {
+    const size = block.kind === 'h1' ? 25 : block.kind === 'h2' ? 18 : block.kind === 'h3' ? 14 : 11
+    const font = block.kind === 'paragraph' || block.kind === 'bullet' ? regular : bold
+    const color = block.kind === 'paragraph' || block.kind === 'bullet' ? rgb(0.22, 0.26, 0.24) : rgb(0.07, 0.31, 0.16)
+    y -= block.kind === 'paragraph' || block.kind === 'bullet' ? 8 : 14
+    drawLines(block.kind === 'bullet' ? `• ${block.text}` : block.text, font, size, color, block.kind === 'bullet' ? 12 : 0)
+  }
+  for (const existingPage of pdf.getPages()) {
+    existingPage.drawLine({ start: { x: margin, y: 32 }, end: { x: width - margin, y: 32 }, thickness: 0.7, color: rgb(0.82, 0.85, 0.83) })
+    existingPage.drawText('PORTABLE EXPORT · REVIEW BEFORE EXTERNAL DISTRIBUTION', { x: margin, y: 18, size: 7, font: mono, color: rgb(0.38, 0.43, 0.40) })
+  }
+  await store.writeWorkspaceBytes(task.id, 'document.pdf', await pdf.save())
+}
+
+export const writeDocumentReviewArtifacts = async (task: Task, store: TaskStore) => {
+  if (task.mode !== 'document') throw new Error('Document review artifacts are only available for document tasks')
+  const source = await store.readWorkspaceFile(task.id, 'document.md')
+  const blocks = documentBlocks(source)
+  if (!blocks.length) throw new Error('Document source is empty')
+  await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, documentPreviewBody(task.title, source)))
+  await writeDocumentPdf(task, store, blocks)
+  return writeArtifactManifest(task, store, ['index.html', 'document.md', 'document.json', 'document.pdf'])
+}
+
 const writeSlidePdf = async (task: Task, store: TaskStore, slides: Array<[string, string]>) => {
   const pdf = await PDFDocument.create()
   const artifactDate = new Date(task.createdAt)
@@ -267,8 +383,7 @@ export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
     const document = `# ${task.title}\n\n## Purpose\n\n${task.prompt}\n\n## Executive summary\n\nThis portable document was drafted in a governed ONEVibe workspace. It separates the requested outcome from the operating boundary: actions that can change external state remain subject to policy and, where required, a separate wallet approval.\n\n## Recommended next steps\n\n1. Review the substantive content with the accountable owner.\n2. Validate source material and assumptions before external distribution.\n3. Request an external approval for any publication or connector write.\n\n## Provenance\n\nThis file is exported with the task evidence manifest.\n`
     await store.writeWorkspaceFile(task.id, 'document.md', document)
     await store.writeWorkspaceFile(task.id, 'document.json', `${JSON.stringify({ title: task.title, format: 'markdown', generatedBy: 'onevibe', requiresReview: true }, null, 2)}\n`)
-    await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, `<div class="eyebrow">Governed document</div><h1>${escapeHtml(task.title)}</h1><div class="card"><strong>Executive summary</strong><p>${escapeHtml(task.prompt)}</p></div><div class="grid"><article class="card"><strong>Portable</strong><p>Markdown source is ready for review, editing, and export.</p></article><article class="card"><strong>Accountable</strong><p>External distribution remains subject to the configured approval policy.</p></article></div>`))
-    return writeArtifactManifest(task, store, ['index.html', 'document.md', 'document.json'])
+    return writeDocumentReviewArtifacts(task, store)
   }
   if (task.mode === 'research') {
     const sources = task.references.map(declaredReference)

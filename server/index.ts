@@ -20,6 +20,7 @@ import type { TaskSchedule } from './types.js'
 import { claudeConfigurationMessage, claudeProviderConfig } from './claude-provider-config.js'
 import { encodeRuntimeEventFrame, eventsAfterLastEventId, openReplayLiveHandoff } from './task-event-stream.js'
 import { awaitTurnSettlement, createTurnDeadline, resolveTurnTimeoutMs, TURN_CLEANUP_GRACE_MS, TurnTimeoutError } from './turn-deadline.js'
+import { writeDocumentReviewArtifacts } from './mode-artifacts.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -603,6 +604,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'POST' && segments[3] === 'versions' && segments[4] && segments[5] === 'restore') {
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before restoring a version' })
       const version = await store.restoreWorkspaceVersion(taskId, segments[4])
+      const restoredTask = store.getTask(taskId)
+      if (restoredTask.mode === 'document') await writeDocumentReviewArtifacts(restoredTask, store)
       await store.appendEvent(taskId, {
         type: 'artifact_updated', lane: 'artifact', label: 'Workspace version restored',
         content: version.label, payload: { versionId: version.id, evidenceHash: version.evidenceHash },
@@ -623,8 +626,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       }
       if (url.searchParams.get('download') === '1') {
         const bytes = await store.readWorkspaceBytes(taskId, filePath)
+        const contentType = filePath.endsWith('.pdf') ? 'application/pdf' : filePath.endsWith('.pptx') ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' : 'application/octet-stream'
         response.writeHead(200, {
-          'Content-Type': filePath.endsWith('.pptx') ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' : 'application/octet-stream',
+          'Content-Type': contentType,
           'Content-Disposition': `attachment; filename="${path.basename(filePath).replaceAll('"', '')}"`,
           'Content-Length': bytes.byteLength,
           'Cache-Control': 'no-store',
@@ -660,6 +664,14 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
         type: 'artifact_updated', lane: 'artifact', label: 'Source file edited', content: filePath,
         payload: { path: filePath, beforeHash, afterHash, editor: 'embedded_workspace' },
       })
+      if (store.getTask(taskId).mode === 'document' && filePath === 'document.md') {
+        await writeDocumentReviewArtifacts(store.getTask(taskId), store)
+        await store.updateTask(taskId, { previewPath: `/api/tasks/${taskId}/preview` })
+        await store.appendEvent(taskId, {
+          type: 'artifact_updated', lane: 'artifact', label: 'Document preview and PDF regenerated',
+          content: 'document.pdf', payload: { sourcePath: filePath, derivedPaths: ['index.html', 'document.pdf', 'artifact-manifest.json'] },
+        })
+      }
       return json(response, 200, { path: filePath, content: input.content, contentHash: afterHash })
     }
     if (request.method === 'GET' && segments[3] === 'preview') {

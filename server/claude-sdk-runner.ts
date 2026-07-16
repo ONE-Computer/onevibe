@@ -8,7 +8,7 @@ import { sanitizeNativePayload } from './native-events.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 import { materializeTaskSkills } from './skill-packs.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
-import { writeArtifactManifest, writeStructuredSlides } from './mode-artifacts.js'
+import { writeArtifactManifest, writeDocumentReviewArtifacts, writeStructuredSlides } from './mode-artifacts.js'
 import { portableArtifactKind } from './artifact-path.js'
 import { resolveClaudeRunLimits } from './claude-run-limits.js'
 
@@ -228,6 +228,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     signal.removeEventListener('abort', abort)
     signal.throwIfAborted()
     const providerSuccess = terminal?.success === true
+    if (providerSuccess && task.mode === 'document') await writeDocumentReviewArtifacts(task, store)
     const files = await store.listWorkspaceFiles(task.id)
     const portableFiles = files.filter((file) => file.path !== ARTIFACT_MANIFEST_PATH && !RUNTIME_REPORT_PATHS.has(file.path) && portableArtifactKind(file.path))
     const deliverableFiles = portableFiles.slice(0, 50)

@@ -16,6 +16,13 @@
 - Boundary: this is host-process local proof through the protected LiteLLM route. It makes no ONEComputer, microVM, OpenVTC, wallet, or production egress claim.
 - Verification: focused lint/typecheck passed; the full `npm run check` is the final integration gate for this commit.
 
+## 2026-07-16 — source-derived document review/export
+
+- Document mode now derives the responsive HTML preview and parseable `document.pdf` from the governed `document.md` source, with deterministic PDF metadata and a common artifact manifest entry.
+- Successful native Claude document turns run the same source-derived projection before static validation. Editing `document.md` through the server-owned file route regenerates the preview, PDF, and manifest; version restore rehydrates the derived review outputs as well.
+- Document validation now requires a parseable non-empty PDF. Focused mode-artifact/Claude tests passed (17 tests); full `npm run check` remains green with 35 test files / 198 tests.
+- Remaining limitation: this proves the local source/projection contract; native document live-provider evidence and richer layout/Markdown semantics remain open.
+
 ## 2026-07-16 — local-first Manus parity pivot and activity rail
 
 - Re-scoped the active release gate to ONE-230: local ONEVibe reliability and Manus parity. Azure, ONEComputer, OpenVTC/VTI, and attested microVM work remain tracked but are explicitly deferred until the local gate is green.
