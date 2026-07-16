@@ -51,11 +51,11 @@ Reference: `plan/02-runtime-abstraction.md`
 Reference: `plan/03-runtime-routing.md`
 
 - [ ] **P3-01** Build `RuntimeRegistry` — server-side registry that discovers all configured adapters, health-checks them on startup, and exposes `/api/runtime` with capability metadata per provider
-- [ ] **P3-02** Build runtime routing suggestions — given a `TaskMode`, `RuntimeRegistry.suggest(mode)` returns the ranked list of suitable providers (e.g. `'app'` mode → prefer Codex or Claude SDK with `'file_system'` capability; `'research'` mode → prefer Claude SDK; `'computer_use'` mode → require `'computer_use'` capability)
+- [x] **P3-02** Build runtime routing suggestions — `RuntimeRegistry.suggest(mode)` returns a ranked, capability-based list with availability, compatibility, missing-capability explanation, and a human-readable reason; `/api/runtime` exposes the suggestions without provider secrets
 - [ ] **P3-03** Overhaul provider picker UI — replace the current flat dropdown with a rich provider selector: shows each runtime's availability status, capability badges (sandboxed, streaming, computer use), and why it's suggested for the current mode
 - [ ] **P3-04** Add runtime health dashboard — a "Runtimes" settings panel showing every registered adapter, its status (online/offline/not configured), required env vars, and a "Test" button that runs a live connectivity check
 - [ ] **P3-05** Add runtime fallback chain — if the chosen runtime fails mid-task (network error, quota exceeded), surface a "Switch to [fallback] and retry?" prompt; never silently fail
-- [ ] **P3-06** Add `ONEVIBE_DEFAULT_PROVIDER` env var — operators can set the default runtime for their deployment; individual users can override per task
+- [x] **P3-06** Add `ONEVIBE_DEFAULT_PROVIDER` env var — operators can set the default runtime for their deployment; the registry honors it only when available/compatible and safely falls back; individual users can override per task
 - [ ] **P3-07** Runtime-neutral event schema — audit `RuntimeEvent` types in `server/types.ts`; ensure no harness-specific fields leak into the canonical event schema; use `payload` for harness-specific data
 
 ---

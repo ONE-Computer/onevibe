@@ -1,7 +1,5 @@
-import type { Task, RuntimeEvent, WorkspaceFile } from './types.js'
+import type { Task, RuntimeCapability, RuntimeEvent, WorkspaceFile } from './types.js'
 import type { TaskStore } from './store.js'
-
-export type RuntimeCapability = 'streaming' | 'tool_use' | 'file_system' | 'sandboxed' | 'preview_url' | 'computer_use' | 'fork'
 
 export type McpConfig = {
   id: string

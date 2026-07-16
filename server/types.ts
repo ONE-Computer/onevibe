@@ -49,6 +49,7 @@ export type EventType =
 export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'blocked'
 export type TaskMode = 'chat' | 'general' | 'website' | 'slides' | 'document' | 'research' | 'data' | 'design' | 'app' | 'game'
 export type TaskSkill = 'research' | 'web_build' | 'slides' | 'data_analysis' | 'document' | 'product_design' | 'security_review' | 'browser_testing'
+export type RuntimeCapability = 'streaming' | 'tool_use' | 'file_system' | 'sandboxed' | 'preview_url' | 'computer_use' | 'fork'
 
 export type Project = {
   id: string
@@ -197,3 +198,7 @@ export type TaskSnapshot = Task & {
 }
 
 export type EventInput = Omit<RuntimeEvent, 'id' | 'taskId' | 'runId' | 'sequence' | 'createdAt' | 'previousHash' | 'eventHash'>
+
+export type RuntimeProviderState = { id: Task['provider']; label: string; boundary: string; available: boolean; detail: string; capabilities: RuntimeCapability[] }
+export type RuntimeSuggestion = { id: Task['provider']; score: number; available: boolean; compatible: boolean; reason: string; capabilities: RuntimeCapability[] }
+export type RuntimeReadiness = { providers: RuntimeProviderState[]; defaultProvider: Task['provider']; suggestions: Partial<Record<TaskMode, RuntimeSuggestion[]>> }

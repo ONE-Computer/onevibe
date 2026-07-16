@@ -218,6 +218,13 @@ This is a **user choice**, not an automatic fallback. Never transparently substi
 
 ## P3-06: `ONEVIBE_DEFAULT_PROVIDER` env var
 
+Implemented in the server-side `RuntimeRegistry`. The value is honored only
+when the requested provider is registered, available, and compatible with the
+task mode; otherwise the registry selects the highest-ranked available
+capability-compatible provider and ultimately the explicitly labelled demo
+runtime. `/api/runtime` returns the effective default and mode suggestions so
+the browser does not invent a provider choice.
+
 Operators deploying ONEVibe for a team can set a default:
 ```
 ONEVIBE_DEFAULT_PROVIDER=codex

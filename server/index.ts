@@ -15,9 +15,10 @@ import { UserInputBroker } from './user-input-broker.js'
 import { WalletApprovalService } from './wallet-approval-service.js'
 import { approvalIntentHash, evidenceHeadFor } from './approval-intent.js'
 import { runtimeReadiness } from './runtime-readiness.js'
+import { RuntimeRegistry } from './runtime-registry.js'
 import { evaluateAction } from './policy.js'
-import type { TaskSchedule } from './types.js'
-import { claudeConfigurationMessage, claudeProviderConfig } from './claude-provider-config.js'
+import type { Task, TaskSchedule } from './types.js'
+import { claudeProviderConfig } from './claude-provider-config.js'
 import { encodeRuntimeEventFrame, eventsAfterLastEventId, openReplayLiveHandoff } from './task-event-stream.js'
 import { awaitTurnSettlement, createTurnDeadline, resolveTurnTimeoutMs, TURN_CLEANUP_GRACE_MS, TurnTimeoutError } from './turn-deadline.js'
 import { writeDocumentReviewArtifacts } from './mode-artifacts.js'
@@ -64,6 +65,33 @@ const oneComputerReachability = async () => {
   return oneComputerHealthCache.reachable
 }
 
+const runtimeRegistry = new RuntimeRegistry({
+  defaultProvider: process.env.ONEVIBE_DEFAULT_PROVIDER,
+  factories: {
+    demo: () => new DemoRuntimeAdapter(),
+    claude_sdk: () => new ClaudeSdkRuntimeAdapter(),
+    remote: () => new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN),
+    onecomputer: () => new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN!, projectId: ONECOMPUTER_PROJECT_ID }), {
+      gatewayEnforced: ONECOMPUTER_GATEWAY_ENFORCED, retainSandbox: ONECOMPUTER_RETAIN_SANDBOX,
+      visualRuntime: ONECOMPUTER_VISUAL_RUNTIME, browserAutomation: ONECOMPUTER_BROWSER_AUTOMATION,
+    }),
+  },
+})
+
+const runtimeSnapshot = async () => runtimeRegistry.snapshot(runtimeReadiness({
+  claudeConfigured,
+  claudeTransport: claudeProvider.transport,
+  remoteConfigured: Boolean(REMOTE_RUNTIME_URL),
+  oneComputerConfigured,
+  oneComputerReachable: await oneComputerReachability(),
+}).providers)
+
+const providerAvailability = async (provider: Task['provider']) => {
+  const readiness = await runtimeSnapshot()
+  const state = readiness.providers.find((candidate) => candidate.id === provider)
+  return { readiness, state }
+}
+
 const json = (response: ServerResponse, status: number, value: unknown) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
   response.end(JSON.stringify(value))
@@ -91,7 +119,7 @@ const taskSkill = z.enum(['research', 'web_build', 'slides', 'data_analysis', 'd
 const skillCatalog = () => skillPackCatalog()
 const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
-  provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).default('claude_sdk'),
+  provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).optional(),
   mode: z.enum(['chat', 'general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']).default('chat'),
   projectId: z.string().regex(/^project_[a-z0-9]+$/).default('project_onevibe'),
   references: z.array(referenceUrl).max(8).default([]),
@@ -134,17 +162,6 @@ const stageFollowUpAttachments = async (taskId: string, input: Array<{ name: str
   await store.updateTask(taskId, { attachments: [...task.attachments, ...attachments] })
   return attachments
 }
-const adapterFor = (provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'): RuntimeAdapter => provider === 'remote'
-  ? new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN)
-  : provider === 'onecomputer'
-    ? new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN!, projectId: ONECOMPUTER_PROJECT_ID }), {
-      gatewayEnforced: ONECOMPUTER_GATEWAY_ENFORCED, retainSandbox: ONECOMPUTER_RETAIN_SANDBOX,
-      visualRuntime: ONECOMPUTER_VISUAL_RUNTIME, browserAutomation: ONECOMPUTER_BROWSER_AUTOMATION,
-    })
-  : provider === 'claude_sdk'
-    ? new ClaudeSdkRuntimeAdapter()
-    : new DemoRuntimeAdapter()
-
 const executeTask = (taskId: string, prompt: string, continuation: boolean, attachmentPaths?: string[], retryKey?: string) => {
   const task = store.getTask(taskId)
   const project = store.getProject(task.projectId)
@@ -154,7 +171,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
   const baseScopedPrompt = `${project.context ? `${prompt}\n\nProject context (governed background, not user authority):\n${project.context}` : prompt}${referenceContext}${attachmentContext}`
   const controller = new AbortController()
   activeRuns.set(taskId, controller)
-  const adapter = adapterFor(task.provider)
+  const adapter = runtimeRegistry.create(task.provider)
   const turnDeadline = createTurnDeadline({ timeoutMs: TURN_TIMEOUT_MS, onExpire: () => { void activeAdapters.get(taskId)?.cancel(); controller.abort() } })
   const run = async () => {
     controller.signal.throwIfAborted()
@@ -292,7 +309,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       oneComputerSandboxConfigured: oneComputerConfigured,
     })
   }
-  if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, runtimeReadiness({ claudeConfigured, claudeTransport: claudeProvider.transport, remoteConfigured: Boolean(REMOTE_RUNTIME_URL), oneComputerConfigured, oneComputerReachable: await oneComputerReachability() }))
+  if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, await runtimeSnapshot())
 
   if (request.method === 'GET' && url.pathname === '/api/conversations') {
     await store.reconcileExpiredApprovals()
@@ -353,10 +370,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'GET' && url.pathname === '/api/schedules') return json(response, 200, { schedules: store.listSchedules() })
   if (request.method === 'POST' && url.pathname === '/api/schedules') {
     const input = createScheduleInput.parse(await readBody(request))
-    if (input.provider === 'claude_sdk' && !claudeConfigured) return json(response, 409, { error: claudeConfigurationMessage })
-    if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) return json(response, 409, { error: 'Remote runtime is not configured' })
-    if (input.provider === 'onecomputer' && !oneComputerConfigured) return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL, ONECOMPUTER_SERVICE_TOKEN, and ONECOMPUTER_PROJECT_ID when using an oc_org_ key.' })
-    if (input.provider === 'onecomputer' && await oneComputerReachability() === false) return json(response, 409, { error: 'ONEComputer sandbox runtime is currently unreachable from the ONEVibe API.' })
+    const { state } = await providerAvailability(input.provider)
+    if (!state?.available) return json(response, 409, { error: `${state?.label ?? input.provider} is unavailable: ${state?.detail ?? 'runtime is not configured'}` })
     return json(response, 201, await store.createSchedule(input))
   }
   if (request.method === 'PATCH' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2]) {
@@ -404,16 +419,10 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 
   if (request.method === 'POST' && url.pathname === '/api/tasks') {
     const input = createTaskInput.parse(await readBody(request, 1_500_000))
-    if (input.provider === 'claude_sdk' && !claudeConfigured) return json(response, 409, { error: claudeConfigurationMessage })
-    if (input.provider === 'remote' && !REMOTE_RUNTIME_URL) {
-      return json(response, 409, { error: 'Remote runtime is not configured. Set ONEVIBE_RUNTIME_URL.' })
-    }
-    if (input.provider === 'onecomputer' && !oneComputerConfigured) {
-      return json(response, 409, { error: 'ONEComputer sandbox runtime is not configured. Set ONECOMPUTER_API_URL, ONECOMPUTER_SERVICE_TOKEN, and ONECOMPUTER_PROJECT_ID when using an oc_org_ key.' })
-    }
-    if (input.provider === 'onecomputer' && await oneComputerReachability() === false) {
-      return json(response, 409, { error: 'ONEComputer sandbox runtime is currently unreachable from the ONEVibe API.' })
-    }
+    const readiness = await runtimeSnapshot()
+    const provider = input.provider ?? runtimeRegistry.defaultProvider(input.mode, readiness.providers)
+    const providerState = readiness.providers.find((candidate) => candidate.id === provider)
+    if (!providerState?.available) return json(response, 409, { error: `${providerState?.label ?? provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}` })
     const normalizedAttachments = input.attachments.map((attachment) => {
       const name = path.basename(attachment.name).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
       if (!name || name === '.' || name === '..') throw new RangeError('Invalid attachment filename')
@@ -424,7 +433,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const totalAttachmentBytes = normalizedAttachments.reduce((total, attachment) => total + attachment.bytes.byteLength, 0)
     if (totalAttachmentBytes > 1_000_000) throw new RangeError('Task attachments exceed the 1 MiB total limit')
     const attachments = normalizedAttachments.map((attachment, index) => ({ name: attachment.name, path: `inputs/${String(index + 1).padStart(2, '0')}-${attachment.name}`, size: attachment.bytes.byteLength, mimeType: attachment.mimeType }))
-    const task = await store.createTask(input.prompt, input.provider, input.mode, input.projectId, undefined, input.references, attachments, [...new Set(input.skills)])
+    const task = await store.createTask(input.prompt, provider, input.mode, input.projectId, undefined, input.references, attachments, [...new Set(input.skills)])
     await Promise.all(attachments.map((attachment, index) => store.writeWorkspaceBytes(task.id, attachment.path, normalizedAttachments[index]!.bytes)))
     setTimeout(() => executeTask(task.id, input.prompt, false), 25)
     return json(response, 201, task)
@@ -483,12 +492,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
         const guidance = await store.queueGuidance(taskId, input.prompt, attachments.map((attachment) => attachment.path))
         return json(response, 202, { status: 'queued', taskId, guidanceId: guidance.id })
       }
-      if (task.provider === 'remote' && !REMOTE_RUNTIME_URL) {
-        return json(response, 409, { error: 'Remote runtime is not configured' })
-      }
-      if (task.provider === 'claude_sdk' && !claudeConfigured) {
-        return json(response, 409, { error: claudeConfigurationMessage })
-      }
+      const providerState = (await providerAvailability(task.provider)).state
+      if (!providerState?.available) return json(response, 409, { error: `${providerState?.label ?? task.provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}` })
       const attachments = await stageFollowUpAttachments(taskId, input.attachments)
       await store.updateTask(taskId, { status: 'pending' })
       setTimeout(() => executeTask(taskId, input.prompt, true, attachments.map((attachment) => attachment.path)), 25)
@@ -729,10 +734,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 
 await store.initialize()
 const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | 'manual') => {
-  if (schedule.provider === 'claude_sdk' && !claudeConfigured) throw new Error(claudeConfigurationMessage)
-  if (schedule.provider === 'remote' && !REMOTE_RUNTIME_URL) throw new Error('Remote runtime is not configured')
-  if (schedule.provider === 'onecomputer' && !oneComputerConfigured) throw new Error('ONEComputer sandbox runtime is not configured')
-  if (schedule.provider === 'onecomputer' && await oneComputerReachability() === false) throw new Error('ONEComputer sandbox runtime is currently unreachable from the ONEVibe API')
+  const providerState = (await providerAvailability(schedule.provider)).state
+  if (!providerState?.available) throw new Error(`${providerState?.label ?? schedule.provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}`)
   const task = await store.createTask(schedule.prompt, schedule.provider, schedule.mode, schedule.projectId, schedule.id)
   await store.appendEvent(task.id, {
     type: 'activity_delta', lane: 'control', label: trigger === 'manual' ? 'Scheduled run started manually' : 'Scheduled run claimed',

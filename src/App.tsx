@@ -137,7 +137,7 @@ export default function App() {
     if (snapshot.status === 'completed') void listLibrary().then(({ items }) => setLibrary(items))
   }, [snapshot])
 
-  const preferredProvider: Task['provider'] = (['claude_sdk', 'onecomputer', 'remote'] as const).map((id) => runtime?.providers.find((candidate) => candidate.id === id && candidate.available)?.id).find((id): id is Task['provider'] => Boolean(id)) ?? 'demo'
+  const preferredProvider: Task['provider'] = runtime?.defaultProvider ?? (['claude_sdk', 'onecomputer', 'remote'] as const).map((id) => runtime?.providers.find((candidate) => candidate.id === id && candidate.available)?.id).find((id): id is Task['provider'] => Boolean(id)) ?? 'demo'
   const startTask = async (prompt: string, provider: Task['provider'] = preferredProvider, mode: TaskMode = 'chat', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = selectedSkills) => {
     setCreating(true)
     try {

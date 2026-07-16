@@ -46,6 +46,13 @@
 - Claude host execution is explicitly not labelled sandboxed/computer-use; ONEComputer development runtime declares those capabilities only when that provider is configured.
 - This is the capability slice of P2-04. The broader P2-01 lifecycle contract and new Codex/AgentCore adapters remain open.
 
+## 2026-07-16 — Phase 3 registry and capability routing slice
+
+- Added `server/runtime-registry.ts` as the provider construction and routing boundary. The server no longer selects adapters through a provider-specific conditional; registered factories, effective default selection, and mode-aware suggestions are centralized.
+- `RuntimeRegistry.suggest(mode)` ranks only capability-compatible providers ahead of simulation, explains missing capabilities/unavailability, and prefers a sandboxed provider when the mode can use it. `/api/runtime` now returns the effective default plus suggestions for every supported task mode.
+- Added `ONEVIBE_DEFAULT_PROVIDER`; it is honored only when the requested provider is registered, available, and compatible, then falls back to the highest-ranked governed provider and finally the explicitly labelled simulation runtime.
+- Added focused registry tests for ranking, operator-default fallback, capability explanations, and readiness snapshots. The server create/schedule/follow-up paths now use the registry's generic availability contract rather than provider-specific error branches.
+
 ## 2026-07-16 — Phase 2 runtime lifecycle contract
 
 - Added `RuntimeAdapterBase` and the canonical lifecycle surface: `initialize(task, workingDir, mcpConfigs)`, `run(prompt, context, signal)` as an async stream, `cancel`, `destroy`, `getFiles`, and `getPreviewUrl`.

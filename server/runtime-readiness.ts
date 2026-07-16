@@ -1,14 +1,5 @@
-import type { Task } from './types.js'
-import type { RuntimeCapability } from './runtime-adapter.js'
-
-export type RuntimeProviderState = {
-  id: Task['provider']
-  label: string
-  boundary: string
-  available: boolean
-  detail: string
-  capabilities: RuntimeCapability[]
-}
+import type { RuntimeProviderState } from './types.js'
+export type { RuntimeProviderState } from './types.js'
 
 export const runtimeReadiness = (configuration: { claudeConfigured: boolean; claudeTransport?: 'litellm' | 'unconfigured'; remoteConfigured: boolean; oneComputerConfigured: boolean; oneComputerReachable?: boolean }): { providers: RuntimeProviderState[] } => ({
   providers: [

@@ -94,4 +94,5 @@ export type Task = {
 
 export type TaskSnapshot = Task & { events: RuntimeEvent[]; files: WorkspaceFile[]; messages: ChatMessage[] }
 export type RuntimeProviderState = { id: Task['provider']; label: string; boundary: string; available: boolean; detail: string; capabilities: RuntimeCapability[] }
-export type RuntimeReadiness = { providers: RuntimeProviderState[] }
+export type RuntimeSuggestion = { id: Task['provider']; score: number; available: boolean; compatible: boolean; reason: string; capabilities: RuntimeCapability[] }
+export type RuntimeReadiness = { providers: RuntimeProviderState[]; defaultProvider?: Task['provider']; suggestions?: Partial<Record<TaskMode, RuntimeSuggestion[]>> }
