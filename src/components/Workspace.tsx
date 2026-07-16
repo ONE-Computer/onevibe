@@ -89,7 +89,7 @@ export const Workspace = ({ task, projects, onMoveProject, onUpdateTags }: { tas
   }, [task.events])
   const meaningfulActivity = useMemo(() => task.events.filter((event) => {
     if (event.lane === 'transcript' || event.type === 'assistant_text_delta') return false
-    return !/^Claude SDK · (init|status|stream event|assistant|prompt suggestion)$/i.test(event.label ?? '')
+    return !/^Claude SDK · (init|status|stream event|assistant|prompt suggestion|thinking tokens)$/i.test(event.label ?? '')
   }).slice(-8).reverse(), [task.events])
   const filteredDataRows = useMemo(() => filterDataRows(dataRows, dataQuery), [dataQuery, dataRows])
 

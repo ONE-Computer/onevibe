@@ -29,7 +29,7 @@ const safeArtifactUri = (taskId: string, path: string, supplied: unknown) => {
   return `/api/tasks/${encodeURIComponent(taskId)}/file?path=${encodeURIComponent(path)}&download=1`
 }
 
-const lowSignalProviderLabel = (label?: string) => Boolean(label && /^Claude SDK · (init|status|stream event|assistant|prompt suggestion)$/i.test(label))
+const lowSignalProviderLabel = (label?: string) => Boolean(label && /^Claude SDK · (init|status|stream event|assistant|prompt suggestion|thinking tokens)$/i.test(label))
 const safeTraceDetail = (value?: string) => value?.replace(/\/(?:Users|home|private\/tmp|tmp)\/[^\s'"`]+/g, '<workspace-path>')
 
 export const projectAssistantToolCalls = (messages: ChatMessage[], events: RuntimeEvent[]): AssistantConversationMessage[] => {

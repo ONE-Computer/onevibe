@@ -30,6 +30,14 @@ type Props = {
   onOpenComputers: () => void
 }
 
+const conversationSourceLabel = (provider: ConversationSummary['provider']) => provider === 'demo'
+  ? 'Simulation · no model call'
+  : provider === 'claude_sdk'
+    ? 'Claude Agent SDK'
+    : provider === 'onecomputer'
+      ? 'ONEComputer sandbox'
+      : 'Remote runtime'
+
 export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers }: Props) => {
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
@@ -96,7 +104,7 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
           onClick={() => onSelectTask(conversation.id)}
         >
           <span className={`task-status ${conversation.status}`} />
-          <span><strong>{conversation.title}</strong>{conversation.lastMessage && <small>{conversation.lastMessage.role === 'user' ? 'You' : 'ONEVibe'} · {conversation.lastMessage.preview}</small>}</span>
+          <span><strong>{conversation.title}</strong>{conversation.lastMessage && <small>{conversationSourceLabel(conversation.provider)} · {conversation.lastMessage.role === 'user' ? 'You' : 'ONEVibe'} · {conversation.lastMessage.preview}</small>}</span>
         </motion.button>
       ))}
       {!query && hasMoreConversations && <button type="button" className="load-more-conversations" disabled={loadingMoreConversations} onClick={() => void onLoadMoreConversations()}>{loadingMoreConversations ? 'Loading…' : 'Load older conversations'}</button>}

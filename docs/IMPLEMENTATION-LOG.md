@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-16 — browser truthfulness pass for internal skill evidence
+
+- Browser QA caught a gap that API-only acceptance could not: selected `.claude/skills/*/SKILL.md` runtime guides appeared in a normal chat's workspace count as if they were portable user artifacts, and provider `thinking tokens` telemetry appeared as repeated user-facing trace steps.
+- Added an explicit internal-workspace path boundary for `.claude/`, `.claude-state/`, `.onevibe-*`, and `node_modules/`. Task snapshots, the Files API, Library, and direct file access now keep those runtime internals out of the user-visible file surface while the provider can still use them.
+- Filtered provider thinking-token telemetry from the operational rail and assistant-ui trace. The UI continues to show bounded operational/tool evidence and explicitly states that hidden chain-of-thought is not exposed.
+- History now labels deterministic conversations as `Simulation · no model call`, so older demo records cannot be mistaken for provider-backed conversations.
+- Browser verification after reload: real Claude chat showed a direct answer, 0 portable artifacts, no thinking-token cards, and no console errors. Full `npm run check` passed with 37 test files / 207 tests.
+
 ## 2026-07-16 — repeatable truthful Claude acceptance gate
 
 - Added `scripts/claude-chat-e2e.ts` and `npm run e2e:chat` as a release-oriented local acceptance harness. It starts an isolated API/data root, uses the protected LiteLLM route without printing credentials, and exercises real Claude Agent SDK chat rather than frontend fixtures.

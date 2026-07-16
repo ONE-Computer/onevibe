@@ -7,6 +7,7 @@ import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
 import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type UnitOfWork } from './persistence/index.js'
+import { isInternalWorkspacePath } from './artifact-path.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -303,7 +304,7 @@ export class TaskStore {
     const completed = this.listTasks().filter((task) => task.status === 'completed')
     return Promise.all(completed.map(async (task) => ({
       task,
-      files: (await this.listWorkspaceFiles(task.id)).filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')),
+      files: (await this.listWorkspaceFiles(task.id)).filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/') && !isInternalWorkspacePath(file.path)),
     })))
   }
 
@@ -894,6 +895,10 @@ export class TaskStore {
     return results.sort((a, b) => a.path.localeCompare(b.path))
   }
 
+  async listPublicWorkspaceFiles(taskId: string): Promise<WorkspaceFile[]> {
+    return (await this.listWorkspaceFiles(taskId)).filter((file) => !isInternalWorkspacePath(file.path))
+  }
+
   async createWorkspaceVersion(taskId: string, label: string) {
     const files = await this.listWorkspaceFiles(taskId)
     if (!files.length) return null
@@ -996,7 +1001,7 @@ export class TaskStore {
   }
 
   async snapshot(taskId: string): Promise<TaskSnapshot> {
-    return { ...this.getTask(taskId), events: this.listEvents(taskId), files: await this.listWorkspaceFiles(taskId), messages: this.listMessages(taskId, { limit: 200 }).messages }
+    return { ...this.getTask(taskId), events: this.listEvents(taskId), files: await this.listPublicWorkspaceFiles(taskId), messages: this.listMessages(taskId, { limit: 200 }).messages }
   }
 
   verifyChain(taskId: string) {

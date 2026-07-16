@@ -57,4 +57,10 @@ describe('assistant tool projection', () => {
     expect(projected?.trace?.find((item) => item.kind === 'tool')).toMatchObject({ label: 'Bash', status: 'completed' })
     expect(JSON.stringify(projected?.trace)).not.toContain('secret')
   })
+
+  it('does not present provider thinking-token telemetry as user-facing reasoning', () => {
+    const thinking = { ...event(1, 'activity_delta', { executionRoute: 'claude_agent_sdk' }), label: 'Claude SDK · thinking tokens' }
+    const [projected] = projectAssistantToolCalls([message], [thinking])
+    expect(projected?.trace).toEqual([])
+  })
 })

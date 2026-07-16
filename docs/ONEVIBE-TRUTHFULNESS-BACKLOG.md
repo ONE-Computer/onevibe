@@ -20,6 +20,8 @@ The repeatable acceptance gate is now also in place:
 - Passing run on 2026-07-16: 8 live SSE frames, 36 replay frames, 2 chat turns, 2 Bash calls, and a valid evidence chain.
 - This remains host-process local proof. It must not be described as a microVM, ONEComputer, OpenVTC, or production network-containment proof.
 
+Browser QA also closed an evidence-surface defect in this slice: internal `.claude/skills` files no longer count as portable artifacts, provider thinking-token telemetry is no longer rendered as a reasoning trace, and deterministic history entries carry an explicit `Simulation · no model call` label.
+
 Remaining release work: browser acceptance automation, the true microVM/ONEComputer runtime proof, richer assistant-ui-native composer primitives, and the full sans-serif visual-system pass.
 
 ## Why this exists

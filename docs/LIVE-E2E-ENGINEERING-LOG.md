@@ -2,6 +2,12 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-16 — browser caught internal skill files and thinking telemetry leakage
+
+- A browser reload of real chat task `task_4e120a8439f240` exposed two presentation defects: internal `.claude/skills` guides inflated the portable-artifact count to 2, and five `Claude SDK · thinking tokens` records appeared in both the assistant trace and Activity rail.
+- The fix keeps skill materialization runtime-private, filters internal workspace paths from snapshots/Files/Library/direct file access, and removes thinking-token telemetry from user-facing operational projections. The provider's hidden reasoning remains intentionally unavailable.
+- After reload, the same task displayed 0 portable artifacts, only bounded project/skill/run lifecycle evidence, and no browser console errors. The old deterministic history entry is visibly labelled `Simulation · no model call`.
+
 ## 2026-07-16 — isolated local Claude chat and terminal acceptance gate
 
 - `npm run e2e:chat` passed against an isolated temporary API/data root and the protected local LiteLLM route. The harness uses an explicit `claude-sonnet-5` alias because the raw handover alias is not accepted by this router.

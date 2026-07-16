@@ -21,6 +21,7 @@ import { claudeConfigurationMessage, claudeProviderConfig } from './claude-provi
 import { encodeRuntimeEventFrame, eventsAfterLastEventId, openReplayLiveHandoff } from './task-event-stream.js'
 import { awaitTurnSettlement, createTurnDeadline, resolveTurnTimeoutMs, TURN_CLEANUP_GRACE_MS, TurnTimeoutError } from './turn-deadline.js'
 import { writeDocumentReviewArtifacts } from './mode-artifacts.js'
+import { isInternalWorkspacePath } from './artifact-path.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -579,7 +580,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       return
     }
     if (request.method === 'GET' && segments[3] === 'files' && segments.length === 4) {
-      return json(response, 200, { files: await store.listWorkspaceFiles(taskId) })
+      return json(response, 200, { files: await store.listPublicWorkspaceFiles(taskId) })
     }
     if (request.method === 'GET' && segments[3] === 'versions' && segments.length === 4) {
       return json(response, 200, { versions: await store.listWorkspaceVersions(taskId) })
@@ -618,6 +619,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'GET' && segments[3] === 'file') {
       const filePath = url.searchParams.get('path')
       if (!filePath) return json(response, 400, { error: 'Missing path' })
+      if (isInternalWorkspacePath(filePath)) return json(response, 404, { error: 'Internal runtime file is not user-visible' })
       if (url.searchParams.get('raw') === '1') {
         if (!/\.(?:png|jpe?g|gif|svg)$/i.test(filePath)) return json(response, 415, { error: 'Raw rendering is limited to image artifacts' })
         const bytes = await store.readWorkspaceBytes(taskId, filePath)

@@ -482,6 +482,7 @@ describe('TaskStore', () => {
     const reloaded = new TaskStore(root)
     await reloaded.initialize()
     expect(reloaded.getTask(task.id).skills).toEqual(['research', 'security_review'])
+    expect((await reloaded.snapshot(task.id)).files).toEqual([])
   })
 
   it('lists completed reusable artifacts without exposing raw inputs or evidence frames', async () => {
