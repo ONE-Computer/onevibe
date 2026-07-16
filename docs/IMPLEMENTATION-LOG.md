@@ -18,6 +18,12 @@
 - The merge is ID-deduplicated and preserves the latest durable status; events already present in the REST snapshot are not appended a second time.
 - Added focused tests for buffered replay, status convergence, and persisted/live duplicate suppression.
 
+## 2026-07-16 — handover Phase 1: bounded SSE reconnect
+
+- Replaced the browser-native EventSource reconnect loop with an explicit task-bound connection lifecycle. Failed connections close before retry, use 500ms/1s/2s/4s/8s backoff, stop after five attempts, and expose a manual Retry connection action.
+- Terminal task states stop reconnect scheduling; stale EventSource callbacks are ignored after handoff or cleanup.
+- Focused reconnect tests and the full `npm run check` pass: 38 test files and 212 tests, lint, production build, and E2E harness typecheck.
+
 ## 2026-07-16 — light-mode Claude calibration (Phases 11–15)
 
 User feedback ("prefer a light color; motion too cheesy; want

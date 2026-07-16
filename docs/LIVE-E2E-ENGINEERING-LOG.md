@@ -9,6 +9,7 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 - A dedicated browser tab could not connect to the isolated Vite QA port in this environment (`ERR_CONNECTION_REFUSED`); browser acceptance remains open and is not claimed from the unit/build gate.
 - Model-routing policy is explicit: every model request must use the protected LiteLLM route. Direct first-party Anthropic access is not an accepted release path. No secret or provider payload was recorded.
 - P1-02 is now implemented and unit-tested. The browser hook keeps an in-memory pre-snapshot buffer only as a transport handoff; the server-owned SQLite/SSE ledger remains authoritative and no browser transcript is persisted.
+- P1-03 is now implemented and unit-tested. Reconnect attempts are bounded and delayed; this is client transport behavior and does not claim multi-worker SSE or provider-process recovery.
 
 ## 2026-07-16 — browser caught internal skill files and thinking telemetry leakage
 

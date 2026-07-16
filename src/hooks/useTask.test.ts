@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appendRuntimeEvent, mergeRuntimeEventsIntoSnapshot, streamInterruptionMessage } from './useTask'
+import { appendRuntimeEvent, mergeRuntimeEventsIntoSnapshot, reconnectDelayMs, reconnectExhaustedMessage, streamInterruptionMessage } from './useTask'
 import type { RuntimeEvent, TaskSnapshot } from '../types'
 
 const snapshot = (events: RuntimeEvent[] = []): TaskSnapshot => ({
@@ -33,5 +33,10 @@ describe('task stream connection semantics', () => {
     const persisted = event('event_1', 1)
     const current = appendRuntimeEvent(snapshot([persisted]), persisted)
     expect(current.events).toHaveLength(1)
+  })
+
+  it('uses bounded exponential reconnect delays and an explicit exhausted state', () => {
+    expect([0, 1, 2, 3, 4].map(reconnectDelayMs)).toEqual([500, 1_000, 2_000, 4_000, 8_000])
+    expect(reconnectExhaustedMessage).toMatch(/5 retries/i)
   })
 })
