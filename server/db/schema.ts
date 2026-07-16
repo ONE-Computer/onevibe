@@ -66,6 +66,17 @@ export const orgMember = pgTable('org_member', {
   createdAt: createdAt(),
 }, (table) => [primaryKey({ columns: [table.orgId, table.userId] }), index('org_member_user_idx').on(table.userId)])
 
+// The conversation is the durable product identity. `task` remains the
+// execution/task record during the repository migration, but future reads
+// must not infer conversation lineage from process-local maps.
+export const conversation = pgTable('conversation', {
+  id: text('id').primaryKey(),
+  title: text('title'),
+  status: text('status').notNull().default('active'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [index('conversation_status_updated_idx').on(table.status, table.updatedAt)])
+
 export const project = pgTable('project', {
   id: text('id').primaryKey(),
   ownerUserId: text('owner_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
@@ -101,6 +112,9 @@ export const task = pgTable('task', {
   libraryHiddenAt: timestamp('library_hidden_at', { withTimezone: true }),
   activeRunId: text('active_run_id'),
   scheduleId: text('schedule_id'),
+  parentTaskId: text('parent_task_id'),
+  forkedFromMessageId: text('forked_from_message_id'),
+  forkedAt: timestamp('forked_at', { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [index('task_owner_updated_idx').on(table.ownerUserId, table.updatedAt), index('task_project_idx').on(table.projectId), index('task_org_idx').on(table.orgId)])
@@ -111,10 +125,11 @@ export const turn = pgTable('turn', {
   clientRequestId: text('client_request_id').notNull(),
   ordinal: integer('ordinal').notNull(),
   status: text('status').notNull(),
+  errorJson: jsonb('error_json'),
   createdAt: createdAt(),
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
-}, (table) => [uniqueIndex('turn_request_idx').on(table.taskId, table.clientRequestId), index('turn_task_idx').on(table.taskId, table.ordinal)])
+}, (table) => [uniqueIndex('turn_request_idx').on(table.taskId, table.clientRequestId), uniqueIndex('turn_task_ordinal_idx').on(table.taskId, table.ordinal), index('turn_task_idx').on(table.taskId, table.ordinal)])
 
 export const message = pgTable('message', {
   id: text('id').primaryKey(),
@@ -123,10 +138,11 @@ export const message = pgTable('message', {
   sequence: integer('sequence').notNull(),
   role: text('role').notNull(),
   contentJson: jsonb('content_json').notNull(),
+  providerMessageId: text('provider_message_id'),
   revision: integer('revision').notNull().default(0),
   status: text('status').notNull(),
   createdAt: createdAt(),
-}, (table) => [uniqueIndex('message_task_sequence_idx').on(table.taskId, table.sequence), index('message_task_idx').on(table.taskId, table.createdAt)])
+}, (table) => [uniqueIndex('message_task_sequence_idx').on(table.taskId, table.sequence), uniqueIndex('message_task_provider_idx').on(table.taskId, table.providerMessageId), index('message_task_idx').on(table.taskId, table.createdAt)])
 
 export const runtimeEvent = pgTable('runtime_event', {
   id: text('id').primaryKey(),
@@ -200,7 +216,7 @@ export const runtimeLease = pgTable('runtime_lease', {
   releaseRequestedAt: timestamp('release_requested_at', { withTimezone: true }),
   releasedAt: timestamp('released_at', { withTimezone: true }),
   lastErrorJson: jsonb('last_error_json'),
-}, (table) => [uniqueIndex('runtime_lease_task_generation_idx').on(table.taskId, table.generation), index('runtime_lease_task_idx').on(table.taskId, table.updatedAt)])
+}, (table) => [uniqueIndex('runtime_lease_task_generation_idx').on(table.taskId, table.generation), uniqueIndex('runtime_lease_allocation_operation_idx').on(table.allocationOperationId), uniqueIndex('runtime_lease_provider_idempotency_idx').on(table.providerName, table.allocationIdempotencyKey), index('runtime_lease_task_idx').on(table.taskId, table.updatedAt)])
 
 export const schedule = pgTable('schedule', {
   id: text('id').primaryKey(),
@@ -238,6 +254,27 @@ export const runtimeMcpConfig = pgTable('runtime_mcp_config', {
   updatedAt: updatedAt(),
 }, (table) => [uniqueIndex('runtime_mcp_owner_name_idx').on(table.ownerUserId, table.name), index('runtime_mcp_owner_updated_idx').on(table.ownerUserId, table.updatedAt)])
 
+export const runtimeMcpConfigEvent = pgTable('runtime_mcp_config_events', {
+  id: text('id').primaryKey(),
+  configId: text('config_id').notNull().references(() => runtimeMcpConfig.id, { onDelete: 'cascade' }),
+  ownerUserId: text('owner_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  operation: text('operation').notNull(),
+  configJson: jsonb('config_json').notNull(),
+  createdAt: createdAt(),
+}, (table) => [index('runtime_mcp_config_event_owner_idx').on(table.ownerUserId, table.createdAt), index('runtime_mcp_config_event_config_idx').on(table.configId, table.createdAt)])
+
+// Import provenance is append-only and intentionally separate from the
+// canonical tables. The importer can be rerun safely by source identity and
+// must never overwrite an existing canonical conversation silently.
+export const legacyImport = pgTable('legacy_imports', {
+  sourceKind: text('source_kind').notNull(),
+  sourceId: text('source_id').notNull(),
+  sourceDigest: text('source_digest').notNull(),
+  conversationId: text('conversation_id').references(() => conversation.id, { onDelete: 'set null' }),
+  resultJson: jsonb('result_json').notNull(),
+  importedAt: createdAt('imported_at'),
+}, (table) => [primaryKey({ columns: [table.sourceKind, table.sourceId] }), index('legacy_import_conversation_idx').on(table.conversationId), index('legacy_import_digest_idx').on(table.sourceDigest)])
+
 export const skillInstallation = pgTable('skill_installations', {
   id: text('id').notNull(),
   ownerScope: text('owner_scope').notNull(),
@@ -255,4 +292,4 @@ export const skillInstallation = pgTable('skill_installations', {
 
 export const orgTables = { org, orgMember }
 export const authTables = { user, session, account, verification }
-export const oneVibeTables = { project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, runtimeLease, schedule, workspaceVersion, runtimeMcpConfig, skillInstallation }
+export const oneVibeTables = { conversation, project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, runtimeLease, schedule, workspaceVersion, runtimeMcpConfig, runtimeMcpConfigEvent, legacyImport, skillInstallation }

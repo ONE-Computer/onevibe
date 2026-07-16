@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — extend the Postgres target contract for durable identity and audit
+
+- Added Drizzle migration `0004_majestic_multiple_man.sql` and schema parity for a first-class `conversation` identity, task fork lineage, turn error metadata, provider message IDs, runtime-lease allocation/idempotency uniqueness, append-only MCP configuration events, and source-keyed `legacy_imports` provenance.
+- `npm run db:generate`, `npm run db:check`, and `git diff --check` pass. This is intentionally a target-contract slice: the running TaskStore remains SQLite-backed, the importer does not yet write the new provenance tables, and no `DATABASE_URL` runtime switch is enabled.
+- All model traffic remains LiteLLM-only. The schema change does not add provider credentials, direct first-party Anthropic configuration, or a model-routing fallback.
+
 ## 2026-07-17 — fail closed on known first-party model endpoints
 
 - Expanded the shared `isLiteLlmRelayUrl` guard used by the Claude SDK and ONEComputer worker to reject known Anthropic, OpenAI, Bedrock, Gemini, Groq, Mistral, Cohere, xAI, and DeepSeek first-party hosts when they are mislabeled as LiteLLM relays.
