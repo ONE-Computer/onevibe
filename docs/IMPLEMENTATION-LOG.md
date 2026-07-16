@@ -695,3 +695,10 @@ baseline harness in CI.
 - Migrated task inventory to a cached Query. Creation, branch, scheduled-run, and snapshot updates write server-derived task records into the cache; active task snapshots and SSE remain on `useTask`.
 - Kept task/SSE state on `useTask`: an append-only replayable event stream is not treated as ordinary query data. Remaining collection queries and mutations are intentionally open under P5-02.
 - Focused verification: lint, 46 test files / 236 tests, and production build passed.
+
+# 2026-07-17 — active task mutation boundary
+
+- Routed active-task stop, retry, follow-up, edit/branch, share, queued-guidance removal, project movement, and tag updates through TanStack Query mutation hooks. Successful mutations reconcile the ordinary task/conversation caches or refresh the active server snapshot; failures remain visible through the existing toast contract.
+- Kept `useTask` as the only owner of the active append-only SSE/replay projection. This deliberately avoids copying a live event stream into generic Query data while removing direct App-level mutation calls from the active task surface.
+- Removed a duplicate global Sonner provider discovered during the handover audit; each async failure now has one notification surface.
+- Verification: `npm run check` passed with 46 test files / 236 tests, lint, production build, and E2E harness typecheck; `npm run db:check` passed. Commit: `26762c1`.
