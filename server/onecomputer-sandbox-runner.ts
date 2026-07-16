@@ -11,6 +11,14 @@ import { SANDBOX_SLIDE_RENDERER, sandboxSlideSeed } from './sandbox-slide-render
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
 
+export const portableArtifactKind = (artifactPath: string) => {
+  const normalized = path.posix.normalize(artifactPath)
+  if (normalized === 'index.html' || normalized === 'validation-report.json') return undefined
+  if (normalized.startsWith('.') || normalized.startsWith('inputs/') || normalized.startsWith('evidence/') || normalized.startsWith('node_modules/') || normalized.includes('/node_modules/')) return undefined
+  if (/\.pptx$/i.test(normalized) || /\.pdf$/i.test(normalized)) return 'slide_deck'
+  return 'source_file'
+}
+
 const shellQuote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`
 const wait = (milliseconds: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal.aborted) return reject(new DOMException('Task cancelled', 'AbortError'))
@@ -448,6 +456,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const paths = Buffer.from(listing.output.trim(), 'base64').toString('utf8').split('\0').filter(Boolean).map((item) => item.replace(/^\.\//, ''))
       if (paths.length > 100) throw new Error('Sandbox produced more than the 100-file extraction limit')
       let totalBytes = 0
+      const portableArtifacts: Array<{ path: string; size: number; kind: string }> = []
       for (const relativePath of paths) {
         const normalized = path.posix.normalize(relativePath)
         if (normalized.startsWith('../') || path.posix.isAbsolute(normalized) || normalized === '..') throw new Error('Sandbox returned an unsafe artifact path')
@@ -457,11 +466,20 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         totalBytes += bytes.byteLength
         if (totalBytes > 10 * 1024 * 1024) throw new Error('Sandbox artifacts exceed the 10 MiB extraction limit')
         await store.writeWorkspaceBytes(task.id, normalized, bytes)
+        const kind = portableArtifactKind(normalized)
+        if (kind) portableArtifacts.push({ path: normalized, size: bytes.byteLength, kind })
       }
       await store.appendEvent(task.id, {
         type: 'tool_call_completed', lane: 'activity', label: 'Sandbox artifacts extracted',
         content: `${paths.length} files copied from the disposable boundary.`,
         payload: { sandboxId: sandbox.id, fileCount: paths.length, totalBytes },
+      })
+      for (const artifact of portableArtifacts) await store.appendEvent(task.id, {
+        type: 'artifact_created', lane: 'artifact', label: artifact.kind === 'slide_deck' ? 'Sandbox presentation export' : 'Sandbox deliverable', content: artifact.path,
+        payload: {
+          executionRoute: 'onecomputer_sandbox', sandboxId: sandbox.id, kind: artifact.kind, size: artifact.size,
+          uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(artifact.path)}&download=1`, portable: true,
+        },
       })
       let generatedArtifactPreview = false
       if (paths.includes('index.html')) {

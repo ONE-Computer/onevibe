@@ -45,6 +45,14 @@ Immediate follow-up files are added only to that turn's provider context. Files 
 
 An `artifact_created` event binds the normalized file descriptors to the new `runId`; assistant-ui projects those descriptors onto the matching user message. File bytes and base64 payloads never enter chat metadata or evidence. Message copy uses assistant-ui's native action primitive and copies rendered message content without creating another persistence path.
 
+## Turn-bound deliverables
+
+Generated deliverables are projected onto the assistant message whose `turnId` matches the artifact event's `runId`. The projection derives from durable `artifact_created` and `artifact_updated` events, deduplicates revisions by workspace path within a turn, and keeps the newest evidence identity. The Computer rail remains authoritative; inline cards are a conversation view of the same record.
+
+The ONEComputer extraction boundary emits one event per portable file after its bytes have been copied into the task workspace. Runtime internals, dotfiles, `node_modules`, uploaded `inputs/`, visual `evidence/`, `index.html`, and the separately recorded validation report are excluded. PPTX and PDF exports are slide decks; other eligible files are source deliverables. An aggregate extraction receipt cannot establish which turn created a particular file.
+
+Artifact actions are same-origin and same-task only. The browser accepts a supplied URI only under `/api/tasks/<current-task>/`; otherwise it constructs the bounded file-download endpoint from the safe workspace path. Absolute paths, traversal segments, input files, evidence frames, external URLs, and raw sandbox locations never become inline actions.
+
 ## Responsive navigation
 
 At widths up to 960px the sidebar starts closed so the task remains usable. Opening it creates a modal backdrop and an in-panel close control; selecting a task or primary view closes it again. The collapsed grid has one real content column—never a zero-width placeholder—so both conversation and workspace surfaces remain reachable at mobile breakpoints.

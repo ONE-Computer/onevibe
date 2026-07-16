@@ -49,6 +49,8 @@ Conversation navigation must use the cursor-paginated `/api/conversations` contr
 
 SSE `runtime_event` frames must include their durable event ID and honor a validated task-bound `Last-Event-ID` cursor. Keep client event-ID deduplication and coalesce snapshot reconciliation; never launch an overlapping full fetch for every streamed delta. Assistant-ui tool cards must be projections of durable `(runId, toolUseId)` start/completion evidence. Do not expose raw tool input values in chat or treat wrapper activity as a provider tool invocation.
 
+Assistant-ui deliverable cards must be projections of durable artifact events whose `runId` matches the assistant message `turnId`. Emit one event per portable file after successful workspace extraction; an aggregate file count is not artifact provenance. Exclude dotfiles, runtime dependencies, `inputs/`, `evidence/`, and duplicate preview/validation records. Inline actions must stay under the current task's `/api/tasks/:id/` routes—never trust an arbitrary URI from provider output.
+
 Follow-up attachments must pass through the `/api/tasks/:id/messages` ingestion boundary and be written under numbered `inputs/` paths before task metadata changes. Preserve per-file, per-turn, and per-conversation limits. Bind files to the exact turn through durable evidence; queued guidance owns its attachment paths and cancellation must remove those staged files. Never place bytes/base64 content in messages, events, logs, or assistant-ui metadata.
 
 Run `npm run e2e:follow-up-attachment` against a running local API to prove a two-turn transcript, normalized workspace bytes, and exact-turn evidence binding.

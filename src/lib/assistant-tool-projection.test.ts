@@ -26,4 +26,21 @@ describe('assistant tool projection', () => {
     const attached = event(0, 'artifact_created', { kind: 'task_input', files: [{ name: 'brief.txt', path: 'inputs/02-brief.txt', size: 42, mimeType: 'text/plain' }] })
     expect(projectAssistantToolCalls([user], [attached])[0]?.inputFiles).toEqual([{ name: 'brief.txt', path: 'inputs/02-brief.txt', size: 42, mimeType: 'text/plain' }])
   })
+
+  it('binds safe portable artifacts to the exact assistant turn and deduplicates updates', () => {
+    const created = { ...event(2, 'artifact_created', { kind: 'slide_deck', size: 1200, uri: '/api/tasks/task_a/file?path=deck.pptx&download=1' }, 'deck.pptx'), label: 'Slide export' }
+    const updated = { ...event(3, 'artifact_updated', { kind: 'slide_deck', size: 1400, uri: '/api/tasks/task_a/file?path=deck.pptx&download=1' }, 'deck.pptx'), label: 'Revised slide export' }
+    const [projected] = projectAssistantToolCalls([message], [created, updated])
+    expect(projected?.artifacts).toEqual([expect.objectContaining({ eventId: 'task_a:event:3', path: 'deck.pptx', label: 'Revised slide export', kind: 'slide_deck', size: 1400, action: 'download' })])
+  })
+
+  it('excludes visual/input evidence and never projects an arbitrary artifact URI', () => {
+    const events = [
+      event(1, 'artifact_created', { kind: 'visual_frame', uri: 'https://attacker.example/frame' }, 'evidence/frame.png'),
+      event(2, 'artifact_created', { kind: 'task_input' }, 'inputs/brief.txt'),
+      event(3, 'artifact_created', { kind: 'source_file', uri: 'https://attacker.example/file' }, 'notes.md'),
+    ]
+    const [projected] = projectAssistantToolCalls([message], events)
+    expect(projected?.artifacts).toEqual([expect.objectContaining({ path: 'notes.md', uri: '/api/tasks/task_a/file?path=notes.md&download=1' })])
+  })
 })

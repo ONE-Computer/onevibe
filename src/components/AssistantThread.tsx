@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { ArrowUp, CheckCircle2, Copy, LoaderCircle, Paperclip, ShieldCheck, TriangleAlert, X } from 'lucide-react'
+import { ArrowUp, CheckCircle2, Copy, Download, Eye, FileText, LoaderCircle, Paperclip, Presentation, ShieldCheck, TriangleAlert, X } from 'lucide-react'
 import {
   AssistantRuntimeProvider,
   ActionBarPrimitive,
@@ -14,6 +14,7 @@ import {
 import type { TaskSnapshot } from '../types'
 import { toAssistantMessage } from '../lib/assistant-message'
 import { projectAssistantToolCalls } from '../lib/assistant-tool-projection'
+import type { AssistantArtifact } from '../lib/assistant-tool-projection'
 
 const timestamp = (value?: Date) => value?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ?? ''
 
@@ -35,10 +36,18 @@ const ToolCallCard = ({ toolName, args, result, isError, timing }: ToolCallMessa
   return <div className={`aui-tool-call ${running ? 'running' : isError ? 'failed' : 'completed'}`}><span>{running ? <LoaderCircle size={14} /> : isError ? <TriangleAlert size={14} /> : <CheckCircle2 size={14} />}</span><div><strong>{toolName}</strong><small>{details.browserTool ? 'Browser in sandbox' : details.executionRoute?.replaceAll('_', ' ') ?? 'Governed runtime'}{details.inputKeys?.length ? ` · ${details.inputKeys.join(', ')}` : ''}</small>{outcome?.summary && <p>{outcome.summary}</p>}</div><em>{running ? 'Running' : isError ? 'Failed' : elapsed ?? 'Done'}</em></div>
 }
 
+const readableBytes = (size?: number) => size === undefined ? undefined : size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${Math.ceil(size / 1024)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`
+
+const ArtifactCards = ({ artifacts }: { artifacts: AssistantArtifact[] }) => artifacts.length ? <div className="aui-artifacts">{artifacts.map((artifact) => {
+  const deck = artifact.kind === 'slide_deck' || /\.(pptx|pdf)$/i.test(artifact.path)
+  return <article key={artifact.path} className="aui-artifact-card"><span>{deck ? <Presentation size={16} /> : <FileText size={16} />}</span><div><strong>{artifact.path.split('/').at(-1)}</strong><small>{artifact.label} · {readableBytes(artifact.size) ?? 'portable file'}</small><em><ShieldCheck size={9} /> ONEComputer evidence {artifact.eventId.split(':').at(-1)}</em></div><a href={artifact.uri} target={artifact.action === 'preview' ? '_blank' : undefined} rel="noreferrer" download={artifact.action === 'download' ? '' : undefined} aria-label={`${artifact.action === 'preview' ? 'Preview' : 'Download'} ${artifact.path}`}>{artifact.action === 'preview' ? <Eye size={14} /> : <Download size={14} />}</a></article>
+})}</div> : null
+
 const AssistantMessage = () => {
   const createdAt = useAuiState((state) => state.message.createdAt)
   const running = useAuiState((state) => state.message.status?.type === 'running')
-  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb">O</div><div><strong>ONEVibe <small>{running ? '· writing' : `· ${timestamp(createdAt)}`}</small></strong><MessagePrimitive.Parts components={{ tools: { Fallback: ToolCallCard } }} />{running && <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>}<MessageActions /></div></MessagePrimitive.Root>
+  const artifacts = useAuiState((state) => (state.message.metadata.custom as { artifacts?: AssistantArtifact[] } | undefined)?.artifacts ?? [])
+  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb">O</div><div><strong>ONEVibe <small>{running ? '· writing' : `· ${timestamp(createdAt)}`}</small></strong><MessagePrimitive.Parts components={{ tools: { Fallback: ToolCallCard } }} /><ArtifactCards artifacts={artifacts} />{running && <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>}<MessageActions /></div></MessagePrimitive.Root>
 }
 
 type Props = { task: TaskSnapshot; busy: boolean; onSubmit: (prompt: string, attachments?: DraftFollowUpAttachment[]) => Promise<void> }

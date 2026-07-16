@@ -106,3 +106,10 @@ The real-provider cancellation harness allocated sandbox `onevibe-32279349` for 
 - Initial 390×844 QA found the sidebar covered the task and its only collapse control was unreachable beneath the overlay. After correction, mobile loads with `Open sidebar`, preserves task/composer/attachment content, and the sidebar can be opened and closed through a reachable in-panel control.
 - QA also exposed that the previous collapsed grid left the main shell in a zero-width first column. The collapsed layout now uses a single content column; visual recheck rendered the task plan and workspace at full mobile width.
 - `npm run e2e:follow-up-attachment` repeated the full proof on `task_b24af8e6372648`: four messages, 18-byte normalized input, exact second-turn evidence binding, and byte-stable file retrieval. A five-file turn was rejected with HTTP 400 before staging.
+
+# 2026-07-16 — turn-bound artifact projection
+
+- Fresh local Slide-mode task `task_74b90c21359848` produced one completed turn with individual durable events for `outline.json`, `speaker-notes.md`, `deck.pptx`, `deck.pdf`, and the `index.html` preview.
+- Browser QA found one inline download action each for PPTX and PDF, with all five artifacts bound to the creating assistant message. The Computer rail continued to render the slide preview independently.
+- Desktop light-theme inspection showed the message/tool/preview composition without duplicated transcript state. At 390×844, the download actions remained present and the responsive sidebar could be closed through its in-panel control. The viewport was reset after inspection.
+- This local run validates projection and interaction only. The ONEComputer per-file extraction contract is covered by focused adapter tests; a future live cloud run should prove those new events against real sandbox-origin deck bytes.

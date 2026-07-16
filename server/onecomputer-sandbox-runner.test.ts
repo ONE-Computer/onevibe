@@ -28,7 +28,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
   })
 
   it('builds generated projects only in the sandbox and disables install lifecycle scripts', async () => {
-    const { sandboxBuildValidationCommand, sandboxPackageLockExtractionCommand } = await import('./onecomputer-sandbox-runner.js')
+    const { portableArtifactKind, sandboxBuildValidationCommand, sandboxPackageLockExtractionCommand } = await import('./onecomputer-sandbox-runner.js')
     const command = sandboxBuildValidationCommand('/tmp/onevibe/task-safe')
     expect(command).toContain("cd '/tmp/onevibe/task-safe/app'")
     expect(command).toContain('npm ci --ignore-scripts --no-audit --no-fund')
@@ -36,6 +36,11 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(command).toContain('npm run build')
     expect(command).not.toContain('npm install --no-audit --no-fund')
     expect(sandboxPackageLockExtractionCommand('/tmp/onevibe/task-safe')).toContain('test "$bytes" -le 1048576')
+    expect(portableArtifactKind('deck.pptx')).toBe('slide_deck')
+    expect(portableArtifactKind('notes/speaker-notes.md')).toBe('source_file')
+    expect(portableArtifactKind('.claude/skills/slides/SKILL.md')).toBeUndefined()
+    expect(portableArtifactKind('evidence/visual/frame.png')).toBeUndefined()
+    expect(portableArtifactKind('inputs/01-brief.txt')).toBeUndefined()
   })
 
   it('projects a bounded, redacted Claude stream journal into timeline events', async () => {
@@ -152,6 +157,9 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.listEvents(task.id).some((event) => event.label === 'Sandbox browser review observed' && event.payload.generatedArtifactPreview === true)).toBe(true)
     expect(frames.at(-1)?.payload.uri).toContain(`/api/tasks/${task.id}/file?path=evidence%2Fvisual%2Fbrowser-review-`)
     expect(store.listEvents(task.id).some((event) => event.label === 'Static artifact contract needs review' && event.content === 'validation-report.json')).toBe(true)
+    const deliverables = store.listEvents(task.id).filter((event) => event.payload.portable === true)
+    expect(deliverables.map((event) => event.content)).toEqual(['README.md'])
+    expect(deliverables[0]?.payload.uri).toBe(`/api/tasks/${task.id}/file?path=README.md&download=1`)
     expect(await store.readWorkspaceFile(task.id, 'validation-report.json')).toContain('Static contract validation only')
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)
