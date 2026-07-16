@@ -76,7 +76,9 @@ The UI program is no longer blocked on the completed truthfulness P0s, but must 
 
 - `task_45213c6170d243`: real Claude/LiteLLM chat with streamed deltas and no artifact pipeline.
 - `task_f8d51a10de4f4d`: real Claude/LiteLLM Markdown artifact plus bounded Bash, passing validation, durable command/result evidence, and host-path redaction.
-- The focused local gate is green: `npm run lint`, `npm test` (37 files / 206 tests), and `npm run build`.
+- Commit `5002bb1` added `npm run e2e:chat`, which passed in an isolated temporary API/data root with real chat SSE, two-turn persistence, demo disclosure, Markdown generation, bounded Bash terminal evidence, replay, and restart recovery. The run recorded 8 live frames, 36 replay frames, 2 chat turns, 2 Bash calls, and a valid evidence chain.
+- Commit `b30da27` closed a browser-found presentation defect: internal `.claude/skills` files no longer inflate portable artifact counts, provider thinking-token telemetry is not rendered as reasoning, and deterministic history entries are visibly labelled `Simulation · no model call`.
+- The focused local gate is green: `npm run check` (lint, 37 files / 207 tests, production build, and all E2E harness typechecks). Boundary: host-process local proof only; no microVM/ONEComputer/OpenVTC/production egress claim.
 
 ### Latest development-provider POC evidence
 
