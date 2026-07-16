@@ -7,6 +7,7 @@ import { validateModeArtifacts } from './artifact-validation.js'
 import { materializeTaskSkills } from './skill-packs.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
 import { writeStructuredSlides } from './mode-artifacts.js'
+import { portableArtifactKind } from './artifact-path.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
@@ -222,7 +223,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     signal.removeEventListener('abort', abort)
     signal.throwIfAborted()
     const files = await store.listWorkspaceFiles(task.id)
-    const deliverableFiles = files.filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')).slice(0, 50)
+    const deliverableFiles = files.filter((file) => portableArtifactKind(file.path)).slice(0, 50)
     await store.appendEvent(task.id, {
       type: 'tool_call_completed', lane: 'activity', label: 'Claude SDK workspace recorded',
       content: `${deliverableFiles.length} portable file${deliverableFiles.length === 1 ? '' : 's'} recorded from the governed SDK workspace.`,
@@ -230,9 +231,10 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     })
     for (const file of deliverableFiles) {
       if (file.path === 'index.html') continue
+      const kind = portableArtifactKind(file.path)!
       await store.appendEvent(task.id, {
         type: 'artifact_created', lane: 'artifact', label: 'Claude SDK artifact', content: file.path,
-        payload: { executionRoute: 'claude_agent_sdk', kind: 'source_file', size: file.size },
+        payload: { executionRoute: 'claude_agent_sdk', kind, size: file.size, portable: true, uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(file.path)}&download=1` },
       })
     }
     const hasPreview = files.some((file) => file.path === 'index.html')

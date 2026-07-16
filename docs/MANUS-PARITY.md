@@ -1,6 +1,6 @@
 # Manus parity ledger
 
-Updated 2026-07-15 from `onevibe-manus-research/docs/TOP-100-FEATURES.md`.
+Updated 2026-07-16 from `onevibe-manus-research/docs/TOP-100-FEATURES.md` and the Open WebUI reference study in [`OPENWEBUI-COWORK-PARITY.md`](OPENWEBUI-COWORK-PARITY.md).
 
 This is the implementation gate, not a marketing checklist. **I** means behavior is implemented and locally verified, **P** means a meaningful slice exists but the observed Manus behavior is incomplete, and **M** means missing. Security-sensitive features only count when ONEComputer/OpenVTC controls are real; a cosmetic mock does not qualify.
 

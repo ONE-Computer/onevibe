@@ -41,7 +41,11 @@ The helper intentionally does not expose arbitrary GraphQL. Add a narrowly named
 
 Documentation is part of every material slice. Update `docs/IMPLEMENTATION-LOG.md` for shipped behavior and `docs/LIVE-E2E-ENGINEERING-LOG.md` for live observations, failed experiments, provider/runtime IDs that are safe to retain, fixes, and remaining gates. Architecture or credential decisions receive a dedicated document/ADR; do not leave them only in chat or Linear comments. Keep secrets, account IDs, raw provider bodies, auth headers, and credential values out of all docs.
 
+For parity work, read `docs/MANUS-PARITY.md` and `docs/OPENWEBUI-COWORK-PARITY.md`. Open WebUI is a reference study, not an imported runtime or trust boundary. Preserve the ONEComputer distinction between a provider tool, a sandbox observation, a portable artifact, and an externally approved action; do not close a parity item merely because a cosmetic mock renders.
+
 For AWS/Bedrock runtime work, read `docs/AGENTCORE-AWS-RUNTIME.md` and the referenced files in `/Users/gini/Desktop/agentcore-claude-codex-runtime-harness`. Reuse the standard refreshable AWS provider-chain pattern and explicit Bedrock configuration. Never mount `~/.aws`, copy profile credentials, or place static `AWS_*` values in a retained sandbox.
+
+For local Claude E2E, use the protected host-only LiteLLM relay configuration documented outside this repository; run against a temporary `ONEVIBE_DATA_DIR` and a separate API port. Record the exact model alias because a Claude-compatible Anthropic API response is not proof of an Anthropic or Bedrock model. Never copy router secrets into the repository, task workspace, browser state, or evidence. Treat `.claude/` and `.onevibe-*` as runtime internals, not deliverables.
 
 ## Frontend foundation
 

@@ -113,3 +113,12 @@ The real-provider cancellation harness allocated sandbox `onevibe-32279349` for 
 - Browser QA found one inline download action each for PPTX and PDF, with all five artifacts bound to the creating assistant message. The Computer rail continued to render the slide preview independently.
 - Desktop light-theme inspection showed the message/tool/preview composition without duplicated transcript state. At 390×844, the download actions remained present and the responsive sidebar could be closed through its in-panel control. The viewport was reset after inspection.
 - This local run validates projection and interaction only. The ONEComputer per-file extraction contract is covered by focused adapter tests; a future live cloud run should prove those new events against real sandbox-origin deck bytes.
+
+# 2026-07-16 — real Claude Agent SDK through LiteLLM
+
+- Started an isolated ONEVibe API on port `4320` with a temporary data root and the protected host-only LiteLLM relay. The public `claude-sonnet-5` alias currently routes first to GLM 5.2, so this run is recorded as a Claude-compatible SDK contract proof, not an Anthropic-model proof.
+- `task_70015c14c3674b` completed the Slides harness with eight slides, a 107,159-byte PPTX, a 7,797-byte PDF, and a valid evidence chain.
+- Started a second isolated API on port `4321` using the explicit `openrouter-claude-fallback` alias. `task_10bde8499e7143` completed two durable Claude SDK turns with a recorded session identity and valid evidence. `task_727657769e344a` completed the Slides harness with eight slides, a 107,155-byte PPTX, a 7,817-byte PDF, and a valid evidence chain.
+- The fallback route is still an OpenRouter-hosted Claude-compatible provider, not a direct Anthropic or Bedrock attestation. Direct model/account attestation remains a deployment/provider gate.
+- The run exposed and fixed a delivery hygiene defect: Claude SDK extraction previously classified `.claude/skills/*` as user artifacts. Portable artifact filtering now excludes runtime skill directories and `.onevibe-*` files while classifying PPTX/PDF as `slide_deck` and attaching same-task download URIs.
+- Post-fix rerun `task_119eafe5afdb4e` completed through the same explicit Claude fallback alias: eight slides, 107,033-byte PPTX, 7,679-byte PDF, valid evidence, no `.claude/*` artifact events, and `slide_deck` classification on both exports.

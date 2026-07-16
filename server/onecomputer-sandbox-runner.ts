@@ -7,17 +7,16 @@ import { skillPacksFor } from './skill-packs.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
 import { SANDBOX_SLIDE_RENDERER, sandboxSlideSeed } from './sandbox-slide-renderer.js'
-
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
+import { portableArtifactKind as portableArtifactPathKind } from './artifact-path.js'
 
 export const portableArtifactKind = (artifactPath: string) => {
   const normalized = path.posix.normalize(artifactPath)
   if (normalized === 'index.html' || normalized === 'validation-report.json') return undefined
-  if (normalized.startsWith('.') || normalized.startsWith('inputs/') || normalized.startsWith('evidence/') || normalized.startsWith('node_modules/') || normalized.includes('/node_modules/')) return undefined
-  if (/\.pptx$/i.test(normalized) || /\.pdf$/i.test(normalized)) return 'slide_deck'
-  return 'source_file'
+  return portableArtifactPathKind(normalized)
 }
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
 
 const shellQuote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`
 const wait = (milliseconds: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
