@@ -312,11 +312,12 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'rm -f .onevibe-events.jsonl .onevibe-exitcode .onevibe-pid',
         '(',
         '  set +e',
-        `  claude --print --output-format stream-json --verbose --model ${shellQuote(configuredClaude.model)} --permission-mode bypassPermissions --setting-sources project --allowedTools ${shellQuote(allowedTools.join(','))}${resumableSessionId ? ` --resume ${shellQuote(resumableSessionId)}` : ''} "$(cat .onevibe-prompt)" > .onevibe-events.jsonl 2>&1`,
+        '  onevibe_prompt="$(cat .onevibe-prompt)"',
+        '  rm -f .onevibe-prompt',
+        `  claude --print --output-format stream-json --verbose --model ${shellQuote(configuredClaude.model)} --permission-mode bypassPermissions --setting-sources project --allowedTools ${shellQuote(allowedTools.join(','))}${resumableSessionId ? ` --resume ${shellQuote(resumableSessionId)}` : ''} "$onevibe_prompt" > .onevibe-events.jsonl 2>&1`,
         '  printf %s "$?" > .onevibe-exitcode',
         ') < /dev/null > /dev/null 2>&1 &',
         'printf %s "$!" > .onevibe-pid',
-        'rm -f .onevibe-prompt',
       ].join('\n')
       const agentExecution = await store.appendEvent(task.id, {
         type: 'tool_call_started', lane: 'activity', label: 'Execute Claude inside ONEComputer',
