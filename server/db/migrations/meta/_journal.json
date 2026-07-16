@@ -43,6 +43,13 @@
       "when": 1784245256401,
       "tag": "0005_deep_rachel_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784245950077,
+      "tag": "0006_perpetual_kid_colt",
+      "breakpoints": true
     }
   ]
 }

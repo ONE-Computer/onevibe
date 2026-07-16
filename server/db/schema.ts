@@ -258,7 +258,9 @@ export const runtimeMcpConfig = pgTable('runtime_mcp_config', {
 
 export const runtimeMcpConfigEvent = pgTable('runtime_mcp_config_events', {
   id: text('id').primaryKey(),
-  configId: text('config_id').notNull().references(() => runtimeMcpConfig.id, { onDelete: 'cascade' }),
+  // Deliberately not a foreign key: delete events must survive deletion of
+  // the active declaration so the configuration history remains append-only.
+  configId: text('config_id').notNull(),
   ownerUserId: text('owner_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   operation: text('operation').notNull(),
   configJson: jsonb('config_json').notNull(),

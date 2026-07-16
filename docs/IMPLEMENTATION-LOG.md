@@ -6,6 +6,12 @@
 - Added `npm run e2e:postgres-metadata` and CI coverage. Disposable PostgreSQL 18 evidence passed restart reload, owner B isolation, task update, stale-write rejection, and schedule deletion. The repository keeps JSON task fields bounded to the reviewed schema and does not copy workspace bytes or secrets into metadata.
 - This remains an adapter proof, not the driver switch: the running `TaskStore` is still SQLite-backed, and the complete persistence surface (MCP, skills, leases, native projections, retry/idempotency, and workspace/object storage policy) must be integrated before enabling `DATABASE_URL`.
 
+## 2026-07-17 — prove Postgres operational repositories and MCP audit retention
+
+- Added `server/persistence/postgres-operations.ts` for owner-scoped MCP declarations and append-only configuration events, organization/member records, skill installations, generation-fenced runtime leases, and idempotency records.
+- Corrected the target schema in migration `0006_perpetual_kid_colt.sql`: MCP audit events no longer cascade-delete with the active declaration, so a deletion receipt remains queryable. `npm run e2e:postgres-operations` passed against disposable PostgreSQL 18 with two organization members, two retained MCP audit events after deletion, owner-scoped skills, a ready lease, and idempotency replay.
+- This remains a repository proof only. The running TaskStore is SQLite-backed; full integration, native projection/workspace storage, and the controlled driver switch remain open. No model traffic or provider credential is involved; LiteLLM-only routing is unchanged.
+
 ## 2026-07-17 — prove Better Auth OTP and sessions on Drizzle/Postgres
 
 - Extended `server/auth.ts` with a Postgres mode using `@better-auth/drizzle-adapter` and the reviewed `authTables`; SQLite retains its existing Better Auth migration path. Postgres deliberately skips Better Auth's Kysely-only automatic migration helper so the Drizzle migration ledger remains authoritative.

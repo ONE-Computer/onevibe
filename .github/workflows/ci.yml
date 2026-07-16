@@ -110,3 +110,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
         run: npm run e2e:postgres-metadata
+      - name: Prove Postgres operational repositories and audit retention
+        env:
+          DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
+        run: npm run e2e:postgres-operations

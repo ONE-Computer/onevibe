@@ -20,6 +20,12 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 - The same proof denied a second owner all three inventories, accepted a task update, rejected a stale timestamp write, and deleted the schedule. Output retained only counts/status and no credentials or task content.
 - Boundary: this is the project/task/schedule repository slice only; the running TaskStore remains SQLite-backed and no production driver switch is claimed.
 
+## 2026-07-17 — disposable Postgres operational repository proof
+
+- `npm run e2e:postgres-operations` passed after applying migration `0006`: organization/member visibility, owner-scoped MCP and skills, two retained MCP audit records after active-config deletion, a generation-fenced lease transition to `ready`, and idempotency claim/replay/completion all succeeded.
+- This run exposed and fixed a real audit-retention defect: the MCP event foreign key previously cascaded on config deletion. The corrected schema preserves deletion evidence while user deletion still removes user-owned audit rows through the owner foreign key.
+- Boundary: the operational repository is not selected by the running TaskStore; no production Postgres, provider, microVM, or OpenVTC/VTI claim is made.
+
 ## 2026-07-17 — protected LiteLLM provider gate and SDK workspace-path compatibility
 
 - The host-only LiteLLM relay advertised the configured `claude-sonnet-5` alias and received the Claude-compatible `/v1/messages` traffic. No direct first-party Anthropic endpoint or credential was used.

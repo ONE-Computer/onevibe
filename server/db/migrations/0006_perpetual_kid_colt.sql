@@ -1,0 +1,1 @@
+ALTER TABLE "runtime_mcp_config_events" DROP CONSTRAINT "runtime_mcp_config_events_config_id_runtime_mcp_config_id_fk";
