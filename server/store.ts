@@ -341,6 +341,13 @@ export class TaskStore {
     return this.requireUnitOfWork().run((repositories) => repositories.organizations.listForUser(userId).map((row) => ({ id: row.id, name: row.name, createdAt: row.createdAt, updatedAt: row.updatedAt })))
   }
 
+  listOrganizationsForImport(): Array<{ organization: Organization; members: OrganizationMember[] }> {
+    return this.requireUnitOfWork().run((repositories) => repositories.organizations.listAll().map((organization) => ({
+      organization: { id: organization.id, name: organization.name, createdAt: organization.createdAt, updatedAt: organization.updatedAt },
+      members: repositories.organizations.listMembers(organization.id).map((member) => ({ organizationId: member.organizationId, userId: member.userId, role: member.role, createdAt: member.createdAt })),
+    })))
+  }
+
   createOrganization(name: string, ownerUserId: string): Organization {
     if (!ownerUserId) throw new Error('Organization owner is required')
     const now = new Date().toISOString()

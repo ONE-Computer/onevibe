@@ -481,6 +481,11 @@ export class SqliteMcpConfigRepository implements McpConfigRepository {
 export class SqliteOrganizationRepository implements OrganizationRepository {
   constructor(private readonly database: Database.Database) {}
 
+  listAll(): OrganizationRecord[] {
+    const rows = this.database.prepare('SELECT id, name, created_at, updated_at FROM organizations ORDER BY id ASC').all() as OrganizationRow[]
+    return rows.map(organizationFromRow)
+  }
+
   listForUser(userId: string): OrganizationRecord[] {
     const rows = this.database.prepare(`
       SELECT o.id, o.name, o.created_at, o.updated_at

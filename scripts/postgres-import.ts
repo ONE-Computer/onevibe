@@ -1,7 +1,7 @@
 import path from 'node:path'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { eq } from 'drizzle-orm'
+import { inArray } from 'drizzle-orm'
 import * as schema from '../server/db/schema.js'
 import { validateImportRelationships, type OwnedProjectRow, type OwnedScheduleRow, type OwnedTaskRow } from '../server/persistence/import-validation.js'
 import { TaskStore } from '../server/store.js'
@@ -38,6 +38,7 @@ const run = async () => {
   const schedules = store.listSchedules()
   const mcpConfigs = store.listMcpConfigs()
   const skillInstallations = store.listSkillInstallationRecords()
+  const organizations = store.listOrganizationsForImport()
   const owners = new Set<string>()
   const projectRows: OwnedProjectRow[] = projects.map((project: Project) => { const ownerUserId = ownerFor(project, options, 'Project', project.id); owners.add(ownerUserId); return { project, ownerUserId } })
   const taskRows: OwnedTaskRow[] = tasks.map((task: Task) => { const ownerUserId = ownerFor(task, options, 'Task', task.id); owners.add(ownerUserId); return { task, ownerUserId } })
@@ -46,7 +47,8 @@ const run = async () => {
   const skillRows = skillInstallations.map((skill) => { const ownerUserId = ownerFor(skill, options, 'Skill installation', skill.id); owners.add(ownerUserId); return { skill, ownerUserId } })
   validateImportRelationships(projectRows, taskRows, scheduleRows)
 
-  const counts = { projects: projectRows.length, tasks: taskRows.length, schedules: scheduleRows.length, mcpConfigs: mcpRows.length, skillInstallations: skillRows.length, messages: 0, events: 0, nativeEvents: 0, versions: 0 }
+  const organizationMemberUserIds = [...new Set(organizations.flatMap(({ members }) => members.map((member) => member.userId)))]
+  const counts = { organizations: organizations.length, organizationMembers: organizationMemberUserIds.length, projects: projectRows.length, tasks: taskRows.length, schedules: scheduleRows.length, mcpConfigs: mcpRows.length, skillInstallations: skillRows.length, messages: 0, events: 0, nativeEvents: 0, versions: 0 }
   for (const { task } of taskRows) {
     counts.messages += store.listMessages(task.id, { limit: 200 }).messages.length
     counts.events += store.listEvents(task.id).length
@@ -64,9 +66,18 @@ const run = async () => {
   const client = postgres(databaseUrl, { max: 1, prepare: false })
   const db = drizzle(client, { schema })
   try {
-    const existingUser = await db.select({ id: schema.user.id }).from(schema.user).where(eq(schema.user.id, ownerUserId)).limit(1)
-    if (!existingUser.length) throw new Error(`Postgres user ${ownerUserId} does not exist; create the Better Auth user first`)
+    const requiredUserIds = [...new Set([ownerUserId, ...organizationMemberUserIds])]
+    const existingUsers = await db.select({ id: schema.user.id }).from(schema.user).where(inArray(schema.user.id, requiredUserIds))
+    const existingUserIds = new Set(existingUsers.map((user) => user.id))
+    const missingUserId = requiredUserIds.find((userId) => !existingUserIds.has(userId))
+    if (missingUserId) throw new Error(`Postgres user ${missingUserId} does not exist; create the Better Auth user first`)
     await db.transaction(async (tx) => {
+      if (organizations.length) await tx.insert(schema.org).values(organizations.map(({ organization }) => ({
+        id: organization.id, name: organization.name, createdAt: new Date(organization.createdAt), updatedAt: new Date(organization.updatedAt),
+      }))).onConflictDoNothing()
+      if (organizationMemberUserIds.length) await tx.insert(schema.orgMember).values(organizations.flatMap(({ members }) => members.map((member) => ({
+        orgId: member.organizationId, userId: member.userId, role: member.role, createdAt: new Date(member.createdAt),
+      })))).onConflictDoNothing()
       if (projectRows.length) await tx.insert(schema.project).values(projectRows.map(({ project, ownerUserId: owner }) => ({
         id: project.id, ownerUserId: owner, name: project.name, context: project.context, filesJson: project.files, createdAt: new Date(project.createdAt), updatedAt: new Date(project.updatedAt),
       }))).onConflictDoNothing()

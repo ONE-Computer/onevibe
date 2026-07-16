@@ -103,6 +103,7 @@ describe('SQLite repositories', () => {
       repositories.organizations.insertOrganization(organization)
       repositories.organizations.insertMember(owner)
       repositories.organizations.insertMember(member)
+      expect(repositories.organizations.listAll()).toEqual([organization])
       expect(repositories.organizations.listForUser(owner.userId)).toEqual([organization])
       expect(repositories.organizations.findById(organization.id)).toEqual(organization)
       expect(repositories.organizations.findMember(organization.id, member.userId)).toEqual(member)

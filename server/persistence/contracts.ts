@@ -126,6 +126,7 @@ export interface OrganizationMemberRecord {
 }
 
 export interface OrganizationRepository {
+  listAll(): OrganizationRecord[]
   listForUser(userId: string): OrganizationRecord[]
   findById(id: string): OrganizationRecord | undefined
   listMembers(organizationId: string): OrganizationMemberRecord[]

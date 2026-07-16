@@ -843,6 +843,12 @@ baseline harness in CI.
 - Added a GitHub Actions `postgres-schema` job that starts PostgreSQL 18, runs `npm run db:migrate`, and validates the reviewed migration manifest with `npm run db:check`.
 - Boundary: this proves schema/migration compatibility only. The API still fails closed when `DATABASE_URL` would select Postgres because the TaskStore repository/runtime adapter, production import, and application idempotency switch remain open.
 
+## 2026-07-17 — Postgres import organization/member staging and LiteLLM handover policy
+
+- Extended the owner-required Postgres import seam to stage local organizations and organization members before owner-scoped application rows. The importer now verifies every referenced organization member already exists in Better Auth's Postgres `user` table and preserves the import's single-owner guard; it does not grant organization members access to tasks until the Postgres repository and authorization switch is implemented.
+- Updated `HANDOVER.md`, `TODO.md`, `docs/AUTH-POSTGRES-ADR.md`, and `docs/LINEAR-BOARD.md` to make the staging boundary explicit.
+- Reconfirmed the model-routing invariant: every model request and agentic turn must traverse server-controlled LiteLLM for data sovereignty, centralized routing, cost control, and optimization. Direct first-party Anthropic traffic is prohibited in local, test, emergency, and release paths; Anthropic-compatible SDK variable names may only contain LiteLLM relay values.
+
 ## 2026-07-17 — explicit Postgres projection constraint name
 
 - Added Drizzle migration `0003_slim_jack_flag.sql` to rename the long auto-generated `native_projection_offset` primary-key constraint to `native_projection_offset_pk`. This keeps the historical migration intact while making newly applied schemas deterministic and readable.
