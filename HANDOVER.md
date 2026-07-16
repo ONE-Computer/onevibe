@@ -252,6 +252,11 @@ ONEVIBE_DEFAULT_PROVIDER=
 # Optional Codex-compatible model alias; it is still routed through LiteLLM.
 ONEVIBE_CODEX_MODEL=
 
+# Optional AgentCore remote runtime; it must explicitly declare LiteLLM routing.
+AGENTCORE_RUNTIME_URL=https://...
+AGENTCORE_RUNTIME_BEARER_TOKEN=
+ONEVIBE_AGENTCORE_LITELLM_ROUTED=false
+
 # ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY are derived for the child SDK
 # process from the relay configuration; do not use a direct first-party key.
 

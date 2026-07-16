@@ -65,6 +65,12 @@
 - Added the `codex` provider to the shared task/runtime contract, readiness projection, registry factory, server task/schedule routes, provider labels, and native-event source vocabulary. It is available only when the server-controlled LiteLLM relay is configured.
 - This adapter does not claim a sandboxed execution capability; host workspace operations are path-confined but still require the later sandbox boundary. Live provider acceptance remains pending a configured Codex-compatible LiteLLM alias and E2E run.
 
+## 2026-07-16 — Phase 2 AgentCore LiteLLM-routed remote boundary
+
+- Added `AgentCoreRuntimeAdapter` as a named provider over the governed remote SSE contract. It reuses the normalized remote event path but sends `provider=agentcore` and records `agentcore_runtime` as the native source.
+- AgentCore is advertised only when `AGENTCORE_RUNTIME_URL` is configured and `ONEVIBE_AGENTCORE_LITELLM_ROUTED=true`. ONEVibe never accepts AWS static credentials or a direct model endpoint for this path, and it does not infer sandbox isolation from the provider name.
+- The adapter is source-level and contract-tested through the shared remote path; live AgentCore endpoint, LiteLLM route, AWS identity-chain, and isolation evidence remain required before production acceptance.
+
 ## 2026-07-16 — Phase 2 runtime lifecycle contract
 
 - Added `RuntimeAdapterBase` and the canonical lifecycle surface: `initialize(task, workingDir, mcpConfigs)`, `run(prompt, context, signal)` as an async stream, `cancel`, `destroy`, `getFiles`, and `getPreviewUrl`.

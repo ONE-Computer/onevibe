@@ -1,5 +1,6 @@
 import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import type { EventInput, EventLane, EventType, RunStatus } from './types.js'
+import type { Task } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
 
 type SseFrame = { event: string; data: unknown }
@@ -45,12 +46,14 @@ const normalize = (value: unknown): EventInput | null => {
 }
 
 export class RemoteRuntimeAdapter extends RuntimeAdapterBase {
-  readonly name = 'remote'
-  readonly providerId = 'remote' as const
+  readonly name: string
+  readonly providerId: Task['provider']
   readonly capabilities = ['streaming', 'tool_use', 'file_system'] as const
 
-  constructor(private readonly endpoint: string, private readonly bearerToken?: string) {
+  constructor(private readonly endpoint: string, private readonly bearerToken?: string, providerId: Task['provider'] = 'remote', name = 'remote') {
     super()
+    this.providerId = providerId
+    this.name = name
   }
 
   protected async execute({ task, store, signal, prompt }: LegacyRuntimeContext) {
@@ -64,7 +67,7 @@ export class RemoteRuntimeAdapter extends RuntimeAdapterBase {
         ...(this.bearerToken ? { Authorization: `Bearer ${this.bearerToken}` } : {}),
       },
       body: JSON.stringify({
-        provider: 'claude_agentcore',
+        provider: this.providerId === 'agentcore' ? 'agentcore' : 'claude_agentcore',
         prompt,
         userId: 'local-onevibe-user',
         projectId: 'onevibe-local',
@@ -90,7 +93,7 @@ export class RemoteRuntimeAdapter extends RuntimeAdapterBase {
         if (event) {
           const candidate = isRecord(frame.data) && typeof frame.data.id === 'string' ? frame.data.id : `${frame.event}:${sourceSequence}`
           await store.ingestNativeEvent(task.id, {
-            source: 'remote_runtime', sourceEventId: candidate, sourceSequence, nativeType: event.type,
+            source: this.providerId === 'agentcore' ? 'agentcore_runtime' : 'remote_runtime', sourceEventId: candidate, sourceSequence, nativeType: event.type,
             payload: sanitizeNativePayload(frame.data), projections: [event],
           })
           sourceSequence += 1

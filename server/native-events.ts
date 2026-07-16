@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { EventInput } from './types.js'
 
-export type NativeEventSource = 'claude_agent_sdk' | 'codex_litellm' | 'onecomputer_sandbox' | 'remote_runtime'
+export type NativeEventSource = 'claude_agent_sdk' | 'codex_litellm' | 'agentcore_runtime' | 'onecomputer_sandbox' | 'remote_runtime'
 
 export type NativeEventInput = {
   source: NativeEventSource

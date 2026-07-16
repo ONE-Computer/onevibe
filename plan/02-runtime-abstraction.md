@@ -133,20 +133,26 @@ pending a configured relay alias and E2E run.
 
 **Required env vars**:
 ```
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_REGION=ap-southeast-2
-AGENTCORE_RUNTIME_ARN=arn:aws:bedrock-agentcore:...
+AGENTCORE_RUNTIME_URL=
+AGENTCORE_RUNTIME_BEARER_TOKEN=
+ONEVIBE_AGENTCORE_LITELLM_ROUTED=true
 ```
 
 **Capability declaration**:
 ```ts
-readonly capabilities: RuntimeCapability[] = ['streaming', 'tool_use', 'sandboxed']
+readonly capabilities: RuntimeCapability[] = ['streaming', 'tool_use']
 ```
 
-**Key detail**: AgentCore SSE parsing already exists in `agentcore_client.py` (in the Streamlit POC). Port that parsing logic to TypeScript in this adapter's `normalizeAgentCoreEvent()`.
+The AgentCore endpoint owns its AWS provider chain and must prove that model
+traffic is routed through LiteLLM before it is enabled. ONEVibe does not copy
+AWS credentials, mount profiles, or infer sandbox isolation from the provider
+ID. The adapter is a remote SSE boundary; production promotion still requires
+identity-chain, attestation, and live isolation evidence.
 
-**Registration**: expose when all three AWS env vars are set.
+**Key detail**: `AgentCoreRuntimeAdapter` reuses the normalized remote SSE
+parser in `server/remote-runner.ts`, records `agentcore_runtime` as its native
+source, and is exposed only when the endpoint and explicit LiteLLM route
+declaration are present.
 
 ---
 

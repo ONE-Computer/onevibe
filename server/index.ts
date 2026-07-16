@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { DemoRuntimeAdapter } from './demo-runner.js'
 import { ClaudeSdkRuntimeAdapter } from './claude-sdk-runner.js'
 import { CodexRuntimeAdapter } from './codex-runner.js'
+import { AgentCoreRuntimeAdapter } from './agentcore-runner.js'
 import { OneComputerClient } from './onecomputer-client.js'
 import { OneComputerSandboxRuntimeAdapter } from './onecomputer-sandbox-runner.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
@@ -30,6 +31,9 @@ const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
 const REMOTE_RUNTIME_URL = process.env.ONEVIBE_RUNTIME_URL
 const REMOTE_RUNTIME_TOKEN = process.env.ONEVIBE_RUNTIME_BEARER_TOKEN
+const AGENTCORE_RUNTIME_URL = process.env.AGENTCORE_RUNTIME_URL
+const AGENTCORE_RUNTIME_TOKEN = process.env.AGENTCORE_RUNTIME_BEARER_TOKEN
+const AGENTCORE_LITELLM_ROUTED = process.env.ONEVIBE_AGENTCORE_LITELLM_ROUTED === 'true'
 const ONECOMPUTER_API_URL = process.env.ONECOMPUTER_API_URL
 const ONECOMPUTER_SERVICE_TOKEN = process.env.ONECOMPUTER_SERVICE_TOKEN
 const ONECOMPUTER_PROJECT_ID = process.env.ONECOMPUTER_PROJECT_ID
@@ -72,6 +76,7 @@ const runtimeRegistry = new RuntimeRegistry({
     demo: () => new DemoRuntimeAdapter(),
     claude_sdk: () => new ClaudeSdkRuntimeAdapter(),
     codex: () => new CodexRuntimeAdapter(),
+    agentcore: () => new AgentCoreRuntimeAdapter(AGENTCORE_RUNTIME_URL as string, AGENTCORE_RUNTIME_TOKEN),
     remote: () => new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN),
     onecomputer: () => new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN!, projectId: ONECOMPUTER_PROJECT_ID }), {
       gatewayEnforced: ONECOMPUTER_GATEWAY_ENFORCED, retainSandbox: ONECOMPUTER_RETAIN_SANDBOX,
@@ -84,12 +89,13 @@ const runtimeSnapshot = async () => runtimeRegistry.snapshot(runtimeReadiness({
   claudeConfigured,
   claudeTransport: claudeProvider.transport,
   codexConfigured: claudeProvider.configured,
+  agentCoreConfigured: Boolean(AGENTCORE_RUNTIME_URL && AGENTCORE_LITELLM_ROUTED),
   remoteConfigured: Boolean(REMOTE_RUNTIME_URL),
   oneComputerConfigured,
   oneComputerReachable: await oneComputerReachability(),
 }).providers)
 
-const runtimeProviderInput = z.enum(['demo', 'claude_sdk', 'codex', 'onecomputer', 'remote'])
+const runtimeProviderInput = z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote'])
 
 const providerAvailability = async (provider: Task['provider']) => {
   const readiness = await runtimeSnapshot()
@@ -124,7 +130,7 @@ const taskSkill = z.enum(['research', 'web_build', 'slides', 'data_analysis', 'd
 const skillCatalog = () => skillPackCatalog()
 const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
-  provider: z.enum(['demo', 'claude_sdk', 'codex', 'onecomputer', 'remote']).optional(),
+  provider: z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote']).optional(),
   mode: z.enum(['chat', 'general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']).default('chat'),
   projectId: z.string().regex(/^project_[a-z0-9]+$/).default('project_onevibe'),
   references: z.array(referenceUrl).max(8).default([]),
@@ -135,7 +141,7 @@ const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), c
 const updateProjectInput = z.object({ context: z.string().trim().max(8_000) })
 const createScheduleInput = z.object({
   name: z.string().trim().min(2).max(100), prompt: z.string().trim().min(3).max(8_000),
-  provider: z.enum(['demo', 'claude_sdk', 'codex', 'onecomputer', 'remote']).default('demo'),
+  provider: z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote']).default('demo'),
   mode: z.enum(['chat', 'general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']).default('general'),
   projectId: z.string().regex(/^project_[a-z0-9]+$/), intervalMinutes: z.number().int().min(15).max(10_080),
 })
