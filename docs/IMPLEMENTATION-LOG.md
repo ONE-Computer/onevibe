@@ -655,3 +655,8 @@ baseline harness in CI.
 
 - Completed the remaining P5-11 audit slice: every semantic `<time>` element in the React surfaces has a machine-readable `dateTime`, all byte formatting uses the shared `readableBytes` helper, and generated image surfaces retain descriptive `alt` text.
 - Added focused unit coverage for byte formatting. The activity/file rail now exposes timestamps to assistive technology without changing its visual presentation.
+
+# 2026-07-17 — truthful demo skill status
+
+- Closed the remaining demo skill truthfulness gap. Server-owned selection evidence now distinguishes simulation (`not_executed_demo`) from provider-owned materialization (`adapter_owned`); demo turns no longer imply that selected packs were executed or written into the task workspace.
+- Added regression coverage for the event contract and confirmed the demo runner does not materialize `.claude/skills` files. This does not change the provider-backed Claude materialization path.

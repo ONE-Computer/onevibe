@@ -101,6 +101,8 @@ Acceptance criteria:
 - Skill selection remains task-scoped and does not imply permission expansion.
 - Add a regression test proving demo and provider skill evidence cannot be confused.
 
+Status: **Done**. The server-owned skill-selection event now labels demo skills as recorded but not executed (`materialization: not_executed_demo`), while provider-backed adapters use `adapter_owned`. Regression coverage confirms the demo runner does not materialize `.claude/skills` files; provider-owned materialization remains separately evidenced by the Claude adapter.
+
 ### `[BUG][TRUTHFULNESS][P1]` Add a release-blocking “hello” acceptance matrix
 
 Acceptance criteria:

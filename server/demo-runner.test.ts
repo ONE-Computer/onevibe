@@ -31,4 +31,20 @@ describe('DemoRuntimeAdapter', () => {
       expect(matching[0]?.payload.executionRoute).toBe('local_demo')
     }
   })
+
+  it('does not materialize or claim selected skills in simulation mode', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-demo-skills-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { DemoRuntimeAdapter } = await import('./demo-runner.js')
+    const { consumeRuntime } = await import('./runtime-adapter-test-helpers.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Say hello', 'demo', 'chat', 'project_onevibe', undefined, [], [], ['document'])
+
+    await consumeRuntime(new DemoRuntimeAdapter(), task, store)
+
+    const files = await store.listWorkspaceFiles(task.id)
+    expect(files.some((file) => file.path.includes('.claude/skills/'))).toBe(false)
+  })
 })

@@ -9,7 +9,8 @@ import { AgentCoreRuntimeAdapter } from './agentcore-runner.js'
 import { OneComputerClient } from './onecomputer-client.js'
 import { OneComputerSandboxRuntimeAdapter } from './onecomputer-sandbox-runner.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
-import { skillPackCatalog, skillPackManifestFor } from './skill-packs.js'
+import { skillPackCatalog } from './skill-packs.js'
+import { skillSelectionEventFor } from './skill-selection.js'
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
@@ -228,11 +229,9 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       type: 'activity_delta', lane: 'control', label: 'Project context attached',
       content: `Applied governed context from ${project.name}.`, payload: { projectId: project.id, projectName: project.name },
     })
-    if (task.skills.length) await store.appendEvent(task.id, {
-      type: 'activity_delta', lane: 'control', label: 'Versioned skill packs selected',
-      content: `${task.skills.length} immutable skill pack${task.skills.length === 1 ? '' : 's'} selected for this turn. The provider materializes only this pinned set; selection grants no new permission.`,
-      payload: { skills: skillPackManifestFor(task.skills), permissionChange: false, materialization: 'provider_turn_workspace' },
-    })
+    if (task.skills.length) {
+      await store.appendEvent(task.id, skillSelectionEventFor(task.provider, task.skills))
+    }
     if (projectKnowledge.length) await store.appendEvent(task.id, {
       type: 'artifact_created', lane: 'artifact', label: 'Project knowledge attached',
       content: `${projectKnowledge.length} reusable project file${projectKnowledge.length === 1 ? '' : 's'} attached as untrusted context.`,
