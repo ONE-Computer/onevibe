@@ -63,3 +63,22 @@ The first managed-renderer run produced all six required files and independently
 Task `task_8d95ae8dc37b4e` then completed the corrected sandbox deck gate through the server-controlled LiteLLM route. It extracted `deck.pptx` (105,879 bytes), `deck.pdf` (5,327 bytes), `outline.json`, `speaker-notes.md`, `index.html`, `README.md`, and a passing validation report; the timeline includes the managed-renderer receipt. Its retained sandbox was explicitly released after inspection.
 
 This is not yet the whole ONE-221 gate. The full harness intentionally failed on missing X11 evidence because live visual capture was disabled after Azure returned HTTP 404 for `POST /v1/sandboxes/:id/visual/start`. Same-conversation continuation, distinct second-conversation allocation, restart verification, and the visual route still require one combined passing run.
+
+### Combined POC gate passed
+
+The visual 404 was a deployment-history defect: the local integration branch contained the headless X11 commit, but the selectively curated Azure branch did not. After promoting that commit, the route became reachable and exposed a provider mismatch: Kasm already runs Xvnc on `:1` at 1024×768, while the generic helper required Xvfb and assumed 1440×900. The provider now reuses an existing display, detects its geometry, treats Chromium launch as optional, and captures ffmpeg frames at the observed dimensions. An authenticated probe returned a valid PNG and cleaned up its sandbox.
+
+The complete harness then passed:
+
+- primary task: `task_dda313c34b5a49`
+- separate task: `task_298413c5d5da4e`
+- primary/continuation sandbox: `onevibe-c34b5a49`
+- separate-conversation sandbox: `onevibe-c5d5da4e`
+- same conversation reused its sandbox and Claude session
+- separate conversation received a distinct sandbox
+- Slide PPTX/PDF and structured companion artifacts passed
+- LiteLLM routing and evidence-chain verification passed
+- 21 immutable visual frames were present on the continued task
+- both retained leases returned `released`
+
+Gateway attestation remained disabled, so this proves the development-provider POC contract rather than production microVM isolation. Two follow-up defects were observed: concurrent periodic/tool-adjacent ffmpeg captures sometimes fail, and task status can become `completed` before final visual/run bookkeeping is appended. Neither invalidated this harness, but both should be corrected before treating status as a strict synchronization barrier.
