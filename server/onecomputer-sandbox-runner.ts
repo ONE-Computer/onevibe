@@ -6,6 +6,7 @@ import { validateModeArtifacts } from './artifact-validation.js'
 import { skillPacksFor } from './skill-packs.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
+import { SANDBOX_SLIDE_RENDERER, sandboxSlideSeed } from './sandbox-slide-renderer.js'
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
@@ -143,7 +144,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     const sandboxNoProxyHost = sandboxBaseUrl ? new URL(sandboxBaseUrl).hostname : undefined
     const sandboxAuthToken = process.env.ONEVIBE_SANDBOX_LITELLM_AUTH_TOKEN?.trim()
     const sandboxApiKey = sandboxAuthToken ? 'placeholder' : configuredClaude.childEnv.ANTHROPIC_API_KEY
-    const claudeTransport = configuredClaude.configured ? configuredClaude.transport : 'sandbox_preconfigured'
+    const claudeTransport = sandboxBaseUrl ? 'litellm' : configuredClaude.configured ? configuredClaude.transport : 'sandbox_preconfigured'
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'ONEComputer sandbox execution started',
@@ -297,6 +298,8 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const encodedPrompt = Buffer.from(agentPrompt).toString('base64')
       const workspace = `/tmp/onevibe/${task.id}`
       const allowedTools = governedClaudeTools(browserAutomationEnabled, task.mode === 'slides')
+      const slideSeed = task.mode === 'slides' ? Buffer.from(`${JSON.stringify(sandboxSlideSeed(task.title, prompt), null, 2)}\n`).toString('base64') : undefined
+      const slideRenderer = task.mode === 'slides' ? Buffer.from(SANDBOX_SLIDE_RENDERER).toString('base64') : undefined
       const command = [
         'set -eu',
         'export PATH=/opt/node22/bin:/home/kasm-user/.npm-global/bin:$PATH',
@@ -315,6 +318,10 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
           `mkdir -p ${shellQuote(`.claude/skills/${skill.id}`)}`,
           `printf %s ${shellQuote(Buffer.from(skill.content).toString('base64'))} | base64 -d > ${shellQuote(`.claude/skills/${skill.id}/SKILL.md`)}`,
         ]),
+        ...(slideSeed && slideRenderer ? [
+          `printf %s ${shellQuote(slideSeed)} | base64 -d > outline.json`,
+          `printf %s ${shellQuote(slideRenderer)} | base64 -d > .onevibe-render-deck.cjs`,
+        ] : []),
         `printf %s ${shellQuote(encodedPrompt)} | base64 -d > .onevibe-prompt`,
         'rm -f .onevibe-events.jsonl .onevibe-exitcode .onevibe-pid',
         '(',
@@ -409,6 +416,15 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       await visualLoop
       await captureVisualFrame('after_agent', agentExecution.id)
       if (agentExitCode !== 0) throw new Error(`Sandbox Claude process exited ${agentExitCode}`)
+      if (task.mode === 'slides') {
+        const rendered = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && NODE_PATH=/home/kasm-user/.npm-global/lib/node_modules node .onevibe-render-deck.cjs`, signal)
+        if (rendered.exitCode !== 0) throw new Error(`Sandbox slide renderer failed: ${rendered.output.slice(-1_000)}`)
+        await store.appendEvent(task.id, {
+          type: 'tool_call_completed', lane: 'activity', label: 'Sandbox deck rendered',
+          content: 'The server-controlled renderer produced and signature-checked the PPTX/PDF inside the retained ONEComputer sandbox.',
+          payload: { executionRoute: 'onecomputer_sandbox', sandboxId: sandbox.id, renderer: 'onevibe_managed_v1' },
+        })
+      }
       const parsedJournal = latestJournal
       if (parsedJournal.result && !parsedJournal.entries.some((entry) => entry.kind === 'text' && entry.content === parsedJournal.result)) await store.appendEvent(task.id, {
         type: 'assistant_text_delta', lane: 'transcript', content: parsedJournal.result,
@@ -421,7 +437,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
           runtimeSessionLeaseId: acquired.lease.id, runtimeSessionLeaseGeneration: acquired.lease.generation,
         } })
       }
-      const listing = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && find . -type f ! -name '.onevibe-events.jsonl' ! -name '.onevibe-plan.json' -print0 | base64 -w0`, signal)
+      const listing = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && find . -type f ! -name '.onevibe-events.jsonl' ! -name '.onevibe-plan.json' ! -name '.onevibe-render-deck.cjs' -print0 | base64 -w0`, signal)
       if (listing.exitCode !== 0) throw new Error('Unable to enumerate sandbox artifacts')
       const paths = Buffer.from(listing.output.trim(), 'base64').toString('utf8').split('\0').filter(Boolean).map((item) => item.replace(/^\.\//, ''))
       if (paths.length > 100) throw new Error('Sandbox produced more than the 100-file extraction limit')

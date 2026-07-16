@@ -112,6 +112,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.some((command) => command.includes('export PATH=/opt/node22/bin:/home/kasm-user/.npm-global/bin:$PATH'))).toBe(true)
     expect(commands.some((command) => command.includes('export NODE_PATH=/home/kasm-user/.npm-global/lib/node_modules'))).toBe(true)
     expect(commands.some((command) => command.includes('--tools'))).toBe(true)
+    expect(commands.some((command) => command.includes('.onevibe-render-deck.cjs'))).toBe(true)
     const launchCommand = commands.find((command) => command.includes('claude --print'))!
     expect(launchCommand).toContain('< .onevibe-prompt > .onevibe-events.jsonl')
     expect(launchCommand.indexOf('claude --print')).toBeLessThan(launchCommand.indexOf('rm -f .onevibe-prompt'))
