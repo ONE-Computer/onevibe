@@ -1,7 +1,7 @@
 # ONEVibe — Agent Handover Document
 
-> **Date**: 2026-07-16
-> **Status**: Roadmap and local backend foundation are implemented through the RuntimeRegistry/routing phase, with governed MCP declarations, truthful demo skill status, and a feature-gated Better Auth foundation added. LiteLLM-only enforcement, canonical runtime lifecycle, bounded startup health, mode-aware selection, and explicit user-selected fallback are in the current branch. Authenticated owner scoping, Postgres migration, deployment, and production attestation remain open.
+> **Date**: 2026-07-17
+> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, truthful demo skill status, feature-gated Better Auth, authenticated owner scoping, and a reviewed Drizzle/Postgres import proof are present. LiteLLM-only enforcement remains mandatory. The running application is still SQLite-backed; production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, and the final active-task Query mutation boundary remain open.
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
@@ -32,12 +32,12 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | Component | File(s) | State |
 |---|---|---|
 | React SPA | `src/` | Real — Vite, React 19, `@assistant-ui/react`, framer-motion |
-| API server | `server/index.ts` (745 lines) | Real — hand-rolled Node HTTP, port 4311 |
+| API server | `server/index.ts` (884 lines) | Real — hand-rolled Node HTTP, port 4311 |
 | RuntimeAdapter interface | `server/runtime-adapter.ts` | Real — the correct abstraction |
 | Claude SDK adapter | `server/claude-sdk-runner.ts` (373 lines) | Real — wraps `@anthropic-ai/claude-agent-sdk` |
 | ONEComputer adapter | `server/onecomputer-sandbox-runner.ts` (830 lines) | Real — wraps ONEComputer cloud sandbox |
 | Demo adapter | `server/demo-runner.ts` (172 lines) | Fake — scripted responses, zero model calls |
-| Task store | `server/store.ts` + `server/persistence/` | Real — local SQLite via `better-sqlite3`; Postgres/Drizzle schema contract generated, adapter still open |
+| Task store | `server/store.ts` + `server/persistence/` | Real — local SQLite via `better-sqlite3`; Postgres/Drizzle schema, owner-aware importer, and disposable migration/restart proof exist, but the running repository adapter is still open |
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
@@ -47,11 +47,12 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 ### What is critically broken
 
 1. **No governed runtime configured** — the local fallback is explicitly labelled Simulation and makes no model call; when the protected LiteLLM route is configured, the registry selects a compatible governed runtime instead
-2. **Auth is feature-gated** — Better Auth Email OTP, session middleware, login UI, and local user ownership are implemented, but production enablement remains blocked on Postgres/org scope and full route acceptance
-3. **No Postgres/multi-user persistence yet** — local user scoping is proven, and a Drizzle/Postgres schema/migration contract exists; the repository adapter, legacy import, and Postgres runtime proof remain Phase 4 work
+2. **Auth is feature-gated** — Better Auth Email OTP, session middleware, login UI, and local user ownership are implemented, but production enablement remains blocked on Postgres/org scope, real delivery, and full route acceptance
+3. **The running app is not Postgres-backed** — local user scoping is proven, and the Drizzle schema/import/restart proof exists; the TaskStore repository adapter, idempotent application-level proof, and `DATABASE_URL` runtime switch remain Phase 4 work
 4. **No managed deploy path** — a non-root Docker image and local Compose smoke path now exist, but Railway/Fly configuration, secrets, auth, and production operations remain open
 5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
-6. **Remaining UX dead-ends** — dead controls, swallowed errors, and extension gaps remain in `plan/00-gap-analysis.md`
+6. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; remaining active-task mutations must not create a second client authority
+7. **Remaining extension/release gaps** — skill marketplace execution, MCP capability facade, dependency advisory resolution, and browser evidence remain open in `TODO.md`
 
 ### How to run it locally
 
@@ -200,7 +201,7 @@ Full task list: `TODO.md`. Summary:
 - Multi-tenancy: orgs + projects (`P4-06`)
 
 ### Phase 5 — Professional UI
-**13 tasks. Target: no dead controls, no hardcoded strings, Zustand + TanStack Query.**
+**13 tasks. Target: no dead controls, no hardcoded strings, explicit Zustand UI state, and TanStack Query for server-backed collections without duplicating the durable SSE projection.**
 (See `plan/05-ui-overhaul.md` for details)
 
 ### Phase 6 — MCP + extensions
@@ -215,23 +216,23 @@ Full task list: `TODO.md`. Summary:
 
 | File | What it does |
 |---|---|
-| `src/App.tsx` | Root component. 17 useState calls — needs Zustand migration (P5-01). Contains all navigation, task creation, snapshot subscription |
-| `src/hooks/useTask.ts` | SSE streaming hook. Has the event-drop bug (P1-02) and hammer-reconnect bug (P1-03) |
-| `src/lib/api.ts` | All HTTP calls to the server. `parse()` at line 32 needs typed `ApiError` (P1-07) |
-| `src/types.ts` | Shared TypeScript types. `Task['provider']` union needs widening; `RuntimeProviderState` needs `capabilities` field (P2-04) |
+| `src/App.tsx` | Root component. Zustand owns UI/composer/session state; TanStack Query owns ordinary server collections; `useTask` remains the active durable SSE snapshot boundary |
+| `src/hooks/useTask.ts` | SSE streaming hook. Buffers pre-snapshot events, reconnects with bounded backoff, and preserves replay IDs; do not move the append-only stream into generic Query state |
+| `src/lib/api.ts` | All HTTP calls to the server, with typed `ApiError` status/code handling and explicit response parsing |
+| `src/types.ts` | Shared TypeScript types, including provider-neutral runtime capabilities and durable task/event contracts |
 | `src/components/PromptComposer.tsx` | Composer and durable guidance handoff; running turns queue follow-ups through the server (P2-07 complete) |
 | `src/components/AssistantThread.tsx` | Conversation rendering via `@assistant-ui/react`; running state, bounded trace, tool groups, artifacts, and explicit message branching are wired to durable task data |
-| `src/components/Workspace.tsx` | Right-panel workspace. 287 lines. Has forever-spinner, broken image, UUID display bugs |
-| `src/components/Sidebar.tsx` | Left sidebar. Has hardcoded `"Terence"`, dead `<Settings2>` icons, hardcoded `8` badge |
+| `src/components/Workspace.tsx` | Right-panel workspace and evidence inspector, including capability-aware file/preview surfaces and mobile handoff |
+| `src/components/Sidebar.tsx` | Left navigation backed by Query conversation/task data, live skill count, search, and project context |
 
 ### Backend (`server/`)
 
 | File | What it does |
 |---|---|
 | `server/runtime-adapter.ts` | **The most important file.** The interface all harnesses implement |
-| `server/index.ts` | Main HTTP server (745 lines). Registers all routes. Does not serve `dist/` (P1-06) |
-| `server/claude-sdk-runner.ts` | Claude Agent SDK adapter (373 lines). Real, working |
-| `server/onecomputer-sandbox-runner.ts` | ONEComputer adapter (830 lines). Real, working when credentials set |
+| `server/index.ts` | Main HTTP server (884 lines). Registers API routes and serves the production `dist/` fallback for non-API paths |
+| `server/claude-sdk-runner.ts` | Claude Agent SDK adapter (395 lines). Real when the protected LiteLLM relay is configured; fails closed without it |
+| `server/onecomputer-sandbox-runner.ts` | ONEComputer adapter (845 lines). Development-provider path only; it must not be described as production microVM evidence |
 | `server/demo-runner.ts` | Fake demo adapter (172 lines). Zero model calls |
 | `server/store.ts` | Task persistence (1255 lines). SQLite via `better-sqlite3`. Needs Postgres migration (P4-02) |
 | `server/runtime-readiness.ts` | Reports which providers are available. Needs `capabilities` field (P2-04) |
@@ -271,10 +272,7 @@ ONECOMPUTER_PROJECT_ID=proj_...
 # explicitly declare LiteLLM routing. Raw OpenAI, Anthropic, AWS, or Bedrock
 # credentials are not valid substitutes for this boundary.
 
-# To add (Phase 3): runtime default
-ONEVIBE_DEFAULT_PROVIDER=claude_sdk
-
-# To add (Phase 4): auth + database + sandbox
+# Phase 4: auth + database + sandbox (not all enabled in the local default)
 BETTER_AUTH_SECRET=
 RESEND_API_KEY=
 DATABASE_URL=postgres://...
