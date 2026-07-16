@@ -19,15 +19,6 @@ const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: ty
   { id: 'game', label: 'Game', detail: 'Playable web experience', icon: Gamepad2 },
 ]
 
-const rotatingHomePlaceholders = [
-  'Draft a customer briefing on our security posture…',
-  'Research the latest agent-runtime landscape and cite sources…',
-  'Build a five-slide investor update with speaker notes…',
-  'Prototype an internal ops dashboard with sample data…',
-  'Turn these notes into a shareable Markdown brief…',
-  'Investigate why our latency doubled last week…',
-]
-
 export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], runtime, onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
@@ -39,15 +30,8 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
   const [modePickerOpen, setModePickerOpen] = useState(false)
   const [providerPickerOpen, setProviderPickerOpen] = useState(false)
   const [attachments, setAttachments] = useState<DraftAttachment[]>([])
-  const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const fileInput = useRef<HTMLInputElement>(null)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
-
-  useEffect(() => {
-    if (compact || prompt) return
-    const id = window.setInterval(() => setPlaceholderIndex((current) => (current + 1) % rotatingHomePlaceholders.length), 4200)
-    return () => window.clearInterval(id)
-  }, [compact, prompt])
 
   useEffect(() => {
     if (compact) return
@@ -92,12 +76,11 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
         ref={textAreaRef}
         value={prompt}
         onChange={(event) => setPrompt(event.target.value)}
-        placeholder={compact ? (queueable ? 'Guide the next turn — this will queue safely…' : 'Ask ONEVibe to refine or continue…') : rotatingHomePlaceholders[placeholderIndex]}
+        placeholder={compact ? (queueable ? 'Guide the next turn — this will queue safely…' : 'Reply to ONEVibe…') : 'How can I help you today?'}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() }
         }}
       />
-      {!compact && !prompt && <div className="composer-hint" aria-hidden="true">Press <kbd>⌘</kbd><kbd>K</kbd> to focus · <kbd>↵</kbd> to send · <kbd>⇧↵</kbd> for newline</div>}
       <div className="composer-actions">
         <div className="composer-left">
           {!compact && <button className="composer-icon-action" title="Attach files" aria-label="Attach files" onClick={() => fileInput.current?.click()}><Paperclip size={14} /> Attach</button>}

@@ -666,3 +666,75 @@ button.model-selector *{color:inherit}
 .new-task{background:var(--surface-panel)!important;color:var(--text-primary)!important;border:1px solid var(--border-default)!important;box-shadow:none!important;font-weight:500!important}
 .new-task kbd{background:var(--surface-hover)!important;color:var(--text-muted)!important}
 .avatar{background:var(--surface-hover)!important;border:1px solid var(--border-default)!important}
+
+/* ================================================================
+   PHASE 12 — CLAUDE-STYLE WELCOME + COMPOSER
+   ================================================================ */
+.home-view{padding:80px 24px 40px;justify-content:flex-start}
+.home-content{width:min(720px,100%);text-align:center}
+.home-hero{margin-bottom:32px}
+.home-hero-heading{
+  font-size:clamp(28px,3.4vw,36px)!important;
+  font-weight:500!important;
+  color:var(--text-primary)!important;
+  letter-spacing:-.02em!important;
+  line-height:1.2!important;
+  margin:0!important;
+  background:none!important;-webkit-background-clip:initial!important;-webkit-text-fill-color:initial!important;
+}
+
+/* Composer — Claude calm: one hairline, soft radius, no glow */
+.composer{
+  border:1px solid var(--border-default)!important;
+  border-radius:16px!important;
+  padding:16px 18px 12px!important;
+  background:var(--surface-panel)!important;
+  box-shadow:0 1px 2px rgba(0,0,0,.02)!important;
+}
+.composer:focus-within{
+  border-color:var(--border-strong)!important;
+  box-shadow:0 1px 2px rgba(0,0,0,.03)!important;
+}
+.composer textarea{
+  min-height:64px!important;font-size:15px!important;line-height:1.55!important;
+}
+.composer textarea::placeholder{font-size:15px!important;color:var(--text-muted)!important}
+
+.send-button{
+  width:32px!important;height:32px!important;
+  background:var(--text-primary)!important;color:var(--surface-panel)!important;
+  border-radius:8px!important;
+}
+.send-button:disabled{background:var(--border-default)!important;color:var(--text-faint)!important}
+
+/* Composer chips — inline, quiet */
+.composer-icon-action,.mode-button{
+  height:30px!important;padding:0 10px!important;
+  border:1px solid var(--border-subtle)!important;border-radius:8px!important;
+  background:transparent!important;color:var(--text-secondary)!important;
+  font-size:12px!important;font-weight:400!important;
+}
+.composer-icon-action:hover,.mode-button:hover{
+  background:var(--surface-hover)!important;color:var(--text-primary)!important;
+  border-color:var(--border-default)!important;
+}
+.composer-icon-action svg,.mode-button svg{color:var(--text-muted)!important}
+.composer-icon-action:hover svg,.mode-button:hover svg{color:var(--text-secondary)!important}
+
+/* Starter prompts — subtle, one row, ghost look */
+.starter-prompts{gap:8px!important;margin-top:20px!important;flex-wrap:wrap}
+.starter-prompts button{
+  padding:8px 14px!important;font-size:13px!important;
+  border:1px solid var(--border-subtle)!important;
+  background:transparent!important;color:var(--text-secondary)!important;
+  border-radius:100px!important;font-weight:400!important;
+  backdrop-filter:none!important;
+}
+.starter-prompts button:hover{
+  background:var(--surface-hover)!important;color:var(--text-primary)!important;
+  border-color:var(--border-default)!important;
+}
+.starter-prompts button span{color:var(--text-muted)!important}
+
+/* Kill any lingering references to old home-hero recent grids */
+.home-hero-recent,.home-hero-recent-block,.home-hero-recent-grid,.home-hero-recent-artifacts,.home-hero-card,.home-hero-artifact,.home-hero-status{display:none!important}
