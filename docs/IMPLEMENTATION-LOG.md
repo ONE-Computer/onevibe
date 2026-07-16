@@ -708,3 +708,11 @@ baseline harness in CI.
 - Added `resolvePersistenceConfig` before `TaskStore` startup. SQLite remains the only active application driver; explicit Postgres selection or any `DATABASE_URL` that would otherwise be ignored now refuses startup with a non-secret diagnostic.
 - Added focused coverage for default SQLite selection, explicit SQLite selection, invalid drivers, explicit Postgres selection, and mixed `DATABASE_URL`/SQLite configuration. This closes the silent-mixed-driver risk without pretending that the Postgres repository adapter exists.
 - Updated `.env.example`, the Phase 4 TODO, and diagnostics to make the active driver boundary explicit. `npm run check` passed with 47 test files / 240 tests, lint, production build, and E2E harness typecheck; `npm run db:check` passed. Commit: `d8e5994`.
+
+# 2026-07-17 — governed skill marketplace boundary
+
+- Added SQLite migration v8 and a repository for owner-scoped marketplace installations. Verified catalog metadata and `SKILL.md` content are stored with version, source URLs, and SHA-256 provenance; the Postgres schema/import contracts include the same installation record.
+- Added a GitHub-only catalog/content loader with bounded 256 KiB reads, HTTPS/provenance checks, exact digest verification, frontmatter identity checks, five-minute catalog caching, and built-in fallback when discovery is unavailable. Production catalog defaults to the ONEVibe repository's `skills/catalog.json`.
+- Added `GET /api/skills`, `POST /api/skills/install`, and `DELETE /api/skills/:id`. Marketplace entries are not selectable until installed; removal is rejected while a pending/running/waiting task depends on the skill. Provider adapters resolve installed content at materialization time; demo mode records `not_executed_demo` and writes no skill files.
+- Added Skills Library install/remove controls, the first `meeting-brief` catalog/content pair, focused marketplace/store tests, and `npm run e2e:skill-marketplace`. The E2E uses a loopback GitHub-shaped fixture and proves install, task selection, truthful demo evidence, and removal; it does not claim external GitHub reachability or protected Claude execution.
+- Verification: `npm run check` passed with 49 test files / 245 tests, `npm run db:check` passed, and the marketplace E2E passed. The protected provider materialization gate remains open.

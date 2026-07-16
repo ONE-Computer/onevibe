@@ -5,6 +5,10 @@
 > **Tasks**: P5-01 through P5-04 in `TODO.md`
 > **Prerequisite**: Phases 1–4 complete.
 
+## Current implementation boundary — 2026-07-17
+
+The local MCP declaration slice is implemented in `server/store.ts` and the local SQLite v6/v7 migrations. The skill marketplace is now implemented through owner-scoped SQLite v8 installations, a GitHub-only catalog/content loader, digest/frontmatter verification, `/api/skills/install` and `/api/skills/:id` routes, Skills Library controls, and provider/demo materialization boundaries. The original design below is a target reference and still overstates capabilities that are intentionally not present: MCP environment secrets, MCP health/tool enumeration, and the two-tool facade remain open. The marketplace remains open for protected Claude/LiteLLM materialization and external GitHub reachability evidence.
+
 ---
 
 ## Study First

@@ -18,7 +18,7 @@ const parseOptions = (argv: string[]): ImportOptions => {
   return { dataRoot: path.resolve(dataRoot), ownerUserId, dryRun: argv.includes('--dry-run') }
 }
 
-const ownerFor = (record: { ownerUserId?: string }, options: ImportOptions, kind: string, id: string) => {
+const ownerFor = (record: { ownerUserId?: string | null }, options: ImportOptions, kind: string, id: string) => {
   if (record.ownerUserId && options.ownerUserId && record.ownerUserId !== options.ownerUserId) throw new Error(`${kind} ${id} belongs to ${record.ownerUserId}, not the requested import owner`)
   const owner = record.ownerUserId ?? options.ownerUserId
   if (!owner) throw new Error(`${kind} ${id} has no owner; pass --owner-user-id only after confirming the legacy data belongs to that user`)
@@ -36,13 +36,15 @@ const run = async () => {
   const tasks = store.listTasks()
   const schedules = store.listSchedules()
   const mcpConfigs = store.listMcpConfigs()
+  const skillInstallations = store.listSkillInstallationRecords()
   const owners = new Set<string>()
   const projectRows = projects.map((project: Project) => { const ownerUserId = ownerFor(project, options, 'Project', project.id); owners.add(ownerUserId); return { project, ownerUserId } })
   const taskRows = tasks.map((task: Task) => { const ownerUserId = ownerFor(task, options, 'Task', task.id); owners.add(ownerUserId); return { task, ownerUserId } })
   const scheduleRows = schedules.map((schedule: TaskSchedule) => { const ownerUserId = ownerFor(schedule, options, 'Schedule', schedule.id); owners.add(ownerUserId); return { schedule, ownerUserId } })
   const mcpRows = mcpConfigs.map((config) => { const ownerUserId = ownerFor(config, options, 'MCP config', config.id); owners.add(ownerUserId); return { config, ownerUserId } })
+  const skillRows = skillInstallations.map((skill) => { const ownerUserId = ownerFor(skill, options, 'Skill installation', skill.id); owners.add(ownerUserId); return { skill, ownerUserId } })
 
-  const counts = { projects: projectRows.length, tasks: taskRows.length, schedules: scheduleRows.length, mcpConfigs: mcpRows.length, messages: 0, events: 0, nativeEvents: 0, versions: 0 }
+  const counts = { projects: projectRows.length, tasks: taskRows.length, schedules: scheduleRows.length, mcpConfigs: mcpRows.length, skillInstallations: skillRows.length, messages: 0, events: 0, nativeEvents: 0, versions: 0 }
   for (const { task } of taskRows) {
     counts.messages += store.listMessages(task.id, { limit: 200 }).messages.length
     counts.events += store.listEvents(task.id).length
@@ -79,6 +81,11 @@ const run = async () => {
       }))).onConflictDoNothing()
       if (mcpRows.length) await tx.insert(schema.runtimeMcpConfig).values(mcpRows.map(({ config, ownerUserId: owner }) => ({
         id: config.id, ownerUserId: owner, name: config.name, command: config.command, argsJson: config.args, createdAt: new Date(config.createdAt), updatedAt: new Date(config.updatedAt),
+      }))).onConflictDoNothing()
+      if (skillRows.length) await tx.insert(schema.skillInstallation).values(skillRows.map(({ skill, ownerUserId: owner }) => ({
+        id: skill.id, ownerScope: owner, ownerUserId: owner, version: skill.version, title: skill.title, summary: skill.summary,
+        sha256: skill.sha256, content: skill.content, contentUrl: skill.contentUrl, sourceUrl: skill.sourceUrl,
+        createdAt: new Date(skill.createdAt), updatedAt: new Date(skill.updatedAt),
       }))).onConflictDoNothing()
 
       for (const { task } of taskRows) {

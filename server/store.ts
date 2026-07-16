@@ -4,9 +4,9 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promi
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
-import type { ChatMessage, ConversationSummary, EventInput, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
+import type { ChatMessage, ConversationSummary, EventInput, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
-import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type UnitOfWork } from './persistence/index.js'
+import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
 import { isInternalWorkspacePath } from './artifact-path.js'
 import type { McpConfig } from './runtime-adapter.js'
 
@@ -344,6 +344,30 @@ export class TaskStore {
 
   runtimeMcpConfigs(ownerUserId?: string): McpConfig[] {
     return this.listMcpConfigs(ownerUserId).map((config) => ({ ...config, env: {} }))
+  }
+
+  listSkillInstallationRecords(ownerUserId?: string): SkillInstallationRecord[] {
+    return this.requireUnitOfWork().run((repositories) => repositories.skillInstallations.list(ownerUserId))
+  }
+
+  listSkillInstallations(ownerUserId?: string): SkillInstallation[] {
+    return this.listSkillInstallationRecords(ownerUserId).map(({ id, version, title, summary, sha256, contentUrl }) => ({
+      id, version, title, summary, sha256, contentUrl, source: 'marketplace' as const, installed: true,
+    }))
+  }
+
+  installSkillInstallation(input: Omit<SkillInstallationRecord, 'ownerUserId' | 'createdAt' | 'updatedAt'>, ownerUserId?: string): SkillInstallation {
+    const now = new Date().toISOString()
+    const record: SkillInstallationRecord = { ...input, ownerUserId: ownerUserId ?? null, createdAt: now, updatedAt: now }
+    this.requireUnitOfWork().run((repositories) => repositories.skillInstallations.insert(record))
+    return { id: record.id, version: record.version, title: record.title, summary: record.summary, sha256: record.sha256, contentUrl: record.contentUrl, source: 'marketplace', installed: true }
+  }
+
+  removeSkillInstallation(id: string, ownerUserId?: string): boolean {
+    if (this.listTasks(ownerUserId).some((task) => ['pending', 'running', 'waiting_for_approval', 'waiting_for_user_input'].includes(task.status) && task.skills.includes(id))) {
+      throw new Error('Skill cannot be removed while an active task depends on it')
+    }
+    return this.requireUnitOfWork().run((repositories) => repositories.skillInstallations.delete(id, ownerUserId))
   }
 
   async listLibrary(ownerUserId?: string) {

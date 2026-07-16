@@ -9,8 +9,9 @@ import { AgentCoreRuntimeAdapter } from './agentcore-runner.js'
 import { OneComputerClient } from './onecomputer-client.js'
 import { OneComputerSandboxRuntimeAdapter } from './onecomputer-sandbox-runner.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
-import { skillPackCatalog } from './skill-packs.js'
+import { builtInSkillIds, skillPackCatalog } from './skill-packs.js'
 import { skillSelectionEventFor } from './skill-selection.js'
+import { fetchMarketplaceSkill, loadMarketplaceCatalog, publicMarketplaceEntry } from './skill-marketplace.js'
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
@@ -140,8 +141,17 @@ const referenceUrl = z.string().url().max(2_048).refine((value) => {
 }, 'References must be ordinary HTTP(S) URLs without embedded credentials or secret query parameters')
 const taskAttachment = z.object({ name: z.string().min(1).max(160), mimeType: z.string().max(160).default('application/octet-stream'), dataBase64: z.string().min(1).max(350_000) })
 const projectAttachment = z.object({ name: z.string().min(1).max(160), mimeType: z.string().max(160).default('application/octet-stream'), dataBase64: z.string().min(1).max(350_000) })
-const taskSkill = z.enum(['research', 'web_build', 'slides', 'data_analysis', 'document', 'product_design', 'security_review', 'browser_testing'])
-const skillCatalog = () => skillPackCatalog()
+const taskSkill = z.string().regex(/^[a-z][a-z0-9-]{1,63}$/)
+const builtInSkillIdSet = new Set<string>(builtInSkillIds)
+const skillCatalog = async (ownerUserId?: string) => {
+  const builtins = skillPackCatalog().map((skill) => ({ ...skill, source: 'builtin' as const, installed: true }))
+  const installed = store.listSkillInstallations(ownerUserId)
+  const installedById = new Map(installed.map((skill) => [skill.id, skill]))
+  const marketplace = await loadMarketplaceCatalog()
+  const entries = marketplace.map((entry) => publicMarketplaceEntry(entry, installedById.has(entry.id)))
+  const remoteIds = new Set(entries.map((entry) => entry.id))
+  return [...builtins, ...entries, ...installed.filter((skill) => !remoteIds.has(skill.id))]
+}
 const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote']).optional(),
@@ -232,7 +242,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       content: `Applied governed context from ${project.name}.`, payload: { projectId: project.id, projectName: project.name },
     })
     if (task.skills.length) {
-      await store.appendEvent(task.id, skillSelectionEventFor(task.provider, task.skills))
+      await store.appendEvent(task.id, skillSelectionEventFor(task.provider, task.skills, store.listSkillInstallationRecords(task.ownerUserId)))
     }
     if (projectKnowledge.length) await store.appendEvent(task.id, {
       type: 'artifact_created', lane: 'artifact', label: 'Project knowledge attached',
@@ -360,7 +370,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       authEnabled: Boolean(authService?.isEnabled),
     })
   }
-  const publicReadOnly = url.pathname === '/api/runtime' || url.pathname === '/api/skills' || url.pathname.startsWith('/api/shares/')
+  const publicReadOnly = request.method === 'GET' && (url.pathname === '/api/runtime' || url.pathname.startsWith('/api/shares/'))
   const actorUserId = authService?.isEnabled && !publicReadOnly ? (await authService.getSession(request))?.user.id : undefined
   if (authService?.isEnabled && !publicReadOnly && !actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
   if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, await runtimeSnapshot())
@@ -392,7 +402,22 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     await store.reconcileExpiredApprovals(actorUserId)
     return json(response, 200, { tasks: store.listTasks(actorUserId) })
   }
-  if (request.method === 'GET' && url.pathname === '/api/skills') return json(response, 200, { skills: skillCatalog() })
+  if (request.method === 'GET' && url.pathname === '/api/skills') return json(response, 200, { skills: await skillCatalog(actorUserId) })
+  if (request.method === 'POST' && url.pathname === '/api/skills/install') {
+    const input = z.object({ skillId: taskSkill }).parse(await readBody(request))
+    if (builtInSkillIdSet.has(input.skillId)) return json(response, 409, { error: 'Built-in skills do not require installation' })
+    const entry = (await loadMarketplaceCatalog()).find((candidate) => candidate.id === input.skillId)
+    if (!entry) return json(response, 404, { error: 'Marketplace skill not found in the configured GitHub catalog' })
+    const content = await fetchMarketplaceSkill(entry)
+    return json(response, 201, store.installSkillInstallation({
+      id: entry.id, version: entry.version, title: entry.title, summary: entry.summary, sha256: entry.sha256,
+      content, contentUrl: entry.contentUrl, sourceUrl: entry.sourceUrl,
+    }, actorUserId))
+  }
+  if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'skills' && segments[2] && segments.length === 3) {
+    if (!store.removeSkillInstallation(segments[2], actorUserId)) return json(response, 404, { error: 'Installed marketplace skill not found' })
+    return json(response, 200, { id: segments[2], deleted: true })
+  }
   if (request.method === 'GET' && url.pathname === '/api/mcp') return json(response, 200, { configs: store.listMcpConfigs(actorUserId) })
   if (request.method === 'POST' && url.pathname === '/api/mcp') {
     const input = mcpConfigInput.parse(await readBody(request))
@@ -518,6 +543,10 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const provider = input.provider ?? runtimeRegistry.defaultProvider(input.mode, readiness.providers)
     const providerState = readiness.providers.find((candidate) => candidate.id === provider)
     if (!providerState?.available) return json(response, 409, { error: `${providerState?.label ?? provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}` })
+    const requestedSkills = [...new Set(input.skills)]
+    const installedSkillIds = new Set(store.listSkillInstallations(actorUserId).map((skill) => skill.id))
+    const unavailableSkill = requestedSkills.find((skill) => !builtInSkillIdSet.has(skill) && !installedSkillIds.has(skill))
+    if (unavailableSkill) return json(response, 400, { error: `Skill '${unavailableSkill}' is not installed in this workspace` })
     const normalizedAttachments = input.attachments.map((attachment) => {
       const name = path.basename(attachment.name).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
       if (!name || name === '.' || name === '..') throw new RangeError('Invalid attachment filename')
@@ -528,7 +557,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const totalAttachmentBytes = normalizedAttachments.reduce((total, attachment) => total + attachment.bytes.byteLength, 0)
     if (totalAttachmentBytes > 1_000_000) throw new RangeError('Task attachments exceed the 1 MiB total limit')
     const attachments = normalizedAttachments.map((attachment, index) => ({ name: attachment.name, path: `inputs/${String(index + 1).padStart(2, '0')}-${attachment.name}`, size: attachment.bytes.byteLength, mimeType: attachment.mimeType }))
-    const task = await store.createTask(input.prompt, provider, input.mode, projectId, undefined, input.references, attachments, [...new Set(input.skills)], actorUserId)
+    const task = await store.createTask(input.prompt, provider, input.mode, projectId, undefined, input.references, attachments, requestedSkills, actorUserId)
     await Promise.all(attachments.map((attachment, index) => store.writeWorkspaceBytes(task.id, attachment.path, normalizedAttachments[index]!.bytes)))
     setTimeout(() => executeTask(task.id, input.prompt, false), 25)
     return json(response, 201, task)

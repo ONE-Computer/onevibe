@@ -1,0 +1,13 @@
+{
+  "skills": [
+    {
+      "id": "meeting-brief",
+      "version": 1,
+      "title": "Meeting brief",
+      "summary": "Turn approved context into a concise, evidence-aware brief",
+      "sha256": "30b63f218b0961b965a7cfbccc022f7a3757b513923b01599529dd16e9f807c4",
+      "contentUrl": "https://raw.githubusercontent.com/ONE-Computer/onevibe/main/skills/meeting-brief/SKILL.md",
+      "sourceUrl": "https://github.com/ONE-Computer/onevibe/blob/main/skills/meeting-brief/SKILL.md"
+    }
+  ]
+}

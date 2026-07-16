@@ -238,6 +238,21 @@ export const runtimeMcpConfig = pgTable('runtime_mcp_config', {
   updatedAt: updatedAt(),
 }, (table) => [uniqueIndex('runtime_mcp_owner_name_idx').on(table.ownerUserId, table.name), index('runtime_mcp_owner_updated_idx').on(table.ownerUserId, table.updatedAt)])
 
+export const skillInstallation = pgTable('skill_installations', {
+  id: text('id').notNull(),
+  ownerScope: text('owner_scope').notNull(),
+  ownerUserId: text('owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  sha256: text('sha256').notNull(),
+  content: text('content').notNull(),
+  contentUrl: text('content_url').notNull(),
+  sourceUrl: text('source_url').notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [primaryKey({ columns: [table.ownerScope, table.id] }), index('skill_installations_owner_updated_idx').on(table.ownerScope, table.updatedAt)])
+
 export const orgTables = { org, orgMember }
 export const authTables = { user, session, account, verification }
-export const oneVibeTables = { project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, runtimeLease, schedule, workspaceVersion, runtimeMcpConfig }
+export const oneVibeTables = { project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, runtimeLease, schedule, workspaceVersion, runtimeMcpConfig, skillInstallation }

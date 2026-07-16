@@ -1,7 +1,7 @@
 # ONEVibe — Agent Handover Document
 
 > **Date**: 2026-07-17
-> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, truthful demo skill status, feature-gated Better Auth, authenticated owner scoping, and a reviewed Drizzle/Postgres import proof are present. LiteLLM-only enforcement remains mandatory. The running application is still SQLite-backed; production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, and the final active-task Query mutation boundary remain open.
+> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, truthful demo skill status, a GitHub-catalog skill marketplace boundary, feature-gated Better Auth, authenticated owner scoping, and a reviewed Drizzle/Postgres import proof are present. LiteLLM-only enforcement remains mandatory. The running application is still SQLite-backed; protected Claude/provider acceptance, production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, MCP capability execution, and the final active-task Query mutation boundary remain open.
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
@@ -32,16 +32,16 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | Component | File(s) | State |
 |---|---|---|
 | React SPA | `src/` | Real — Vite, React 19, `@assistant-ui/react`, framer-motion |
-| API server | `server/index.ts` (884 lines) | Real — hand-rolled Node HTTP, port 4311 |
+| API server | `server/index.ts` (886 lines) | Real — hand-rolled Node HTTP, port 4311 |
 | RuntimeAdapter interface | `server/runtime-adapter.ts` | Real — the correct abstraction |
-| Claude SDK adapter | `server/claude-sdk-runner.ts` (373 lines) | Real — wraps `@anthropic-ai/claude-agent-sdk` |
-| ONEComputer adapter | `server/onecomputer-sandbox-runner.ts` (830 lines) | Real — wraps ONEComputer cloud sandbox |
+| Claude SDK adapter | `server/claude-sdk-runner.ts` (395 lines) | Real — wraps `@anthropic-ai/claude-agent-sdk` and fails closed without LiteLLM |
+| ONEComputer adapter | `server/onecomputer-sandbox-runner.ts` (845 lines) | Real — wraps the development ONEComputer cloud sandbox; production microVM attestation remains open |
 | Demo adapter | `server/demo-runner.ts` (172 lines) | Fake — scripted responses, zero model calls |
 | Task store | `server/store.ts` + `server/persistence/` | Real — local SQLite via `better-sqlite3`; Postgres/Drizzle schema, owner-aware importer, and disposable migration/restart proof exist, but the running repository adapter is still open |
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
-| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 236 tests passing |
+| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 240 tests passing |
 | Container | `Dockerfile`, `docker-compose.yml` | Local hardened image verified; SQLite volume only until Postgres/auth slices land |
 
 ### What is critically broken
@@ -52,7 +52,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 4. **No managed deploy path** — a non-root Docker image and local Compose smoke path now exist, but Railway/Fly configuration, secrets, auth, and production operations remain open
 5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
 6. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; remaining active-task mutations must not create a second client authority
-7. **Remaining extension/release gaps** — skill marketplace execution, MCP capability facade, dependency advisory resolution, and browser evidence remain open in `TODO.md`
+7. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, MCP capability execution, dependency advisory resolution, and browser evidence remain open in `TODO.md`
 
 ### How to run it locally
 
@@ -72,7 +72,7 @@ Do not configure a direct Anthropic API key as a substitute for the relay. Local
 ```bash
 npm run check
 # = oxlint src server scripts
-# + vitest run (236 tests at this handover update)
+# + vitest run (245 tests at this handover update)
 # + tsc -b
 # + tsc -p tsconfig.server.json
 # + vite build
@@ -205,7 +205,7 @@ Full task list: `TODO.md`. Summary:
 (See `plan/05-ui-overhaul.md` for details)
 
 ### Phase 6 — MCP + extensions
-**4 tasks. Target: users add MCP servers; skill marketplace works. The local MCP declaration slice is now implemented; authenticated ownership and secret brokering remain open.**
+**4 tasks. Target: users add MCP servers; verified skill marketplace installation works. The local MCP declaration and marketplace install/remove slices exist; authenticated ownership, secret brokering, and protected provider-backed marketplace materialization remain open.**
 (See `plan/06-mcp-extensions.md` for details)
 
 ---
@@ -234,9 +234,9 @@ Full task list: `TODO.md`. Summary:
 | `server/claude-sdk-runner.ts` | Claude Agent SDK adapter (395 lines). Real when the protected LiteLLM relay is configured; fails closed without it |
 | `server/onecomputer-sandbox-runner.ts` | ONEComputer adapter (845 lines). Development-provider path only; it must not be described as production microVM evidence |
 | `server/demo-runner.ts` | Fake demo adapter (172 lines). Zero model calls |
-| `server/store.ts` | Task persistence (1255 lines). SQLite via `better-sqlite3`. Needs Postgres migration (P4-02) |
-| `server/runtime-readiness.ts` | Reports which providers are available. Needs `capabilities` field (P2-04) |
-| `server/skill-packs.ts` | Versioned local skill catalog; demo selection is explicitly non-executing. Needs GitHub-backed marketplace (P6-02) |
+| `server/store.ts` | Task persistence (1,403 lines). SQLite via `better-sqlite3`; Postgres repository/runtime switch remains P4-02 |
+| `server/runtime-readiness.ts` | Reports provider availability and capability metadata through the RuntimeRegistry |
+| `server/skill-packs.ts` | Versioned built-in packs plus owner-installed marketplace materialization; demo selection is explicitly non-executing. Protected provider marketplace acceptance remains P6-02 |
 
 ---
 
@@ -250,6 +250,9 @@ ONEVIBE_LITELLM_MODEL=claude-sonnet-5
 
 # Optional operator-selected runtime default (demo, claude_sdk, onecomputer, remote)
 ONEVIBE_DEFAULT_PROVIDER=
+
+# Optional GitHub-backed skill catalog; defaults to the ONEVibe repository catalog.
+ONEVIBE_SKILL_CATALOG_URL=https://raw.githubusercontent.com/ONE-Computer/onevibe/main/skills/catalog.json
 
 # Optional Codex-compatible model alias; it is still routed through LiteLLM.
 ONEVIBE_CODEX_MODEL=
@@ -275,7 +278,7 @@ ONECOMPUTER_PROJECT_ID=proj_...
 # Phase 4: auth + database + sandbox (not all enabled in the local default)
 BETTER_AUTH_SECRET=
 RESEND_API_KEY=
-DATABASE_URL=postgres://...
+# DATABASE_URL=postgres://...  # application startup rejects this until P4-02 is wired
 E2B_API_KEY=
 
 # Server config

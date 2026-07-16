@@ -19,6 +19,8 @@ import type {
   RuntimeEventRecord,
   RuntimeEventRepository,
   Repositories,
+  SkillInstallationRecord,
+  SkillInstallationRepository,
   TurnRecord,
   TurnRepository,
   TurnStatus,
@@ -41,6 +43,7 @@ type NativeEventRow = {
   source_sequence: number; native_type: string; payload_json: string; payload_hash: string; received_at: string;
 }
 type McpConfigRow = { id: string; owner_user_id: string | null; name: string; command: string; args_json: string; created_at: string; updated_at: string }
+type SkillInstallationRow = { id: string; owner_scope: string; owner_user_id: string | null; version: number; title: string; summary: string; sha256: string; content: string; content_url: string; source_url: string; created_at: string; updated_at: string }
 
 const conversationFromRow = (row: ConversationRow): ConversationRecord => ({
   id: row.id, title: row.title, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at,
@@ -462,6 +465,42 @@ export class SqliteMcpConfigRepository implements McpConfigRepository {
   }
 }
 
+const skillInstallationFromRow = (row: SkillInstallationRow): SkillInstallationRecord => ({
+  id: row.id, ownerUserId: row.owner_user_id, version: row.version, title: row.title, summary: row.summary,
+  sha256: row.sha256, content: row.content, contentUrl: row.content_url, sourceUrl: row.source_url,
+  createdAt: row.created_at, updatedAt: row.updated_at,
+})
+
+export class SqliteSkillInstallationRepository implements SkillInstallationRepository {
+  constructor(private readonly database: Database.Database) {}
+
+  private scope(ownerUserId?: string) { return ownerUserId ?? '__local__' }
+
+  list(ownerUserId?: string): SkillInstallationRecord[] {
+    const rows = this.database.prepare('SELECT * FROM skill_installations WHERE owner_scope = ? ORDER BY updated_at DESC, id ASC').all(this.scope(ownerUserId))
+    return (rows as SkillInstallationRow[]).map(skillInstallationFromRow)
+  }
+
+  findById(id: string, ownerUserId?: string): SkillInstallationRecord | undefined {
+    const row = this.database.prepare('SELECT * FROM skill_installations WHERE owner_scope = ? AND id = ?').get(this.scope(ownerUserId), id) as SkillInstallationRow | undefined
+    return row && skillInstallationFromRow(row)
+  }
+
+  insert(record: SkillInstallationRecord): void {
+    this.database.prepare(`
+      INSERT INTO skill_installations(id, owner_scope, owner_user_id, version, title, summary, sha256, content, content_url, source_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(owner_scope, id) DO UPDATE SET owner_user_id = excluded.owner_user_id, version = excluded.version,
+        title = excluded.title, summary = excluded.summary, sha256 = excluded.sha256, content = excluded.content,
+        content_url = excluded.content_url, source_url = excluded.source_url, updated_at = excluded.updated_at
+    `).run(record.id, this.scope(record.ownerUserId ?? undefined), record.ownerUserId, record.version, record.title, record.summary, record.sha256, record.content, record.contentUrl, record.sourceUrl, record.createdAt, record.updatedAt)
+  }
+
+  delete(id: string, ownerUserId?: string): boolean {
+    return this.database.prepare('DELETE FROM skill_installations WHERE owner_scope = ? AND id = ?').run(this.scope(ownerUserId), id).changes === 1
+  }
+}
+
 export function createSqliteRepositories(database: Database.Database): Repositories {
   return {
     conversations: new SqliteConversationRepository(database),
@@ -473,5 +512,6 @@ export function createSqliteRepositories(database: Database.Database): Repositor
     legacyImports: new SqliteLegacyImportRepository(database),
     runtimeLeases: new SqliteRuntimeLeaseRepository(database),
     mcpConfigs: new SqliteMcpConfigRepository(database),
+    skillInstallations: new SqliteSkillInstallationRepository(database),
   }
 }

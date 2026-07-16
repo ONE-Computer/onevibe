@@ -16,7 +16,7 @@ import { HomeHero } from './components/HomeHero'
 import { LoginPage } from './components/LoginPage'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags } from './lib/api'
+import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, installSkill, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, removeSkill, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
 import { getAuthSession, signOut as signOutAuth } from './lib/auth'
 import { providerLabel, statusLabel } from './lib/runtime-labels'
@@ -51,8 +51,8 @@ export default function App() {
   const { selectedSkills, setSelectedSkills, creating, setCreating } = useComposerStore()
   const { authState, setAuthState, authLoading, setAuthLoading } = useSessionStore()
   const { snapshot, connected, error, retry: retryConnection, refresh: refreshSnapshot } = useTask(activeTaskId)
-  const skillQuery = useQuery({ queryKey: ['skills'], queryFn: listSkills, staleTime: 60_000 })
-  const skillCatalog = skillQuery.data?.skills.map(({ id, title, summary }) => ({ id, title, summary })) ?? fallbackSkillCatalog
+  const skillQuery = useQuery({ queryKey: ['skills', authState?.session?.user.id ?? 'local'], queryFn: listSkills, enabled: !authLoading && (!authState?.enabled || Boolean(authState.session)), staleTime: 60_000 })
+  const skillCatalog = skillQuery.data?.skills.map(({ id, title, summary, source, installed, contentUrl }) => ({ id, title, summary, source, installed, contentUrl })) ?? fallbackSkillCatalog
   const runtimeQuery = useQuery({ queryKey: ['runtime'], queryFn: getRuntimeReadiness, staleTime: 15_000, retry: 1, refetchOnWindowFocus: false })
   const runtime = runtimeQuery.data
   const mcpQuery = useQuery({ queryKey: ['mcp'], queryFn: listMcpConfigs, staleTime: 15_000 })
@@ -101,7 +101,7 @@ export default function App() {
   useEffect(() => { if (conversationsError) reportError(conversationsError, 'Unable to load conversations') }, [conversationsError])
   useEffect(() => {
     if (skillQuery.data?.skills.length) {
-      const catalog = skillQuery.data.skills.map(({ id, title, summary }) => ({ id, title, summary }))
+      const catalog = skillQuery.data.skills.map(({ id, title, summary, source, installed, contentUrl }) => ({ id, title, summary, source, installed, contentUrl }))
       setSelectedSkills((current) => normalizeSelectedSkillIds(current, catalog))
     }
   }, [setSelectedSkills, skillQuery.data?.skills])
@@ -164,6 +164,20 @@ export default function App() {
     if (window.matchMedia('(max-width: 960px)').matches) setSidebarOpen(false)
   }
   const toggleSkill = (skill: TaskSkill) => setSelectedSkills((current) => normalizeSelectedSkillIds(current.includes(skill) ? current.filter((item) => item !== skill) : current.length >= 4 ? current : [...current, skill], skillCatalog))
+
+  const installMarketplaceSkill = async (skillId: TaskSkill) => {
+    try {
+      await installSkill(skillId)
+      await skillQuery.refetch()
+    } catch (reason) { reportError(reason, 'Unable to install marketplace skill') }
+  }
+  const removeMarketplaceSkill = async (skillId: TaskSkill) => {
+    try {
+      await removeSkill(skillId)
+      await skillQuery.refetch()
+      setSelectedSkills((current) => current.filter((skill) => skill !== skillId))
+    } catch (reason) { reportError(reason, 'Unable to remove marketplace skill') }
+  }
 
   const cancelTaskMutation = useMutation({
     mutationFn: (taskId: string) => cancelTask(taskId),
@@ -378,7 +392,7 @@ export default function App() {
         </header>
 
         <AnimatePresence mode="wait">
-          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} onRemove={hideLibraryItem} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} runtime={runtime} mcpConfigs={mcpConfigs} onCreateMcpConfig={addMcpConfig} onDeleteMcpConfig={removeMcpConfig} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} onDelete={removeSchedule} runtime={runtime} /></motion.section> : !activeTaskId ? (
+          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} onInstall={installMarketplaceSkill} onRemove={removeMarketplaceSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} onRemove={hideLibraryItem} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} runtime={runtime} mcpConfigs={mcpConfigs} onCreateMcpConfig={addMcpConfig} onDeleteMcpConfig={removeMcpConfig} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} onDelete={removeSchedule} runtime={runtime} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="home-content">
                 <HomeHero name={authState?.session?.user.name?.trim() || authState?.session?.user.email.split('@')[0] || 'there'} />

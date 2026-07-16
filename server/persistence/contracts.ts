@@ -109,6 +109,27 @@ export interface McpConfigAuditRecord {
   createdAt: string
 }
 
+export interface SkillInstallationRecord {
+  id: string
+  ownerUserId: string | null
+  version: number
+  title: string
+  summary: string
+  sha256: string
+  content: string
+  contentUrl: string
+  sourceUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SkillInstallationRepository {
+  list(ownerUserId?: string): SkillInstallationRecord[]
+  findById(id: string, ownerUserId?: string): SkillInstallationRecord | undefined
+  insert(record: SkillInstallationRecord): void
+  delete(id: string, ownerUserId?: string): boolean
+}
+
 export interface McpConfigRepository {
   list(ownerUserId?: string): McpConfigRecord[]
   findById(id: string): McpConfigRecord | undefined
@@ -230,6 +251,7 @@ export interface Repositories {
   legacyImports: LegacyImportRepository
   runtimeLeases: RuntimeLeaseRepository
   mcpConfigs: McpConfigRepository
+  skillInstallations: SkillInstallationRepository
 }
 
 /** Transactions are deliberately synchronous: better-sqlite3 cannot safely span an await. */

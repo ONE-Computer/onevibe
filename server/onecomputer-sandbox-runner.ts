@@ -6,7 +6,7 @@ import type { RuntimeHealth } from './types.js'
 import type { EventInput } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
 import { validateModeArtifacts } from './artifact-validation.js'
-import { skillPacksFor } from './skill-packs.js'
+import { skillPacksFor, skillPacksFromInstallations } from './skill-packs.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
 import { SANDBOX_SLIDE_RENDERER, sandboxSlideSeed } from './sandbox-slide-renderer.js'
@@ -463,7 +463,7 @@ export class OneComputerSandboxRuntimeAdapter extends RuntimeAdapterBase {
       await store.setPlanStep(task.id, 'workspace', 'completed')
       await store.setPlanStep(task.id, 'build', 'running')
 
-      const selectedSkills = skillPacksFor(task.skills)
+      const selectedSkills = skillPacksFor(task.skills, skillPacksFromInstallations(store.listSkillInstallationRecords(task.ownerUserId)))
 
       const agentPrompt = [
         'You are ONEVibe operating inside a disposable ONEComputer sandbox.',

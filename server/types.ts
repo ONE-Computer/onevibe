@@ -51,7 +51,8 @@ export type EventType =
 
 export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'blocked'
 export type TaskMode = 'chat' | 'general' | 'website' | 'slides' | 'document' | 'research' | 'data' | 'design' | 'app' | 'game'
-export type TaskSkill = 'research' | 'web_build' | 'slides' | 'data_analysis' | 'document' | 'product_design' | 'security_review' | 'browser_testing'
+export type BuiltInTaskSkill = 'research' | 'web_build' | 'slides' | 'data_analysis' | 'document' | 'product_design' | 'security_review' | 'browser_testing'
+export type TaskSkill = BuiltInTaskSkill | (string & {})
 export type RuntimeCapability = 'streaming' | 'tool_use' | 'file_system' | 'sandboxed' | 'preview_url' | 'computer_use' | 'fork'
 
 export type Project = {
@@ -233,6 +234,18 @@ export type RuntimeMcpConfig = {
   args: string[]
   createdAt: string
   updatedAt: string
+}
+
+export type SkillCatalogSource = 'builtin' | 'marketplace'
+export type SkillInstallation = {
+  id: TaskSkill
+  version: number
+  title: string
+  summary: string
+  sha256: string
+  source: SkillCatalogSource
+  installed: boolean
+  contentUrl?: string
 }
 
 export type RuntimeDiagnostics = {
