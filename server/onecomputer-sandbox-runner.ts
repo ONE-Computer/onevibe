@@ -417,7 +417,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       await captureVisualFrame('after_agent', agentExecution.id)
       if (agentExitCode !== 0) throw new Error(`Sandbox Claude process exited ${agentExitCode}`)
       if (task.mode === 'slides') {
-        const rendered = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && NODE_PATH=/home/kasm-user/.npm-global/lib/node_modules node .onevibe-render-deck.cjs`, signal)
+        const rendered = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && NODE_PATH=/home/kasm-user/.npm-global/lib/node_modules /opt/node22/bin/node .onevibe-render-deck.cjs`, signal)
         if (rendered.exitCode !== 0) throw new Error(`Sandbox slide renderer failed: ${rendered.output.slice(-1_000)}`)
         await store.appendEvent(task.id, {
           type: 'tool_call_completed', lane: 'activity', label: 'Sandbox deck rendered',
