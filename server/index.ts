@@ -43,6 +43,7 @@ const claudeProvider = claudeProviderConfig()
 const claudeConfigured = claudeProvider.configured
 const store = new TaskStore()
 const activeRuns = new Map<string, AbortController>()
+const activeAdapters = new Map<string, RuntimeAdapter>()
 let oneComputerHealthCache: { checkedAt: number; reachable: boolean } | undefined
 const inputBroker = new UserInputBroker(store)
 const walletService = WALLET_TOKEN ? new WalletApprovalService(store, WALLET_TOKEN) : undefined
@@ -154,7 +155,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
   const controller = new AbortController()
   activeRuns.set(taskId, controller)
   const adapter = adapterFor(task.provider)
-  const turnDeadline = createTurnDeadline({ timeoutMs: TURN_TIMEOUT_MS, onExpire: () => controller.abort() })
+  const turnDeadline = createTurnDeadline({ timeoutMs: TURN_TIMEOUT_MS, onExpire: () => { void activeAdapters.get(taskId)?.cancel(); controller.abort() } })
   const run = async () => {
     controller.signal.throwIfAborted()
     const projectKnowledge = await store.projectContextFiles(project.id)
@@ -202,10 +203,22 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       content: `${turnAttachments.length} file${turnAttachments.length === 1 ? '' : 's'} staged under inputs/ for this turn.`,
       payload: { kind: 'task_input', attachmentCount: turnAttachments.length, files: turnAttachments.map(({ name, path, size, mimeType }) => ({ name, path, size, mimeType })) },
     })
-    await adapter.run({
-      task: store.getTask(task.id), store, signal: controller.signal, prompt: scopedPrompt, continuation,
-      requestUserInput: (question, options, signal) => inputBroker.request(task.id, question, options, signal),
-    })
+    await adapter.initialize(store.getTask(task.id), store.workspacePath(task.id), [])
+    activeAdapters.set(task.id, adapter)
+    try {
+      for await (const _event of adapter.run(scopedPrompt, {
+        task: store.getTask(task.id), store, continuation,
+        workingDir: store.workspacePath(task.id), mcpConfigs: [],
+        requestUserInput: (question, options, signal) => inputBroker.request(task.id, question, options, signal),
+      }, controller.signal)) {
+        // The adapter's stream is sourced from the append-only store. Draining
+        // it here keeps execution provider-neutral without duplicating events.
+        void _event
+      }
+    } finally {
+      await adapter.destroy()
+      if (activeAdapters.get(task.id) === adapter) activeAdapters.delete(task.id)
+    }
     controller.signal.throwIfAborted()
     if (store.getTask(task.id).status === 'completed') await store.createWorkspaceVersion(task.id, prompt)
   }
@@ -430,6 +443,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       }
       const controller = activeRuns.get(taskId)
       if (!controller) return json(response, 409, { error: 'Task execution is not active' })
+      void activeAdapters.get(taskId)?.cancel()
       controller.abort()
       return json(response, 202, { status: 'cancelling' })
     }

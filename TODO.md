@@ -33,7 +33,7 @@ Reference: `plan/01-foundation.md`
 **Target: `RuntimeAdapter` is airtight. Adding a new harness takes one new file. No harness concepts leak into UI or data.**
 Reference: `plan/02-runtime-abstraction.md`
 
-- [ ] **P2-01** Audit and harden `RuntimeAdapter` interface — define the canonical contract: `initialize`, `run(prompt, context)` → AsyncIterator of `RuntimeEvent`, `cancel`, `getFiles`, `getPreviewUrl`, `destroy`; every adapter must implement it fully
+- [x] **P2-01** Audit and harden `RuntimeAdapter` interface — canonical lifecycle contract (`initialize`, `run(prompt, context, signal)` → AsyncIterator of persisted `RuntimeEvent`, `cancel`, `getFiles`, `getPreviewUrl`, `destroy`) is implemented by every adapter through the provider-neutral lifecycle base; the append-only store remains the event authority during the migration bridge
 - [ ] **P2-02** Add Codex adapter — implement `CodexRuntimeAdapter` wrapping OpenAI's Codex API; register as provider `'codex'`; expose when `OPENAI_API_KEY` is set
 - [ ] **P2-03** Add AgentCore adapter — implement `AgentCoreRuntimeAdapter` wrapping AWS Bedrock AgentCore (already referenced in `AGENTCORE-AWS-RUNTIME.md`); register as provider `'agentcore'`; expose when AWS credentials are set
 - [x] **P2-04** Add runtime capability declaration — each `RuntimeAdapter` declares `capabilities: RuntimeCapability[]` (e.g. `'streaming'`, `'tool_use'`, `'file_system'`, `'sandboxed'`, `'computer_use'`); UI uses this to show/hide tabs in the workspace panel

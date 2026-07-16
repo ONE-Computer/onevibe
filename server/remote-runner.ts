@@ -1,4 +1,4 @@
-import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
+import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import type { EventInput, EventLane, EventType, RunStatus } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
 
@@ -44,14 +44,16 @@ const normalize = (value: unknown): EventInput | null => {
   }
 }
 
-export class RemoteRuntimeAdapter implements RuntimeAdapter {
+export class RemoteRuntimeAdapter extends RuntimeAdapterBase {
   readonly name = 'remote'
   readonly providerId = 'remote' as const
   readonly capabilities = ['streaming', 'tool_use', 'file_system'] as const
 
-  constructor(private readonly endpoint: string, private readonly bearerToken?: string) {}
+  constructor(private readonly endpoint: string, private readonly bearerToken?: string) {
+    super()
+  }
 
-  async run({ task, store, signal, prompt }: RuntimeContext) {
+  protected async execute({ task, store, signal, prompt }: LegacyRuntimeContext) {
     signal.throwIfAborted()
     await store.updateTask(task.id, { status: 'running' })
     const response = await fetch(this.endpoint, {

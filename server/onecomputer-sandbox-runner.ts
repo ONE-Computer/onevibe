@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { OneComputerClient } from './onecomputer-client.js'
-import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
+import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import type { EventInput } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
 import { validateModeArtifacts } from './artifact-validation.js'
@@ -182,7 +182,7 @@ export const parseClaudeStreamJournal = (raw: string) => {
   return { entries, result, sessionId }
 }
 
-export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
+export class OneComputerSandboxRuntimeAdapter extends RuntimeAdapterBase {
   readonly name = 'onecomputer'
   readonly providerId = 'onecomputer' as const
   readonly capabilities = ['streaming', 'tool_use', 'file_system', 'sandboxed', 'preview_url', 'computer_use'] as const
@@ -190,9 +190,11 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
   constructor(
     private readonly client: OneComputerClient,
     private readonly options: { gatewayEnforced: boolean; retainSandbox: boolean; visualRuntime?: boolean; browserAutomation?: boolean; pollMilliseconds?: number; visualCheckpointMilliseconds?: number; agentQuiescenceTimeoutMilliseconds?: number } = { gatewayEnforced: false, retainSandbox: false },
-  ) {}
+  ) {
+    super()
+  }
 
-  private async quiesceAgentAfterCancellation(taskId: string, sandboxId: string, workspace: string, retainedPid: number | undefined, store: RuntimeContext['store']) {
+  private async quiesceAgentAfterCancellation(taskId: string, sandboxId: string, workspace: string, retainedPid: number | undefined, store: LegacyRuntimeContext['store']) {
     const timeoutMilliseconds = Math.max(this.options.agentQuiescenceTimeoutMilliseconds ?? DEFAULT_AGENT_QUIESCENCE_TIMEOUT_MS, 1)
     const cancellationEvidence = {
       sandboxId, agentPid: retainedPid, workspace,
@@ -252,7 +254,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     }
   }
 
-  async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
+  protected async execute({ task, store, signal, prompt, continuation }: LegacyRuntimeContext) {
     signal.throwIfAborted()
     const configuredClaude = claudeProviderConfig()
     const sandboxBaseUrl = process.env.ONEVIBE_SANDBOX_LITELLM_URL?.trim().replace(/\/+$/, '')

@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises'
 import { createSdkMcpServer, query, tool, type HookCallback, type PermissionResult, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { EventInput } from './types.js'
-import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
+import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import { sanitizeNativePayload } from './native-events.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 import { materializeTaskSkills } from './skill-packs.js'
@@ -53,12 +53,12 @@ const safeBashCommand = (command: string) => {
 
 export const isSafeBashCommand = safeBashCommand
 
-export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
+export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
   readonly name = 'claude_sdk'
   readonly providerId = 'claude_sdk' as const
   readonly capabilities = ['streaming', 'tool_use', 'file_system', 'preview_url'] as const
 
-  async run({ task, store, signal, prompt, continuation, requestUserInput }: RuntimeContext) {
+  protected async execute({ task, store, signal, prompt, continuation, requestUserInput }: LegacyRuntimeContext) {
     signal.throwIfAborted()
     const provider = claudeProviderConfig()
     const runLimits = resolveClaudeRunLimits(provider.transport)

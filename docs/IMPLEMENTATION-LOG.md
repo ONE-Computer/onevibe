@@ -46,6 +46,13 @@
 - Claude host execution is explicitly not labelled sandboxed/computer-use; ONEComputer development runtime declares those capabilities only when that provider is configured.
 - This is the capability slice of P2-04. The broader P2-01 lifecycle contract and new Codex/AgentCore adapters remain open.
 
+## 2026-07-16 — Phase 2 runtime lifecycle contract
+
+- Added `RuntimeAdapterBase` and the canonical lifecycle surface: `initialize(task, workingDir, mcpConfigs)`, `run(prompt, context, signal)` as an async stream, `cancel`, `destroy`, `getFiles`, and `getPreviewUrl`.
+- Migrated Demo, Claude SDK, ONEComputer, and Remote adapters onto the shared lifecycle base. Their existing append-only store writes are exposed through a persisted event stream, so the server drains provider-neutral `RuntimeEvent` values without duplicating evidence or changing the current E2E semantics.
+- Added cancellation routing from the API and turn deadline into the active adapter, plus a focused contract test proving initialization, event streaming, no duplicate persistence, file access, and preview behavior.
+- The legacy one-argument adapter overload remains intentionally private to the implementation migration surface and is not part of the `RuntimeAdapter` interface. Runtime registry extraction and Codex/AgentCore remain open.
+
 ## 2026-07-16 — light-mode Claude calibration (Phases 11–15)
 
 User feedback ("prefer a light color; motion too cheesy; want

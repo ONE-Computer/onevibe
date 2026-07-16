@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { evaluateAction } from './policy.js'
 import { approvalIntentHash, evidenceHeadFor } from './approval-intent.js'
-import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
+import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import { writeModeArtifacts } from './mode-artifacts.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 
@@ -33,12 +33,12 @@ const previewHtml = (title: string) => `<!doctype html>
 <body><main><div class="eyebrow">ONEVibe generated artifact</div><h1>${title.replaceAll('<', '&lt;')}</h1><p>Built inside a path-confined local workspace. Publication remains withheld until a separate VTI Wallet provides an intent-bound approval.</p><div class="status"><span class="dot"></span> Source ready · policy evaluated · preview isolated</div></main></body>
 </html>`
 
-export class DemoRuntimeAdapter implements RuntimeAdapter {
+export class DemoRuntimeAdapter extends RuntimeAdapterBase {
   readonly name = 'demo'
   readonly providerId = 'demo' as const
   readonly capabilities = ['streaming', 'file_system', 'preview_url'] as const
 
-  async run({ task, store, signal, prompt, requestUserInput }: RuntimeContext) {
+  protected async execute({ task, store, signal, prompt, requestUserInput }: LegacyRuntimeContext) {
     signal.throwIfAborted()
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
