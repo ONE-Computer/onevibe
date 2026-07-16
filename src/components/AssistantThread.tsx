@@ -37,7 +37,7 @@ const ToolCallCard = ({ toolName, args, result, isError, timing }: ToolCallMessa
   const outcome = result && typeof result === 'object' ? result as { summary?: string } : undefined
   const running = result === undefined
   const elapsed = timing?.completedAt && timing.startedAt ? `${Math.max(0, (timing.completedAt - timing.startedAt) / 1000).toFixed(1)}s` : undefined
-  return <div className={`aui-tool-call ${running ? 'running' : isError ? 'failed' : 'completed'}`}><span>{running ? <LoaderCircle size={14} /> : isError ? <TriangleAlert size={14} /> : <CheckCircle2 size={14} />}</span><div><strong>{toolName}</strong><small>{details.browserTool ? 'Browser in sandbox' : details.executionRoute?.replaceAll('_', ' ') ?? 'Governed runtime'}{details.inputKeys?.length ? ` · ${details.inputKeys.join(', ')}` : ''}</small>{outcome?.summary && <p>{outcome.summary}</p>}</div><em>{running ? 'Running' : isError ? 'Failed' : elapsed ?? 'Done'}</em></div>
+  return <div className={`aui-tool-call ${running ? 'running' : isError ? 'failed' : 'completed'}`}><span>{running ? <LoaderCircle size={14} /> : isError ? <TriangleAlert size={14} /> : <CheckCircle2 size={14} />}</span><div><strong>{toolName}</strong><small>{details.browserTool ? 'Browser in sandbox' : details.executionRoute?.replaceAll('_', ' ') ?? 'Secure runtime'}{details.inputKeys?.length ? ` · ${details.inputKeys.join(', ')}` : ''}</small>{outcome?.summary && <p>{outcome.summary}</p>}</div><em>{running ? 'Running' : isError ? 'Failed' : elapsed ?? 'Done'}</em></div>
 }
 
 const readableBytes = (size?: number) => size === undefined ? undefined : size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${Math.ceil(size / 1024)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`
@@ -51,7 +51,10 @@ const WorkingTrace = () => {
   const trace = useAuiState((state) => (state.message.metadata.custom as { trace?: AssistantTraceItem[] } | undefined)?.trace ?? [])
   const running = useAuiState((state) => state.message.status?.type === 'running')
   if (!trace.length) return null
-  return <details className="aui-working-trace" open={running || undefined}><summary><span><ShieldCheck size={12} /> Working trace</span><em>{trace.length} recorded step{trace.length === 1 ? '' : 's'} · {running ? 'live' : 'reviewable'}</em></summary><p className="aui-working-trace-note">Operational summaries and tool evidence from the provider stream. Hidden chain-of-thought is not exposed.</p><ol>{trace.map((item) => <li key={item.id} className={item.status}><span>{item.status === 'running' ? <LoaderCircle className="spin" size={12} /> : item.status === 'failed' ? <TriangleAlert size={12} /> : <CheckCircle2 size={12} />}</span><div><strong>{item.label}</strong>{item.detail && <small>{item.detail.replace(/\s+/g, ' ').slice(0, 240)}</small>}</div><em>{item.status === 'running' ? 'Working' : item.status === 'failed' ? 'Failed' : 'Done'}</em></li>)}</ol></details>
+  // Live traces stay open so the user can watch the current step; completed
+  // traces collapse to a single review link so the calm assistant narrative
+  // is not competing with an operational checklist by default.
+  return <details className="aui-working-trace" open={running || undefined}><summary><span><ShieldCheck size={12} /> {running ? 'Working' : `Review working trace (${trace.length} step${trace.length === 1 ? '' : 's'})`}</span>{running && <em>live</em>}</summary><p className="aui-working-trace-note">Operational summaries and tool evidence from the provider stream. Hidden chain-of-thought is not exposed.</p><ol>{trace.map((item) => <li key={item.id} className={item.status}><span>{item.status === 'running' ? <LoaderCircle className="spin" size={12} /> : item.status === 'failed' ? <TriangleAlert size={12} /> : <CheckCircle2 size={12} />}</span><div><strong>{item.label}</strong>{item.detail && <small>{item.detail.replace(/\s+/g, ' ').slice(0, 240)}</small>}</div><em>{item.status === 'running' ? 'Working' : item.status === 'failed' ? 'Failed' : 'Done'}</em></li>)}</ol></details>
 }
 
 const ToolGroup = ({ children, count, active }: { children: ReactNode; count: number; active: boolean }) => <details className="aui-tool-group" open={active || undefined}><summary><span><ShieldCheck size={11} /> Tool activity</span><em>{count} call{count === 1 ? '' : 's'}</em></summary><div className="aui-tool-group-content">{children}</div></details>
@@ -60,7 +63,7 @@ const AssistantMessage = () => {
   const createdAt = useAuiState((state) => state.message.createdAt)
   const running = useAuiState((state) => state.message.status?.type === 'running')
   const artifacts = useAuiState((state) => (state.message.metadata.custom as { artifacts?: AssistantArtifact[] } | undefined)?.artifacts ?? [])
-  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb" aria-hidden="true">O</div><div className="aui-assistant-message-body"><header><strong>ONEVibe <small>{running ? '· writing' : `· ${timestamp(createdAt)}`}</small></strong>{running && <span className="aui-live-label"><i /> Live</span>}</header><WorkingTrace /><MessagePrimitive.GroupedParts groupBy={groupPartByType({ 'tool-call': ['group-tool'] })}>{({ part, children }) => {
+  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb" aria-hidden="true">O</div><div className="aui-assistant-message-body"><header><small>{running ? 'Writing…' : timestamp(createdAt)}</small>{running && <span className="aui-live-label"><i /> Live</span>}</header><WorkingTrace /><MessagePrimitive.GroupedParts groupBy={groupPartByType({ 'tool-call': ['group-tool'] })}>{({ part, children }) => {
     if (part.type === 'group-tool') return <ToolGroup count={part.indices.length} active={part.status.type === 'running'}>{children}</ToolGroup>
     if (part.type === 'tool-call') return <ToolCallCard {...part} />
     if (part.type === 'text') return <MarkdownText />
