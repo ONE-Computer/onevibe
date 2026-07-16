@@ -10,6 +10,7 @@ import { materializeTaskSkills } from './skill-packs.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
 import { writeArtifactManifest, writeStructuredSlides } from './mode-artifacts.js'
 import { portableArtifactKind } from './artifact-path.js'
+import { resolveClaudeRunLimits } from './claude-run-limits.js'
 
 const ARTIFACT_MANIFEST_PATH = 'artifact-manifest.json'
 const RUNTIME_REPORT_PATHS = new Set(['validation-report.json', 'sandbox-build-report.json'])
@@ -40,6 +41,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
   async run({ task, store, signal, prompt, continuation, requestUserInput }: RuntimeContext) {
     signal.throwIfAborted()
     const provider = claudeProviderConfig()
+    const runLimits = resolveClaudeRunLimits(provider.transport)
     if (!provider.configured) throw new Error('Claude SDK provider is not configured.')
     const workspace = store.workspacePath(task.id)
     const runtimeState = store.runtimeStatePath(task.id)
@@ -152,8 +154,8 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         enableFileCheckpointing: true,
         settingSources: ['project'],
         skills: task.skills,
-        maxTurns: Number(process.env.ONEVIBE_CLAUDE_MAX_TURNS ?? 24),
-        maxBudgetUsd: Number(process.env.ONEVIBE_CLAUDE_MAX_BUDGET_USD ?? 5),
+        maxTurns: runLimits.maxTurns,
+        maxBudgetUsd: runLimits.maxBudgetUsd,
         persistSession: true,
         ...(continuation && task.securityContext?.runtimeSessionId ? { resume: task.securityContext.runtimeSessionId } : {}),
         env: {
