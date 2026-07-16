@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FC, type ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowDown, ArrowUp, CheckCircle2, Copy, Download, Eye, FileText, LoaderCircle, Paperclip, Pencil, Presentation, ShieldCheck, TriangleAlert, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Copy, Download, Eye, FileText, LoaderCircle, Paperclip, Pencil, Presentation, ShieldCheck, TriangleAlert, X } from 'lucide-react'
 import {
   AssistantRuntimeProvider,
   ActionBarPrimitive,
@@ -61,6 +61,12 @@ const ArtifactCards = ({ artifacts }: { artifacts: AssistantArtifact[] }) => art
   return <article key={artifact.path} className="aui-artifact-card"><span>{deck ? <Presentation size={16} /> : <FileText size={16} />}</span><div><strong>{artifact.path.split('/').at(-1)}</strong><small>{artifact.label} · {readableBytes(artifact.size) ?? 'portable file'}</small><em><ShieldCheck size={9} /> ONEComputer evidence {artifact.eventId.split(':').at(-1)}</em></div><a href={artifact.uri} target={artifact.action === 'preview' ? '_blank' : undefined} rel="noreferrer" download={artifact.action === 'download' ? '' : undefined} aria-label={`${artifact.action === 'preview' ? 'Preview' : 'Download'} ${artifact.path}`}>{artifact.action === 'preview' ? <Eye size={14} /> : <Download size={14} />}</a></article>
 })}</div> : null
 
+const TraceDetail = ({ detail }: { detail: string }) => {
+  const normalized = detail.replace(/\s+/g, ' ').trim()
+  if (normalized.length <= 240) return <small>{normalized}</small>
+  return <details className="aui-trace-detail"><summary>{normalized.slice(0, 240)}… <span>Show more</span></summary><p>{normalized}</p></details>
+}
+
 const WorkingTrace = () => {
   const trace = useAuiState((state) => (state.message.metadata.custom as { trace?: AssistantTraceItem[] } | undefined)?.trace ?? [])
   const running = useAuiState((state) => state.message.status?.type === 'running')
@@ -68,7 +74,7 @@ const WorkingTrace = () => {
   // Live traces stay open so the user can watch the current step; completed
   // traces collapse to a single review link so the calm assistant narrative
   // is not competing with an operational checklist by default.
-  return <details className="aui-working-trace" open={running || undefined}><summary><span><ShieldCheck size={12} /> {running ? 'Working' : `Review working trace (${trace.length} step${trace.length === 1 ? '' : 's'})`}</span>{running && <em>live</em>}</summary><p className="aui-working-trace-note">Operational summaries and tool evidence from the provider stream. Hidden chain-of-thought is not exposed.</p><ol>{trace.map((item) => <li key={item.id} className={item.status}><span>{item.status === 'running' ? <LoaderCircle className="spin" size={12} /> : item.status === 'failed' ? <TriangleAlert size={12} /> : <CheckCircle2 size={12} />}</span><div><strong>{item.label}</strong>{item.detail && <small>{item.detail.replace(/\s+/g, ' ').slice(0, 240)}</small>}</div><em>{item.status === 'running' ? 'Working' : item.status === 'failed' ? 'Failed' : 'Done'}</em></li>)}</ol></details>
+  return <details className="aui-working-trace" open={running || undefined}><summary><span><ChevronDown className="aui-trace-chevron" size={12} /><ShieldCheck size={12} /> {running ? 'Working' : `Review working trace (${trace.length} step${trace.length === 1 ? '' : 's'})`}</span>{running && <em>live</em>}</summary><p className="aui-working-trace-note">Operational summaries and tool evidence from the provider stream. Hidden chain-of-thought is not exposed.</p><ol>{trace.map((item) => <li key={item.id} className={item.status}><span>{item.status === 'running' ? <LoaderCircle className="spin" size={12} /> : item.status === 'failed' ? <TriangleAlert size={12} /> : <CheckCircle2 size={12} />}</span><div><strong>{item.label}</strong>{item.detail && <TraceDetail detail={item.detail} />}</div><em>{item.status === 'running' ? 'Working' : item.status === 'failed' ? 'Failed' : 'Done'}</em></li>)}</ol></details>
 }
 
 const ToolGroup = ({ children, count, active }: { children: ReactNode; count: number; active: boolean }) => <details className="aui-tool-group" open={active || undefined}><summary><span><ShieldCheck size={11} /> Tool activity</span><em>{count} call{count === 1 ? '' : 's'}</em></summary><div className="aui-tool-group-content">{children}</div></details>

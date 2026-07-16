@@ -43,6 +43,11 @@
 - Completed P5-10 in the primary task and runtime surfaces. `statusLabel`, `providerLabel`, and `tokenLabel` now own user-facing run/provider/mode/boundary labels instead of raw underscore-enum strings leaking into badges, dashboards, activity summaries, or runtime inventory.
 - Verification: lint and production build pass; the next full gate will include this presentation-only slice.
 
+## 2026-07-17 — make working traces reviewable
+
+- Completed P5-12: the assistant-ui working trace has a visible disclosure chevron, stays open while a provider turn is running, and renders long operational summaries through a nested Show more disclosure instead of discarding content after 240 characters.
+- The trace remains an operational projection only; it never exposes hidden chain-of-thought, raw credentials, or unbounded provider payloads.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.
