@@ -185,34 +185,39 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     let visualLoop: Promise<void> | undefined
     let stopVisualLoop: (() => void) | undefined
     let lastVisualFrame: { hash: string; path: string } | undefined
+    let visualCaptureTail: Promise<void> = Promise.resolve()
     try {
       let visualRuntimeReady = false
       let browserAutomationEnabled = false
-      const captureVisualFrame = async (phase: string, causedByEventId?: string) => {
+      const captureVisualFrame = (phase: string, causedByEventId?: string) => {
         if (!visualRuntimeReady) return
-        try {
-          const frame = await this.client.getVisualScreenshot(sandbox.id, signal)
-          const imageHash = createHash('sha256').update(frame.png).digest('hex')
-          const deduplicated = lastVisualFrame?.hash === imageHash
-          const framePath = deduplicated ? lastVisualFrame?.path ?? `evidence/visual/${Date.now()}-${phase.replace(/[^a-z0-9_-]/gi, '_')}.png` : `evidence/visual/${Date.now()}-${phase.replace(/[^a-z0-9_-]/gi, '_')}.png`
-          if (!deduplicated) {
-            await store.writeWorkspaceBytes(task.id, framePath, frame.png)
-            lastVisualFrame = { hash: imageHash, path: framePath }
+        const capture = visualCaptureTail.then(async () => {
+          try {
+            const frame = await this.client.getVisualScreenshot(sandbox.id, signal)
+            const imageHash = createHash('sha256').update(frame.png).digest('hex')
+            const deduplicated = lastVisualFrame?.hash === imageHash
+            const framePath = deduplicated ? lastVisualFrame?.path ?? `evidence/visual/${Date.now()}-${phase.replace(/[^a-z0-9_-]/gi, '_')}.png` : `evidence/visual/${Date.now()}-${phase.replace(/[^a-z0-9_-]/gi, '_')}.png`
+            if (!deduplicated) {
+              await store.writeWorkspaceBytes(task.id, framePath, frame.png)
+              lastVisualFrame = { hash: imageHash, path: framePath }
+            }
+            await store.appendEvent(task.id, {
+              type: 'artifact_created', lane: 'artifact', label: `X11 frame · ${phase.replaceAll('_', ' ')}${deduplicated ? ' · unchanged' : ''}`, content: framePath,
+              payload: {
+                kind: 'visual_frame', sandboxId: sandbox.id, capturePhase: phase, causedByEventId, capturedAt: frame.capturedAt,
+                imageHash, deduplicated: deduplicated || undefined, uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(framePath)}&raw=1`,
+              },
+            })
+          } catch (error) {
+            await store.appendEvent(task.id, {
+              type: 'activity_delta', lane: 'activity', label: 'X11 evidence capture unavailable',
+              content: error instanceof Error ? error.message.slice(0, 300) : 'Visual capture failed',
+              payload: { sandboxId: sandbox.id, capturePhase: phase, causedByEventId, visualCapture: 'failed' },
+            })
           }
-          await store.appendEvent(task.id, {
-            type: 'artifact_created', lane: 'artifact', label: `X11 frame · ${phase.replaceAll('_', ' ')}${deduplicated ? ' · unchanged' : ''}`, content: framePath,
-            payload: {
-              kind: 'visual_frame', sandboxId: sandbox.id, capturePhase: phase, causedByEventId, capturedAt: frame.capturedAt,
-              imageHash, deduplicated: deduplicated || undefined, uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(framePath)}&raw=1`,
-            },
-          })
-        } catch (error) {
-          await store.appendEvent(task.id, {
-            type: 'activity_delta', lane: 'activity', label: 'X11 evidence capture unavailable',
-            content: error instanceof Error ? error.message.slice(0, 300) : 'Visual capture failed',
-            payload: { sandboxId: sandbox.id, capturePhase: phase, causedByEventId, visualCapture: 'failed' },
-          })
-        }
+        })
+        visualCaptureTail = capture.catch(() => undefined)
+        return capture
       }
       let live = sandbox
       const deadline = Date.now() + 4 * 60_000
@@ -240,9 +245,9 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       })
       if (this.options.visualRuntime) {
         const visual = await this.client.startVisualRuntime(sandbox.id, signal)
-        visualRuntimeReady = visual.browserReady
+        visualRuntimeReady = true
         const current = store.getTask(task.id)
-        await store.updateTask(task.id, { securityContext: { ...current.securityContext!, visualRuntimeReady: visual.browserReady } })
+        await store.updateTask(task.id, { securityContext: { ...current.securityContext!, visualRuntimeReady: true } })
         await store.appendEvent(task.id, {
           type: 'activity_delta', lane: 'control', label: 'Headless visual runtime ready',
           content: `X11 ${visual.display} · ${visual.width}×${visual.height} · screenshot stream available without VNC.`,
@@ -414,6 +419,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       }
       stopVisualLoop?.()
       await visualLoop
+      await visualCaptureTail
       await captureVisualFrame('after_agent', agentExecution.id)
       if (agentExitCode !== 0) throw new Error(`Sandbox Claude process exited ${agentExitCode}`)
       if (task.mode === 'slides') {
@@ -578,6 +584,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     } catch (error) {
       stopVisualLoop?.()
       await visualLoop?.catch(() => undefined)
+      await visualCaptureTail.catch(() => undefined)
       throw error
     }
   }

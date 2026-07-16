@@ -82,3 +82,5 @@ The complete harness then passed:
 - both retained leases returned `released`
 
 Gateway attestation remained disabled, so this proves the development-provider POC contract rather than production microVM isolation. Two follow-up defects were observed: concurrent periodic/tool-adjacent ffmpeg captures sometimes fail, and task status can become `completed` before final visual/run bookkeeping is appended. Neither invalidated this harness, but both should be corrected before treating status as a strict synchronization barrier.
+
+The apparent completion-order concern was disproved by run IDs and timestamps: each turn's `run_completed` preceded the next turn's `run_started`. The real remaining visual issue was concurrent ffmpeg capture from the periodic loop and tool checkpoints. ONEVibe now serializes all capture requests through one per-task promise chain, drains that chain before completion/failure, and treats a successfully initialized display as screenshot-ready even if optional Chromium CDP is unavailable. This hardening is unit/build verified and awaits the next live regression run.

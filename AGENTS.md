@@ -54,3 +54,5 @@ For binary acceptance artifacts, prefer a versioned server-controlled renderer e
 Keep capability gates separable in live diagnostics. A backend/artifact proof may run with visual capture disabled when the provider route is unavailable, but it must be labeled partial and must not close the combined E2E ticket; preserve the exact provider failure and require a later run with visual evidence enabled.
 
 Azure is a curated branch assembled from focused patches, not proof that every local ancestor exists remotely. Before diagnosing a missing deployed route as a build-cache issue, use `git merge-base --is-ancestor <commit> HEAD` on the Azure checkout. Promote the owning commit explicitly, run its focused tests, rebuild the Next bundle, restart the service, and prove the route with an authenticated create/use/delete probe.
+
+Do not run concurrent ffmpeg/X11 screenshot commands against one sandbox display. Serialize periodic and event-caused captures per task, preserve the causal event ID on queued captures, and drain the queue before emitting terminal run state.
