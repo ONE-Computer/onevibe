@@ -806,3 +806,92 @@ button.model-selector *{color:inherit}
 
 /* Sidebar footer avatar row — remove tinted bg */
 [data-theme=light] .avatar{background:var(--surface-hover)!important;color:var(--text-secondary)!important;border:1px solid var(--border-default)!important;font-weight:500}
+
+/* ================================================================
+   PHASE 14 — TYPE + SPACING CALIBRATION
+   ================================================================ */
+[data-theme=light] body{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+[data-theme=light] .home-view{padding:64px 24px 40px}
+[data-theme=light] .home-content{width:min(700px,100%)}
+[data-theme=light] .home-hero-heading{
+  font-size:clamp(24px,2.6vw,30px)!important;
+  font-weight:500!important;
+  letter-spacing:-.018em!important;
+  color:var(--text-primary)!important;
+  line-height:1.25!important;
+  margin:0 0 28px!important;
+}
+[data-theme=light] .home-hero{margin-bottom:24px}
+
+/* Composer sizing */
+[data-theme=light] .composer{padding:14px 16px 10px!important;border-radius:14px!important}
+[data-theme=light] .composer textarea{min-height:56px!important;font-size:15px!important}
+[data-theme=light] .composer textarea::placeholder{font-size:15px!important;color:var(--text-muted)!important}
+
+/* Composer chip row spacing */
+[data-theme=light] .composer-actions{gap:8px}
+[data-theme=light] .composer-left{gap:6px}
+[data-theme=light] .composer-divider{display:none}
+
+/* Sidebar spacing rhythm */
+[data-theme=light] .sidebar{padding:14px 10px 12px}
+[data-theme=light] .primary-nav{gap:1px}
+[data-theme=light] .task-list{gap:6px}
+[data-theme=light] .task-list-group{gap:1px}
+[data-theme=light] .brand-mark{font-size:15px;font-weight:600}
+
+/* Topbar tone */
+[data-theme=light] .topbar{background:var(--overlay-topbar)!important;border-bottom:1px solid var(--border-subtle);background-image:none!important}
+
+/* Content-view eyebrows: quiet, not shouty */
+[data-theme=light] .task-kicker,
+[data-theme=light] .dashboard-pane>header span,
+[data-theme=light] .handoff-pane>header span,
+[data-theme=light] .assets-pane>header span,
+[data-theme=light] .task-settings-pane>header span,
+[data-theme=light] .database-pane>header span{
+  color:var(--text-muted)!important;font-size:12px!important;font-weight:500!important;
+  text-transform:none!important;letter-spacing:0!important;
+}
+
+/* View heading sizes */
+[data-theme=light] .dashboard-pane>header strong,
+[data-theme=light] .handoff-pane>header strong,
+[data-theme=light] .assets-pane>header strong,
+[data-theme=light] .task-settings-pane>header strong,
+[data-theme=light] .database-pane>header strong{font-size:20px;font-weight:500;letter-spacing:-.015em}
+
+/* Library / Skills / Computers / Schedules view heading */
+[data-theme=light] section > header h1,
+[data-theme=light] .library-view h1,
+[data-theme=light] .skills-view h1,
+[data-theme=light] .schedules-view h1,
+[data-theme=light] .computers-view h1{
+  font-size:28px!important;font-weight:500!important;letter-spacing:-.02em!important;
+  color:var(--text-primary)!important;margin-top:4px!important;
+}
+[data-theme=light] section > header p{font-size:14px!important;color:var(--text-secondary)!important;line-height:1.55!important}
+
+/* Big view header decorative icons — muted */
+[data-theme=light] section > header svg{color:var(--text-faint)!important}
+
+/* GitHub link — dark surface */
+[data-theme=light] .github-button{background:var(--text-primary)!important;color:#fff!important;border-color:var(--text-primary)!important}
+[data-theme=light] .github-button:hover{background:#000!important;border-color:#000!important}
+
+/* Cards in Library/Skills/Computers */
+[data-theme=light] .library-grid article,
+[data-theme=light] .skills-grid article,
+[data-theme=light] .computers-grid article,
+[data-theme=light] .schedule-list article{
+  background:var(--surface-panel)!important;border:1px solid var(--border-default)!important;
+  border-radius:12px!important;box-shadow:none!important;
+}
+[data-theme=light] .library-grid article:hover,
+[data-theme=light] .skills-grid article:hover,
+[data-theme=light] .computers-grid article:hover{border-color:var(--border-strong)!important}
+[data-theme=light] .library-card-top span,
+[data-theme=light] .skills-grid article span:first-child{font-size:11px!important;color:var(--text-muted)!important;text-transform:none!important;letter-spacing:0!important;font-weight:500}
+[data-theme=light] .library-grid article h2{font-size:15px!important;font-weight:500!important;color:var(--text-primary)}
+[data-theme=light] .library-grid article > button{background:transparent!important;color:var(--text-primary)!important;border:1px solid var(--border-default)!important;font-weight:500}
+[data-theme=light] .library-grid article > button:hover{background:var(--surface-hover)!important}
