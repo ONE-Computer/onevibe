@@ -13,7 +13,7 @@ describe('runtime readiness', () => {
   it('reports configured boundaries without credential material', () => {
     const states = runtimeReadiness({ claudeConfigured: true, remoteConfigured: true, oneComputerConfigured: true }).providers
     expect(states.find((state) => state.id === 'claude_sdk')).toMatchObject({ available: true, boundary: 'Governed host workspace' })
-    expect(states.find((state) => state.id === 'onecomputer')).toMatchObject({ available: true, boundary: 'Ephemeral sandbox' })
+    expect(states.find((state) => state.id === 'onecomputer')).toMatchObject({ available: true, boundary: 'Conversation development sandbox' })
     expect(JSON.stringify(states)).not.toMatch(/token|secret|api[_-]?key/i)
   })
 
