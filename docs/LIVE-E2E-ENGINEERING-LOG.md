@@ -183,3 +183,18 @@ The real-provider cancellation harness allocated sandbox `onevibe-32279349` for 
   (33 test files / 174 tests, build, and harness typecheck) pass. The live
   Azure recovery run remains open until the hook is deployed temporarily in a
   development environment, the harness passes, and both flags are removed.
+
+# 2026-07-16 — Azure-lineage clean export
+
+- Reconciled the recovery slice onto the actual Azure deployment lineage and
+  validated the combined branch with 10 focused provider tests, API
+  typecheck, and changed-file lint. The assembled commits are `a107f8e`,
+  `48bbd09`, and `1e9807a`.
+- Published a new single-commit GitHub export at
+  `codex/azure-allocation-recovery-clean` (`db489d7`). The export removes the
+  historical sensitive audit artifact and replaces it with a public-safe audit
+  boundary note; the original Gitea/Azure branch and its history are unchanged.
+- GitHub push protection accepted the export. It is reviewable source, not live
+  deployment evidence: the Azure VM still needs an authorized Gitea promotion,
+  temporary development-only test flags, a passing recovery harness, and
+  explicit flag removal afterward.
