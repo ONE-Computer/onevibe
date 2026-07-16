@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1784236580463,
+      "tag": "0000_onevibe_initial_contract",
+      "breakpoints": true
+    }
+  ]
+}

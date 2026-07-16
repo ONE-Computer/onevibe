@@ -627,3 +627,9 @@ baseline harness in CI.
 - Added the real Email OTP login page and session client. Authenticated users see their identity in the sidebar, can sign out, receive a private workspace bootstrap project, and do not see the prior hardcoded operator identity. Public share/readiness routes remain explicitly scoped exceptions.
 - Enabled-mode HTTP E2E with a test-only delivery webhook passed: owner A requested and verified OTP, created a task, owner B received a separate workspace and zero tasks, and owner B received HTTP 404 for owner A’s task. Unauthenticated `/api/tasks` returned 401; public `/api/runtime` remained available.
 - This closes a meaningful local P4-01/P4-06 slice but not the production phase: Better Auth/Postgres migration, org membership, legacy ownership import, production email delivery, and exhaustive route negative tests remain open. Model traffic remains LiteLLM-only.
+
+# 2026-07-17 — Drizzle/Postgres target contract
+
+- Added `server/db/schema.ts` with the target PostgreSQL contract for Better Auth, users/orgs, owner-scoped projects/tasks/schedules/MCP, turns/messages, runtime/native event ledgers, idempotency, runtime leases, and workspace versions.
+- Generated `server/db/migrations/0000_onevibe_initial_contract.sql` and added `drizzle.config.ts` plus `npm run db:generate`, `npm run db:migrate`, and `npm run db:check`. `npm run db:check` passes without requiring a live database.
+- This is a schema/DDL slice only. The running product remains SQLite-backed until a Postgres repository adapter, explicit owner-aware legacy import, connection/restart/idempotency proof, and a controlled `DATABASE_URL` runtime switch are implemented. No cloud deployment claim is made.

@@ -37,18 +37,18 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | Claude SDK adapter | `server/claude-sdk-runner.ts` (373 lines) | Real — wraps `@anthropic-ai/claude-agent-sdk` |
 | ONEComputer adapter | `server/onecomputer-sandbox-runner.ts` (830 lines) | Real — wraps ONEComputer cloud sandbox |
 | Demo adapter | `server/demo-runner.ts` (172 lines) | Fake — scripted responses, zero model calls |
-| Task store | `server/store.ts` (1255 lines) + `server/persistence/` | Real — SQLite via `better-sqlite3` |
+| Task store | `server/store.ts` + `server/persistence/` | Real — local SQLite via `better-sqlite3`; Postgres/Drizzle schema contract generated, adapter still open |
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
-| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 228 tests passing |
+| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 229 tests passing |
 | Container | `Dockerfile`, `docker-compose.yml` | Local hardened image verified; SQLite volume only until Postgres/auth slices land |
 
 ### What is critically broken
 
 1. **No governed runtime configured** — the local fallback is explicitly labelled Simulation and makes no model call; when the protected LiteLLM route is configured, the registry selects a compatible governed runtime instead
 2. **Auth is feature-gated** — Better Auth Email OTP, session middleware, login UI, and local user ownership are implemented, but production enablement remains blocked on Postgres/org scope and full route acceptance
-3. **No Postgres/multi-user persistence** — the current store is SQLite and intentionally local-first; Postgres/Drizzle and user scoping remain Phase 4 work
+3. **No Postgres/multi-user persistence yet** — local user scoping is proven, and a Drizzle/Postgres schema/migration contract exists; the repository adapter, legacy import, and Postgres runtime proof remain Phase 4 work
 4. **No managed deploy path** — a non-root Docker image and local Compose smoke path now exist, but Railway/Fly configuration, secrets, auth, and production operations remain open
 5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
 6. **Remaining UX dead-ends** — dead controls, swallowed errors, and extension gaps remain in `plan/00-gap-analysis.md`
