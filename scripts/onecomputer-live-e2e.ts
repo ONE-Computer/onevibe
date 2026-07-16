@@ -7,6 +7,7 @@ const baseUrl = (process.env.ONEVIBE_E2E_URL ?? 'http://127.0.0.1:4311').replace
 const timeoutMs = Math.max(60_000, Number(process.env.ONEVIBE_E2E_TIMEOUT_MS ?? 20 * 60_000))
 const requireGateway = process.env.ONEVIBE_E2E_REQUIRE_GATEWAY === 'true'
 const requireVisual = process.env.ONEVIBE_E2E_REQUIRE_VISUAL !== 'false'
+const requireLiteLlm = process.env.ONEVIBE_E2E_REQUIRE_LITELLM !== 'false'
 const mode = process.env.ONEVIBE_E2E_MODE === 'website' ? 'website' : 'slides'
 
 type Snapshot = {
@@ -68,6 +69,7 @@ const main = async () => {
   if (task.securityContext?.sandboxState !== 'started' || !task.securityContext.sandboxId) throw new Error(`Expected a retained started sandbox, found ${task.securityContext?.sandboxState ?? 'unknown'}`)
   const firstSandboxId = task.securityContext.sandboxId
   if (!task.events.some((event) => event.label === 'ONEComputer sandbox ready')) throw new Error('Sandbox readiness event missing')
+  if (requireLiteLlm && !task.events.some((event) => event.type === 'run_started' && event.payload.claudeTransport === 'litellm')) throw new Error('Sandbox run did not record the required server-controlled LiteLLM transport')
   if (requireVisual && !task.events.some((event) => event.payload.kind === 'visual_frame')) throw new Error('Required X11 visual evidence missing')
   if (mode === 'slides') {
     const [pptx, pdf] = await Promise.all([download(task.id, 'deck.pptx'), download(task.id, 'deck.pdf')])
@@ -110,6 +112,7 @@ const main = async () => {
     sameConversationReused: continued.securityContext?.sandboxId === firstSandboxId,
     conversationsIsolated: secondSandboxId !== firstSandboxId,
     gatewayEnforced: task.securityContext?.gatewayEnforced === true,
+    litellmRouted: task.events.some((event) => event.type === 'run_started' && event.payload.claudeTransport === 'litellm'),
     visualEvidence: continued.events.filter((event) => event.payload.kind === 'visual_frame').length,
     evidenceValid: evidence.valid, cleanup: [firstRelease.status, secondRelease.status],
   }, null, 2))

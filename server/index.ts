@@ -374,7 +374,10 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       const lease = await new RuntimeLeaseService(store, client).release(taskId)
       if (!lease) return json(response, 200, { status: 'not_allocated' })
       const task = store.getTask(taskId)
-      await store.updateTask(taskId, { securityContext: { ...task.securityContext!, sandboxState: 'destroyed', destroyedAt: lease.releasedAt ?? undefined } })
+      await store.updateTask(taskId, { securityContext: {
+        ...task.securityContext!, sandboxState: 'destroyed', destroyedAt: lease.releasedAt ?? undefined,
+        runtimeSessionId: undefined, runtimeSessionLeaseId: undefined, runtimeSessionLeaseGeneration: undefined,
+      } })
       await store.appendEvent(taskId, {
         type: 'activity_delta', lane: 'control', label: 'Conversation sandbox released',
         content: 'The retained ONEComputer development sandbox was explicitly released. A future turn will receive a new fenced generation.',

@@ -151,6 +151,8 @@ export type Task = {
     provider?: string
     gatewayEnforced: boolean
     runtimeSessionId?: string
+    runtimeSessionLeaseId?: string
+    runtimeSessionLeaseGeneration?: number
     executionBoundary?: 'host_process' | 'onecomputer_sandbox' | 'remote_runtime'
     sandboxState?: string
     destroyedAt?: string

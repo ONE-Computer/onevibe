@@ -13,9 +13,15 @@ ONECOMPUTER_API_URL=http://onecomputer-api.example
 ONECOMPUTER_SERVICE_TOKEN=oc_...
 ONECOMPUTER_PROJECT_ID=... # mandatory with an oc_org_ organization key
 ONECOMPUTER_GATEWAY_ENFORCED=true # only after independent egress attestation
+ONEVIBE_LITELLM_URL=https://litellm.internal.example # server route
+ONEVIBE_SANDBOX_LITELLM_URL=https://litellm.sandbox.internal.example # sandbox-reachable route, when different
+ONEVIBE_LITELLM_API_KEY=... # server-only; never returned to the browser or evidence
+ONEVIBE_LITELLM_MODEL=claude-sonnet-5
 ```
 
 The API must provide authenticated `POST/GET/DELETE /v1/sandboxes`, `POST /exec`, and the headless visual runtime endpoints. Browser clients must never receive this key, the project header, X11, CDP, or VNC access.
+
+For the POC, ONEVibe injects the configured LiteLLM route, model alias, and credential into the sandbox Claude process environment and records only the safe transport/model labels. The credential is not written into the workspace, prompt, Claude journal projection, task state, or browser payload. The ONEComputer control plane necessarily receives the exec request in the current API; production requires a short-lived in-sandbox credential broker or provider-native secret injection so a static gateway key is not present in command transport or provider request logs.
 
 ## Live execution attempt
 

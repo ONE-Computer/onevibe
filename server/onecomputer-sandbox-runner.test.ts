@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { OneComputerClient } from './onecomputer-client.js'
 
 const roots: string[] = []
-afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
+afterEach(async () => {
+  vi.unstubAllEnvs()
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
 
 describe('OneComputerSandboxRuntimeAdapter', () => {
   it('only exposes browser MCP controls when the governed runtime explicitly enables them', async () => {
@@ -49,6 +52,9 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
   })
 
   it('executes Claude in a conversation-owned sandbox and retains the boundary', async () => {
+    vi.stubEnv('ONEVIBE_LITELLM_URL', 'http://host-only-litellm:4100')
+    vi.stubEnv('ONEVIBE_SANDBOX_LITELLM_URL', 'http://sandbox-reachable-litellm:4100')
+    vi.stubEnv('ONEVIBE_LITELLM_API_KEY', 'test-sandbox-routing-key')
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-'))
     roots.push(root)
     const { TaskStore } = await import('./store.js')
@@ -98,6 +104,11 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.join('\n')).not.toContain(task.prompt)
     expect(commands.some((command) => command.includes('claude --print'))).toBe(true)
     expect(commands.some((command) => command.includes('--output-format stream-json --verbose'))).toBe(true)
+    expect(commands.some((command) => command.includes("export ANTHROPIC_BASE_URL='http://sandbox-reachable-litellm:4100'"))).toBe(true)
+    expect(commands.some((command) => command.includes("export ANTHROPIC_API_KEY='test-sandbox-routing-key'"))).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.type === 'run_started' && event.payload.claudeTransport === 'litellm')).toBe(true)
+    expect(JSON.stringify(store.listEvents(task.id))).not.toContain('test-sandbox-routing-key')
+    expect(JSON.stringify(store.listEvents(task.id))).not.toContain('sandbox-reachable-litellm')
     expect(commands.some((command) => command.includes('mcp__playwright__browser_navigate'))).toBe(true)
     expect(client.deleteSandbox).not.toHaveBeenCalled()
     expect(store.listEvents(task.id).filter((event) => event.label === 'ONEComputer sandbox state observed').map((event) => event.payload.state)).toEqual(['creating', 'started'])
@@ -114,6 +125,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.listEvents(task.id).some((event) => event.label === 'Browser · browser_snapshot' && event.payload.toolUseId === 'tool-2' && event.payload.browserTool === true)).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.label === 'Browser result' && event.payload.toolUseId === 'tool-2' && event.payload.browserTool === true)).toBe(true)
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-1')
+    expect(store.getTask(task.id).securityContext).toMatchObject({ runtimeSessionLeaseGeneration: 1 })
     expect(store.getTask(task.id).plan[0]?.title).toBe('Frame the launch outcome')
     expect(store.listEvents(task.id).some((event) => event.label === 'Task plan refined by runtime' && event.payload.source === 'onecomputer')).toBe(true)
     expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'started', gatewayEnforced: true })
@@ -157,7 +169,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-provisioning' })
   })
 
-  it('reuses an explicitly retained sandbox for a continuation', async () => {
+  it('reuses the conversation-owned sandbox and Claude session for a continuation', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-retained-'))
     roots.push(root)
     const { TaskStore } = await import('./store.js')
@@ -166,10 +178,14 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     await store.initialize()
     const task = await store.createTask('Continue sandbox work', 'onecomputer')
     const journal = Buffer.from(JSON.stringify({ type: 'result', session_id: 'session-retained', result: 'Done.' })).toString('base64')
+    const commands: string[] = []
     const client = {
       createSandbox: vi.fn(async () => ({ id: 'sandbox-retained', state: 'started', provider: 'kasm-local' })),
       getSandbox: vi.fn(async () => ({ id: 'sandbox-retained', state: 'started', provider: 'kasm-local' })),
-      exec: vi.fn(async (_id: string, command: string) => command.includes('find .') ? { exitCode: 0, output: Buffer.from('README.md\0').toString('base64') } : command.endsWith("'README.md'") ? { exitCode: 0, output: Buffer.from('# retained').toString('base64') } : command.includes('.onevibe-exitcode') ? { exitCode: 0, output: `done:0\n${journal}` } : { exitCode: 0, output: '' }),
+      exec: vi.fn(async (_id: string, command: string) => {
+        commands.push(command)
+        return command.includes('find .') ? { exitCode: 0, output: Buffer.from('README.md\0').toString('base64') } : command.endsWith("'README.md'") ? { exitCode: 0, output: Buffer.from('# retained').toString('base64') } : command.includes('.onevibe-exitcode') ? { exitCode: 0, output: `done:0\n${journal}` } : { exitCode: 0, output: '' }
+      }),
       deleteSandbox: vi.fn(async () => undefined),
       startVisualRuntime: vi.fn(async () => ({ display: ':99', width: 1440, height: 900, browserReady: false })),
       getVisualScreenshot: vi.fn(),
@@ -181,5 +197,9 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(client.getSandbox).toHaveBeenCalled()
     expect(client.deleteSandbox).not.toHaveBeenCalled()
     expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer retained sandbox resumed')).toBe(true)
+    expect(commands.filter((command) => command.includes('claude --print'))).toHaveLength(2)
+    expect(commands.filter((command) => command.includes('claude --print'))[0]).not.toContain('--resume')
+    expect(commands.filter((command) => command.includes('claude --print'))[1]).toContain("--resume 'session-retained'")
+    expect(store.getTask(task.id).securityContext).toMatchObject({ runtimeSessionId: 'session-retained', runtimeSessionLeaseGeneration: 1 })
   })
 })

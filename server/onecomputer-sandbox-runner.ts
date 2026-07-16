@@ -5,6 +5,7 @@ import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 import { skillPacksFor } from './skill-packs.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
+import { claudeProviderConfig } from './claude-provider-config.js'
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
@@ -134,17 +135,28 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
   async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
     signal.throwIfAborted()
+    const configuredClaude = claudeProviderConfig()
+    const sandboxBaseUrl = process.env.ONEVIBE_SANDBOX_LITELLM_URL?.trim().replace(/\/+$/, '')
+      ?? configuredClaude.childEnv.ANTHROPIC_BASE_URL
+    const sandboxApiKey = configuredClaude.childEnv.ANTHROPIC_API_KEY
+    const claudeTransport = configuredClaude.configured ? configuredClaude.transport : 'sandbox_preconfigured'
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'ONEComputer sandbox execution started',
       content: 'The agent process will execute through the authenticated ONEComputer sandbox API, not on the ONEVibe host.',
-      payload: { executionRoute: 'onecomputer_sandbox', gatewayEnforced: this.options.gatewayEnforced },
+      payload: { executionRoute: 'onecomputer_sandbox', gatewayEnforced: this.options.gatewayEnforced, claudeTransport, model: configuredClaude.model },
     })
     await store.setPlanStep(task.id, 'scope', 'completed')
     await store.setPlanStep(task.id, 'workspace', 'running')
 
     const acquired = await new RuntimeLeaseService(store, this.client).acquire(task.id, signal)
     const sandbox = acquired.sandbox
+    const resumableSessionId = continuation
+      && task.securityContext?.runtimeSessionId
+      && task.securityContext.runtimeSessionLeaseId === acquired.lease.id
+      && task.securityContext.runtimeSessionLeaseGeneration === acquired.lease.generation
+      ? task.securityContext.runtimeSessionId
+      : undefined
     let observedSandboxState: string | undefined
     const recordSandboxState = async (candidate: typeof sandbox) => {
       const state = candidate.state ?? 'provisioning'
@@ -278,6 +290,9 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const allowedTools = governedClaudeTools(browserAutomationEnabled)
       const command = [
         'set -eu',
+        ...(sandboxBaseUrl ? [`export ANTHROPIC_BASE_URL=${shellQuote(sandboxBaseUrl)}`] : []),
+        ...(sandboxApiKey ? [`export ANTHROPIC_API_KEY=${shellQuote(sandboxApiKey)}`] : []),
+        'export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1',
         `mkdir -p ${shellQuote(workspace)}`,
         `cd ${shellQuote(workspace)}`,
         ...selectedSkills.flatMap((skill) => [
@@ -288,7 +303,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'rm -f .onevibe-events.jsonl .onevibe-exitcode .onevibe-pid',
         '(',
         '  set +e',
-        `  claude --print --output-format stream-json --verbose --permission-mode bypassPermissions --setting-sources project --allowedTools ${shellQuote(allowedTools.join(','))} "$(cat .onevibe-prompt)" > .onevibe-events.jsonl 2>&1`,
+        `  claude --print --output-format stream-json --verbose --model ${shellQuote(configuredClaude.model)} --permission-mode bypassPermissions --setting-sources project --allowedTools ${shellQuote(allowedTools.join(','))}${resumableSessionId ? ` --resume ${shellQuote(resumableSessionId)}` : ''} "$(cat .onevibe-prompt)" > .onevibe-events.jsonl 2>&1`,
         '  printf %s "$?" > .onevibe-exitcode',
         ') < /dev/null > /dev/null 2>&1 &',
         'printf %s "$!" > .onevibe-pid',
@@ -297,7 +312,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const agentExecution = await store.appendEvent(task.id, {
         type: 'tool_call_started', lane: 'activity', label: 'Execute Claude inside ONEComputer',
         content: 'Prompt is base64-transferred to avoid shell interpretation and the agent receives no Bash tool.',
-        payload: { sandboxId: sandbox.id, toolName: 'onecomputer.sandbox.exec', allowedTools, browserAutomation: browserAutomationEnabled, skills: selectedSkills.map(({ id, version, title, sha256 }) => ({ id, version, title, sha256 })) },
+        payload: { sandboxId: sandbox.id, leaseId: acquired.lease.id, leaseGeneration: acquired.lease.generation, toolName: 'onecomputer.sandbox.exec', claudeTransport, model: configuredClaude.model, sessionContinuation: Boolean(resumableSessionId), allowedTools, browserAutomation: browserAutomationEnabled, skills: selectedSkills.map(({ id, version, title, sha256 }) => ({ id, version, title, sha256 })) },
       })
       await captureVisualFrame('before_agent', agentExecution.id)
       const spawned = await this.client.exec(sandbox.id, command, signal)
@@ -384,7 +399,10 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       })
       if (parsedJournal.sessionId) {
         const current = store.getTask(task.id)
-        await store.updateTask(task.id, { securityContext: { ...current.securityContext!, runtimeSessionId: parsedJournal.sessionId } })
+        await store.updateTask(task.id, { securityContext: {
+          ...current.securityContext!, runtimeSessionId: parsedJournal.sessionId,
+          runtimeSessionLeaseId: acquired.lease.id, runtimeSessionLeaseGeneration: acquired.lease.generation,
+        } })
       }
       const listing = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && find . -type f ! -name '.onevibe-events.jsonl' ! -name '.onevibe-plan.json' -print0 | base64 -w0`, signal)
       if (listing.exitCode !== 0) throw new Error('Unable to enumerate sandbox artifacts')
