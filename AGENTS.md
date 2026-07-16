@@ -47,6 +47,8 @@ Read `docs/ASSISTANT-UI-ARCHITECTURE.md` before changing the conversation surfac
 
 Conversation navigation must use the cursor-paginated `/api/conversations` contract. Keep full-text search server-side so unloaded history remains discoverable. Client summary reordering is allowed only from a newer authoritative task snapshot; never infer a durable message from composer state.
 
+SSE `runtime_event` frames must include their durable event ID and honor a validated task-bound `Last-Event-ID` cursor. Keep client event-ID deduplication and coalesce snapshot reconciliation; never launch an overlapping full fetch for every streamed delta. Assistant-ui tool cards must be projections of durable `(runId, toolUseId)` start/completion evidence. Do not expose raw tool input values in chat or treat wrapper activity as a provider tool invocation.
+
 ## Sandbox artifact dependencies
 
 Artifact tooling required by an acceptance gate must be image/bootstrap managed and verified before the runtime reports ready. Never make a live agent install packages through the development proxy. Keep Claude's `--tools` availability mode-specific and use `--allowedTools` only as the separate approval layer; adding an approval allowlist does not remove a tool. Slide mode may receive a narrowly documented shell capability to invoke preinstalled renderers, while ordinary conversation modes must not.

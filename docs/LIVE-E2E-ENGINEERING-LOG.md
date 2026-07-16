@@ -92,3 +92,9 @@ The first post-serialization task exposed a separate provider race: geometry dis
 The two-phase restart audit captured completed task `task_dda313c34b5a49`, stopped the ONEVibe API, restarted it against the same data directory, and verified identical transcript and evidence digests. The evidence chain remained valid and named credential-residue detectors found zero matches across the API snapshot, messages, and bounded task artifacts. The audit stores only digests and detector/source names, never matched text.
 
 The real-provider cancellation harness allocated sandbox `onevibe-32279349` for task `task_ca163e32279349`, cancelled while execution was active, observed the durable `run_cancelled` event, explicitly released the fenced lease, and verified final sandbox state `destroyed` plus release evidence. This proves the controlled cancellation/teardown path rather than merely mocking an abort.
+# 2026-07-16 — task stream suffix replay and tool projection
+
+- A live local request against the persisted Azure E2E task resumed from event 180 and returned exactly event 181, proving suffix-only replay from `Last-Event-ID`.
+- A cursor from another task returned HTTP 400 rather than replaying or crossing conversation boundaries.
+- The persisted slide-generation conversation rendered paired Bash invocations as assistant-ui tool cards in both dark and light themes while retaining the separate ONEComputer evidence/artifact rail.
+- The cards showed the ONEComputer sandbox execution route, input field names, bounded command-result excerpts, completed state, and measured duration. Raw input values were not projected into chat.

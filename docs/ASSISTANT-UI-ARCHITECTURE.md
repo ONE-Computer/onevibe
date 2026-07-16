@@ -25,6 +25,18 @@ The adapter preserves durable message ID, role, content, creation time, task ID,
 
 The browser may optimistically reorder a summary only from a newer authoritative `TaskSnapshot` received through the existing task API/SSE path. Reload always reconstructs the list from the server. Loading older pages deduplicates by conversation ID, and URL navigation remains the durable selection mechanism so browser back/forward restores the selected conversation.
 
+## Stream continuity
+
+Each `runtime_event` SSE frame carries its durable event ID. On automatic EventSource reconnect, the browser sends `Last-Event-ID`; the server validates that the cursor belongs to the requested task and replays only events with a greater sequence. A malformed or cross-task cursor returns HTTP 400. Heartbeats keep intermediaries from silently expiring an otherwise idle stream, and the server advertises a bounded 1.5-second reconnect interval.
+
+The client still deduplicates by event ID and reconciles with a full authoritative snapshot when a stream opens. Event-caused snapshot reads pass through a coalescing scheduler: overlapping requests produce at most one trailing reconciliation instead of racing one request per delta. Reconnection clears the warning only after the SSE connection opens; terminal history never masquerades as a broken live run.
+
+## Tool activity projection
+
+Assistant messages may include assistant-ui tool-call parts projected from durable evidence. Projection pairs `tool_call_started` and `tool_call_completed` by `(runId, toolUseId)` and attaches the result only to the assistant message whose `turnId` matches that run. Operational wrapper events without a provider invocation ID remain in the evidence rail and are not misrepresented as model tool calls.
+
+Inline cards expose the tool name, execution boundary, input field names, timing, completion state, and a bounded result summary. Raw input values are deliberately excluded from chat projection. The append-only task timeline remains the source of truth; assistant-ui cards are a convenient view over that evidence, never an independent execution state.
+
 ## Failure and migration rules
 
 - Never introduce browser-local conversation arrays as a fallback.

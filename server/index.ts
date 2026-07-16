@@ -18,6 +18,7 @@ import { runtimeReadiness } from './runtime-readiness.js'
 import { evaluateAction } from './policy.js'
 import type { TaskSchedule } from './types.js'
 import { claudeConfigurationMessage, claudeProviderConfig } from './claude-provider-config.js'
+import { encodeRuntimeEventFrame, eventsAfterLastEventId } from './task-event-stream.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -472,15 +473,17 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       return json(response, 202, { approval })
     }
     if (request.method === 'GET' && segments[3] === 'events') {
+      const replay = eventsAfterLastEventId(store.listEvents(taskId), taskId, typeof request.headers['last-event-id'] === 'string' ? request.headers['last-event-id'] : undefined)
       response.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
         Connection: 'keep-alive',
         'X-Accel-Buffering': 'no',
       })
-      for (const event of store.listEvents(taskId)) response.write(`event: runtime_event\ndata: ${JSON.stringify(event)}\n\n`)
+      response.write('retry: 1500\n\n')
+      for (const event of replay) response.write(encodeRuntimeEventFrame(event))
       const unsubscribe = store.subscribe(taskId, (event) => {
-        response.write(`event: runtime_event\ndata: ${JSON.stringify(event)}\n\n`)
+        response.write(encodeRuntimeEventFrame(event))
       })
       const heartbeat = setInterval(() => response.write(': keepalive\n\n'), 15_000)
       request.on('close', () => {

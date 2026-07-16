@@ -1,5 +1,6 @@
 import type { ThreadMessageLike } from '@assistant-ui/react'
 import type { ChatMessage } from '../types'
+import type { AssistantConversationMessage } from './assistant-tool-projection'
 
 const statusFor = (message: ChatMessage): ThreadMessageLike['status'] => {
   if (message.status === 'streaming') return { type: 'running' }
@@ -8,10 +9,10 @@ const statusFor = (message: ChatMessage): ThreadMessageLike['status'] => {
   return { type: 'incomplete', reason: 'error' }
 }
 
-export const toAssistantMessage = (message: ChatMessage): ThreadMessageLike => ({
+export const toAssistantMessage = (message: AssistantConversationMessage): ThreadMessageLike => ({
   id: message.id,
   role: message.role,
-  content: [{ type: 'text', text: message.content }],
+  content: [...(message.toolParts ?? []), ...(message.content ? [{ type: 'text' as const, text: message.content }] : [])],
   createdAt: new Date(message.createdAt),
   ...(message.role === 'assistant' ? { status: statusFor(message) } : {}),
   metadata: { custom: { taskId: message.taskId, turnId: message.turnId, provider: message.provider } },
