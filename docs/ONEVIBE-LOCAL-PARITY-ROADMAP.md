@@ -88,7 +88,7 @@ The local Claude/LiteLLM creation gate is now green for the current contract: tw
 
 Creation outputs now have a deterministic provenance manifest for local deterministic mode writers and successful native Claude turns. The manifest is intentionally metadata-only; ONEComputer provider extraction still needs an explicit projection before this becomes a universal artifact contract.
 
-The latest provider-backed slide proof passed only under the bounded local LiteLLM policy now encoded in the runner: 12 turns / $2 by default. A prior larger-default run exceeded the ten-minute harness deadline. The coordinator also has a 15-minute turn deadline with bounded cleanup grace and explicit timeout evidence; a fresh default-policy slide run is still required before calling the default creation gate green.
+The default local LiteLLM slide gate is now green for the current route: task `task_e1a9c636a57a45` passed with the encoded 12-turn/$2 policy, eight-slide PPTX/PDF outputs, seven hashed manifest outputs, and valid evidence. The coordinator retains its 15-minute turn deadline and bounded cleanup grace; future model/gateway changes must rerun this gate.
 
 ## Delegated audit synthesis — 2026-07-16
 
