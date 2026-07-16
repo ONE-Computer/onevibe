@@ -266,6 +266,8 @@ export class TaskStore {
       const updatedAt = last && last.updatedAt > task.updatedAt ? last.updatedAt : task.updatedAt
       return {
         id: task.id, title: task.title, status: task.status, provider: task.provider, mode: task.mode, projectId: task.projectId,
+        ...(task.parentTaskId ? { parentTaskId: task.parentTaskId } : {}),
+        ...(task.forkedFromMessageId ? { forkedFromMessageId: task.forkedFromMessageId } : {}),
         messageCount: messages.length,
         ...(last ? { lastMessage: { role: last.role, preview: last.content.replace(/\s+/g, ' ').trim().slice(0, 180) || (last.status === 'cancelled' ? 'Run cancelled before a response.' : last.status === 'failed' ? 'Run failed before a response.' : 'Response pending…'), status: last.status, createdAt: last.createdAt } } : {}),
         createdAt: task.createdAt, updatedAt,
@@ -982,6 +984,77 @@ export class TaskStore {
     await rm(target, { recursive: true, force: true })
     await cp(source, target, { recursive: true })
     return files.length
+  }
+
+  /**
+   * Create a durable conversation branch at a user message boundary.
+   *
+   * The selected user message is deliberately excluded from the copied
+   * transcript: the caller supplies its edited replacement as the first new
+   * turn. Prior messages are copied into a new conversation with fresh IDs,
+   * while the current workspace is copied as an independent file tree.
+   */
+  async forkTask(sourceTaskId: string, fromMessageId: string, newPrompt: string) {
+    const source = this.getTask(sourceTaskId)
+    if (['pending', 'running', 'waiting_for_user_input', 'waiting_for_approval'].includes(source.status) || this.activeTurns.has(sourceTaskId)) {
+      throw new Error('Stop the active task before creating a conversation branch')
+    }
+    const sourceMessages = this.readMessages(source)
+    const boundary = sourceMessages.findIndex((message) => message.id === fromMessageId)
+    if (boundary < 0) throw new Error('The selected message is not part of this conversation')
+    if (sourceMessages[boundary]?.role !== 'user') throw new Error('Conversation branches must start from a user message')
+
+    const fork = await this.createTask(newPrompt, source.provider, source.mode, source.projectId, undefined, source.references, source.attachments, source.skills)
+    const forkedAt = new Date().toISOString()
+    await this.updateTask(fork.id, { parentTaskId: source.id, forkedFromMessageId: fromMessageId, forkedAt })
+    await this.copyWorkspace(source.id, fork.id)
+
+    const history = sourceMessages.slice(0, boundary)
+    const turnMap = new Map<string, { id: string; ordinal: number; createdAt: string; completedAt: string; statuses: ChatMessage['status'][] }>()
+    for (const message of history) {
+      const current = turnMap.get(message.turnId)
+      if (current) {
+        current.completedAt = current.completedAt > message.updatedAt ? current.completedAt : message.updatedAt
+        current.statuses.push(message.status)
+      } else {
+        turnMap.set(message.turnId, {
+          id: `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`,
+          ordinal: turnMap.size,
+          createdAt: message.createdAt,
+          completedAt: message.updatedAt,
+          statuses: [message.status],
+        })
+      }
+    }
+    this.requireUnitOfWork().run((repositories) => {
+      for (const turn of turnMap.values()) {
+        const status = turn.statuses.includes('failed') ? 'failed' : turn.statuses.includes('cancelled') ? 'cancelled' : 'completed'
+        repositories.turns.insert({
+          id: turn.id, conversationId: fork.id, clientRequestId: turn.id, ordinal: turn.ordinal,
+          status, createdAt: turn.createdAt, startedAt: turn.createdAt, completedAt: turn.completedAt,
+        })
+      }
+      history.forEach((message, sequence) => {
+        const turn = turnMap.get(message.turnId)
+        if (!turn) throw new Error(`Missing branch turn for message ${message.id}`)
+        const status = message.status === 'streaming' ? 'failed' : message.status
+        const cloned: ChatMessage = {
+          ...message,
+          id: `message_${randomUUID().replaceAll('-', '')}`,
+          taskId: fork.id,
+          turnId: turn.id,
+          status,
+        }
+        repositories.messages.append(this.toMessageRecord(cloned, sequence))
+      })
+    })
+    this.messages.set(fork.id, this.readMessages(this.getTask(fork.id)))
+    await this.appendEvent(fork.id, {
+      type: 'activity_delta', lane: 'control', label: 'Conversation branch created',
+      content: `Branched from ${source.id} before the selected user message. The workspace was copied independently.`,
+      payload: { sourceTaskId: source.id, sourceMessageId: fromMessageId, sourceEvidenceHash: this.listEvents(source.id).at(-1)?.eventHash ?? 'GENESIS', historyMessageCount: history.length, workspaceCopied: true },
+    })
+    return this.getTask(fork.id)
   }
 
   async exportWorkspaceZip(taskId: string) {

@@ -357,6 +357,37 @@ describe('TaskStore', () => {
     expect(copied.references).toEqual(source.references)
   })
 
+  it('creates an independent conversation branch with truncated durable history', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-fork-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const source = await store.createTask('Original conversation', 'demo', 'chat')
+    await store.appendStandaloneMessage(source.id, 'user', 'First question')
+    await store.appendStandaloneMessage(source.id, 'assistant', 'First answer')
+    const second = await store.appendStandaloneMessage(source.id, 'user', 'Second question')
+    await store.appendStandaloneMessage(source.id, 'assistant', 'Second answer')
+    await store.writeWorkspaceFile(source.id, 'notes.md', 'shared until branch time')
+    await store.updateTask(source.id, { status: 'completed' })
+
+    const fork = await store.forkTask(source.id, second.id, 'Edited second question')
+
+    expect(fork.parentTaskId).toBe(source.id)
+    expect(fork.forkedFromMessageId).toBe(second.id)
+    expect(store.listMessages(fork.id).messages.map((message) => message.content)).toEqual(['First question', 'First answer'])
+    expect(store.listEvents(fork.id).at(-1)?.payload).toMatchObject({ sourceTaskId: source.id, sourceMessageId: second.id, historyMessageCount: 2, workspaceCopied: true })
+    expect(store.verifyChain(fork.id)).toBe(true)
+    expect(await store.readWorkspaceFile(fork.id, 'notes.md')).toBe('shared until branch time')
+    await store.writeWorkspaceFile(fork.id, 'notes.md', 'branch-only change')
+    expect(await store.readWorkspaceFile(source.id, 'notes.md')).toBe('shared until branch time')
+
+    const reloaded = new TaskStore(root)
+    await reloaded.initialize()
+    expect(reloaded.getTask(fork.id)).toMatchObject({ parentTaskId: source.id, forkedFromMessageId: second.id })
+    expect(reloaded.listMessages(fork.id).messages).toHaveLength(2)
+  })
+
   it('persists governed project context and binds new tasks to it', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-projects-'))
     temporaryRoots.push(root)

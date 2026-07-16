@@ -146,6 +146,13 @@ export const sendFollowUp = async (taskId: string, prompt: string, attachments: 
     body: JSON.stringify({ prompt, attachments }),
   }))
 
+export const forkTask = async (taskId: string, fromMessageId: string, newPrompt: string) =>
+  parse<TaskSnapshot>(await fetch(`/api/tasks/${taskId}/fork`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fromMessageId, newPrompt }),
+  }))
+
 export const cancelQueuedGuidance = async (taskId: string, guidanceId: string) =>
   parse<Task>(await fetch(`/api/tasks/${taskId}/messages/${encodeURIComponent(guidanceId)}`, { method: 'DELETE' }))
 

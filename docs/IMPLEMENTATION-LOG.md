@@ -1,5 +1,16 @@
 # Implementation log
 
+## 2026-07-17 — handover evidence reconciliation
+
+- Reconciled the phase checklist against the current implementation and regression evidence: P1-01 backend-offline recovery, P1-08 permanent simulation disclosure, and P2-07 durable guidance queueing are complete and now marked as such in `TODO.md`.
+- P2-08 conversation branching/edit-message was the next Phase 2 gap and is now complete in the following implementation slice. The release gate still requires `npm run check`, and all model traffic remains LiteLLM-only; a direct first-party Anthropic route is not an accepted fallback.
+
+## 2026-07-17 — durable conversation branching
+
+- Completed P2-08 locally. `POST /api/tasks/:id/fork` validates a terminal source conversation and user-message boundary, creates a new task with parent lineage, copies the path-confined workspace, truncates durable history before the selected message, and schedules the edited prompt as a new provider turn.
+- Added assistant-ui inline editing for user messages. “Edit” is explicit and creates a new branch; the original conversation is never rewritten. Branch evidence records the source task/message and source evidence head, and cloned message/turn IDs are independent.
+- Added persistence/reload and mutable-workspace isolation coverage. This is local SQLite/host-workspace evidence only; cloud auth, multi-user authorization, and sandbox isolation remain open.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.
@@ -12,7 +23,7 @@
 - Completed P3-01. `RuntimeRegistry` now probes every configured/available adapter on first API readiness access, warms the same path during API startup, and caches provider-owned health results for 15 seconds by default.
 - `/api/runtime` now exposes only provider-neutral health status, bounded latency, and an ISO probe timestamp alongside capabilities; provider response bodies and credentials remain server-only.
 - An explicitly offline or not-configured runtime is no longer considered routable by capability suggestions, but remains visible with its health/configuration explanation for operator diagnosis. Manual `POST /api/runtime/test/:provider` probes refresh the cache.
-- Added regression coverage for startup warming, cache reuse, health metadata projection, and offline-provider exclusion. Full `npm run check` passes with 43 test files and 224 tests, lint, production build, and E2E harness typecheck.
+- Added regression coverage for startup warming, cache reuse, health metadata projection, and offline-provider exclusion. Full `npm run check` passes with 43 test files and 225 tests, lint, production build, and E2E harness typecheck.
 
 ## 2026-07-16 — handover Phase 1: backend-offline boundary
 

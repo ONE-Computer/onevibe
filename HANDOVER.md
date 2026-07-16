@@ -41,7 +41,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
-| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 224 tests passing |
+| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 225 tests passing |
 
 ### What is critically broken
 
@@ -70,7 +70,7 @@ Do not configure a direct Anthropic API key as a substitute for the relay. Local
 ```bash
 npm run check
 # = oxlint src server scripts
-# + vitest run (224 tests at this handover update)
+# + vitest run (225 tests at this handover update)
 # + tsc -b
 # + tsc -p tsconfig.server.json
 # + vite build
@@ -151,17 +151,17 @@ Every adapter declares `capabilities: RuntimeCapability[]`. The UI reads capabil
 
 Full task list: `TODO.md`. Summary:
 
-### Phase 1 — Stop the bleeding (start here)
+### Phase 1 — Stop the bleeding (complete locally)
 **8 tasks. Target: real Claude Q&A works, no silent failures.**
 
-- Fix backend-down silent failure (`P1-01`)
+- Fix backend-down silent failure (`P1-01`) — complete
 - Fix SSE event drop in `useTask.ts:52` (`P1-02`)
 - Add SSE reconnect backoff (`P1-03`)
 - Auto-select best available provider, not demo (`P1-04`)
 - Add `scripts/dev-check.ts` env validation (`P1-05`)
 - Serve `dist/` from `server/index.ts` for production (`P1-06`)
 - Typed `ApiError` class with HTTP status (`P1-07`)
-- Permanent demo-mode banner in conversation pane (`P1-08`)
+- Permanent demo-mode banner in conversation pane (`P1-08`) — complete
 
 ### Phase 2 — Harden the runtime abstraction
 **10 tasks. Target: provider-neutral lifecycle and LiteLLM-routed harness boundaries; capabilities drive UI.**
@@ -172,8 +172,8 @@ Full task list: `TODO.md`. Summary:
 - Add capability declaration per adapter (`P2-04`)
 - Per-task working directory (`P2-05`)
 - Per-frame delta coalescing in `useTask.ts` (`P2-06`)
-- Draft queuing while agent is running (`P2-07`)
-- Fork/edit-message (`P2-08`)
+- Draft queuing while agent is running (`P2-07`) — complete
+- Fork/edit-message (`P2-08`) — complete locally; branch lineage, workspace copy, durable history truncation, API route, and assistant-ui edit action are implemented
 - Fix `waiting_for_user_input` UX (`P2-09`)
 - Approval panel above composer (`P2-10`)
 
@@ -218,7 +218,7 @@ Full task list: `TODO.md`. Summary:
 | `src/hooks/useTask.ts` | SSE streaming hook. Has the event-drop bug (P1-02) and hammer-reconnect bug (P1-03) |
 | `src/lib/api.ts` | All HTTP calls to the server. `parse()` at line 32 needs typed `ApiError` (P1-07) |
 | `src/types.ts` | Shared TypeScript types. `Task['provider']` union needs widening; `RuntimeProviderState` needs `capabilities` field (P2-04) |
-| `src/components/PromptComposer.tsx` | Composer. Has `queueable` prop already; needs real draft queue (P2-07) |
+| `src/components/PromptComposer.tsx` | Composer and durable guidance handoff; running turns queue follow-ups through the server (P2-07 complete) |
 | `src/components/AssistantThread.tsx` | Conversation rendering via `@assistant-ui/react`. Has duplicate typing indicator bug (P5-13) |
 | `src/components/Workspace.tsx` | Right-panel workspace. 287 lines. Has forever-spinner, broken image, UUID display bugs |
 | `src/components/Sidebar.tsx` | Left sidebar. Has hardcoded `"Terence"`, dead `<Settings2>` icons, hardcoded `8` badge |

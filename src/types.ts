@@ -42,6 +42,8 @@ export type ConversationSummary = {
   provider: Task['provider']
   mode: TaskMode
   projectId: string
+  parentTaskId?: string
+  forkedFromMessageId?: string
   messageCount: number
   lastMessage?: { role: ChatMessage['role']; preview: string; status: ChatMessage['status']; createdAt: string }
   createdAt: string
@@ -58,6 +60,9 @@ export type Task = {
   tags: string[]
   queuedGuidance: Array<{ id: string; prompt: string; attachmentPaths: string[]; createdAt: string }>
   projectId: string
+  parentTaskId?: string
+  forkedFromMessageId?: string
+  forkedAt?: string
   scheduleId?: string
   references: string[]
   attachments: TaskAttachment[]

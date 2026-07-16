@@ -156,6 +156,7 @@ const createScheduleInput = z.object({
 })
 const scheduleStateInput = z.object({ enabled: z.boolean() })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000), attachments: z.array(taskAttachment).max(4).default([]) })
+const forkTaskInput = z.object({ fromMessageId: z.string().regex(/^message_[a-f0-9]+$/), newPrompt: z.string().trim().min(1).max(8_000) })
 const retryInput = z.object({ idempotencyKey: z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/), provider: runtimeProviderInput.optional() })
 const moveTaskProjectInput = z.object({ projectId: z.string().regex(/^project_[a-z0-9]+$/) })
 const updateTaskTagsInput = z.object({ tags: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/)).max(8) })
@@ -533,6 +534,16 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       await store.updateTask(taskId, { status: 'pending' })
       setTimeout(() => executeTask(taskId, input.prompt, true, attachments.map((attachment) => attachment.path)), 25)
       return json(response, 202, { status: 'queued', taskId })
+    }
+    if (request.method === 'POST' && segments[3] === 'fork') {
+      if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before creating a conversation branch' })
+      const input = forkTaskInput.parse(await readBody(request))
+      const source = store.getTask(taskId)
+      const providerState = (await providerAvailability(source.provider)).state
+      if (!providerState?.available) return json(response, 409, { error: `${providerState?.label ?? source.provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}` })
+      const fork = await store.forkTask(taskId, input.fromMessageId, input.newPrompt)
+      setTimeout(() => executeTask(fork.id, input.newPrompt, false), 25)
+      return json(response, 201, await store.snapshot(fork.id))
     }
     if (request.method === 'POST' && segments[3] === 'retry') {
       const input = retryInput.parse(await readBody(request))

@@ -13,7 +13,7 @@ import { Computers } from './components/Computers'
 import { HomeHero } from './components/HomeHero'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelQueuedGuidance, cancelTask, createProject, createSchedule, createTask, fallbackSkillCatalog, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
+import { addProjectFile, cancelQueuedGuidance, cancelTask, createProject, createSchedule, createTask, fallbackSkillCatalog, forkTask, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
 import { providerLabel } from './lib/runtime-labels'
 import type { ConversationSummary, LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
@@ -234,6 +234,17 @@ export default function App() {
       setCreating(false)
     }
   }
+  const branchFromMessage = async (taskId: string, fromMessageId: string, newPrompt: string) => {
+    setCreating(true)
+    try {
+      const task = await forkTask(taskId, fromMessageId, newPrompt)
+      setTasks((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
+      setConversations((current) => upsertConversation(current, conversationSummaryFromTask(task)))
+      navigateToTask(task.id)
+    } finally {
+      setCreating(false)
+    }
+  }
   const retryCurrentTask = async (taskId: string, provider?: Task['provider']) => {
     setCreating(true)
     try {
@@ -293,7 +304,7 @@ export default function App() {
                     {error && <div className="stream-warning"><span>{error}</span><button type="button" onClick={retryConnection}>Retry connection</button></div>}
                     {snapshot.provider === 'demo' && <div className="demo-mode-banner" role="status"><div><Sparkles size={14} /><span><strong>Simulation only</strong><small>No model call is made in this task. Use a configured LiteLLM-backed runtime for real provider execution.</small></span></div>{preferredProvider !== 'demo' && <button type="button" onClick={() => navigateToTask(null)}>Start a new governed task</button>}</div>}
                     <TaskTimeline task={snapshot} events={snapshot.events} />
-                    <Suspense fallback={<div className="aui-thread-loading">Loading durable conversation…</div>}><AssistantThread task={snapshot} busy={creating || Boolean(snapshot.inputRequest)} onSubmit={continueTask} onSwitchRuntime={(provider) => retryCurrentTask(snapshot.id, provider)} /></Suspense>
+                    <Suspense fallback={<div className="aui-thread-loading">Loading durable conversation…</div>}><AssistantThread task={snapshot} busy={creating || Boolean(snapshot.inputRequest)} onSubmit={continueTask} onSwitchRuntime={(provider) => retryCurrentTask(snapshot.id, provider)} onEditMessage={(messageId, newPrompt) => branchFromMessage(snapshot.id, messageId, newPrompt)} /></Suspense>
                     {snapshot.queuedGuidance.length > 0 && <section className="guidance-queue"><header><div><ShieldCheck size={13} /><strong>Queued guidance</strong></div><span>Applies after this provider turn</span></header>{snapshot.queuedGuidance.map((guidance, index) => <article key={guidance.id}><div><span>Next {index + 1}</span><p>{guidance.prompt}</p></div><button type="button" onClick={() => void retractQueuedGuidance(snapshot.id, guidance.id)} aria-label={`Remove queued guidance ${index + 1}`} title="Remove before it reaches the provider"><X size={13} /></button></article>)}<footer>Removing a message keeps only cancellation metadata in the evidence ledger.</footer></section>}
                   </div>
                   <div className="workspace-pane"><div className="mobile-inspector-bar"><span><Monitor size={13} /> Computer inspector</span><button type="button" onClick={() => setMobileInspectorOpen(false)}>Back to conversation</button></div><Workspace task={snapshot} projects={projects} runtime={runtime} onMoveProject={moveTaskProject} onUpdateTags={setTaskTags} /></div>

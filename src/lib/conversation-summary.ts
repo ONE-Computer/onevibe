@@ -10,6 +10,8 @@ export const conversationSummaryFromTask = (task: Task | TaskSnapshot): Conversa
     provider: task.provider,
     mode: task.mode,
     projectId: task.projectId,
+    ...(task.parentTaskId ? { parentTaskId: task.parentTaskId } : {}),
+    ...(task.forkedFromMessageId ? { forkedFromMessageId: task.forkedFromMessageId } : {}),
     messageCount: messages.length,
     ...(last ? { lastMessage: { role: last.role, preview: last.content.replace(/\s+/g, ' ').trim().slice(0, 180) || (last.status === 'cancelled' ? 'Run cancelled before a response.' : last.status === 'failed' ? 'Run failed before a response.' : 'Response pending…'), status: last.status, createdAt: last.createdAt } } : {}),
     createdAt: task.createdAt,
