@@ -3,6 +3,7 @@ import type { McpConfig } from './runtime-adapter.js'
 
 const REQUEST_TIMEOUT_MS = 5_000
 const MAX_FRAME_BYTES = 256 * 1024
+const MAX_STDERR_BYTES = 256 * 1024
 const MAX_TOOLS = 200
 const MAX_RESULTS = 10
 
@@ -29,6 +30,7 @@ const score = (query: string, tool: McpTool) => {
 export class McpStdioClient {
   private readonly process: ChildProcessWithoutNullStreams
   private buffer = Buffer.alloc(0)
+  private stderrBytes = 0
   private nextId = 1
   private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>()
   private initialized = false
@@ -36,6 +38,10 @@ export class McpStdioClient {
   constructor(private readonly config: McpConfig, private readonly timeoutMs = REQUEST_TIMEOUT_MS) {
     this.process = spawn(config.command, config.args, { cwd: process.cwd(), env: safeEnv(), shell: false, stdio: ['pipe', 'pipe', 'pipe'] })
     this.process.stdout.on('data', (chunk: Buffer | string) => this.consume(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
+    this.process.stderr.on('data', (chunk: Buffer | string) => {
+      this.stderrBytes += Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(chunk)
+      if (this.stderrBytes > MAX_STDERR_BYTES) this.failPending(new Error('MCP stderr exceeded the bounded process limit'))
+    })
     this.process.on('error', (error) => this.failPending(error instanceof Error ? error : new Error('MCP process failed')))
     this.process.on('exit', (code, signal) => this.failPending(new Error(`MCP server exited (${code ?? signal ?? 'unknown'})`)))
   }

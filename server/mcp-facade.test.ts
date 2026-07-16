@@ -65,4 +65,12 @@ describe('MCP capability facade', () => {
     expect(result).toMatchObject({ status: 'online', toolCount: 1 })
     expect(result.detail).not.toContain('fixture executed')
   })
+
+  it('drains noisy stderr without allowing the child pipe to deadlock', async () => {
+    const result = await probeMcpConfig({
+      id: 'noisy', name: 'Noisy MCP', command: process.execPath,
+      args: ['-e', "process.stderr.write('x'.repeat(300000)); setTimeout(() => {}, 1000)"], env: {},
+    }, 200)
+    expect(result.status).toBe('offline')
+  })
 })

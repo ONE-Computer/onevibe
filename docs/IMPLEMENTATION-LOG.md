@@ -13,6 +13,11 @@
 - This closes the local MCP health visibility slice only. Production secret brokering, external-server attestation, rate limiting, and protected provider materialization remain open.
 - Fresh temporary API verification also covered `POST /api/mcp` followed by `GET /api/mcp/:id/health`: an unavailable fixture returned a bounded `offline` response without process output or credentials.
 
+## 2026-07-17 — drain MCP stderr at the process boundary
+
+- MCP child stderr is now continuously drained and capped at 256 KiB. A noisy or malformed server fails the pending request instead of filling the pipe and deadlocking initialization; stderr content is never returned to the browser or persisted as evidence.
+- Added a regression fixture that emits 300 KiB of stderr and verifies the bounded probe fails offline promptly. Focused MCP tests, lint, and build pass.
+
 ## 2026-07-17 — include MCP health in authenticated diagnostics
 
 - `/api/diagnostics` now probes only the current owner's MCP declarations and returns bounded per-server health/tool-catalog metadata plus healthy/configured counts. Computers displays the aggregate state while the per-server Test action remains available for detail.
