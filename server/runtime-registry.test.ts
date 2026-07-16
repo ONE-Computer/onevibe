@@ -45,4 +45,33 @@ describe('RuntimeRegistry', () => {
     await expect(registry.test('claude_sdk', states)).resolves.toMatchObject({ status: 'online', detail: 'test probe' })
     await expect(registry.test('remote', states)).resolves.toMatchObject({ status: 'not_configured' })
   })
+
+  it('warms and caches startup health without changing provider-neutral metadata', async () => {
+    let probes = 0
+    const states = runtimeReadiness({ claudeConfigured: true, claudeTransport: 'litellm', remoteConfigured: false, oneComputerConfigured: false }).providers
+    const registry = new RuntimeRegistry({ healthTtlMs: 60_000, factories: {
+      demo: () => ({ health: async () => { probes += 1; return { status: 'online' as const, latencyMs: 4, detail: 'simulation ready' } }, destroy: async () => undefined } as RuntimeAdapter),
+      claude_sdk: () => ({ health: async () => { probes += 1; return { status: 'online' as const, latencyMs: 12, detail: 'relay ready' } }, destroy: async () => undefined } as RuntimeAdapter),
+    } })
+
+    await registry.refreshHealth(states)
+    const first = registry.snapshot(states)
+    await registry.refreshHealth(states)
+    const second = registry.snapshot(states)
+
+    expect(probes).toBe(2)
+    expect(first.providers.find((provider) => provider.id === 'claude_sdk')).toMatchObject({ healthStatus: 'online', healthLatencyMs: 12, detail: 'relay ready' })
+    expect(second.providers.find((provider) => provider.id === 'demo')).toMatchObject({ healthStatus: 'online', healthCheckedAt: expect.any(String) })
+  })
+
+  it('removes a health-offline provider from routable suggestions while retaining its explanation', async () => {
+    const states = runtimeReadiness({ claudeConfigured: true, claudeTransport: 'litellm', remoteConfigured: false, oneComputerConfigured: false }).providers
+    const registry = new RuntimeRegistry({ factories: {
+      demo: () => healthyAdapter,
+      claude_sdk: () => ({ health: async () => ({ status: 'offline' as const, detail: 'relay unavailable' }), destroy: async () => undefined } as RuntimeAdapter),
+    } })
+    await registry.refreshHealth(states)
+    const suggestion = registry.suggest('chat', registry.providers(states)).find((candidate) => candidate.id === 'claude_sdk')
+    expect(suggestion).toMatchObject({ available: false, reason: 'Health probe offline: relay unavailable' })
+  })
 })

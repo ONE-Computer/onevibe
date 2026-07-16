@@ -22,7 +22,7 @@ The handover adds [ONE-245](https://linear.app/onecomputer/issue/ONE-245/secp0-e
 
 The first handover Phase 2 engineering ticket is [ONE-246](https://linear.app/onecomputer/issue/ONE-246/bep1-implement-provider-neutral-runtimeadapter-lifecycle-contract). It tracks the provider-neutral lifecycle contract implemented in commits `dfb6b89` and the follow-up canonical test migration, with runtime registry extraction as the next boundary.
 
-The runtime registry work is tracked in [ONE-247](https://linear.app/onecomputer/issue/ONE-247/bep1-build-runtimeregistry-and-capability-based-routing). Commits `fe34066` and `9983966` centralize current adapter factories, capability-based mode suggestions, effective defaults, mode-aware compatibility reasons, explicit user-selected runtime switching after failure, and generic provider availability checks. Startup health caching/attestation and live multi-provider acceptance remain open.
+The runtime registry work is tracked in [ONE-247](https://linear.app/onecomputer/issue/ONE-247/bep1-build-runtimeregistry-and-capability-based-routing). Commits `fe34066`, `9983966`, and the current health-cache slice centralize adapter factories, capability-based mode suggestions, effective defaults, mode-aware compatibility reasons, explicit user-selected runtime switching after failure, and bounded startup health status/latency. Live multi-provider relay acceptance and production attestation remain open.
 
 The LiteLLM-routed Codex-compatible harness is tracked in [ONE-248](https://linear.app/onecomputer/issue/ONE-248/bep1-add-litellm-routed-codex-compatible-runtime). Commit `947835b` adds bounded workspace tools and truthful non-sandboxed capability metadata; live relay acceptance and isolated execution remain open.
 

@@ -85,15 +85,19 @@ const runtimeRegistry = new RuntimeRegistry({
   },
 })
 
-const runtimeSnapshot = async () => runtimeRegistry.snapshot(runtimeReadiness({
-  claudeConfigured,
-  claudeTransport: claudeProvider.transport,
-  codexConfigured: claudeProvider.configured,
-  agentCoreConfigured: Boolean(AGENTCORE_RUNTIME_URL && AGENTCORE_LITELLM_ROUTED),
-  remoteConfigured: Boolean(REMOTE_RUNTIME_URL),
-  oneComputerConfigured,
-  oneComputerReachable: await oneComputerReachability(),
-}).providers)
+const runtimeSnapshot = async () => {
+  const states = runtimeReadiness({
+    claudeConfigured,
+    claudeTransport: claudeProvider.transport,
+    codexConfigured: claudeProvider.configured,
+    agentCoreConfigured: Boolean(AGENTCORE_RUNTIME_URL && AGENTCORE_LITELLM_ROUTED),
+    remoteConfigured: Boolean(REMOTE_RUNTIME_URL),
+    oneComputerConfigured,
+    oneComputerReachable: await oneComputerReachability(),
+  }).providers
+  await runtimeRegistry.refreshHealth(states)
+  return runtimeRegistry.snapshot(states)
+}
 
 const runtimeProviderInput = z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote'])
 
@@ -775,6 +779,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 }
 
 await store.initialize()
+void runtimeSnapshot().catch(() => undefined)
 const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | 'manual') => {
   const providerState = (await providerAvailability(schedule.provider)).state
   if (!providerState?.available) throw new Error(`${providerState?.label ?? schedule.provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}`)

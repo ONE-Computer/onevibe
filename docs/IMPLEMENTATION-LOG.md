@@ -7,6 +7,13 @@
 - Verified mode-aware capability filtering in Slides mode: Simulation is disabled with `Missing capability: tool_use`, while the governed alternatives remain disabled with their own setup requirements. This prevents an incompatible runtime from being selected for a mode that needs tools/files.
 - This browser evidence covers local selector truthfulness and capability messaging only. It does not claim live LiteLLM provider availability, startup health attestation, sandbox isolation, or production deployment.
 
+## 2026-07-16 — RuntimeRegistry startup health cache
+
+- Completed P3-01. `RuntimeRegistry` now probes every configured/available adapter on first API readiness access, warms the same path during API startup, and caches provider-owned health results for 15 seconds by default.
+- `/api/runtime` now exposes only provider-neutral health status, bounded latency, and an ISO probe timestamp alongside capabilities; provider response bodies and credentials remain server-only.
+- An explicitly offline or not-configured runtime is no longer considered routable by capability suggestions, but remains visible with its health/configuration explanation for operator diagnosis. Manual `POST /api/runtime/test/:provider` probes refresh the cache.
+- Added regression coverage for startup warming, cache reuse, health metadata projection, and offline-provider exclusion. Full `npm run check` passes with 43 test files and 224 tests, lint, production build, and E2E harness typecheck.
+
 ## 2026-07-16 — handover Phase 1: backend-offline boundary
 
 - Re-read `HANDOVER.md`, `TODO.md`, the phase plans, the local parity roadmap, and the current Linear project before changing code. The active sequence is now the handover's Phase 1 foundation; platform promotion remains deferred.
