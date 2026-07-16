@@ -10,6 +10,8 @@ The execution-narrative slice is now backed by real running state: the assistant
 
 The visible typography contract is now enforced at the product surface: body, controls, metadata, terminal/code previews, and timeline labels resolve to the same sans-serif stack. This closes the rendering-level font-family violation for the current shell; a complete responsive visual-regression suite is still required.
 
+The assistant message now uses `MessagePrimitive.GroupedParts` for adjacent tool calls. The thread presents a collapsible operational group, while the Computer inspector remains the detailed command/result and artifact surface.
+
 ## North star
 
 ONEVibe should feel like a calm, premium agent workspace: one obvious place to talk, one durable conversation history, one clear execution narrative, and one contextual artifact/computer inspector. The interface should feel closer to a high-quality AI product than an operations console.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FC } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FC, type ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown, ArrowUp, CheckCircle2, Copy, Download, Eye, FileText, LoaderCircle, Paperclip, Presentation, ShieldCheck, TriangleAlert, X } from 'lucide-react'
 import {
@@ -7,6 +7,7 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  groupPartByType,
   useAuiState,
   useExternalStoreRuntime,
   type AppendMessage,
@@ -50,11 +51,19 @@ const WorkingTrace = () => {
   return <details className="aui-working-trace" open><summary><span><ShieldCheck size={12} /> Working trace</span><em>{trace.length} recorded step{trace.length === 1 ? '' : 's'}</em></summary><p className="aui-working-trace-note">Operational summaries and tool evidence from the provider stream. Hidden chain-of-thought is not exposed.</p><ol>{trace.map((item) => <li key={item.id} className={item.status}><span>{item.status === 'running' ? <LoaderCircle className="spin" size={12} /> : item.status === 'failed' ? <TriangleAlert size={12} /> : <CheckCircle2 size={12} />}</span><div><strong>{item.label}</strong>{item.detail && <small>{item.detail.replace(/\s+/g, ' ').slice(0, 240)}</small>}</div><em>{item.status === 'running' ? 'Working' : item.status === 'failed' ? 'Failed' : 'Done'}</em></li>)}</ol></details>
 }
 
+const ToolGroup = ({ children, count, active }: { children: ReactNode; count: number; active: boolean }) => <details className="aui-tool-group" open={active || undefined}><summary><span><ShieldCheck size={11} /> Tool activity</span><em>{count} call{count === 1 ? '' : 's'}</em></summary><div className="aui-tool-group-content">{children}</div></details>
+
 const AssistantMessage = () => {
   const createdAt = useAuiState((state) => state.message.createdAt)
   const running = useAuiState((state) => state.message.status?.type === 'running')
   const artifacts = useAuiState((state) => (state.message.metadata.custom as { artifacts?: AssistantArtifact[] } | undefined)?.artifacts ?? [])
-  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb">O</div><div><strong>ONEVibe <small>{running ? '· writing' : `· ${timestamp(createdAt)}`}</small></strong><WorkingTrace /><MessagePrimitive.Parts components={{ tools: { Fallback: ToolCallCard } }} /><ArtifactCards artifacts={artifacts} />{running && <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>}<MessageActions /></div></MessagePrimitive.Root>
+  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb">O</div><div><strong>ONEVibe <small>{running ? '· writing' : `· ${timestamp(createdAt)}`}</small></strong><WorkingTrace /><MessagePrimitive.GroupedParts groupBy={groupPartByType({ 'tool-call': ['group-tool'] })}>{({ part, children }) => {
+    if (part.type === 'group-tool') return <ToolGroup count={part.indices.length} active={part.status.type === 'running'}>{children}</ToolGroup>
+    if (part.type === 'tool-call') return <ToolCallCard {...part} />
+    if (part.type === 'text') return <p>{part.text}</p>
+    if (part.type === 'indicator') return <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>
+    return null
+  }}</MessagePrimitive.GroupedParts><ArtifactCards artifacts={artifacts} />{running && <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>}<MessageActions /></div></MessagePrimitive.Root>
 }
 
 type MessageRow = { id: string; role: 'user' | 'assistant' | 'system' }

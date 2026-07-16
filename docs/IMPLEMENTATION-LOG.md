@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-16 — assistant-ui grouped tool disclosure
+
+- Replaced the flat assistant message part renderer with `MessagePrimitive.GroupedParts` and `groupPartByType`, grouping adjacent tool calls under a collapsible `Tool activity` disclosure while retaining the same custom bounded tool card.
+- Browser verification on `task_f8d51a10de4f4d`: the assistant thread exposes one collapsed `Tool activity · 3 calls` group, and the Computer inspector independently opens on the paired Bash command/result. The two surfaces now have clear roles instead of repeated rows.
+- Full `npm run check` passes with 37 test files / 207 tests, build, lint, and E2E harness typechecks. The group is a projection only; durable SQLite/SSE/evidence ownership is unchanged.
+
 ## 2026-07-16 — sans-serif evidence surface contract
 
 - Applied a late-bound sans-serif contract to the visible ONEVibe surface, including conversation metadata, terminal/code previews, rail labels, controls, and timeline surfaces. Evidence remains distinguishable through hierarchy, spacing, color, and panels rather than a mono font.
