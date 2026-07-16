@@ -137,7 +137,7 @@ export default function App() {
     if (snapshot.status === 'completed') void listLibrary().then(({ items }) => setLibrary(items))
   }, [snapshot])
 
-  const preferredProvider: Task['provider'] = runtime?.providers.find((candidate) => candidate.id === 'claude_sdk' && candidate.available)?.id ?? 'demo'
+  const preferredProvider: Task['provider'] = (['claude_sdk', 'onecomputer', 'remote'] as const).map((id) => runtime?.providers.find((candidate) => candidate.id === id && candidate.available)?.id).find((id): id is Task['provider'] => Boolean(id)) ?? 'demo'
   const startTask = async (prompt: string, provider: Task['provider'] = preferredProvider, mode: TaskMode = 'chat', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = selectedSkills) => {
     setCreating(true)
     try {
@@ -275,7 +275,8 @@ export default function App() {
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="home-content">
                 <HomeHero />
-                <PromptComposer busy={creating} skills={selectedSkills} runtime={runtime} onSubmit={startTask} />
+                {runtime && !runtime.providers.some((candidate) => candidate.available && candidate.id !== 'demo') && <div className="setup-banner" role="status"><TriangleAlert size={14} /><span><strong>No governed runtime configured</strong><small>Set the protected ONEVIBE_LITELLM_URL and ONEVIBE_LITELLM_API_KEY, or configure a governed sandbox runtime.</small></span></div>}
+                <PromptComposer busy={creating} skills={selectedSkills} runtime={runtime} initialProvider={preferredProvider} onSubmit={startTask} />
                 <div className="starter-prompts">{starterPrompts.map((prompt) => <button key={prompt} onClick={() => void startTask(prompt)}>{prompt}<span>↗</span></button>)}</div>
               </div>
             </motion.section>
@@ -289,6 +290,7 @@ export default function App() {
                       <div className="run-controls"><button type="button" className="mobile-inspector-toggle" onClick={() => setMobileInspectorOpen(true)}><Monitor size={12} /> View computer</button><span className={`status-badge ${snapshot.status}`}>{snapshot.status.replaceAll('_', ' ')}</span>{(snapshot.status === 'failed' || snapshot.status === 'cancelled') && <button className="cancel-button" onClick={() => void retryCurrentTask(snapshot.id)}><RotateCcw size={10} /> Retry</button>}{canStopTask(snapshot.status) && <button className="cancel-button" onClick={() => void cancelTask(snapshot.id)}><Square size={10} /> Stop</button>}</div>
                     </div>
                     {error && <div className="stream-warning"><span>{error}</span><button type="button" onClick={retryConnection}>Retry connection</button></div>}
+                    {snapshot.provider === 'demo' && <div className="demo-mode-banner" role="status"><div><Sparkles size={14} /><span><strong>Simulation only</strong><small>No model call is made in this task. Use a configured LiteLLM-backed runtime for real provider execution.</small></span></div>{preferredProvider !== 'demo' && <button type="button" onClick={() => navigateToTask(null)}>Start a new governed task</button>}</div>}
                     <Suspense fallback={<div className="aui-thread-loading">Loading durable conversation…</div>}><AssistantThread task={snapshot} busy={creating || Boolean(snapshot.inputRequest)} onSubmit={continueTask} /></Suspense>
                     <TaskTimeline task={snapshot} events={snapshot.events} />
                     {snapshot.queuedGuidance.length > 0 && <section className="guidance-queue"><header><div><ShieldCheck size={13} /><strong>Queued guidance</strong></div><span>Applies after this provider turn</span></header>{snapshot.queuedGuidance.map((guidance, index) => <article key={guidance.id}><div><span>Next {index + 1}</span><p>{guidance.prompt}</p></div><button type="button" onClick={() => void retractQueuedGuidance(snapshot.id, guidance.id)} aria-label={`Remove queued guidance ${index + 1}`} title="Remove before it reaches the provider"><X size={13} /></button></article>)}<footer>Removing a message keeps only cancellation metadata in the evidence ledger.</footer></section>}

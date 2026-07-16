@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSkill } from '../types'
 
 type DraftAttachment = Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string; size: number }
-type Props = { compact?: boolean; busy?: boolean; queueable?: boolean; skills?: TaskSkill[]; runtime?: RuntimeReadiness; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[]) => Promise<void> }
+type Props = { compact?: boolean; busy?: boolean; queueable?: boolean; skills?: TaskSkill[]; runtime?: RuntimeReadiness; initialProvider?: Task['provider']; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[]) => Promise<void> }
 
 const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: typeof Bot }> = [
   { id: 'chat', label: 'Chat', detail: 'Questions and conversation', icon: Bot },
@@ -19,9 +19,9 @@ const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: ty
   { id: 'game', label: 'Game', detail: 'Playable web experience', icon: Gamepad2 },
 ]
 
-export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], runtime, onSubmit }: Props) => {
+export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], runtime, initialProvider = 'demo', onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
-  const [provider, setProvider] = useState<Task['provider']>('demo')
+  const [provider, setProvider] = useState<Task['provider']>(initialProvider)
   const [providerTouched, setProviderTouched] = useState(false)
   const [mode, setMode] = useState<TaskMode>('chat')
   const [referenceDraft, setReferenceDraft] = useState('')
@@ -50,13 +50,13 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
 
   useEffect(() => {
     if (providerTouched || !runtime) return
-    const preferred = runtime.providers.find((candidate) => candidate.id === 'claude_sdk' && candidate.available)
+    const preferred = runtime.providers.find((candidate) => candidate.available && candidate.id !== 'demo') ?? runtime.providers.find((candidate) => candidate.id === 'demo')
     if (preferred) setProvider(preferred.id)
   }, [providerTouched, runtime])
 
   const submit = async () => {
     const value = prompt.trim()
-    if (!value || busy || !selectedProvider.available) return
+    if (!value || busy || !runtime || !selectedProvider.available) return
     await onSubmit(value, provider, mode, references, attachments, skills)
     setPrompt('')
     setReferences([])
@@ -71,7 +71,8 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
       {!compact && references.length > 0 && <div className="reference-chips">{references.map((reference) => <span key={reference}>{new URL(reference).hostname}<button aria-label={`Remove ${reference}`} onClick={() => setReferences((current) => current.filter((item) => item !== reference))}><X size={11} /></button></span>)}</div>}
       {!compact && attachments.length > 0 && <div className="reference-chips attachment-chips">{attachments.map((attachment) => <span key={`${attachment.name}-${attachment.size}`}>{attachment.name} · {Math.ceil(attachment.size / 1024)} KB<button aria-label={`Remove ${attachment.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== attachment))}><X size={11} /></button></span>)}</div>}
       {!compact && skills.length > 0 && <div className="selected-skills" aria-label="Selected skill packs">{skills.map((skill) => <span key={skill}><Sparkles size={10} /> {skill.replaceAll('_', ' ')}</span>)}</div>}
-      {!compact && provider === 'demo' && <div className="simulation-note" role="status"><Sparkles size={11} /> Simulation only · no model call</div>}
+      {!compact && !runtime && <div className="runtime-loading-note" role="status"><Cloud size={11} /> Checking available runtimes…</div>}
+      {!compact && provider === 'demo' && runtime && <div className="simulation-note" role="status"><Sparkles size={11} /> Simulation only · no model call</div>}
       <textarea
         ref={textAreaRef}
         value={prompt}
@@ -90,7 +91,7 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
           {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={providerPickerOpen} onClick={() => setProviderPickerOpen((value) => !value)}><span className={`runtime-dot ${selectedProvider.available ? 'ready' : 'unavailable'}`} />{provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}{selectedProvider.label} <ChevronDown size={13} /></button>{providerPickerOpen && <motion.div className="mode-catalog provider-catalog" role="menu" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}>{providerStates.map((candidate) => <button key={candidate.id} role="menuitem" className={candidate.id === provider ? 'selected' : ''} disabled={!candidate.available} onClick={() => { setProvider(candidate.id); setProviderTouched(true); setProviderPickerOpen(false) }}><span className={`runtime-dot ${candidate.available ? 'ready' : 'unavailable'}`} />{candidate.id === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}<span><strong>{candidate.label}</strong><small>{candidate.boundary} · {candidate.detail}</small></span>{candidate.id === provider && <ShieldCheck size={13} />}</button>)}</motion.div>}</div>}
         </div>
         <div className="composer-right">
-          <button className="send-button" disabled={!prompt.trim() || busy || !selectedProvider.available} onClick={() => void submit()} aria-label={queueable ? 'Queue guidance for next turn' : 'Start task'}><ArrowUp size={17} /></button>
+          <button className="send-button" disabled={!prompt.trim() || busy || !runtime || !selectedProvider.available} onClick={() => void submit()} aria-label={queueable ? 'Queue guidance for next turn' : 'Start task'}><ArrowUp size={17} /></button>
         </div>
       </div>
     </motion.div>

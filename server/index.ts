@@ -22,6 +22,7 @@ import { encodeRuntimeEventFrame, eventsAfterLastEventId, openReplayLiveHandoff 
 import { awaitTurnSettlement, createTurnDeadline, resolveTurnTimeoutMs, TURN_CLEANUP_GRACE_MS, TurnTimeoutError } from './turn-deadline.js'
 import { writeDocumentReviewArtifacts } from './mode-artifacts.js'
 import { isInternalWorkspacePath } from './artifact-path.js'
+import { serveStatic } from './static-files.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -706,6 +707,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     }
   }
 
+  if (process.env.NODE_ENV === 'production' && (request.method === 'GET' || request.method === 'HEAD')) {
+    if (await serveStatic(path.resolve(process.cwd(), 'dist'), url.pathname, response)) return
+  }
   return json(response, 404, { error: 'Not found' })
 }
 

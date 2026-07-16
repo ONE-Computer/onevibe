@@ -24,6 +24,14 @@
 - Terminal task states stop reconnect scheduling; stale EventSource callbacks are ignored after handoff or cleanup.
 - Focused reconnect tests and the full `npm run check` pass: 38 test files and 212 tests, lint, production build, and E2E harness typecheck.
 
+## 2026-07-16 — handover Phase 1: runtime startup, selection, and serving
+
+- P1-04 now selects the first available governed runtime in explicit order (Claude SDK, ONEComputer, remote) and refuses to submit the home composer until runtime readiness has loaded. If no governed runtime is available, the setup state names the protected LiteLLM configuration rather than silently choosing simulation.
+- P1-05 adds `scripts/dev-check.ts`, loads `.env` for validation without logging values, updates the development API process to load `.env`, and reports when only explicitly labelled simulation is available. The development command now runs the check alongside API and Vite.
+- P1-06 adds path-confined production static serving with SPA fallback. API routes remain JSON routes, unknown SPA routes resolve to `dist/index.html`, and traversal attempts are rejected. Production smoke verification returned HTTP 200 for `/`, `/tasks/task_demo`, and JSON for `/api/runtime`.
+- The P1-08 simulation disclosure is now visible in the task conversation and offers a new governed task only when a governed runtime is actually available. Browser acceptance of this state remains open.
+- Full `npm run check` passes with 39 test files and 214 tests, lint, production build, and E2E harness typecheck.
+
 ## 2026-07-16 — light-mode Claude calibration (Phases 11–15)
 
 User feedback ("prefer a light color; motion too cheesy; want
