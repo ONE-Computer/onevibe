@@ -85,11 +85,13 @@ Run the following after the provider lifecycle change:
 
 1. Start a ONEVibe Slides conversation with `provider=onecomputer`.
 2. Capture evidence for sandbox ID, `provisioning` → `started`, gateway-attestation state, and X11 visual frame.
-3. Run the controlled agent command, extract real `deck.pptx` and `deck.pdf` outputs, verify their magic bytes, and verify the resulting evidence chain.
-4. Send a follow-up turn and prove it reuses the same lease generation, sandbox identity, workspace, and Claude session.
-5. Start a second conversation and prove it receives a distinct sandbox identity.
-6. Explicitly release both conversation leases and prove provider-side deletion with no surviving container or sandbox row.
-7. Verify the browser has only server-proxied PNG frames and never has runtime, VNC, CDP, API-key, or project-header access.
+3. Verify `run_started.payload.agentRuntime=claude_agent_sdk`; a CLI-only launch is not a passing proof.
+4. Observe live task-bound SSE `runtime_event` frames before completion, then verify suffix-only `Last-Event-ID` replay.
+5. Run the controlled agent command, extract real `deck.pptx` and `deck.pdf` outputs, verify their magic bytes, and verify the resulting evidence chain.
+6. Send a follow-up turn and prove it reuses the same lease generation, sandbox identity, workspace, and Claude session.
+7. Start a second conversation and prove it receives a distinct sandbox identity.
+8. Explicitly release both conversation leases and prove provider-side deletion with no surviving container or sandbox row.
+9. Verify the browser has only server-proxied PNG frames and never has runtime, VNC, CDP, API-key, or project-header access.
 
 ## Repeatable harness
 

@@ -8,6 +8,7 @@ import { RuntimeLeaseService } from './runtime-lease-service.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
 import { SANDBOX_SLIDE_RENDERER, sandboxSlideSeed } from './sandbox-slide-renderer.js'
 import { portableArtifactKind as portableArtifactPathKind } from './artifact-path.js'
+import { ONEVIBE_SANDBOX_AGENT_SDK_WORKER } from './onecomputer-agent-sdk-worker.js'
 
 export const portableArtifactKind = (artifactPath: string) => {
   const normalized = path.posix.normalize(artifactPath)
@@ -156,7 +157,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     await store.appendEvent(task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'ONEComputer sandbox execution started',
       content: 'The agent process will execute through the authenticated ONEComputer sandbox API, not on the ONEVibe host.',
-      payload: { executionRoute: 'onecomputer_sandbox', gatewayEnforced: this.options.gatewayEnforced, claudeTransport, model: configuredClaude.model },
+      payload: { executionRoute: 'onecomputer_sandbox', agentRuntime: 'claude_agent_sdk', gatewayEnforced: this.options.gatewayEnforced, claudeTransport, model: configuredClaude.model },
     })
     await store.setPlanStep(task.id, 'scope', 'completed')
     await store.setPlanStep(task.id, 'workspace', 'running')
@@ -325,6 +326,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const allowedTools = governedClaudeTools(browserAutomationEnabled, task.mode === 'slides')
       const slideSeed = task.mode === 'slides' ? Buffer.from(`${JSON.stringify(sandboxSlideSeed(task.title, prompt), null, 2)}\n`).toString('base64') : undefined
       const slideRenderer = task.mode === 'slides' ? Buffer.from(SANDBOX_SLIDE_RENDERER).toString('base64') : undefined
+      const sandboxAgentWorker = Buffer.from(ONEVIBE_SANDBOX_AGENT_SDK_WORKER).toString('base64')
       const command = [
         'set -eu',
         'export PATH=/opt/node22/bin:/home/kasm-user/.npm-global/bin:$PATH',
@@ -347,11 +349,21 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
           `printf %s ${shellQuote(slideSeed)} | base64 -d > outline.json`,
           `printf %s ${shellQuote(slideRenderer)} | base64 -d > .onevibe-render-deck.cjs`,
         ] : []),
+        `printf %s ${shellQuote(sandboxAgentWorker)} | base64 -d > .onevibe-agent-sdk.mjs`,
         `printf %s ${shellQuote(encodedPrompt)} | base64 -d > .onevibe-prompt`,
         'rm -f .onevibe-events.jsonl .onevibe-exitcode .onevibe-pid',
+        `export ONEVIBE_AGENT_WORKSPACE=${shellQuote(workspace)}`,
+        `export ONEVIBE_AGENT_PROMPT_PATH=${shellQuote(`${workspace}/.onevibe-prompt`)}`,
+        `export ONEVIBE_AGENT_JOURNAL_PATH=${shellQuote(`${workspace}/.onevibe-events.jsonl`)}`,
+        `export ONEVIBE_AGENT_EXIT_PATH=${shellQuote(`${workspace}/.onevibe-exitcode`)}`,
+        `export ONEVIBE_AGENT_STATE_PATH=${shellQuote(`${workspace}/.claude-state`)}`,
+        `export ONEVIBE_AGENT_MODEL=${shellQuote(configuredClaude.model)}`,
+        `export ONEVIBE_AGENT_TOOLS=${shellQuote(JSON.stringify(allowedTools))}`,
+        ...(resumableSessionId ? [`export ONEVIBE_AGENT_RESUME=${shellQuote(resumableSessionId)}`] : ['unset ONEVIBE_AGENT_RESUME']),
+        `/opt/node22/bin/node -e "const { createRequire } = require('node:module'); createRequire(process.cwd() + '/.onevibe-agent-sdk.mjs').resolve('@anthropic-ai/claude-agent-sdk')"`,
         '(',
         '  set +e',
-        `  claude --print --output-format stream-json --verbose --model ${shellQuote(configuredClaude.model)} --permission-mode bypassPermissions --setting-sources project --tools ${shellQuote(allowedTools.join(','))} --allowedTools ${shellQuote(allowedTools.join(','))}${resumableSessionId ? ` --resume ${shellQuote(resumableSessionId)}` : ''} < .onevibe-prompt > .onevibe-events.jsonl 2>&1`,
+        '  /opt/node22/bin/node .onevibe-agent-sdk.mjs',
         '  onevibe_exit_code="$?"',
         '  rm -f .onevibe-prompt',
         '  printf %s "$onevibe_exit_code" > .onevibe-exitcode',
@@ -360,8 +372,10 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       ].join('\n')
       const agentExecution = await store.appendEvent(task.id, {
         type: 'tool_call_started', lane: 'activity', label: 'Execute Claude inside ONEComputer',
-        content: 'Prompt is base64-transferred to avoid shell interpretation and the agent receives no Bash tool.',
-        payload: { sandboxId: sandbox.id, leaseId: acquired.lease.id, leaseGeneration: acquired.lease.generation, toolName: 'onecomputer.sandbox.exec', claudeTransport, model: configuredClaude.model, sessionContinuation: Boolean(resumableSessionId), allowedTools, browserAutomation: browserAutomationEnabled, skills: selectedSkills.map(({ id, version, title, sha256 }) => ({ id, version, title, sha256 })) },
+        content: task.mode === 'slides'
+          ? 'Prompt is base64-transferred to avoid shell interpretation; the sandbox SDK receives the narrowly scoped slide-rendering shell capability.'
+          : 'Prompt is base64-transferred to avoid shell interpretation and the sandbox SDK receives no Bash tool.',
+        payload: { sandboxId: sandbox.id, leaseId: acquired.lease.id, leaseGeneration: acquired.lease.generation, toolName: 'onecomputer.sandbox.exec', agentRuntime: 'claude_agent_sdk', claudeTransport, model: configuredClaude.model, sessionContinuation: Boolean(resumableSessionId), allowedTools, browserAutomation: browserAutomationEnabled, skills: selectedSkills.map(({ id, version, title, sha256 }) => ({ id, version, title, sha256 })) },
       })
       await captureVisualFrame('before_agent', agentExecution.id)
       const spawned = await this.client.exec(sandbox.id, command, signal)

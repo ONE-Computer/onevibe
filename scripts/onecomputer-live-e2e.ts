@@ -121,6 +121,7 @@ const main = async () => {
   if (task.securityContext?.sandboxState !== 'started' || !task.securityContext.sandboxId) throw new Error(`Expected a retained started sandbox, found ${task.securityContext?.sandboxState ?? 'unknown'}`)
   const firstSandboxId = task.securityContext.sandboxId
   if (!task.events.some((event) => event.label === 'ONEComputer sandbox ready')) throw new Error('Sandbox readiness event missing')
+  if (!task.events.some((event) => event.type === 'run_started' && event.payload.agentRuntime === 'claude_agent_sdk')) throw new Error('ONEComputer task did not record the sandbox-resident Claude Agent SDK runtime')
   if (requireLiteLlm && !task.events.some((event) => event.type === 'run_started' && event.payload.claudeTransport === 'litellm')) throw new Error('Sandbox run did not record the required server-controlled LiteLLM transport')
   if (requireVisual && !task.events.some((event) => event.payload.kind === 'visual_frame')) throw new Error('Required X11 visual evidence missing')
   if (mode === 'slides') {
@@ -164,6 +165,7 @@ const main = async () => {
     sameConversationReused: continued.securityContext?.sandboxId === firstSandboxId,
     conversationsIsolated: secondSandboxId !== firstSandboxId,
     gatewayEnforced: task.securityContext?.gatewayEnforced === true,
+    sdkRuntime: task.events.some((event) => event.type === 'run_started' && event.payload.agentRuntime === 'claude_agent_sdk'),
     litellmRouted: task.events.some((event) => event.type === 'run_started' && event.payload.claudeTransport === 'litellm'),
     visualEvidence: continued.events.filter((event) => event.payload.kind === 'visual_frame').length,
     sseLiveFrames: liveRuntimeEvents.length,
