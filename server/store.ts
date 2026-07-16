@@ -787,6 +787,31 @@ export class TaskStore {
     return { messages, nextCursor: start + limit < all.length ? messages.at(-1)?.id : undefined, total: all.length }
   }
 
+  async claimRetry(taskId: string, idempotencyKey: string, prompt: string): Promise<{ claimed: boolean; state: 'pending' | 'completed'; response?: Record<string, unknown> }> {
+    this.getTask(taskId)
+    const scope = `retry:${taskId}`
+    const requestHash = createHash('sha256').update(JSON.stringify({ taskId, prompt })).digest('hex')
+    const now = new Date().toISOString()
+    return this.requireUnitOfWork().run((repositories) => {
+      const existing = repositories.idempotency.find(scope, idempotencyKey)
+      if (existing) {
+        repositories.idempotency.claim(scope, idempotencyKey, requestHash, now)
+        return {
+          claimed: false,
+          state: existing.state,
+          ...(existing.responseJson ? { response: JSON.parse(existing.responseJson) as Record<string, unknown> } : {}),
+        }
+      }
+      repositories.idempotency.claim(scope, idempotencyKey, requestHash, now)
+      return { claimed: true, state: 'pending' as const }
+    })
+  }
+
+  async completeRetry(taskId: string, idempotencyKey: string, response: Record<string, unknown>) {
+    const scope = `retry:${taskId}`
+    this.requireUnitOfWork().run((repositories) => repositories.idempotency.complete(scope, idempotencyKey, JSON.stringify(response), new Date().toISOString()))
+  }
+
   searchMessages(query: string, limit = 50) {
     const normalized = query.trim().toLocaleLowerCase()
     if (!normalized) return []

@@ -34,6 +34,12 @@ The harness creates a Document-mode task that asks Claude to write one local `RE
 
 This is proof of the configured SDK path, not a claim of microVM isolation, gateway enforcement, browser validation, OpenVTC approval, or production credential federation. Those require their own gated evidence.
 
+## Local reliability follow-up — 2026-07-16
+
+The local route now has explicit provider-terminal handling, restart reconciliation, an idempotent retry endpoint, and a subscribe-first SSE replay handoff. `npm run check` passed with 33 test files / 182 tests. A clean local LiteLLM-backed conversation completed two Claude SDK turns with a recorded session and valid evidence. A separate Slides task completed with `deck.pptx`, `deck.pdf`, `outline.json`, `speaker-notes.md`, and `validation-report.json` in the task workspace.
+
+The current proof remains host-process local execution. It does not claim the deferred ONEComputer sandbox, attested microVM, gateway egress enforcement, or OpenVTC/VTI approval path.
+
 ## Local LiteLLM proof — 2026-07-16
 
 The controlled proof was repeated locally without changing the existing UI or

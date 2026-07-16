@@ -15,6 +15,13 @@
 - SSE task events now subscribe before reading replay, buffer events during the replay/drain phase, deduplicate by durable event ID, and then enter live delivery. The HTTP route is wired to this handoff and validates task-bound cursors before headers.
 - Implementation was delegated into disjoint worker scopes and integrated by the main agent in `27b7123`. Focused worker tests and the full check passed; local Claude/LiteLLM two-turn E2E remained green.
 
+## 2026-07-16 — restart reconciliation, idempotent retry, and local slide proof
+
+- `5c4e6ba` reconciles stale durable active turns after API restart. It emits one retryable process-restart failure, finalizes the assistant message, clears the active run, and remains idempotent across repeated initialization.
+- Added an idempotent `POST /api/tasks/:id/retry` contract backed by the SQLite idempotency table. The UI Retry action now uses a generated retry key, and the new attempt is recorded in the same conversation evidence chain.
+- Clean local Claude/LiteLLM evidence: a two-turn conversation completed with session identity and valid evidence; a Slides task completed with `deck.pptx`, `deck.pdf`, `outline.json`, `speaker-notes.md`, and `validation-report.json`. This is host-process local proof, not production sandbox/microVM proof.
+- Verification: `npm run check` passed with 33 test files / 182 tests; the local conversation and Slides E2E scripts completed successfully.
+
 ## 2026-07-16 — SQLite runtime event ledger
 
 - Moved the authoritative append-only runtime event ledger from a rewritten per-task `events.json` file into a versioned SQLite `runtime_events` table (migration v4). Appends now allocate the per-conversation sequence and previous hash inside the existing immediate Unit-of-Work transaction, so concurrent tool/lifecycle producers cannot silently reuse a sequence or fork the evidence chain.

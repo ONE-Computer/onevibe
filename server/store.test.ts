@@ -255,6 +255,23 @@ describe('TaskStore', () => {
     expect(reopened.listMessages(task.id).messages).toEqual([])
   })
 
+  it('makes retry acceptance idempotent and rejects key reuse for a different prompt', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-retry-idempotency-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Retry an interrupted workspace', 'demo')
+    await store.updateTask(task.id, { status: 'failed' })
+
+    await expect(store.claimRetry(task.id, 'retry-key-1', 'Retry prompt')).resolves.toMatchObject({ claimed: true, state: 'pending' })
+    await store.completeRetry(task.id, 'retry-key-1', { status: 'queued', taskId: task.id, retryKey: 'retry-key-1' })
+    await expect(store.claimRetry(task.id, 'retry-key-1', 'Retry prompt')).resolves.toEqual({
+      claimed: false, state: 'completed', response: { status: 'queued', taskId: task.id, retryKey: 'retry-key-1' },
+    })
+    await expect(store.claimRetry(task.id, 'retry-key-1', 'A different retry prompt')).rejects.toThrow()
+  })
+
   it('rejects workspace traversal', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-store-'))
     temporaryRoots.push(root)

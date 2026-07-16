@@ -101,6 +101,7 @@ const createScheduleInput = z.object({
 })
 const scheduleStateInput = z.object({ enabled: z.boolean() })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000), attachments: z.array(taskAttachment).max(4).default([]) })
+const retryInput = z.object({ idempotencyKey: z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/) })
 const moveTaskProjectInput = z.object({ projectId: z.string().regex(/^project_[a-z0-9]+$/) })
 const updateTaskTagsInput = z.object({ tags: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/)).max(8) })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
@@ -137,7 +138,7 @@ const adapterFor = (provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'):
     ? new ClaudeSdkRuntimeAdapter()
     : new DemoRuntimeAdapter()
 
-const executeTask = (taskId: string, prompt: string, continuation: boolean, attachmentPaths?: string[]) => {
+const executeTask = (taskId: string, prompt: string, continuation: boolean, attachmentPaths?: string[], retryKey?: string) => {
   const task = store.getTask(taskId)
   const project = store.getProject(task.projectId)
   const turnAttachments = attachmentPaths ? task.attachments.filter((attachment) => attachmentPaths.includes(attachment.path)) : task.attachments
@@ -159,6 +160,11 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       })
     }
     await store.beginTurn(task.id, prompt, task.provider)
+    if (retryKey) await store.appendEvent(task.id, {
+      type: 'activity_delta', lane: 'control', label: 'Retry attempt started',
+      content: 'ONEVibe is retrying the failed or cancelled turn in the same governed conversation workspace.',
+      payload: { retryKey, idempotent: true },
+    })
     await store.appendEvent(task.id, {
       type: 'user_message', lane: 'transcript', content: prompt,
       payload: { continuation },
@@ -438,6 +444,26 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       await store.updateTask(taskId, { status: 'pending' })
       setTimeout(() => executeTask(taskId, input.prompt, true, attachments.map((attachment) => attachment.path)), 25)
       return json(response, 202, { status: 'queued', taskId })
+    }
+    if (request.method === 'POST' && segments[3] === 'retry') {
+      const input = retryInput.parse(await readBody(request))
+      const task = store.getTask(taskId)
+      if (activeRuns.has(taskId) || task.activeRunId || ['running', 'pending', 'waiting_for_user_input', 'waiting_for_approval'].includes(task.status)) {
+        return json(response, 409, { error: 'Task execution is still active; wait for a terminal state before retrying' })
+      }
+      if (task.status !== 'failed' && task.status !== 'cancelled') {
+        return json(response, 409, { error: `Task cannot be retried from ${task.status}` })
+      }
+      const prompt = 'Retry this task using the existing workspace. Inspect the prior evidence and address the failed or cancelled step before continuing.'
+      const claim = await store.claimRetry(taskId, input.idempotencyKey, prompt)
+      if (!claim.claimed) {
+        return json(response, claim.state === 'pending' ? 202 : 200, claim.response ?? { status: 'processing', taskId, retryKey: input.idempotencyKey })
+      }
+      const accepted = { status: 'queued', taskId, retryKey: input.idempotencyKey }
+      await store.completeRetry(taskId, input.idempotencyKey, accepted)
+      await store.updateTask(taskId, { status: 'pending' })
+      setTimeout(() => executeTask(taskId, prompt, true, undefined, input.idempotencyKey), 25)
+      return json(response, 202, accepted)
     }
     if (request.method === 'DELETE' && segments[3] === 'messages' && segments[4]) {
       return json(response, 200, await store.cancelQueuedGuidance(taskId, segments[4]))
