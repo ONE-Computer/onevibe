@@ -598,3 +598,71 @@ button{transition:background .15s ease, color .15s ease, border-color .15s ease,
    some load paths (button + text-node inheritance quirk). Force it. */
 button.model-selector{color:var(--text-primary)!important;background:transparent}
 button.model-selector *{color:inherit}
+
+/* ================================================================
+   PHASE 11 — LIGHT-MODE DEFAULT · CLAUDE CALIBRATION
+   Kill decorative motion. Warmer paper canvas.
+   Restrained accent. Stillness over sizzle.
+   ================================================================ */
+
+[data-theme=light]{
+  /* Anthropic-warm paper palette: cream canvas, warm off-black text */
+  --surface-canvas:#faf9f5;
+  --surface-sidebar:#f5f4ef;
+  --surface-panel:#ffffff;
+  --surface-raised:#ffffff;
+  --surface-hover:#f0efe9;
+  --surface-elevated:#ffffff;
+  --surface-inset:#f5f4ef;
+  --surface-code:#f5f4ef;
+  --text-primary:#2b2b28;
+  --text-secondary:#5c5c58;
+  --text-muted:#84847e;
+  --text-faint:#a8a8a2;
+  --border-default:#e6e4dc;
+  --border-subtle:#eeece4;
+  --border-strong:#c9c7bf;
+  /* Restrained accent — warm terracotta at low chroma */
+  --accent:#c96442;
+  --accent-strong:#b1553a;
+  --accent-soft:rgba(201,100,66,.08);
+  --accent-border:rgba(201,100,66,.24);
+  --accent-glow:transparent;
+  --accent-ink:#ffffff;
+  --gold:#96751b;
+  --gold-soft:rgba(150,117,27,.08);
+  --gold-border:rgba(150,117,27,.24);
+  --overlay-topbar:rgba(250,249,245,.9);
+  --overlay-composer:rgba(255,255,255,.96);
+}
+
+/* Kill every decorative animation added in earlier phases. */
+.home-view::before{display:none!important}
+.brand-icon::after{display:none!important}
+.home-hero-status .running-dot{animation:none!important;box-shadow:none!important;background:var(--text-muted)!important}
+@keyframes ambient-drift{from{opacity:0}to{opacity:0}}
+@keyframes brand-heartbeat{from{box-shadow:none}to{box-shadow:none}}
+@keyframes running-dot{from{box-shadow:none}to{box-shadow:none}}
+
+/* Remove all hover translate + glow "sizzle" */
+.composer:focus-within{transform:none!important;box-shadow:0 0 0 1px var(--border-strong)!important}
+.send-button:not(:disabled):hover{transform:none!important;box-shadow:none!important}
+.send-button:not(:disabled):active{transform:none!important}
+.task-row:hover{transform:none!important}
+.starter-prompts button:hover{transform:none!important;background:var(--surface-hover)!important}
+.starter-prompts button:hover span{transform:none!important}
+.home-hero-card:hover{transform:none!important;background:var(--surface-hover)!important}
+.home-hero-card:hover .home-hero-card-chevron{transform:none!important}
+.home-hero-artifact:hover{transform:none!important}
+.new-task:hover{transform:none!important;box-shadow:none!important}
+.new-task:active{transform:none!important}
+
+/* Remove gradient decorations */
+.sidebar{background:var(--surface-sidebar)!important}
+.home-view{background:var(--surface-canvas)!important}
+.home-content h1{background:none!important;-webkit-background-clip:initial!important;background-clip:initial!important;-webkit-text-fill-color:initial!important;color:var(--text-primary)!important}
+.home-content h1 span{background:none!important;-webkit-background-clip:initial!important;background-clip:initial!important;-webkit-text-fill-color:initial!important;color:var(--text-muted)!important}
+.home-hero-artifact{background:var(--surface-panel)!important}
+.new-task{background:var(--surface-panel)!important;color:var(--text-primary)!important;border:1px solid var(--border-default)!important;box-shadow:none!important;font-weight:500!important}
+.new-task kbd{background:var(--surface-hover)!important;color:var(--text-muted)!important}
+.avatar{background:var(--surface-hover)!important;border:1px solid var(--border-default)!important}
