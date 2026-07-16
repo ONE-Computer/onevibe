@@ -49,6 +49,10 @@ The default view is chronological and auto-follows new activity. A settled task 
 - The reviewer can scroll or keyboard-step in either direction across CLI, visual, and deliverable cards without losing their anchor, context, or immutable deep link.
 - Study notes for any Manus-specific interaction detail record the observed behavior, source/session, and the ONEVibe security adaptation before it is copied into product behavior.
 
+### Current implementation note — 2026-07-16
+
+The task page now treats the Computer rail as the single source for tool, screenshot, and deliverable detail. The adjacent timeline is a compact runtime-checkpoint projection and deliberately excludes tool-call and artifact lanes, preventing duplicate transcript/state surfaces. Repeated visual-capture failures are summarized once and link the reviewer back to the Computer/Evidence surfaces. This reduces noise without rewriting or dropping the durable event ledger; the full rail and task-bound SSE replay remain available for forensic review.
+
 ## Definition of done
 
 - A real governed task visibly interleaves a CLI command/transcript where shell work occurs, one causal visual frame where graphical work occurs, and one produced artifact in chronological order.

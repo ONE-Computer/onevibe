@@ -1,0 +1,38 @@
+.timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 1px 8px;
+  color: var(--text-muted, #7c877f);
+}
+
+.timeline-header div {
+  display: grid;
+  gap: 3px;
+}
+
+.timeline-header span {
+  color: var(--text-secondary, #9aa59e);
+  font: 9px 'IBM Plex Mono';
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.timeline-header small {
+  color: var(--text-faint, #68736c);
+  font-size: 9px;
+}
+
+.timeline-header > strong {
+  color: var(--text-muted, #9aa59e);
+  font: 9px 'IBM Plex Mono';
+}
+
+.visual-capture-summary .activity-icon {
+  background: color-mix(in srgb, var(--warning, #f1b84b) 12%, transparent);
+  color: var(--warning, #f1b84b);
+}
+
+.visual-capture-summary .activity-chevron {
+  color: var(--warning, #f1b84b);
+}

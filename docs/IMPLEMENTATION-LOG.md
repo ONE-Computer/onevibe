@@ -105,6 +105,9 @@
 
 # 2026-07-16 — assistant-ui external transcript slice
 
+- Tightened the Manus-style task page after browser inspection found the same provider activity being rendered both as assistant-ui tool cards and as a noisy raw timeline. `TaskTimeline` now projects only compact runtime checkpoints; tool calls, screenshots, and deliverables remain in the authoritative Computer rail. Repeated `X11 evidence capture unavailable` events collapse into one explicit visual-evidence summary instead of flooding the conversation. This is a presentation projection only: the append-only event ledger, SSE replay, and evidence rail are unchanged.
+- Verified the slice against a persisted slide task at `http://127.0.0.1:5174/tasks/task_dda313c34b5a49`: the checkpoint heading rendered once, raw X11 failure rows were absent from the compact timeline, the dark theme toggle rendered correctly, and a 390×844 viewport retained a reachable sidebar control with the task content visible. `npm run check` passed (32 test files / 161 tests, production build, harness typecheck).
+
 - Added `@assistant-ui/react` through a lazy-loaded conversation thread.
 - Projected the authoritative `TaskSnapshot.messages` collection through `useExternalStoreRuntime`; the existing API/SSE/SQLite path still owns reads, writes, queueing, and recovery.
 - Routed composer submissions through the existing continuation callback and preserved durable task, turn, provider, message, and status metadata.
