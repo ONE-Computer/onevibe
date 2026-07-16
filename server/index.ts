@@ -164,6 +164,11 @@ const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: 
 const restoreProjectFileInput = z.object({ expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
 const walletDecision = z.object({ decision: z.enum(['approved', 'denied']), signer: z.string().trim().min(2).max(120) })
+const mcpConfigInput = z.object({
+  name: z.string().trim().min(2).max(80).regex(/^[a-zA-Z0-9][a-zA-Z0-9 _.-]*$/),
+  command: z.string().trim().min(1).max(200).regex(/^[a-zA-Z0-9._/-]+$/),
+  args: z.array(z.string().max(512).refine((value) => !/[\r\n;&|`$<>]/.test(value) && !/(?:^|[\\/])\.\.(?:[\\/]|$)/.test(value), 'MCP arguments cannot contain shell composition or path traversal')).max(32).default([]),
+})
 const textFilePattern = /\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|ya?ml|toml|xml|svg|gitignore|prettierrc)$/i
 const contentHash = (content: string) => createHash('sha256').update(content).digest('hex')
 const stageFollowUpAttachments = async (taskId: string, input: Array<{ name: string; mimeType: string; dataBase64: string }>) => {
@@ -241,12 +246,13 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       content: `${turnAttachments.length} file${turnAttachments.length === 1 ? '' : 's'} staged under inputs/ for this turn.`,
       payload: { kind: 'task_input', attachmentCount: turnAttachments.length, files: turnAttachments.map(({ name, path, size, mimeType }) => ({ name, path, size, mimeType })) },
     })
-    await adapter.initialize(store.getTask(task.id), store.workspacePath(task.id), [])
+    const mcpConfigs = adapter.capabilities.includes('tool_use') ? store.runtimeMcpConfigs() : []
+    await adapter.initialize(store.getTask(task.id), store.workspacePath(task.id), mcpConfigs)
     activeAdapters.set(task.id, adapter)
     try {
       for await (const _event of adapter.run(scopedPrompt, {
         task: store.getTask(task.id), store, continuation,
-        workingDir: store.workspacePath(task.id), mcpConfigs: [],
+        workingDir: store.workspacePath(task.id), mcpConfigs,
         requestUserInput: (question, options, signal) => inputBroker.request(task.id, question, options, signal),
       }, controller.signal)) {
         // The adapter's stream is sourced from the append-only store. Draining
@@ -358,6 +364,18 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     return json(response, 200, { tasks: store.listTasks() })
   }
   if (request.method === 'GET' && url.pathname === '/api/skills') return json(response, 200, { skills: skillCatalog() })
+  if (request.method === 'GET' && url.pathname === '/api/mcp') return json(response, 200, { configs: store.listMcpConfigs() })
+  if (request.method === 'POST' && url.pathname === '/api/mcp') {
+    const input = mcpConfigInput.parse(await readBody(request))
+    if (['sh', 'bash', 'zsh', 'fish', 'cmd', 'powershell'].includes(path.basename(input.command).toLowerCase())) {
+      throw new RangeError('Shell interpreters cannot be registered as MCP commands')
+    }
+    return json(response, 201, store.createMcpConfig(input))
+  }
+  if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'mcp' && segments[2] && segments.length === 3) {
+    if (!store.deleteMcpConfig(segments[2])) return json(response, 404, { error: 'MCP configuration not found' })
+    return json(response, 200, { id: segments[2], deleted: true })
+  }
   if (request.method === 'GET' && url.pathname === '/api/library') return json(response, 200, { items: await store.listLibrary() })
   if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'library' && segments[2]) return json(response, 200, await store.hideLibraryItem(segments[2]))
 

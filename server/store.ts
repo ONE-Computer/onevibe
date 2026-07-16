@@ -4,10 +4,11 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promi
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
-import type { ChatMessage, ConversationSummary, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
+import type { ChatMessage, ConversationSummary, EventInput, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
 import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type UnitOfWork } from './persistence/index.js'
 import { isInternalWorkspacePath } from './artifact-path.js'
+import type { McpConfig } from './runtime-adapter.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -300,6 +301,41 @@ export class TaskStore {
   transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord) {
     this.getTask(next.conversationId)
     this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.transition(id, expected, next))
+  }
+
+  listMcpConfigs(): RuntimeMcpConfig[] {
+    return this.requireUnitOfWork().run((repositories) => repositories.mcpConfigs.list().map((record) => {
+      let args: unknown
+      try { args = JSON.parse(record.argsJson) } catch { args = [] }
+      return {
+        id: record.id, name: record.name, command: record.command,
+        args: Array.isArray(args) && args.every((arg) => typeof arg === 'string') ? args as string[] : [],
+        createdAt: record.createdAt, updatedAt: record.updatedAt,
+      }
+    }))
+  }
+
+  createMcpConfig(input: { name: string; command: string; args: string[] }): RuntimeMcpConfig {
+    const now = new Date().toISOString()
+    const record = { id: `mcp_${randomUUID().replaceAll('-', '').slice(0, 20)}`, name: input.name, command: input.command, argsJson: JSON.stringify(input.args), createdAt: now, updatedAt: now }
+    this.requireUnitOfWork().run((repositories) => {
+      repositories.mcpConfigs.insert(record)
+      repositories.mcpConfigs.appendAudit({ id: `${record.id}:created`, configId: record.id, action: 'created', name: record.name, command: record.command, argsJson: record.argsJson, createdAt: now })
+    })
+    return { ...input, id: record.id, createdAt: now, updatedAt: now }
+  }
+
+  deleteMcpConfig(id: string): boolean {
+    return this.requireUnitOfWork().run((repositories) => {
+      const current = repositories.mcpConfigs.findById(id)
+      if (!current || !repositories.mcpConfigs.delete(id)) return false
+      repositories.mcpConfigs.appendAudit({ id: `${id}:deleted:${randomUUID()}`, configId: id, action: 'deleted', name: current.name, command: current.command, argsJson: current.argsJson, createdAt: new Date().toISOString() })
+      return true
+    })
+  }
+
+  runtimeMcpConfigs(): McpConfig[] {
+    return this.listMcpConfigs().map((config) => ({ ...config, env: {} }))
   }
 
   async listLibrary() {

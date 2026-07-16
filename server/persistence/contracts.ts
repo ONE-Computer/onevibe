@@ -89,6 +89,33 @@ export interface RuntimeLeaseFence {
   updatedAt: string
 }
 
+export interface McpConfigRecord {
+  id: string
+  name: string
+  command: string
+  argsJson: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface McpConfigAuditRecord {
+  id: string
+  configId: string
+  action: 'created' | 'deleted'
+  name: string
+  command: string
+  argsJson: string
+  createdAt: string
+}
+
+export interface McpConfigRepository {
+  list(): McpConfigRecord[]
+  findById(id: string): McpConfigRecord | undefined
+  insert(record: McpConfigRecord): void
+  delete(id: string): boolean
+  appendAudit(record: McpConfigAuditRecord): void
+}
+
 export interface ConversationRepository {
   findById(id: string): ConversationRecord | undefined
   insert(record: ConversationRecord): void
@@ -201,6 +228,7 @@ export interface Repositories {
   idempotency: IdempotencyRepository
   legacyImports: LegacyImportRepository
   runtimeLeases: RuntimeLeaseRepository
+  mcpConfigs: McpConfigRepository
 }
 
 /** Transactions are deliberately synchronous: better-sqlite3 cannot safely span an await. */

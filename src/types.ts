@@ -103,3 +103,4 @@ export type RuntimeProviderState = { id: Task['provider']; label: string; bounda
 export type RuntimeSuggestion = { id: Task['provider']; score: number; available: boolean; compatible: boolean; reason: string; capabilities: RuntimeCapability[] }
 export type RuntimeReadiness = { providers: RuntimeProviderState[]; defaultProvider?: Task['provider']; suggestions?: Partial<Record<TaskMode, RuntimeSuggestion[]>> }
 export type RuntimeHealth = { status: 'online' | 'offline' | 'not_configured' | 'unknown'; latencyMs?: number; detail: string }
+export type RuntimeMcpConfig = { id: string; name: string; command: string; args: string[]; createdAt: string; updatedAt: string }

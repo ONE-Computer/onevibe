@@ -8,7 +8,7 @@
 >
 > **Current state**: The local-first foundation is substantially implemented: backend-offline recovery, truthful simulation labelling, durable SSE replay/reconnect, LiteLLM-only routing, provider-neutral runtime lifecycle, runtime health/routing, task workspaces, durable guidance queueing, and assistant-ui conversation rendering are in place. Remaining release blockers are conversation branching, auth/persistence/deployment, sandboxed execution, MCP/skills integration, and the remaining professional-UI dead ends. See `HANDOVER.md` and `plan/00-gap-analysis.md`.
 >
-> **Release gate**: `npm run check` must stay green (oxlint + 227 vitest tests + tsc build + e2e harness typecheck) after every task.
+> **Release gate**: `npm run check` must stay green (oxlint + 228 vitest tests + tsc build + e2e harness typecheck) after every task.
 
 > **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The Claude SDK configuration now fails closed unless the server-controlled relay is configured; Codex/AgentCore remain blocked until their adapters also use the same boundary.
 
@@ -97,7 +97,7 @@ Reference: `plan/05-ui-overhaul.md`
 **Target: users add MCP servers; ONEVibe routes tool calls through them; skill marketplace works.**
 Reference: `plan/06-mcp-extensions.md`
 
-- [ ] **P6-01** Add MCP config management — UI to add/remove MCP servers; store in `runtime_mcp_configs` table (not on-disk JSON); inject into any adapter that supports `'tool_use'` capability
+- [x] **P6-01** Add MCP config management — local SQLite-backed UI to add/remove MCP servers; store in `runtime_mcp_configs` (not on-disk JSON); inject secret-free declarations into adapters that support `'tool_use'`. Authenticated ownership and a production secret broker remain part of P4.
 - [ ] **P6-02** Add skill marketplace — GitHub-backed catalog; install/remove from SkillsLibrary; inject as system-prompt blocks per task
 - [ ] **P6-03** Add two-tool MCP facade — `search_capabilities` + `execute_capability`; reduces context waste for agents with many MCP servers
 - [ ] **P6-04** Add agent context diagnostics — `/api/diagnostics` health check; surface as status panel: API key → runtime reachable → sandbox → MCP servers

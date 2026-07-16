@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationSummary, LibraryItem, Project, ProjectFileVersion, RuntimeHealth, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { ChatMessage, ConversationSummary, LibraryItem, Project, ProjectFileVersion, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 export type SkillCatalogEntry = { id: TaskSkill; version: number; title: string; summary: string; sha256: string }
 export type SkillOption = Pick<SkillCatalogEntry, 'id' | 'title' | 'summary'>
@@ -74,6 +74,11 @@ export const testRuntime = async (provider: Task['provider']) => parse<{ provide
 export const listLibrary = async () => parse<{ items: LibraryItem[] }>(await fetch('/api/library'))
 export const removeLibraryItem = async (taskId: string) => parse<Task>(await fetch(`/api/library/${taskId}`, { method: 'DELETE' }))
 export const listSkills = async () => parse<{ skills: SkillCatalogEntry[] }>(await fetch('/api/skills'))
+export const listMcpConfigs = async () => parse<{ configs: RuntimeMcpConfig[] }>(await fetch('/api/mcp'))
+export const createMcpConfig = async (input: Pick<RuntimeMcpConfig, 'name' | 'command' | 'args'>) => parse<RuntimeMcpConfig>(await fetch('/api/mcp', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+}))
+export const deleteMcpConfig = async (id: string) => parse<{ id: string; deleted: true }>(await fetch(`/api/mcp/${encodeURIComponent(id)}`, { method: 'DELETE' }))
 
 export const createTask = async (prompt: string, provider: Task['provider'], mode: TaskMode, projectId = 'project_onevibe', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = []) =>
   parse<Task>(await fetch('/api/tasks', {

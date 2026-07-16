@@ -204,7 +204,7 @@ Full task list: `TODO.md`. Summary:
 (See `plan/05-ui-overhaul.md` for details)
 
 ### Phase 6 — MCP + extensions
-**4 tasks. Target: users add MCP servers; skill marketplace works.**
+**4 tasks. Target: users add MCP servers; skill marketplace works. The local MCP declaration slice is now implemented; authenticated ownership and secret brokering remain open.**
 (See `plan/06-mcp-extensions.md` for details)
 
 ---

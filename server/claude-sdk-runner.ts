@@ -131,6 +131,9 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
       instructions: 'Use request_user_input only when the task cannot safely continue without a human choice or missing value.',
       tools: task.mode === 'chat' ? [inputTool] : task.mode === 'slides' ? [inputTool, planTool, slideTool] : [inputTool, planTool],
     })
+    const configuredMcpServers = Object.fromEntries(this.mcpConfigs
+      .filter((config) => config.name !== 'onevibe')
+      .map((config) => [config.name, { command: config.command, args: config.args, env: config.env }]))
     const canUseTool = async (toolName: string, input: Record<string, unknown>): Promise<PermissionResult> => {
       if (!allowedTools.has(toolName)) {
         return { behavior: 'deny', message: `${toolName} is not available in the host-process SDK adapter. Use the ONEComputer sandbox MCP adapter.`, interrupt: false }
@@ -216,7 +219,7 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
           'Do not publish, access external services, or claim security certification. Public release requires a separate VTI Wallet.',
         ].join(' '),
         tools: [...allowedTools],
-        mcpServers: { onevibe: onevibeServer },
+        mcpServers: { onevibe: onevibeServer, ...configuredMcpServers },
         canUseTool,
         hooks: { PreToolUse: [{ hooks: [preToolUse] }] },
         permissionMode: 'default',

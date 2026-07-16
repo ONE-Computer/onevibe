@@ -1,11 +1,11 @@
-import { Activity, ExternalLink, Eye, MonitorCog, ShieldCheck, TerminalSquare } from 'lucide-react'
+import { Activity, ExternalLink, Eye, MonitorCog, Plus, ShieldCheck, TerminalSquare, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { testRuntime } from '../lib/api'
-import type { RuntimeHealth, RuntimeReadiness, Task } from '../types'
+import type { RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, Task } from '../types'
 import { statusLabel } from '../lib/runtime-labels'
 
-type Props = { tasks: Task[]; onOpenTask: (taskId: string) => void; runtime?: RuntimeReadiness }
+type Props = { tasks: Task[]; onOpenTask: (taskId: string) => void; runtime?: RuntimeReadiness; mcpConfigs: RuntimeMcpConfig[]; onCreateMcpConfig: (input: Pick<RuntimeMcpConfig, 'name' | 'command' | 'args'>) => Promise<void>; onDeleteMcpConfig: (config: RuntimeMcpConfig) => Promise<void> }
 
 const boundaryLabel = (task: Task) => task.securityContext?.executionBoundary === 'onecomputer_sandbox'
   ? 'ONEComputer sandbox'
@@ -19,9 +19,13 @@ const lifecycleLabel = (task: Task) => task.securityContext?.destroyedAt
     ? task.securityContext.sandboxState.replaceAll('_', ' ')
     : statusLabel(task.status)
 
-export const Computers = ({ tasks, onOpenTask, runtime }: Props) => {
+export const Computers = ({ tasks, onOpenTask, runtime, mcpConfigs, onCreateMcpConfig, onDeleteMcpConfig }: Props) => {
   const [health, setHealth] = useState<Record<string, RuntimeHealth>>({})
   const [testing, setTesting] = useState<string | null>(null)
+  const [mcpName, setMcpName] = useState('')
+  const [mcpCommand, setMcpCommand] = useState('')
+  const [mcpArgs, setMcpArgs] = useState('')
+  const [mcpSaving, setMcpSaving] = useState(false)
   const computers = tasks.filter((task) => task.securityContext).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   const runHealthCheck = async (provider: Task['provider']) => {
     setTesting(provider)
@@ -34,9 +38,29 @@ export const Computers = ({ tasks, onOpenTask, runtime }: Props) => {
       setTesting(null)
     }
   }
+  const submitMcp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!mcpName.trim() || !mcpCommand.trim()) return
+    setMcpSaving(true)
+    try {
+      await onCreateMcpConfig({ name: mcpName.trim(), command: mcpCommand.trim(), args: mcpArgs.trim() ? mcpArgs.trim().split(/\s+/) : [] })
+      setMcpName(''); setMcpCommand(''); setMcpArgs('')
+    } finally { setMcpSaving(false) }
+  }
   return <section className="computers-view">
     <header><div><span className="task-kicker">Runtimes</span><h1>Computers</h1><p>Task-derived inventory of the runtimes ONEVibe has observed. This view is read-only: it does not provision, restart, terminate, or otherwise control an infrastructure provider.</p></div><MonitorCog size={28} /></header>
     {runtime && <section className="runtime-health-panel" aria-label="Runtime health"><header><div><span>Runtime registry</span><strong>Connectivity checks</strong></div><small>Server-side probes only · no model prompt is sent</small></header><div className="runtime-health-grid">{runtime.providers.map((provider) => { const result = health[provider.id]; const status = result?.status ?? provider.healthStatus ?? (provider.available ? 'unknown' : 'not_configured'); return <article key={provider.id}><div><span className={`runtime-health-dot ${status}`} /><strong>{provider.label}</strong></div><small>{result?.detail ?? provider.detail}</small>{result?.latencyMs !== undefined && <span>{result.latencyMs} ms</span>}{provider.healthCheckedAt && !result && <time dateTime={provider.healthCheckedAt}>Checked {new Date(provider.healthCheckedAt).toLocaleTimeString()}</time>}<button type="button" disabled={testing === provider.id} onClick={() => void runHealthCheck(provider.id)}>{testing === provider.id ? 'Testing…' : result || provider.healthStatus ? 'Test again' : 'Test runtime'}</button></article> })}</div></section>}
+    <section className="mcp-config-panel" aria-labelledby="mcp-config-title">
+      <header><div><span>Tool connections</span><strong id="mcp-config-title">MCP servers</strong></div><small>Declarations are stored locally and injected only into tool-capable runtimes.</small></header>
+      <p className="mcp-config-note">Credentials are never accepted here. Secret references and multi-user ownership belong to the upcoming authenticated server boundary.</p>
+      <form className="mcp-config-form" onSubmit={(event) => void submitMcp(event)}>
+        <label>Display name<input value={mcpName} onChange={(event) => setMcpName(event.target.value)} placeholder="Internal tools" maxLength={80} /></label>
+        <label>Command<input value={mcpCommand} onChange={(event) => setMcpCommand(event.target.value)} placeholder="npx" maxLength={200} /></label>
+        <label>Arguments<input value={mcpArgs} onChange={(event) => setMcpArgs(event.target.value)} placeholder="-y @example/mcp-server" maxLength={2_000} /></label>
+        <button type="submit" disabled={mcpSaving || !mcpName.trim() || !mcpCommand.trim()}><Plus size={14} /> {mcpSaving ? 'Saving…' : 'Add server'}</button>
+      </form>
+      {mcpConfigs.length ? <ul className="mcp-config-list">{mcpConfigs.map((config) => <li key={config.id}><div><strong>{config.name}</strong><code>{config.command}{config.args.length ? ` ${config.args.join(' ')}` : ''}</code></div><button type="button" onClick={() => void onDeleteMcpConfig(config)} aria-label={`Remove ${config.name}`} title="Remove MCP server"><Trash2 size={14} /></button></li>)}</ul> : <div className="mcp-config-empty">No MCP servers configured. Add a declaration to make it available to the next Claude tool-use turn.</div>}
+    </section>
     {!computers.length ? <div className="computers-empty"><MonitorCog size={22} /><strong>No governed runtimes observed</strong><span>Start a task to record its execution boundary, lifecycle evidence, and visual-runtime readiness here.</span></div> : <div className="computers-grid">{computers.map((task) => {
       const context = task.securityContext!
       return <motion.article layout key={task.id}>

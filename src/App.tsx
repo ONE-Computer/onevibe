@@ -13,10 +13,10 @@ import { Computers } from './components/Computers'
 import { HomeHero } from './components/HomeHero'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelQueuedGuidance, cancelTask, createProject, createSchedule, createTask, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
+import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
 import { providerLabel, statusLabel } from './lib/runtime-labels'
-import type { ConversationSummary, LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
+import type { ConversationSummary, LibraryItem, Project, RuntimeMcpConfig, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
 const starterPrompts = [
@@ -54,6 +54,7 @@ export default function App() {
   const [schedules, setSchedules] = useState<TaskSchedule[]>([])
   const [library, setLibrary] = useState<LibraryItem[]>([])
   const [runtime, setRuntime] = useState<RuntimeReadiness>()
+  const [mcpConfigs, setMcpConfigs] = useState<RuntimeMcpConfig[]>([])
   const [activeProjectId, setActiveProjectId] = useState('project_onevibe')
   const [view, setView] = useState<AppView>(viewFromLocation)
   const [skillCatalog, setSkillCatalog] = useState<SkillOption[]>(fallbackSkillCatalog)
@@ -108,6 +109,7 @@ export default function App() {
   }, [])
   useEffect(() => { persistSelectedSkills(selectedSkills) }, [selectedSkills])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)) }, [])
+  useEffect(() => { void listMcpConfigs().then(({ configs }) => setMcpConfigs(configs)).catch(() => undefined) }, [])
   const loadRuntimeReadiness = useCallback(async () => {
     try {
       const next = await getRuntimeReadiness()
@@ -220,6 +222,15 @@ export default function App() {
     await deleteSchedule(schedule.id)
     setSchedules((current) => current.filter((item) => item.id !== schedule.id))
   }
+  const addMcpConfig = async (input: Pick<RuntimeMcpConfig, 'name' | 'command' | 'args'>) => {
+    const config = await createMcpConfig(input)
+    setMcpConfigs((current) => [config, ...current])
+  }
+  const removeMcpConfig = async (config: RuntimeMcpConfig) => {
+    if (!window.confirm(`Remove MCP server “${config.name}”? New turns will stop receiving it.`)) return
+    await deleteMcpConfig(config.id)
+    setMcpConfigs((current) => current.filter((item) => item.id !== config.id))
+  }
   const hideLibraryItem = async (task: Task) => {
     if (!window.confirm(`Remove “${task.title}” from Library? The conversation and evidence will remain available.`)) return
     await removeLibraryItem(task.id)
@@ -293,7 +304,7 @@ export default function App() {
         </header>
 
         <AnimatePresence mode="wait">
-          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} onRemove={hideLibraryItem} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} runtime={runtime} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} onDelete={removeSchedule} runtime={runtime} /></motion.section> : !activeTaskId ? (
+          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} onRemove={hideLibraryItem} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} runtime={runtime} mcpConfigs={mcpConfigs} onCreateMcpConfig={addMcpConfig} onDeleteMcpConfig={removeMcpConfig} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} onDelete={removeSchedule} runtime={runtime} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="home-content">
                 <HomeHero />

@@ -12,6 +12,23 @@ afterEach(async () => {
 })
 
 describe('TaskStore', () => {
+  it('persists governed MCP declarations without accepting secret material', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-mcp-config-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const created = store.createMcpConfig({ name: 'Internal tools', command: 'npx', args: ['-y', '@example/mcp-server'] })
+    expect(created).toMatchObject({ name: 'Internal tools', command: 'npx', args: ['-y', '@example/mcp-server'] })
+    expect(store.runtimeMcpConfigs()).toEqual([expect.objectContaining({ id: created.id, env: {}, command: 'npx' })])
+
+    const reopened = new TaskStore(root)
+    await reopened.initialize()
+    expect(reopened.listMcpConfigs()).toEqual([expect.objectContaining({ id: created.id, name: 'Internal tools', args: ['-y', '@example/mcp-server'] })])
+    expect(reopened.deleteMcpConfig(created.id)).toBe(true)
+    expect(reopened.listMcpConfigs()).toEqual([])
+  })
+
   it('creates a task plan that carries the requested outcome into the scope step', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-plan-'))
     temporaryRoots.push(root)

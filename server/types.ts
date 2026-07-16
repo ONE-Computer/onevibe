@@ -220,3 +220,13 @@ export type RuntimeProviderState = {
 export type RuntimeSuggestion = { id: Task['provider']; score: number; available: boolean; compatible: boolean; reason: string; capabilities: RuntimeCapability[] }
 export type RuntimeReadiness = { providers: RuntimeProviderState[]; defaultProvider: Task['provider']; suggestions: Partial<Record<TaskMode, RuntimeSuggestion[]>> }
 export type RuntimeHealth = { status: 'online' | 'offline' | 'not_configured' | 'unknown'; latencyMs?: number; detail: string }
+
+/** Public MCP declaration. Secret environment values are deliberately not part of this type. */
+export type RuntimeMcpConfig = {
+  id: string
+  name: string
+  command: string
+  args: string[]
+  createdAt: string
+  updatedAt: string
+}

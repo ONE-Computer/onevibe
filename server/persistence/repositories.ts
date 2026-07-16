@@ -6,6 +6,9 @@ import type {
   IdempotencyRepository,
   LegacyImportRecord,
   LegacyImportRepository,
+  McpConfigAuditRecord,
+  McpConfigRecord,
+  McpConfigRepository,
   MessagePage,
   MessageRecord,
   MessageRepository,
@@ -37,6 +40,7 @@ type NativeEventRow = {
   id: string; conversation_id: string; run_id: string; source: string; source_event_id: string;
   source_sequence: number; native_type: string; payload_json: string; payload_hash: string; received_at: string;
 }
+type McpConfigRow = { id: string; name: string; command: string; args_json: string; created_at: string; updated_at: string }
 
 const conversationFromRow = (row: ConversationRow): ConversationRecord => ({
   id: row.id, title: row.title, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at,
@@ -416,6 +420,42 @@ export class SqliteLegacyImportRepository implements LegacyImportRepository {
   }
 }
 
+const mcpConfigFromRow = (row: McpConfigRow): McpConfigRecord => ({
+  id: row.id, name: row.name, command: row.command, argsJson: row.args_json,
+  createdAt: row.created_at, updatedAt: row.updated_at,
+})
+
+export class SqliteMcpConfigRepository implements McpConfigRepository {
+  constructor(private readonly database: Database.Database) {}
+
+  list(): McpConfigRecord[] {
+    return (this.database.prepare('SELECT * FROM runtime_mcp_configs ORDER BY updated_at DESC, id DESC').all() as McpConfigRow[]).map(mcpConfigFromRow)
+  }
+
+  findById(id: string): McpConfigRecord | undefined {
+    const row = this.database.prepare('SELECT * FROM runtime_mcp_configs WHERE id = ?').get(id) as McpConfigRow | undefined
+    return row && mcpConfigFromRow(row)
+  }
+
+  insert(record: McpConfigRecord): void {
+    this.database.prepare(`
+      INSERT INTO runtime_mcp_configs(id, name, command, args_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(record.id, record.name, record.command, record.argsJson, record.createdAt, record.updatedAt)
+  }
+
+  delete(id: string): boolean {
+    return this.database.prepare('DELETE FROM runtime_mcp_configs WHERE id = ?').run(id).changes === 1
+  }
+
+  appendAudit(record: McpConfigAuditRecord): void {
+    this.database.prepare(`
+      INSERT INTO runtime_mcp_config_events(id, config_id, action, name, command, args_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(record.id, record.configId, record.action, record.name, record.command, record.argsJson, record.createdAt)
+  }
+}
+
 export function createSqliteRepositories(database: Database.Database): Repositories {
   return {
     conversations: new SqliteConversationRepository(database),
@@ -426,5 +466,6 @@ export function createSqliteRepositories(database: Database.Database): Repositor
     idempotency: new SqliteIdempotencyRepository(database),
     legacyImports: new SqliteLegacyImportRepository(database),
     runtimeLeases: new SqliteRuntimeLeaseRepository(database),
+    mcpConfigs: new SqliteMcpConfigRepository(database),
   }
 }

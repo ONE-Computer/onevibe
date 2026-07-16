@@ -603,3 +603,11 @@ baseline harness in CI.
 - At the effective 1139px browser viewport, an active task now collapses the history rail and renders a 624px conversation beside a 500px Computer inspector, matching the Manus-style working layout. Opening the history rail falls back to the readable conversation + `View computer` handoff without horizontal overflow.
 - Added assistant-ui-style hover-only message actions and kept the terminal/artifact evidence visible in the Computer inspector. Browser QA used `task_f8d51a10de4f4d`; Markdown code spans rendered semantically and the Bash command/output remained visible in the paired inspector.
 - `npm run check` passed: 37 test files / 207 tests. The protected live gate passed with chat task `task_405cf74de87149`, artifact task `task_fa55cfeaa2b444`, 8 live SSE frames, 35 replay frames, one bounded Bash call, restart recovery, and failure/retry probe `task_1efc9fd354fa43`. Boundary remains host-process local proof.
+
+# 2026-07-17 — governed MCP declaration slice
+
+- Added SQLite migration v6 and `runtime_mcp_configs` repository support. MCP declarations are durable server state rather than browser-owned or on-disk JSON state, and a reopen/delete persistence test covers the lifecycle.
+- Added `GET/POST/DELETE /api/mcp` with strict name, command, and argument validation. Shell interpreters, shell composition, traversal, and newline injection are rejected. The API deliberately accepts no environment values or credentials.
+- Added a Computers view MCP configuration panel with add/remove controls and a permanent explanation that credentials are not accepted. New declarations are passed only to adapters advertising `tool_use`; the Claude Agent SDK receives them as MCP server declarations alongside the built-in ONEVibe server.
+- This is a local single-user declaration boundary, not production MCP governance. Authenticated ownership, secret references/brokering, per-organization isolation, and external-server health diagnostics remain open under the cloud/auth and Phase 6 work.
+- Verification: `npm run check` passed with 43 test files / 228 tests, lint, production build, and E2E harness typecheck. Boundary remains host-process local proof; no microVM, OpenVTC, or production egress claim.

@@ -5,6 +5,7 @@ import { v2Sql } from './migrations/v2.js'
 import { v3Sql } from './migrations/v3.js'
 import { v4Sql } from './migrations/v4.js'
 import { v5Sql } from './migrations/v5.js'
+import { v6Sql } from './migrations/v6.js'
 
 export interface Migration {
   version: number
@@ -31,6 +32,7 @@ export const migrations: readonly Migration[] = Object.freeze([
   { version: 3, name: 'conversation_runtime_lease_ledger', sql: v3Sql, checksum: migrationChecksum(v3Sql) },
   { version: 4, name: 'durable_runtime_event_ledger', sql: v4Sql, checksum: migrationChecksum(v4Sql) },
   { version: 5, name: 'durable_native_event_envelopes_and_projections', sql: v5Sql, checksum: migrationChecksum(v5Sql) },
+  { version: 6, name: 'governed_runtime_mcp_configurations', sql: v6Sql, checksum: migrationChecksum(v6Sql) },
 ])
 
 interface AppliedMigration {
