@@ -5,7 +5,7 @@ describe('runtime readiness', () => {
   it('never presents unconfigured remote or sandbox runtimes as available', () => {
     const states = runtimeReadiness({ claudeConfigured: false, remoteConfigured: false, oneComputerConfigured: false }).providers
     expect(states.find((state) => state.id === 'demo')?.available).toBe(true)
-    expect(states.find((state) => state.id === 'claude_sdk')).toMatchObject({ available: false, detail: expect.stringMatching(/server-only/i) })
+    expect(states.find((state) => state.id === 'claude_sdk')).toMatchObject({ available: false, detail: expect.stringMatching(/LiteLLM/i) })
     expect(states.find((state) => state.id === 'onecomputer')?.available).toBe(false)
     expect(states.find((state) => state.id === 'remote')?.available).toBe(false)
   })
@@ -14,6 +14,9 @@ describe('runtime readiness', () => {
     const states = runtimeReadiness({ claudeConfigured: true, remoteConfigured: true, oneComputerConfigured: true }).providers
     expect(states.find((state) => state.id === 'claude_sdk')).toMatchObject({ available: true, boundary: 'Governed host workspace' })
     expect(states.find((state) => state.id === 'onecomputer')).toMatchObject({ available: true, boundary: 'Conversation development sandbox' })
+    expect(states.find((state) => state.id === 'claude_sdk')?.capabilities).toEqual(expect.arrayContaining(['streaming', 'tool_use', 'file_system']))
+    expect(states.find((state) => state.id === 'claude_sdk')?.capabilities).not.toContain('computer_use')
+    expect(states.find((state) => state.id === 'onecomputer')?.capabilities).toEqual(expect.arrayContaining(['sandboxed', 'computer_use']))
     expect(JSON.stringify(states)).not.toMatch(/token|secret|api[_-]?key/i)
   })
 

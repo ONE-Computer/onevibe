@@ -55,6 +55,8 @@ export const isSafeBashCommand = safeBashCommand
 
 export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'claude_sdk'
+  readonly providerId = 'claude_sdk' as const
+  readonly capabilities = ['streaming', 'tool_use', 'file_system', 'preview_url'] as const
 
   async run({ task, store, signal, prompt, continuation, requestUserInput }: RuntimeContext) {
     signal.throwIfAborted()

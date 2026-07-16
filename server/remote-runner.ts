@@ -46,6 +46,8 @@ const normalize = (value: unknown): EventInput | null => {
 
 export class RemoteRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'remote'
+  readonly providerId = 'remote' as const
+  readonly capabilities = ['streaming', 'tool_use', 'file_system'] as const
 
   constructor(private readonly endpoint: string, private readonly bearerToken?: string) {}
 

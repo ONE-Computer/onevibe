@@ -184,6 +184,8 @@ export const parseClaudeStreamJournal = (raw: string) => {
 
 export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'onecomputer'
+  readonly providerId = 'onecomputer' as const
+  readonly capabilities = ['streaming', 'tool_use', 'file_system', 'sandboxed', 'preview_url', 'computer_use'] as const
 
   constructor(
     private readonly client: OneComputerClient,

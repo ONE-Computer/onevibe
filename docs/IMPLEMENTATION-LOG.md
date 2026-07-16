@@ -32,6 +32,13 @@
 - The P1-08 simulation disclosure is now visible in the task conversation and offers a new governed task only when a governed runtime is actually available. Browser acceptance of this state remains open.
 - Full `npm run check` passes with 39 test files and 214 tests, lint, production build, and E2E harness typecheck.
 
+## 2026-07-16 — Phase 2 capability boundary
+
+- Added a canonical runtime capability vocabulary and required provider metadata to the existing adapters. `/api/runtime` now returns capability declarations without credential material.
+- The provider picker surfaces capabilities, and the Workspace uses capability declarations to gate Files and Live X11 surfaces rather than inferring them from provider identity or sandbox state.
+- Claude host execution is explicitly not labelled sandboxed/computer-use; ONEComputer development runtime declares those capabilities only when that provider is configured.
+- This is the capability slice of P2-04. The broader P2-01 lifecycle contract and new Codex/AgentCore adapters remain open.
+
 ## 2026-07-16 — light-mode Claude calibration (Phases 11–15)
 
 User feedback ("prefer a light color; motion too cheesy; want

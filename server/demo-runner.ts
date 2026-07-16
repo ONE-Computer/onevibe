@@ -35,6 +35,8 @@ const previewHtml = (title: string) => `<!doctype html>
 
 export class DemoRuntimeAdapter implements RuntimeAdapter {
   readonly name = 'demo'
+  readonly providerId = 'demo' as const
+  readonly capabilities = ['streaming', 'file_system', 'preview_url'] as const
 
   async run({ task, store, signal, prompt, requestUserInput }: RuntimeContext) {
     signal.throwIfAborted()

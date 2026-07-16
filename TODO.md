@@ -36,7 +36,7 @@ Reference: `plan/02-runtime-abstraction.md`
 - [ ] **P2-01** Audit and harden `RuntimeAdapter` interface — define the canonical contract: `initialize`, `run(prompt, context)` → AsyncIterator of `RuntimeEvent`, `cancel`, `getFiles`, `getPreviewUrl`, `destroy`; every adapter must implement it fully
 - [ ] **P2-02** Add Codex adapter — implement `CodexRuntimeAdapter` wrapping OpenAI's Codex API; register as provider `'codex'`; expose when `OPENAI_API_KEY` is set
 - [ ] **P2-03** Add AgentCore adapter — implement `AgentCoreRuntimeAdapter` wrapping AWS Bedrock AgentCore (already referenced in `AGENTCORE-AWS-RUNTIME.md`); register as provider `'agentcore'`; expose when AWS credentials are set
-- [ ] **P2-04** Add runtime capability declaration — each `RuntimeAdapter` declares `capabilities: RuntimeCapability[]` (e.g. `'streaming'`, `'tool_use'`, `'file_system'`, `'sandboxed'`, `'computer_use'`); UI uses this to show/hide tabs in the workspace panel
+- [x] **P2-04** Add runtime capability declaration — each `RuntimeAdapter` declares `capabilities: RuntimeCapability[]` (e.g. `'streaming'`, `'tool_use'`, `'file_system'`, `'sandboxed'`, `'computer_use'`); UI uses this to show/hide tabs in the workspace panel
 - [ ] **P2-05** Add per-task working directory — every adapter gets an isolated `workingDir` per task; tool-generated files land there; `/api/tasks/:id/files` reads from it; fixes the "Building workspace" forever-spinner
 - [ ] **P2-06** Implement delta coalescing — buffer SSE token deltas per animation frame in `useTask.ts`, not per SSE event; prevents per-token re-renders on long responses
 - [ ] **P2-07** Add draft queuing — when agent is `running`, composer accepts a draft and shows "Will send when ready"; drains automatically on idle

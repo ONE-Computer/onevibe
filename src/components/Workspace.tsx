@@ -2,7 +2,7 @@ import { Activity, ArrowLeft, ArrowRight, Check, CheckCircle2, ClipboardCheck, C
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { compareVersion, copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
-import type { Project, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { Project, RuntimeCapability, RuntimeReadiness, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
 import { HighlightedCode } from './HighlightedCode'
 import { workspaceLocationForTab, workspaceTabFromSearch, type WorkspaceTab } from './workspace-navigation'
@@ -39,7 +39,7 @@ const activityIcon = (event: TaskSnapshot['events'][number]) => {
   return <Activity size={13} />
 }
 
-export const Workspace = ({ task, projects, onMoveProject, onUpdateTags }: { task: TaskSnapshot; projects: Project[]; onMoveProject: (taskId: string, projectId: string) => Promise<void>; onUpdateTags: (taskId: string, tags: string[]) => Promise<void> }) => {
+export const Workspace = ({ task, projects, runtime, onMoveProject, onUpdateTags }: { task: TaskSnapshot; projects: Project[]; runtime?: RuntimeReadiness; onMoveProject: (taskId: string, projectId: string) => Promise<void>; onUpdateTags: (taskId: string, tags: string[]) => Promise<void> }) => {
   const [tab, setTab] = useState<Tab>(() => initialTabFor(task))
   const manualTabSelection = useRef(Boolean(new URLSearchParams(window.location.search).get('tab')))
   const [files, setFiles] = useState<WorkspaceFile[]>(task.files)
@@ -69,6 +69,8 @@ export const Workspace = ({ task, projects, onMoveProject, onUpdateTags }: { tas
   const [tagDraft, setTagDraft] = useState(task.tags.join(', '))
   const [savingTags, setSavingTags] = useState(false)
   const [tagError, setTagError] = useState<string | null>(null)
+  const runtimeCapabilities = runtime?.providers.find((candidate) => candidate.id === task.provider)?.capabilities
+  const hasCapability = (capability: RuntimeCapability) => runtimeCapabilities ? runtimeCapabilities.includes(capability) : true
   const completedSteps = task.plan.filter((step) => step.status === 'completed').length
   const observability = useMemo(() => {
     const startedAt = task.events.find((event) => event.type === 'run_started')?.createdAt ?? task.createdAt
@@ -203,9 +205,9 @@ export const Workspace = ({ task, projects, onMoveProject, onUpdateTags }: { tas
           {task.mode === 'design' && <button className={tab === 'design' ? 'active' : ''} onClick={() => selectTab('design')}><Palette size={14} /> Directions</button>}
           {task.mode === 'data' && <button className={tab === 'database' ? 'active' : ''} onClick={() => selectTab('database')}><Table2 size={14} /> Data</button>}
           {assetFiles.length > 0 && <button className={tab === 'assets' ? 'active' : ''} onClick={() => selectTab('assets')}><Image size={14} /> Assets</button>}
-          {task.securityContext?.executionBoundary === 'onecomputer_sandbox' && <button className={tab === 'visual' ? 'active' : ''} onClick={() => selectTab('visual')}><Eye size={14} /> Live X11</button>}
+          {hasCapability('computer_use') && <button className={tab === 'visual' ? 'active' : ''} onClick={() => selectTab('visual')}><Eye size={14} /> Live X11</button>}
           <button className={tab === 'code' ? 'active' : ''} onClick={() => selectTab('code')}><Code2 size={14} /> Code</button>
-          <button className={tab === 'files' ? 'active' : ''} onClick={() => selectTab('files')}><Files size={14} /> Files</button>
+          {hasCapability('file_system') && <button className={tab === 'files' ? 'active' : ''} onClick={() => selectTab('files')}><Files size={14} /> Files</button>}
           <button className={tab === 'history' ? 'active' : ''} onClick={() => selectTab('history')}><History size={14} /> History</button>
           <button className={tab === 'evidence' ? 'active' : ''} onClick={() => selectTab('evidence')}><ShieldCheck size={14} /> Evidence</button>
           {task.status === 'completed' && <button className={tab === 'handoff' ? 'active' : ''} onClick={() => selectTab('handoff')}><GitFork size={14} /> Handoff</button>}

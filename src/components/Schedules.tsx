@@ -18,7 +18,7 @@ export const Schedules = ({ schedules, activeProjectId, onCreate, onToggle, onRu
   const [mode, setMode] = useState<TaskMode>('general')
   const [provider, setProvider] = useState<Task['provider']>('demo')
   const [error, setError] = useState<string | null>(null)
-  const providerStates = runtime?.providers ?? [{ id: 'demo' as const, label: 'Safe demo', available: true, boundary: 'Local task workspace', detail: '' }]
+  const providerStates = runtime?.providers ?? [{ id: 'demo' as const, label: 'Safe demo', available: true, boundary: 'Local task workspace', detail: '', capabilities: ['streaming', 'file_system', 'preview_url'] as const }]
   const submit = async () => {
     if (!name.trim() || !prompt.trim()) return
     setError(null)

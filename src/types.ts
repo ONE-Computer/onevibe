@@ -1,6 +1,7 @@
 export type RunStatus = 'pending' | 'running' | 'waiting_for_approval' | 'waiting_for_user_input' | 'completed' | 'failed' | 'cancelled'
 export type TaskMode = 'chat' | 'general' | 'website' | 'slides' | 'document' | 'research' | 'data' | 'design' | 'app' | 'game'
 export type TaskSkill = 'research' | 'web_build' | 'slides' | 'data_analysis' | 'document' | 'product_design' | 'security_review' | 'browser_testing'
+export type RuntimeCapability = 'streaming' | 'tool_use' | 'file_system' | 'sandboxed' | 'preview_url' | 'computer_use' | 'fork'
 export type PresentationPanel = 'terminal' | 'screenshot' | 'preview' | 'file' | 'diff' | 'slide' | 'approval'
 export type PresentationDescriptor = { panel: PresentationPanel; uri?: string; artifactPath?: string }
 
@@ -92,5 +93,5 @@ export type Task = {
 }
 
 export type TaskSnapshot = Task & { events: RuntimeEvent[]; files: WorkspaceFile[]; messages: ChatMessage[] }
-export type RuntimeProviderState = { id: Task['provider']; label: string; boundary: string; available: boolean; detail: string }
+export type RuntimeProviderState = { id: Task['provider']; label: string; boundary: string; available: boolean; detail: string; capabilities: RuntimeCapability[] }
 export type RuntimeReadiness = { providers: RuntimeProviderState[] }
