@@ -185,3 +185,14 @@ Implemented in the local ONEVibe app:
 - Reduced-motion behavior is explicit, and the responsive inspector handoff was browser-checked with no horizontal overflow.
 
 Verification: `npm run check` passed with 37 test files / 207 tests, production build, and E2E harness typecheck. Browser verification used persisted task `task_f8d51a10de4f4d`; the completed trace is collapsed by default, the real artifact cards remain visible, and the Computer handoff toggles the two surfaces without changing backend state. The live Claude gate later passed chat SSE, restart recovery, Markdown plus Bash evidence, and failure/retry recovery; the limitation remains host-process local proof only.
+
+## 2026-07-16 — Claude/Perplexity reference alignment
+
+The reference examples exposed two remaining gaps in the first pass: the thread was still a bespoke scroll/footer shell, and assistant responses were plain paragraphs rather than Markdown. The current slice now follows the high-value assistant-ui patterns without importing fake state:
+
+- `ThreadPrimitive.Viewport` and `ThreadPrimitive.ViewportFooter` own the scroll and sticky composer boundary; the durable task/SSE adapter remains the source of truth.
+- `@assistant-ui/react-markdown` with GFM is the `MessagePrimitive` text renderer. Markdown is now semantic and readable, including code spans, lists, headings, tables, and links.
+- User turns are right-aligned document-like bubbles; assistant turns are quiet, readable content with hover/focus actions, grouped tool activity, progressive operational traces, and task-bound artifact cards.
+- At 1139px, the active task collapses the history rail and shows conversation plus Computer evidence side-by-side. At narrower widths, the app falls back to the explicit inspector handoff so neither surface becomes unusably narrow.
+
+This is a substantial parity improvement, but it does not close the program: native assistant-ui attachment primitives, branch/regenerate semantics, exact-width visual baselines, and the remaining Manus artifact interactions are still open.

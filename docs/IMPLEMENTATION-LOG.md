@@ -316,3 +316,12 @@
 - Completed traces collapse to a reviewable summary while a live provider trace remains open. This keeps operational evidence visible without forcing every completed run to begin with a wall of checklist telemetry.
 - Added durable `provider_execution_failure` classification to the generic adapter failure path. Previously an adapter failure before a Claude terminal result produced `run_failed` with an empty payload, leaving the UI unable to explain or classify the retryable failure.
 - `npm run check` passed: 37 test files / 207 tests, production build, and E2E harness typecheck.
+
+# 2026-07-16 — assistant-ui Claude/Perplexity parity pass
+
+- Studied the checked-out assistant-ui Claude and Perplexity examples plus the Claude Artifacts example. Their high-value patterns are `ThreadPrimitive.Viewport`/`ViewportFooter`, Markdown-first message rendering, right-aligned user bubbles, quiet assistant messages with hover actions, a large composer with mode/model controls, and a side artifact surface rather than raw telemetry in the transcript.
+- Added the real `@assistant-ui/react-markdown` package and `remark-gfm`; assistant and user text now render headings, lists, emphasis, links, tables, inline code, and fenced code through the assistant-ui Markdown primitive instead of plain paragraphs.
+- Replaced the bespoke thread scroll/footer wrapper with `ThreadPrimitive.Viewport` and `ThreadPrimitive.ViewportFooter` while retaining server-authoritative virtualized durable messages and the existing real attachment byte path.
+- At the effective 1139px browser viewport, an active task now collapses the history rail and renders a 624px conversation beside a 500px Computer inspector, matching the Manus-style working layout. Opening the history rail falls back to the readable conversation + `View computer` handoff without horizontal overflow.
+- Added assistant-ui-style hover-only message actions and kept the terminal/artifact evidence visible in the Computer inspector. Browser QA used `task_f8d51a10de4f4d`; Markdown code spans rendered semantically and the Bash command/output remained visible in the paired inspector.
+- `npm run check` passed: 37 test files / 207 tests. The protected live gate passed with chat task `task_405cf74de87149`, artifact task `task_fa55cfeaa2b444`, 8 live SSE frames, 35 replay frames, one bounded Bash call, restart recovery, and failure/retry probe `task_1efc9fd354fa43`. Boundary remains host-process local proof.

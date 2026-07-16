@@ -234,3 +234,9 @@ The real-provider cancellation harness allocated sandbox `onevibe-32279349` for 
 - The failure-injection subprobe `task_4c1e953f5c4d40` started with an intentionally invalid model alias, recorded a durable `run_failed` with `provider_execution_failure`, stopped the API, restarted against the same SQLite directory with the valid model, retried using an idempotency key, and completed with a valid evidence chain.
 - The first attempt exposed a genuine classification defect: adapter failures before a provider terminal result were recorded with an empty failure payload. The generic execution catch now records only bounded metadata (`executionRoute=runtime_adapter`, `failureReason=provider_execution_failure`, `retryable=true`); provider bodies and credentials are not written to evidence.
 - This is host-process local LiteLLM/Claude-compatible evidence. It does not prove ONEComputer microVM isolation, OpenVTC/VTI Wallet enforcement, production gateway attestation, or egress controls.
+
+# 2026-07-16 — assistant-ui Markdown and two-pane browser pass
+
+- After adding the assistant-ui Markdown renderer and `ThreadPrimitive.Viewport`/`ViewportFooter`, the protected local gate passed again: chat `task_405cf74de87149`, artifact/Bash `task_fa55cfeaa2b444`, 8 live SSE frames, 35 suffix replay frames, one bounded Bash call, API restart recovery, and retry probe `task_1efc9fd354fa43` with valid evidence.
+- Browser QA at the effective 1139px viewport showed a 624px conversation beside a 500px Computer inspector, with `wc -c NOTES.md` and `333 NOTES.md` visible in the paired terminal card. Opening the history rail switched to the narrower handoff path without horizontal overflow.
+- The provider route remains intermittent: one immediate rerun attempt failed with bounded `provider_execution_failure`, then the completed rerun passed. This is retained as reliability evidence, not hidden by retrying silently.

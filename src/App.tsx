@@ -58,7 +58,10 @@ export default function App() {
   const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>(() => normalizeSelectedSkillIds(readPersistedSkills()))
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 960px)').matches)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const taskRoute = /^\/tasks\/[^/]+$/.test(window.location.pathname)
+    return !window.matchMedia('(max-width: 1250px)').matches || !taskRoute
+  })
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { snapshot, connected, error, refresh: refreshSnapshot } = useTask(activeTaskId)
@@ -105,8 +108,10 @@ export default function App() {
   useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }) }, [activeProjectId])
   useEffect(() => {
     const onPopState = () => {
-      setActiveTaskId(window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
+      const nextTaskId = window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null
+      setActiveTaskId(nextTaskId)
       setView(viewFromLocation())
+      if (nextTaskId && window.matchMedia('(max-width: 1250px)').matches) setSidebarOpen(false)
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
@@ -137,7 +142,7 @@ export default function App() {
     setActiveTaskId(taskId)
     setMobileInspectorOpen(false)
     window.history.pushState({}, '', taskId ? `/tasks/${taskId}` : '/')
-    if (window.matchMedia('(max-width: 960px)').matches) setSidebarOpen(false)
+    if (window.matchMedia('(max-width: 1250px)').matches) setSidebarOpen(false)
   }
   const navigateToView = (nextView: Exclude<AppView, 'agent'>) => {
     setActiveTaskId(null)
