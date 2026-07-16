@@ -684,5 +684,6 @@ baseline harness in CI.
 - Migrated the bounded runtime-readiness snapshot into a second cached query; backend-offline state is derived from query failure/data and the explicit retry button refetches that query.
 - Migrated MCP declarations into a cached query and made create/delete update the same query cache after the server mutation, removing the duplicate local MCP collection.
 - Migrated Projects into a cached query and made project create/update/file/restore mutations update the same query cache; sign-out removes the project cache to avoid cross-session residue.
+- Migrated Schedules and Library into cached queries; schedule create/toggle/delete/run and Library removal update or invalidate the corresponding query cache, and sign-out removes both caches.
 - Kept task/SSE state on `useTask`: an append-only replayable event stream is not treated as ordinary query data. Remaining collection queries and mutations are intentionally open under P5-02.
 - Focused verification: lint, 46 test files / 236 tests, and production build passed.
