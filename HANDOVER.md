@@ -1,7 +1,7 @@
 # ONEVibe — Agent Handover Document
 
 > **Date**: 2026-07-17
-> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, a tested opt-in MCP capability facade, truthful demo skill status, a GitHub-catalog skill marketplace boundary, feature-gated Better Auth, authenticated owner scoping, and a reviewed Drizzle/Postgres import proof are present. LiteLLM-only enforcement remains mandatory. The running application is still SQLite-backed; protected Claude/provider acceptance, production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, MCP secret brokering/health, and the final active-task Query mutation boundary remain open.
+> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, a tested opt-in MCP capability facade, truthful demo skill status, a GitHub-catalog skill marketplace boundary, feature-gated Better Auth, authenticated owner scoping, and a reviewed Drizzle/Postgres import proof are present. LiteLLM-only enforcement remains mandatory. The running application is still SQLite-backed; protected Claude/provider acceptance, production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, and MCP secret brokering/health remain open.
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
@@ -53,7 +53,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 3. **The running app is not Postgres-backed** — local user scoping is proven, and the Drizzle schema/import/restart proof exists; the TaskStore repository adapter, idempotent application-level proof, and `DATABASE_URL` runtime switch remain Phase 4 work
 4. **No managed deploy path** — a non-root Docker image and local Compose smoke path now exist, but Railway/Fly configuration, secrets, auth, and production operations remain open
 5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
-6. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; remaining active-task mutations must not create a second client authority
+6. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; active-task mutations use Query mutation lifecycle/pending state and reconcile server-derived caches without creating a second client authority
 7. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, production MCP secret/health controls, dependency advisory resolution, and browser evidence remain open in `TODO.md`
 
 ### How to run it locally
