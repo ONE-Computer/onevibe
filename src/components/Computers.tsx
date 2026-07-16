@@ -1,6 +1,7 @@
 import { Activity, ExternalLink, Eye, MonitorCog, Plus, ShieldCheck, TerminalSquare, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useState, type FormEvent } from 'react'
+import { toast } from 'sonner'
 import { getRuntimeDiagnostics, testRuntime } from '../lib/api'
 import type { RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, Task } from '../types'
 import { statusLabel } from '../lib/runtime-labels'
@@ -28,14 +29,15 @@ export const Computers = ({ tasks, onOpenTask, runtime, mcpConfigs, onCreateMcpC
   const [mcpSaving, setMcpSaving] = useState(false)
   const [diagnostics, setDiagnostics] = useState<RuntimeDiagnostics>()
   const computers = tasks.filter((task) => task.securityContext).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  useEffect(() => { void getRuntimeDiagnostics().then(setDiagnostics).catch(() => undefined) }, [])
+  useEffect(() => { void getRuntimeDiagnostics().then(setDiagnostics).catch((reason: unknown) => toast.error(reason instanceof Error ? reason.message : 'Unable to load execution diagnostics')) }, [])
   const runHealthCheck = async (provider: Task['provider']) => {
     setTesting(provider)
     try {
       const result = await testRuntime(provider)
       setHealth((current) => ({ ...current, [provider]: result.health }))
-    } catch {
+    } catch (reason) {
       setHealth((current) => ({ ...current, [provider]: { status: 'offline', detail: 'Health request failed at the ONEVibe API.' } }))
+      toast.error(reason instanceof Error ? reason.message : 'Runtime health check failed')
     } finally {
       setTesting(null)
     }

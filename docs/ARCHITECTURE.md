@@ -65,6 +65,10 @@ The proposed auth/database contract is recorded in [`AUTH-POSTGRES-ADR.md`](AUTH
 
 Skill selection is also provider-owned: Claude-backed adapters materialize the selected, hashed packs in the task workspace; the deterministic demo records selection as `not_executed_demo` and never writes skill files. The UI and event ledger must not collapse these states into a generic "skill applied" label.
 
+## Client error surfaces
+
+The SPA mounts Sonner once at the application shell and routes recoverable request failures through user-visible toasts while retaining page-local states for task streams and validation reports. Toasts are notification surfaces only: they do not imply that a request succeeded, replace durable server evidence, or suppress the backend-offline banner.
+
 ## Implemented production adapters
 
 - `RemoteRuntimeAdapter` consumes the AgentCore/backend typed SSE contract. Its optional bearer token remains server-side.

@@ -1,6 +1,7 @@
 import { Bell, ChevronDown, CodeXml, Link2, Menu, Monitor, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { Toaster, toast } from 'sonner'
 import { PromptComposer } from './components/PromptComposer'
 import { Sidebar } from './components/Sidebar'
 import { TaskTimeline } from './components/TaskTimeline'
@@ -44,6 +45,9 @@ type AppView = 'agent' | 'schedules' | 'skills' | 'library' | 'computers'
 const viewFromLocation = (): AppView => {
   const value = new URLSearchParams(window.location.search).get('view')
   return value === 'schedules' || value === 'skills' || value === 'library' || value === 'computers' ? value : 'agent'
+}
+const reportError = (reason: unknown, fallback: string) => {
+  toast.error(reason instanceof Error ? reason.message : fallback)
 }
 
 export default function App() {
@@ -102,10 +106,10 @@ export default function App() {
     }
   }, [conversationCursor, loadingConversationPage])
 
-  useEffect(() => { void refreshTasks() }, [refreshTasks])
+  useEffect(() => { void refreshTasks().catch((reason: unknown) => reportError(reason, 'Unable to load tasks')) }, [refreshTasks])
   useEffect(() => { void refreshAuth() }, [refreshAuth])
-  useEffect(() => { void refreshConversations() }, [refreshConversations])
-  useEffect(() => { void listLibrary().then(({ items }) => setLibrary(items)) }, [])
+  useEffect(() => { void refreshConversations().catch((reason: unknown) => reportError(reason, 'Unable to load conversations')) }, [refreshConversations])
+  useEffect(() => { void listLibrary().then(({ items }) => setLibrary(items)).catch((reason: unknown) => reportError(reason, 'Unable to load Library')) }, [])
   useEffect(() => {
     let mounted = true
     void listSkills().then(({ skills }) => {
@@ -113,12 +117,12 @@ export default function App() {
       const catalog = skills.map(({ id, title, summary }) => ({ id, title, summary }))
       setSkillCatalog(catalog)
       setSelectedSkills((current) => normalizeSelectedSkillIds(current, catalog))
-    }).catch(() => undefined)
+    }).catch((reason: unknown) => reportError(reason, 'Unable to load the skill catalog; local guides remain available.'))
     return () => { mounted = false }
   }, [])
   useEffect(() => { persistSelectedSkills(selectedSkills) }, [selectedSkills])
-  useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)) }, [])
-  useEffect(() => { void listMcpConfigs().then(({ configs }) => setMcpConfigs(configs)).catch(() => undefined) }, [])
+  useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)).catch((reason: unknown) => reportError(reason, 'Unable to load schedules')) }, [])
+  useEffect(() => { void listMcpConfigs().then(({ configs }) => setMcpConfigs(configs)).catch((reason: unknown) => reportError(reason, 'Unable to load MCP servers')) }, [])
   const loadRuntimeReadiness = useCallback(async () => {
     try {
       const next = await getRuntimeReadiness()
@@ -131,7 +135,7 @@ export default function App() {
     }
   }, [])
   useEffect(() => { void loadRuntimeReadiness().catch(() => undefined) }, [loadRuntimeReadiness])
-  useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }) }, [activeProjectId])
+  useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }).catch((reason: unknown) => reportError(reason, 'Unable to load projects')) }, [activeProjectId])
   useEffect(() => {
     const onPopState = () => {
       const nextTaskId = window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null
@@ -146,7 +150,7 @@ export default function App() {
     if (!snapshot) return
     setTasks((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))
     setConversations((current) => upsertConversation(current, conversationSummaryFromTask(snapshot)))
-    if (snapshot.status === 'completed') void listLibrary().then(({ items }) => setLibrary(items))
+    if (snapshot.status === 'completed') void listLibrary().then(({ items }) => setLibrary(items)).catch((reason: unknown) => reportError(reason, 'Unable to refresh Library'))
   }, [snapshot])
 
   const preferredProvider: Task['provider'] = runtime?.defaultProvider ?? (['claude_sdk', 'onecomputer', 'remote'] as const).map((id) => runtime?.providers.find((candidate) => candidate.id === id && candidate.available)?.id).find((id): id is Task['provider'] => Boolean(id)) ?? 'demo'
@@ -158,6 +162,8 @@ export default function App() {
       setConversations((current) => upsertConversation(current, conversationSummaryFromTask(task)))
       setActiveTaskId(task.id)
       window.history.pushState({}, '', `/tasks/${task.id}`)
+    } catch (reason) {
+      reportError(reason, 'Unable to start the task')
     } finally {
       setCreating(false)
     }
@@ -180,37 +186,53 @@ export default function App() {
   const toggleSkill = (skill: TaskSkill) => setSelectedSkills((current) => normalizeSelectedSkillIds(current.includes(skill) ? current.filter((item) => item !== skill) : current.length >= 4 ? current : [...current, skill], skillCatalog))
 
   const addProject = async (name: string, context: string) => {
-    const project = await createProject(name, context)
-    setProjects((current) => [project, ...current])
-    setActiveProjectId(project.id)
+    try {
+      const project = await createProject(name, context)
+      setProjects((current) => [project, ...current])
+      setActiveProjectId(project.id)
+    } catch (reason) { reportError(reason, 'Unable to create project') }
   }
   const attachProjectFile = async (projectId: string, file: Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }) => {
-    const project = await addProjectFile(projectId, file)
-    setProjects((current) => current.map((item) => item.id === project.id ? project : item))
+    try {
+      const project = await addProjectFile(projectId, file)
+      setProjects((current) => current.map((item) => item.id === project.id ? project : item))
+    } catch (reason) { reportError(reason, 'Unable to attach project knowledge') }
   }
   const updateProject = async (projectId: string, context: string) => {
-    const project = await updateProjectContext(projectId, context)
-    setProjects((current) => current.map((item) => item.id === project.id ? project : item))
+    try {
+      const project = await updateProjectContext(projectId, context)
+      setProjects((current) => current.map((item) => item.id === project.id ? project : item))
+    } catch (reason) { reportError(reason, 'Unable to update project context') }
   }
   const detachProjectFile = async (projectId: string, filePath: string) => {
-    const project = await removeProjectFile(projectId, filePath)
-    setProjects((current) => current.map((item) => item.id === project.id ? project : item))
+    try {
+      const project = await removeProjectFile(projectId, filePath)
+      setProjects((current) => current.map((item) => item.id === project.id ? project : item))
+    } catch (reason) { reportError(reason, 'Unable to remove project knowledge') }
   }
   const editProjectFile = async (projectId: string, filePath: string, content: string, expectedHash: string) => {
-    const result = await updateProjectFile(projectId, filePath, content, expectedHash)
-    setProjects((current) => current.map((item) => item.id === result.project.id ? result.project : item))
+    try {
+      const result = await updateProjectFile(projectId, filePath, content, expectedHash)
+      setProjects((current) => current.map((item) => item.id === result.project.id ? result.project : item))
+    } catch (reason) { reportError(reason, 'Unable to save project knowledge') }
   }
   const retractQueuedGuidance = async (taskId: string, guidanceId: string) => {
-    await cancelQueuedGuidance(taskId, guidanceId)
-    await Promise.all([refreshSnapshot(), refreshTasks()])
+    try {
+      await cancelQueuedGuidance(taskId, guidanceId)
+      await Promise.all([refreshSnapshot(), refreshTasks()])
+    } catch (reason) { reportError(reason, 'Unable to remove queued guidance') }
   }
   const moveTaskProject = async (taskId: string, projectId: string) => {
-    await moveTaskToProject(taskId, projectId)
-    await Promise.all([refreshSnapshot(), refreshTasks(), listLibrary().then(({ items }) => setLibrary(items))])
+    try {
+      await moveTaskToProject(taskId, projectId)
+      await Promise.all([refreshSnapshot(), refreshTasks(), listLibrary().then(({ items }) => setLibrary(items))])
+    } catch (reason) { reportError(reason, 'Unable to move task') }
   }
   const setTaskTags = async (taskId: string, tags: string[]) => {
-    await updateTaskTags(taskId, tags)
-    await Promise.all([refreshSnapshot(), refreshTasks(), listLibrary().then(({ items }) => setLibrary(items))])
+    try {
+      await updateTaskTags(taskId, tags)
+      await Promise.all([refreshSnapshot(), refreshTasks(), listLibrary().then(({ items }) => setLibrary(items))])
+    } catch (reason) { reportError(reason, 'Unable to update task tags') }
   }
   const restoreProjectFile = async (projectId: string, filePath: string, versionId: string, expectedHash: string) => {
     const result = await restoreProjectFileVersion(projectId, filePath, versionId, expectedHash)
@@ -219,43 +241,66 @@ export default function App() {
   }
 
   const addSchedule = async (input: Pick<TaskSchedule, 'name' | 'prompt' | 'provider' | 'mode' | 'projectId' | 'intervalMinutes'>) => {
-    const schedule = await createSchedule(input)
-    setSchedules((current) => [...current, schedule].sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt)))
+    try {
+      const schedule = await createSchedule(input)
+      setSchedules((current) => [...current, schedule].sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt)))
+    } catch (reason) { reportError(reason, 'Unable to create schedule') }
   }
   const toggleSchedule = async (schedule: TaskSchedule) => {
-    const updated = await setScheduleEnabled(schedule.id, !schedule.enabled)
-    setSchedules((current) => current.map((item) => item.id === updated.id ? updated : item))
+    try {
+      const updated = await setScheduleEnabled(schedule.id, !schedule.enabled)
+      setSchedules((current) => current.map((item) => item.id === updated.id ? updated : item))
+    } catch (reason) { reportError(reason, 'Unable to update schedule') }
   }
   const removeSchedule = async (schedule: TaskSchedule) => {
     if (!window.confirm(`Delete the schedule “${schedule.name}”? Future runs will stop; existing tasks remain.`)) return
-    await deleteSchedule(schedule.id)
-    setSchedules((current) => current.filter((item) => item.id !== schedule.id))
+    try {
+      await deleteSchedule(schedule.id)
+      setSchedules((current) => current.filter((item) => item.id !== schedule.id))
+    } catch (reason) { reportError(reason, 'Unable to delete schedule') }
   }
   const addMcpConfig = async (input: Pick<RuntimeMcpConfig, 'name' | 'command' | 'args'>) => {
-    const config = await createMcpConfig(input)
-    setMcpConfigs((current) => [config, ...current])
+    try {
+      const config = await createMcpConfig(input)
+      setMcpConfigs((current) => [config, ...current])
+    } catch (reason) { reportError(reason, 'Unable to add MCP server') }
   }
   const removeMcpConfig = async (config: RuntimeMcpConfig) => {
     if (!window.confirm(`Remove MCP server “${config.name}”? New turns will stop receiving it.`)) return
-    await deleteMcpConfig(config.id)
-    setMcpConfigs((current) => current.filter((item) => item.id !== config.id))
+    try {
+      await deleteMcpConfig(config.id)
+      setMcpConfigs((current) => current.filter((item) => item.id !== config.id))
+    } catch (reason) { reportError(reason, 'Unable to remove MCP server') }
   }
   const hideLibraryItem = async (task: Task) => {
     if (!window.confirm(`Remove “${task.title}” from Library? The conversation and evidence will remain available.`)) return
-    await removeLibraryItem(task.id)
-    setLibrary((current) => current.filter((item) => item.task.id !== task.id))
+    try {
+      await removeLibraryItem(task.id)
+      setLibrary((current) => current.filter((item) => item.task.id !== task.id))
+    } catch (reason) { reportError(reason, 'Unable to remove Library item') }
   }
   const runSchedule = async (schedule: TaskSchedule) => {
-    const result = await runScheduleNow(schedule.id)
-    setSchedules((current) => current.map((item) => item.id === result.schedule.id ? result.schedule : item))
-    setTasks((current) => [result.task, ...current])
-    setConversations((current) => upsertConversation(current, conversationSummaryFromTask(result.task)))
-    navigateToTask(result.task.id)
+    try {
+      const result = await runScheduleNow(schedule.id)
+      setSchedules((current) => current.map((item) => item.id === result.schedule.id ? result.schedule : item))
+      setTasks((current) => [result.task, ...current])
+      setConversations((current) => upsertConversation(current, conversationSummaryFromTask(result.task)))
+      navigateToTask(result.task.id)
+    } catch (reason) { reportError(reason, 'Unable to run schedule') }
   }
   const signOut = async () => {
-    await signOutAuth()
-    setAuthState({ enabled: true, session: null })
-    setTasks([]); setConversations([]); setProjects([]); setSchedules([]); setLibrary([])
+    try {
+      await signOutAuth()
+      setAuthState({ enabled: true, session: null })
+      setTasks([]); setConversations([]); setProjects([]); setSchedules([]); setLibrary([])
+    } catch (reason) { reportError(reason, 'Unable to sign out') }
+  }
+  const shareCurrentTask = async () => {
+    if (!snapshot) return
+    try {
+      await requestShare(snapshot.id)
+      await refreshSnapshot()
+    } catch (reason) { reportError(reason, 'Unable to request a share link') }
   }
 
   if (shareId) return <SharedArtifact shareId={shareId} />
@@ -267,6 +312,8 @@ export default function App() {
     setCreating(true)
     try {
       await sendFollowUp(activeTaskId, prompt, attachments)
+    } catch (reason) {
+      reportError(reason, 'Unable to send the message')
     } finally {
       setCreating(false)
     }
@@ -278,6 +325,8 @@ export default function App() {
       setTasks((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
       setConversations((current) => upsertConversation(current, conversationSummaryFromTask(task)))
       navigateToTask(task.id)
+    } catch (reason) {
+      reportError(reason, 'Unable to create conversation branch')
     } finally {
       setCreating(false)
     }
@@ -287,6 +336,8 @@ export default function App() {
     try {
       await retryTask(taskId, `retry_${crypto.randomUUID()}`, provider)
       await refreshSnapshot()
+    } catch (reason) {
+      reportError(reason, 'Unable to retry the task')
     } finally {
       setCreating(false)
     }
@@ -295,8 +346,9 @@ export default function App() {
     setRetryingBackend(true)
     try {
       await loadRuntimeReadiness()
-    } catch {
+    } catch (reason) {
       // The banner remains visible and gives the operator another explicit retry.
+      reportError(reason, 'Backend is still offline')
     } finally {
       setRetryingBackend(false)
     }
@@ -311,12 +363,14 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
+      <Toaster position="bottom-right" closeButton richColors />
+      <Toaster position="bottom-right" closeButton richColors />
       <AnimatePresence>{sidebarOpen && <><motion.button key="sidebar-backdrop" className="sidebar-backdrop" aria-label="Close sidebar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)} /><motion.div key="sidebar-panel" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} conversations={conversations} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onClose={() => setSidebarOpen(false)} onSelectTask={(taskId) => navigateToTask(taskId)} hasMoreConversations={Boolean(conversationCursor)} loadingMoreConversations={loadingConversationPage} onLoadMoreConversations={loadMoreConversations} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onRemoveProjectFile={detachProjectFile} onUpdateProjectFile={editProjectFile} onRestoreProjectFile={restoreProjectFile} onUpdateProjectContext={updateProject} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} skillCount={skillCatalog.length} user={authState?.session?.user} onSignOut={signOut} /></motion.div></>}</AnimatePresence>
       <main className="main-shell">
         {backendOffline && <div className="backend-offline-banner" role="alert"><div><TriangleAlert size={15} /><span><strong>Backend offline</strong><small>Run <code>npm run dev</code> in the ONEVibe project root to connect the workspace.</small></span></div><button type="button" onClick={() => void retryBackend()} disabled={retryingBackend}>{retryingBackend ? 'Checking…' : 'Retry'}</button></div>}
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><button type="button" className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></button></div>
-          <div className="topbar-right"><span className="trust-chip" title="OpenVTC protected · External approvals enabled"><ShieldCheck size={13} /> OpenVTC</span><span className={`connection ${connected ? 'online' : ''}`}><i />{connected ? 'Live' : 'Local'}</span><ThemeToggle /><div className="notification-wrap"><button className="icon-button" type="button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}><Bell size={16} />{notifications.length > 0 && <i className="notification-count">{notifications.length}</i>}</button>{notificationsOpen && <motion.div className="notification-panel" initial={{ opacity: 0, y: -5, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}><header><strong>Activity</strong><span>{notifications.length ? `${notifications.length} needs attention` : 'All clear'}</span></header>{notifications.length ? notifications.map((item) => <button key={item.id} className={item.tone} onClick={() => { setNotificationsOpen(false); navigateToTask(item.task.id) }}><span>{item.tone === 'failure' ? <TriangleAlert size={14} /> : item.tone === 'approval' ? <ShieldCheck size={14} /> : <Sparkles size={14} />}</span><div><strong>{item.label}</strong><small>{item.task.title} · {item.detail}</small></div></button>) : <p>No approvals, queued guidance, or failed tasks.</p>}</motion.div>}</div><button className="share-button" disabled={!snapshot} onClick={() => { if (!snapshot) return; if (snapshot.share) window.open(`/share/${snapshot.share.id}`, '_blank'); else void requestShare(snapshot.id) }}><Share2 size={14} /> {snapshot?.share ? 'Open share' : snapshot?.approval?.action === 'share_artifact' && snapshot.approval.state === 'pending' ? 'Approval pending' : 'Share'}</button><a className="github-button" href="https://github.com/one-computer" target="_blank" rel="noreferrer"><CodeXml size={15} /> GitHub</a></div>
+          <div className="topbar-right"><span className="trust-chip" title="OpenVTC protected · External approvals enabled"><ShieldCheck size={13} /> OpenVTC</span><span className={`connection ${connected ? 'online' : ''}`}><i />{connected ? 'Live' : 'Local'}</span><ThemeToggle /><div className="notification-wrap"><button className="icon-button" type="button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}><Bell size={16} />{notifications.length > 0 && <i className="notification-count">{notifications.length}</i>}</button>{notificationsOpen && <motion.div className="notification-panel" initial={{ opacity: 0, y: -5, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}><header><strong>Activity</strong><span>{notifications.length ? `${notifications.length} needs attention` : 'All clear'}</span></header>{notifications.length ? notifications.map((item) => <button key={item.id} className={item.tone} onClick={() => { setNotificationsOpen(false); navigateToTask(item.task.id) }}><span>{item.tone === 'failure' ? <TriangleAlert size={14} /> : item.tone === 'approval' ? <ShieldCheck size={14} /> : <Sparkles size={14} />}</span><div><strong>{item.label}</strong><small>{item.task.title} · {item.detail}</small></div></button>) : <p>No approvals, queued guidance, or failed tasks.</p>}</motion.div>}</div><button className="share-button" disabled={!snapshot} onClick={() => { if (!snapshot) return; if (snapshot.share) window.open(`/share/${snapshot.share.id}`, '_blank'); else void shareCurrentTask() }}><Share2 size={14} /> {snapshot?.share ? 'Open share' : snapshot?.approval?.action === 'share_artifact' && snapshot.approval.state === 'pending' ? 'Approval pending' : 'Share'}</button><a className="github-button" href="https://github.com/one-computer" target="_blank" rel="noreferrer"><CodeXml size={15} /> GitHub</a></div>
         </header>
 
         <AnimatePresence mode="wait">

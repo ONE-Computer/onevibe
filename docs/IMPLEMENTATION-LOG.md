@@ -660,3 +660,9 @@ baseline harness in CI.
 
 - Closed the remaining demo skill truthfulness gap. Server-owned selection evidence now distinguishes simulation (`not_executed_demo`) from provider-owned materialization (`adapter_owned`); demo turns no longer imply that selected packs were executed or written into the task workspace.
 - Added regression coverage for the event contract and confirmed the demo runner does not materialize `.claude/skills` files. This does not change the provider-backed Claude materialization path.
+
+# 2026-07-17 — visible client error surfaces
+
+- Added Sonner as the global notification surface. App-level task creation, follow-up, branching, retry, sharing, project, schedule, Library, MCP, runtime, and catalog failures now produce actionable user-visible errors instead of disappearing into rejected promises or empty catches.
+- Removed a duplicate schedule confirmation that required two identical confirmations before deletion. The toast layer remains presentation-only and does not alter server-owned evidence or approval authority.
+- Verification: `npm run check` passed with 45 test files / 234 tests, lint, production build, E2E harness typecheck, and `npm run db:check`.
