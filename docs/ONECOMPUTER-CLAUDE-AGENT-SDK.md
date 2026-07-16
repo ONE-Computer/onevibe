@@ -59,12 +59,15 @@ append-only evidence chain.
 
 ## Current live finding
 
-On 2026-07-16, a fresh Azure-backed run reached a real started sandbox and
-headless X11 runtime, then failed closed at the SDK preflight because the
+On 2026-07-16, the first fresh Azure-backed run reached a real started sandbox
+and headless X11 runtime, then failed closed at SDK preflight because the
 deployed image contained Claude Code but not `@anthropic-ai/claude-agent-sdk`.
-This is the correct failure mode: the runtime did not fall back to the CLI and
-did not claim an SDK proof. The provider image change above is the required
-remediation.
+The image bootstrap was then promoted at commit `6dfaa3b`, and the strict
+repeat passed: the provider installed/verified the SDK, the worker executed
+through LiteLLM, and ONEVibe observed live/replayable SSE plus continuation and
+isolation evidence. The proof remains a development Kasm-provider result with
+gateway attestation disabled; it is not yet a production microVM or default-
+deny egress attestation.
 
 ## Acceptance gate
 
