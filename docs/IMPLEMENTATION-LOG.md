@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — enforce the hardened container contract in CI
+
+- Added a separate GitHub Actions container job that builds the multi-stage image, starts it with a read-only root filesystem, no-new-privileges, dropped capabilities, and an ephemeral writable data mount, then verifies `/api/health` and UID 10001.
+- Local verification passed with `docker build`, the same security flags, `/api/health`, Compose config validation, and explicit non-root identity checks. The data mount is deliberate: persistence is writable, while the image root remains immutable.
+- This improves the P4-03 container release gate but does not claim Postgres runtime support, cloud deployment, or sandbox isolation.
+
 ## 2026-07-17 — add bounded MCP health probing
 
 - Added `GET /api/mcp/:id/health`, scoped through the authenticated owner inventory, which starts the declared stdio server with the existing secret-free environment boundary, performs initialization and `tools/list`, and returns only `online`/`offline`, bounded latency, tool count, and generic failure detail.

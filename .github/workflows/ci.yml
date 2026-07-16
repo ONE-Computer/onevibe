@@ -27,3 +27,40 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+
+  container:
+    name: Hardened container smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build --tag onevibe:${{ github.sha }} .
+      - name: Start read-only container
+        run: |
+          docker run --detach --init --name onevibe-ci \
+            --publish 4311:4311 \
+            --read-only \
+            --tmpfs /tmp:size=64m,noexec,nosuid \
+            --tmpfs /var/lib/onevibe:size=64m,uid=10001,gid=10001,mode=700 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --env ONEVIBE_API_HOST=0.0.0.0 \
+            --env ONEVIBE_API_PORT=4311 \
+            --env ONEVIBE_DATA_DIR=/var/lib/onevibe \
+            onevibe:${{ github.sha }}
+      - name: Verify health and non-root runtime
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4311/api/health > /tmp/onevibe-health.json; then break; fi
+            sleep 1
+          done
+          grep -q '"status":"healthy"' /tmp/onevibe-health.json
+          test "$(docker exec onevibe-ci id -u)" = "10001"
+          test "$(docker inspect --format '{{.Config.User}}' onevibe-ci)" = "onevibe"
+      - name: Collect container logs
+        if: always()
+        run: docker logs onevibe-ci 2>&1 || true
+      - name: Remove container
+        if: always()
+        run: docker rm --force onevibe-ci || true
