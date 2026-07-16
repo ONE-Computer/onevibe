@@ -1,7 +1,7 @@
 import { Bell, ChevronDown, CodeXml, Link2, Menu, Monitor, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { Toaster, toast } from 'sonner'
 import { PromptComposer } from './components/PromptComposer'
 import { Sidebar } from './components/Sidebar'
@@ -40,11 +40,13 @@ const reportError = (reason: unknown, fallback: string) => {
 const emptyProjects: Project[] = []
 const emptySchedules: TaskSchedule[] = []
 const emptyLibrary: LibraryItem[] = []
+const emptyTasks: Task[] = []
 
 export default function App() {
   const shareId = window.location.pathname.match(/^\/share\/([^/]+)$/)?.[1]
-  const [tasks, setTasks] = useState<Task[]>([])
   const queryClient = useQueryClient()
+  const { data: tasksData, error: tasksError, refetch: refetchTasks } = useQuery({ queryKey: ['tasks'], queryFn: listTasks, staleTime: 5_000, refetchOnWindowFocus: false })
+  const tasks = tasksData?.tasks ?? emptyTasks
   const { activeProjectId, setActiveProjectId, view, setView, activeTaskId, setActiveTaskId, sidebarOpen, setSidebarOpen, mobileInspectorOpen, setMobileInspectorOpen, notificationsOpen, setNotificationsOpen, backendOffline, setBackendOffline, retryingBackend, setRetryingBackend } = useUiStore()
   const { selectedSkills, setSelectedSkills, creating, setCreating } = useComposerStore()
   const { authState, setAuthState, authLoading, setAuthLoading } = useSessionStore()
@@ -69,6 +71,9 @@ export default function App() {
     getNextPageParam: (lastPage) => lastPage.nextCursor,
   })
   const conversations = conversationsData?.pages.flatMap((page) => page.conversations) ?? []
+  const updateTasksCache = useCallback((updater: (tasks: Task[]) => Task[]) => {
+    queryClient.setQueryData<{ tasks: Task[] }>(['tasks'], (current) => ({ tasks: updater(current?.tasks ?? []) }))
+  }, [queryClient])
   const upsertConversationCache = useCallback((incoming: ConversationSummary) => {
     queryClient.setQueryData<InfiniteData<ConversationPage>>(['conversations'], (current) => {
       if (!current || !current.pages[0]) return current
@@ -81,16 +86,17 @@ export default function App() {
   }, [setAuthLoading, setAuthState])
 
   const refreshTasks = useCallback(async () => {
-    const result = await listTasks()
-    setTasks(result.tasks)
-  }, [])
+    const result = await refetchTasks()
+    if (result.error) throw result.error
+    return result.data
+  }, [refetchTasks])
 
   const loadMoreConversations = useCallback(async () => {
     if (!conversationsHasNextPage || conversationsIsFetchingNextPage) return
     try { await fetchMoreConversations() } catch (reason) { reportError(reason, 'Unable to load more conversations') }
   }, [conversationsHasNextPage, conversationsIsFetchingNextPage, fetchMoreConversations])
 
-  useEffect(() => { void refreshTasks().catch((reason: unknown) => reportError(reason, 'Unable to load tasks')) }, [refreshTasks])
+  useEffect(() => { if (tasksError) reportError(tasksError, 'Unable to load tasks') }, [tasksError])
   useEffect(() => { void refreshAuth() }, [refreshAuth])
   useEffect(() => { if (conversationsError) reportError(conversationsError, 'Unable to load conversations') }, [conversationsError])
   useEffect(() => {
@@ -122,17 +128,17 @@ export default function App() {
   }, [setActiveTaskId, setSidebarOpen, setView])
   useEffect(() => {
     if (!snapshot) return
-    setTasks((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))
+    updateTasksCache((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))
     upsertConversationCache(conversationSummaryFromTask(snapshot))
     if (snapshot.status === 'completed') void queryClient.invalidateQueries({ queryKey: ['library'] })
-  }, [queryClient, snapshot, upsertConversationCache])
+  }, [queryClient, snapshot, updateTasksCache, upsertConversationCache])
 
   const preferredProvider: Task['provider'] = runtime?.defaultProvider ?? (['claude_sdk', 'onecomputer', 'remote'] as const).map((id) => runtime?.providers.find((candidate) => candidate.id === id && candidate.available)?.id).find((id): id is Task['provider'] => Boolean(id)) ?? 'demo'
   const startTask = async (prompt: string, provider: Task['provider'] = preferredProvider, mode: TaskMode = 'chat', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = selectedSkills) => {
     setCreating(true)
     try {
       const task = await createTask(prompt, provider, mode, activeProjectId, references, attachments, skills)
-      setTasks((current) => [task, ...current])
+      updateTasksCache((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
       upsertConversationCache(conversationSummaryFromTask(task))
       setActiveTaskId(task.id)
       window.history.pushState({}, '', `/tasks/${task.id}`)
@@ -257,7 +263,7 @@ export default function App() {
     try {
       const result = await runScheduleNow(schedule.id)
       queryClient.setQueryData<{ schedules: TaskSchedule[] }>(['schedules'], (current) => ({ schedules: (current?.schedules ?? []).map((item) => item.id === result.schedule.id ? result.schedule : item) }))
-      setTasks((current) => [result.task, ...current])
+      updateTasksCache((current) => [result.task, ...current.filter((candidate) => candidate.id !== result.task.id)])
       upsertConversationCache(conversationSummaryFromTask(result.task))
       navigateToTask(result.task.id)
     } catch (reason) { reportError(reason, 'Unable to run schedule') }
@@ -266,7 +272,7 @@ export default function App() {
     try {
       await signOutAuth()
       setAuthState({ enabled: true, session: null })
-      setTasks([])
+      queryClient.removeQueries({ queryKey: ['tasks'] })
       queryClient.removeQueries({ queryKey: ['projects'] })
       queryClient.removeQueries({ queryKey: ['schedules'] })
       queryClient.removeQueries({ queryKey: ['library'] })
@@ -300,7 +306,7 @@ export default function App() {
     setCreating(true)
     try {
       const task = await forkTask(taskId, fromMessageId, newPrompt)
-      setTasks((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
+      updateTasksCache((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
       upsertConversationCache(conversationSummaryFromTask(task))
       navigateToTask(task.id)
     } catch (reason) {

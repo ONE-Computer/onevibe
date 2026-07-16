@@ -686,5 +686,6 @@ baseline harness in CI.
 - Migrated Projects into a cached query and made project create/update/file/restore mutations update the same query cache; sign-out removes the project cache to avoid cross-session residue.
 - Migrated Schedules and Library into cached queries; schedule create/toggle/delete/run and Library removal update or invalidate the corresponding query cache, and sign-out removes both caches.
 - Migrated Conversations to a paginated TanStack Infinite Query. Sidebar pagination now uses the query cursor, and task/snapshot/branch/scheduled-run updates insert the server-derived summary into the first page without making the browser authoritative for task state.
+- Migrated task inventory to a cached Query. Creation, branch, scheduled-run, and snapshot updates write server-derived task records into the cache; active task snapshots and SSE remain on `useTask`.
 - Kept task/SSE state on `useTask`: an append-only replayable event stream is not treated as ordinary query data. Remaining collection queries and mutations are intentionally open under P5-02.
 - Focused verification: lint, 46 test files / 236 tests, and production build passed.
