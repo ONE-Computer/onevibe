@@ -9,6 +9,12 @@
 - Verification: `npm run check` passed with 33 test files / 174 tests, lint, production build, and E2E harness typecheck.
 - Four read-only sub-agent audits identified the next release blockers: local fail-closed runtime/retry behavior (`ONE-231`), and rendered creation/artifact parity (`ONE-232`). Their findings are recorded in `docs/ONEVIBE-LOCAL-PARITY-ROADMAP.md`; no sub-agent changed shared contracts or production files.
 
+## 2026-07-16 — fail-closed provider completion and SSE handoff
+
+- Claude Agent SDK completion now requires an explicit valid terminal result. Missing result/early EOF records `run_failed` with `failureReason=missing_terminal_result`; it cannot silently become `completed`.
+- SSE task events now subscribe before reading replay, buffer events during the replay/drain phase, deduplicate by durable event ID, and then enter live delivery. The HTTP route is wired to this handoff and validates task-bound cursors before headers.
+- Implementation was delegated into disjoint worker scopes and integrated by the main agent in `27b7123`. Focused worker tests and the full check passed; local Claude/LiteLLM two-turn E2E remained green.
+
 ## 2026-07-16 — SQLite runtime event ledger
 
 - Moved the authoritative append-only runtime event ledger from a rewritten per-task `events.json` file into a versioned SQLite `runtime_events` table (migration v4). Appends now allocate the per-conversation sequence and previous hash inside the existing immediate Unit-of-Work transaction, so concurrent tool/lifecycle producers cannot silently reuse a sequence or fork the evidence chain.
