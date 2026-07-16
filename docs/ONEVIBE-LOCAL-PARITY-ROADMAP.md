@@ -94,6 +94,8 @@ The slide review surface now includes page-like responsive previews, notes, navi
 
 That re-proof passed as `task_78b67b47a5f346`; the default local slide gate is green against the current renderer/prompt commit.
 
+The same task passed rendered browser QA at desktop and 390px mobile widths, including a real Next interaction and responsive overflow/sidebar checks. Remaining creation parity is now centered on website/data/document preview depth and automated golden-flow coverage, not basic slide rendering.
+
 ## Delegated audit synthesis — 2026-07-16
 
 The audits confirm a local release **NO-GO** until the runtime closes these reliability gaps: cancellation/process quiescence, restart reconciliation, the SSE replay/subscription race, provider early-EOF handling, crash recovery between native events and transcript projection, and durable retry identity. These are now tracked in `ONE-231`.
