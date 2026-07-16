@@ -19,6 +19,15 @@ const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: ty
   { id: 'game', label: 'Game', detail: 'Playable web experience', icon: Gamepad2 },
 ]
 
+const rotatingHomePlaceholders = [
+  'Draft a customer briefing on our security posture…',
+  'Research the latest agent-runtime landscape and cite sources…',
+  'Build a five-slide investor update with speaker notes…',
+  'Prototype an internal ops dashboard with sample data…',
+  'Turn these notes into a shareable Markdown brief…',
+  'Investigate why our latency doubled last week…',
+]
+
 export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], runtime, onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
   const [provider, setProvider] = useState<Task['provider']>('demo')
@@ -30,7 +39,27 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
   const [modePickerOpen, setModePickerOpen] = useState(false)
   const [providerPickerOpen, setProviderPickerOpen] = useState(false)
   const [attachments, setAttachments] = useState<DraftAttachment[]>([])
+  const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const fileInput = useRef<HTMLInputElement>(null)
+  const textAreaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (compact || prompt) return
+    const id = window.setInterval(() => setPlaceholderIndex((current) => (current + 1) % rotatingHomePlaceholders.length), 4200)
+    return () => window.clearInterval(id)
+  }, [compact, prompt])
+
+  useEffect(() => {
+    if (compact) return
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        textAreaRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [compact])
   const selectedMode = modeCatalog.find((candidate) => candidate.id === mode) ?? modeCatalog[0]!
   const providerStates = runtime?.providers ?? [{ id: 'demo' as const, label: 'Simulation · no model call', boundary: 'Local task workspace', available: true, detail: 'Deterministic simulation for UI contracts only; not a provider or VM.' }]
   const selectedProvider = providerStates.find((candidate) => candidate.id === provider) ?? providerStates[0]!
@@ -60,23 +89,24 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
       {!compact && skills.length > 0 && <div className="selected-skills" aria-label="Selected skill packs">{skills.map((skill) => <span key={skill}><Sparkles size={10} /> {skill.replaceAll('_', ' ')}</span>)}</div>}
       {!compact && provider === 'demo' && <div className="simulation-note" role="status"><Sparkles size={11} /> Simulation only · no model call</div>}
       <textarea
+        ref={textAreaRef}
         value={prompt}
         onChange={(event) => setPrompt(event.target.value)}
-        placeholder={compact ? (queueable ? 'Guide the next turn — this will queue safely…' : 'Ask ONEVibe to refine or continue…') : mode === 'chat' ? 'Ask ONEVibe anything…' : 'Assign a task, build an artifact, or investigate a problem'}
+        placeholder={compact ? (queueable ? 'Guide the next turn — this will queue safely…' : 'Ask ONEVibe to refine or continue…') : rotatingHomePlaceholders[placeholderIndex]}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() }
         }}
       />
+      {!compact && !prompt && <div className="composer-hint" aria-hidden="true">Press <kbd>⌘</kbd><kbd>K</kbd> to focus · <kbd>↵</kbd> to send · <kbd>⇧↵</kbd> for newline</div>}
       <div className="composer-actions">
         <div className="composer-left">
-          {!compact && <button title="Attach files" aria-label="Attach files" onClick={() => fileInput.current?.click()}><Paperclip size={16} /></button>}
-          {!compact && <button title="Connect website reference" aria-label="Connect website reference" onClick={() => setReferencesOpen((value) => !value)}><Link2 size={16} /></button>}
+          {!compact && <button className="composer-icon-action" title="Attach files" aria-label="Attach files" onClick={() => fileInput.current?.click()}><Paperclip size={14} /> Attach</button>}
+          {!compact && <button className="composer-icon-action" title="Connect website reference" aria-label="Connect website reference" onClick={() => setReferencesOpen((value) => !value)}><Link2 size={14} /> Reference</button>}
           <span className="composer-divider" />
           {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen((value) => !value)}><Monitor size={15} /> {selectedMode.label} <ChevronDown size={13} /></button>{modePickerOpen && <motion.div className="mode-catalog" role="menu" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}>{modeCatalog.map((candidate) => { const Icon = candidate.icon; return <button key={candidate.id} role="menuitem" className={candidate.id === mode ? 'selected' : ''} onClick={() => { setMode(candidate.id); setModePickerOpen(false) }}><Icon size={15} /><span><strong>{candidate.label}</strong><small>{candidate.detail}</small></span>{candidate.id === mode && <ShieldCheck size={13} />}</button> })}</motion.div>}</div>}
           {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={providerPickerOpen} onClick={() => setProviderPickerOpen((value) => !value)}><span className={`runtime-dot ${selectedProvider.available ? 'ready' : 'unavailable'}`} />{provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}{selectedProvider.label} <ChevronDown size={13} /></button>{providerPickerOpen && <motion.div className="mode-catalog provider-catalog" role="menu" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}>{providerStates.map((candidate) => <button key={candidate.id} role="menuitem" className={candidate.id === provider ? 'selected' : ''} disabled={!candidate.available} onClick={() => { setProvider(candidate.id); setProviderTouched(true); setProviderPickerOpen(false) }}><span className={`runtime-dot ${candidate.available ? 'ready' : 'unavailable'}`} />{candidate.id === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}<span><strong>{candidate.label}</strong><small>{candidate.boundary} · {candidate.detail}</small></span>{candidate.id === provider && <ShieldCheck size={13} />}</button>)}</motion.div>}</div>}
         </div>
         <div className="composer-right">
-          <span className="policy-chip"><ShieldCheck size={13} /> governed</span>
           <button className="send-button" disabled={!prompt.trim() || busy || !selectedProvider.available} onClick={() => void submit()} aria-label={queueable ? 'Queue guidance for next turn' : 'Start task'}><ArrowUp size={17} /></button>
         </div>
       </div>

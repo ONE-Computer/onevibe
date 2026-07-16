@@ -435,3 +435,41 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
   .home-hero-card:hover,.home-hero-artifact:hover{transform:none}
   .home-hero-card:hover .home-hero-card-chevron{transform:none}
 }
+
+/* ================================================================
+   PHASE 8 — COMPOSER AS HERO OBJECT
+   ================================================================ */
+.composer{padding:20px 20px 16px;border-radius:20px}
+.composer textarea{min-height:112px;font-size:16px;line-height:1.55}
+.composer textarea::placeholder{font-size:16px;color:var(--text-muted);transition:opacity .35s ease}
+
+.composer-icon-action{
+  display:inline-flex!important;align-items:center;gap:6px;
+  height:32px;padding:0 12px!important;
+  border:1px solid var(--border-default)!important;border-radius:100px!important;
+  background:transparent!important;color:var(--text-muted)!important;
+  font-size:12px!important;font-weight:500;cursor:pointer;
+  transition:border-color .15s ease,background .15s ease,color .15s ease;
+}
+.composer-icon-action:hover{border-color:var(--border-strong)!important;background:var(--surface-hover)!important;color:var(--text-primary)!important}
+.composer-icon-action svg{color:var(--text-muted);transition:color .15s ease}
+.composer-icon-action:hover svg{color:var(--accent)}
+.composer-divider{background:var(--border-subtle);opacity:.6}
+
+.composer-hint{
+  margin:8px 2px 0;color:var(--text-faint);font-size:11px;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+}
+.composer-hint kbd{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:18px;height:18px;padding:0 4px;
+  border:1px solid var(--border-default);border-radius:5px;
+  background:var(--surface-raised);color:var(--text-muted);
+  font-family:inherit;font-size:10px;font-weight:500;
+}
+@media(max-width:640px){.composer-hint{display:none}}
+
+/* Suspend rotating placeholder animation for reduced motion */
+@media(prefers-reduced-motion:reduce){
+  .composer textarea::placeholder{transition:none}
+}
