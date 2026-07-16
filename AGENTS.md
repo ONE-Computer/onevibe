@@ -27,11 +27,13 @@ Linear is the source of truth for ONEVibe delivery. Use the dedicated project:
 
 - Project: **ONEVibe — Backend E2E & Manus Parity**
 - URL: https://linear.app/onecomputer/project/onevibe-backend-e2e-and-manus-parity-ff4554221471
-- Active epic: `ONE-215`
+- Active release gate: `ONE-230` — local ONEVibe reliability and Manus parity. `ONE-215` remains the historical backend epic and dependency map, but it is no longer the immediate critical path.
 
-The release-critical dependency order is `ONE-216` conversation persistence → `ONE-217` conversation-scoped microVM → `ONE-218` Claude/LiteLLM inside the microVM → `ONE-219` durable event streaming → `ONE-220` sandbox PPTX/PDF → `ONE-221` real-provider E2E. `ONE-222` hardening can proceed alongside the later backend slices. UX (`ONE-223`) and OpenVTC approval integration (`ONE-224`) must not displace this backend gate.
+The current release-critical order is `ONE-230` local Claude/LiteLLM reliability and Manus parity → `ONE-223` conversation/artifact rail → `ONE-229` virtualized assistant-ui thread and responsive evidence review. The local gate includes persistence (`ONE-216`), event streaming/history (`ONE-219`), artifact generation (`ONE-220`), cancellation/retry, and browser QA. Azure, ONEComputer sandbox allocation (`ONE-217`), microVM attestation, and OpenVTC approval integration (`ONE-224`) are deferred until the local gate is green; they remain tracked and must not be silently reintroduced into the current critical path.
 
 Read `docs/LINEAR-BOARD.md` before changing issue state or scope. The API credential is read only into a shell variable from `../handover/onecomputer-handover-secrets-lean/mac/linear-api-key.txt`; never print, commit, paste, or place it in a URL. Keep one major epic In Progress and attach exact commit/test/provider evidence in issue comments after material slices.
+
+Read `docs/ONEVIBE-LOCAL-PARITY-ROADMAP.md` before delegating or sequencing work. The main agent owns shared contracts, Linear, integration, and release evidence. Sub-agents may handle bounded audits or disjoint file sets, but they must identify their issue, write scope, tests, security limits, and remaining uncertainty. Do not run overlapping mutating workstreams against the same files, and do not mark a parity item complete from a cosmetic mock or fixture.
 
 Use the repository-local helper for subsequent Linear operations: `npm run linear -- help`. It supports `project`, paginated `issues`, `issue ONE-223`, `comment ONE-223 --body "..."` (or `--file PATH`), `state ONE-223 --name "In Progress"`, and `create-issue`. Mutations require `--confirm` and support `--dry-run`. It defaults to the canonical ONEVibe project and resolves credentials from `LINEAR_API_KEY`, then `LINEAR_API_KEY_FILE`, then the documented handover file. Never add a token as a CLI argument, print it, put it in a URL, or create a `.env` file. Prefer `--json` for machine-readable read output; mutation commands return only safe IDs and state results.
 

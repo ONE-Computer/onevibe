@@ -16,7 +16,9 @@ Linear also serves as the management and architecture review hub:
 - [Backend Contract Freeze v1](https://linear.app/onecomputer/document/onevibe-backend-contract-freeze-v1-ef85a800f29d)
 - [POC E2E Scope and Exit Criteria](https://linear.app/onecomputer/document/onevibe-poc-e2e-scope-and-exit-criteria-b8cb69cb2ba9)
 
-The current release gate is [ONE-215](https://linear.app/onecomputer/issue/ONE-215):
+The current release gate is [ONE-230](https://linear.app/onecomputer/issue/ONE-230/p0-local-onevibe-reliability-and-manus-parity-release-gate). ONEVibe is now explicitly local-first: the product must be a reliable Manus-style workspace powered by the local Claude Agent SDK/LiteLLM path before platform integration work resumes.
+
+The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critical path:
 
 1. `ONE-216` — transactional conversation, turn, and message service.
 2. `ONE-217` — one independently provisioned ONEComputer microVM lease per conversation.
@@ -30,11 +32,19 @@ The current release gate is [ONE-215](https://linear.app/onecomputer/issue/ONE-2
 10. `ONE-225` — make ONEComputer allocation idempotent and provider operations recoverable; blocks safe lease creation.
 11. `ONE-226` — integrate and attest a real microVM boundary without host Docker-socket exposure; blocks the final production gate.
 
-## Status snapshot — 2026-07-16 (after attested-isolation guard)
+## Status snapshot — 2026-07-16 (local ONEVibe parity pivot)
 
-The board contains 15 scoped issues: 1 Done, 9 In Progress, and 5 Backlog. That is **7% strict ticket completion** (1/15), or **37% weighted delivery progress** when an In Progress ticket counts as half (1 + 9×0.5 = 5.5/15, rounded). The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
+The board contains 16 scoped issues: 1 Done, 7 In Progress, and 8 Backlog. That is **6% strict ticket completion** (1/16), or **28% weighted delivery progress** when an In Progress ticket counts as half (1 + 7×0.5 = 4.5/16, rounded). The new ONE-230 release gate is intentionally conservative: it measures the local product path, not the deferred platform path. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
 
-The backend is ahead of the board's raw status: ONE-216 through ONE-220 have substantial implementation slices, and ONE-220 remains Done from real sandbox-origin artifact evidence. ONE-221 is intentionally In Progress: the latest authenticated Azure development-provider harness now passes the two-conversation/two-turn/SSE/visual/slides/cleanup POC, and the new recovery harness/source contract is ready, but API-restart/failure-injection coverage and production-attested isolation remain open. ONE-225 is actively advanced: the provider allocation-receipt contract is deployed on Azure branch commit `4ff7533` (migration applied; web, gateway, and LiteLLM bridge services active), and the authenticated create/reuse/separation path passes. A controlled one-shot post-persistence 504 hook plus ONEVibe recovery harness now cover the ambiguity path at source level (`6323e88` / `fd2b060`), but the live Azure timeout/replay/recovery scenario is still required. ONE-226 is now In Progress because the provider has a fail-closed `ONECOMPUTER_REQUIRE_ATTESTED_ISOLATION=1` guard (ONEComputer commit `98d446e` / branch `codex/sandbox-attestation-guard`); the actual attested microVM provider and signed evidence remain open. ONE-227 remains a genuine production gate.
+### Current phase — ONEVibe local reliability and Manus parity
+
+ONE-230 is the active P0. Its release gate is a real local Claude/LiteLLM E2E run with durable history, reconnectable SSE, follow-up turns, cancellation/retry/error states, assistant-ui conversation rendering, plan/tool/activity evidence, screenshots/terminal cards, artifact rail, and responsive browser QA. PPTX/PDF generation remains part of the local creation path. The UI must never imply that local mode is a production network-containment boundary.
+
+ONE-223 and ONE-229 are the active UX workstream. ONE-216 through ONE-220 remain the backend foundation. ONE-221, ONE-225, and ONE-226 are deliberately back in Backlog: their Azure/provider recovery and attested microVM work will resume only after ONE-230 is green. ONE-224, ONE-227, and ONE-228 remain deferred platform/security work.
+
+ONEComputer is not being deleted or bypassed; it is being treated as the later enforcement plane. The current goal is to make the product contract, local runtime, event model, artifact model, and Manus-style interaction reliable enough that platform integration has a stable consumer.
+
+The backend is ahead of the board's raw status: ONE-216 through ONE-220 have substantial implementation slices, and ONE-220 remains Done from real sandbox-origin artifact evidence. The next proof is local, not Azure: ONE-230 must establish a repeatable Claude/LiteLLM conversation, durable history, resumable SSE, error/retry/cancel behavior, artifact projection, and browser-visible evidence. The Azure recovery work on ONE-221/225 and the attested isolation work on ONE-226 remain documented platform follow-up, but are no longer presented as current progress.
 
 No mandatory Linear ticket is missing from the current POC chain. The previously observed credential blocker is resolved through the pre-provisioned server-side project-key path; the key remains outside the repository, browser, evidence, and task workspace. Provider timeout/replay evidence remains in ONE-225; durable native SSE/projection remains in ONE-219; isolation and secret injection remain in ONE-226/ONE-227. The Azure deployment-wrapper PATH/toolchain issue is a follow-up engineering improvement, not a reason to create a duplicate POC ticket. The board does not yet contain a separate ticket for the local Cargo/toolchain prerequisite because that is an environment/setup issue, not a product acceptance gate.
 

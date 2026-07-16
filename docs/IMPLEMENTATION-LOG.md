@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-16 — local-first Manus parity pivot and activity rail
+
+- Re-scoped the active release gate to ONE-230: local ONEVibe reliability and Manus parity. Azure, ONEComputer, OpenVTC/VTI, and attested microVM work remain tracked but are explicitly deferred until the local gate is green.
+- Added a default Activity workspace view that projects plan progress and the latest bounded durable runtime events beside the assistant conversation. It is a review surface, not a sandbox control plane; hidden reasoning and credentials remain excluded.
+- Completed a clean local Claude Agent SDK + LiteLLM two-turn proof against a temporary data directory: the provider session was recorded, the follow-up conversation persisted, and the evidence chain verified.
+- Added `docs/ONEVIBE-LOCAL-PARITY-ROADMAP.md` and updated `AGENTS.md` with the product-lead/delegation model, disjoint write scopes, release gates, and local POC metrics.
+- Verification: `npm run check` passed with 33 test files / 174 tests, lint, production build, and E2E harness typecheck.
+
 ## 2026-07-16 — SQLite runtime event ledger
 
 - Moved the authoritative append-only runtime event ledger from a rewritten per-task `events.json` file into a versioned SQLite `runtime_events` table (migration v4). Appends now allocate the per-conversation sequence and previous hash inside the existing immediate Unit-of-Work transaction, so concurrent tool/lifecycle producers cannot silently reuse a sequence or fork the evidence chain.
