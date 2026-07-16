@@ -1,4 +1,4 @@
-import { Blocks, Clock3, FolderKanban, Library, MonitorCog, Pencil, Plus, Search, Settings2, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { Blocks, Clock3, FolderKanban, Library, MonitorCog, Pencil, Plus, Search, Settings2, Sparkles, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationSummary, Project, ProjectFileVersion } from '../types'
@@ -110,7 +110,6 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
       {!query && hasMoreConversations && <button type="button" className="load-more-conversations" disabled={loadingMoreConversations} onClick={() => void onLoadMoreConversations()}>{loadingMoreConversations ? 'Loading…' : 'Load older conversations'}</button>}
     </div>
     <div className="sidebar-footer">
-      <div className="trust-card"><ShieldCheck size={17} /><div><strong>OpenVTC protected</strong><span>External approvals enabled</span></div></div>
       <div className="user-row"><span className="avatar">TT</span><div><strong>Terence</strong><span>Local workspace</span></div><Settings2 size={15} /></div>
     </div>
   </aside>
