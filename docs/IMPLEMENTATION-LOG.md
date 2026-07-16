@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-16 — runtime routing browser acceptance
+
+- Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.
+- Verified the runtime picker in Chat mode: Simulation is the only configured/recommended option; ONEComputer, Claude SDK, Codex-compatible, Remote, and AgentCore entries are visibly disabled with configuration reasons rather than presented as usable.
+- Verified mode-aware capability filtering in Slides mode: Simulation is disabled with `Missing capability: tool_use`, while the governed alternatives remain disabled with their own setup requirements. This prevents an incompatible runtime from being selected for a mode that needs tools/files.
+- This browser evidence covers local selector truthfulness and capability messaging only. It does not claim live LiteLLM provider availability, startup health attestation, sandbox isolation, or production deployment.
+
 ## 2026-07-16 — handover Phase 1: backend-offline boundary
 
 - Re-read `HANDOVER.md`, `TODO.md`, the phase plans, the local parity roadmap, and the current Linear project before changing code. The active sequence is now the handover's Phase 1 foundation; platform promotion remains deferred.
