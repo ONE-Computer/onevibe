@@ -142,7 +142,9 @@ const referenceUrl = z.string().url().max(2_048).refine((value) => {
 }, 'References must be ordinary HTTP(S) URLs without embedded credentials or secret query parameters')
 const taskAttachment = z.object({ name: z.string().min(1).max(160), mimeType: z.string().max(160).default('application/octet-stream'), dataBase64: z.string().min(1).max(350_000) })
 const projectAttachment = z.object({ name: z.string().min(1).max(160), mimeType: z.string().max(160).default('application/octet-stream'), dataBase64: z.string().min(1).max(350_000) })
-const taskSkill = z.string().regex(/^[a-z][a-z0-9-]{1,63}$/)
+// Built-in packs use stable snake_case identifiers; marketplace IDs remain
+// constrained by their GitHub catalog schema. Keep both bounded and opaque.
+const taskSkill = z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/)
 const builtInSkillIdSet = new Set<string>(builtInSkillIds)
 const skillCatalog = async (ownerUserId?: string) => {
   const builtins = skillPackCatalog().map((skill) => ({ ...skill, source: 'builtin' as const, installed: true }))

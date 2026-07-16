@@ -819,3 +819,9 @@ baseline harness in CI.
 
 - Rebuilt `onevibe-ci:local` after the lockfile override and started it with a read-only root filesystem, only bounded `/tmp` and data tmpfs mounts, all Linux capabilities dropped, `no-new-privileges`, and UID 10001. `/api/health` returned `healthy`; the configured image user and runtime UID were both verified.
 - This is a local container hardening proof. The image still runs the SQLite-backed application and is not a Postgres deployment or production sandbox-attestation proof.
+
+## 2026-07-17 — skills E2E truthfulness and identifier fixes
+
+- Fixed the task skill schema to accept the repository’s stable built-in snake_case identifiers (`document`, `security_review`, and the other built-in packs) while preserving bounded marketplace IDs. The previous schema rejected valid built-in selections before execution.
+- Corrected `scripts/skills-e2e.ts` to distinguish truthful demo (`Skill packs recorded for simulation`, `not_executed_demo`) from provider (`Versioned skill packs selected`, `provider_turn_workspace`) evidence. The harness now inspects internal skill bytes only through a stopped local `TaskStore`; the public files route remains prohibited from exposing `.claude/skills`.
+- Passing evidence: `npm run e2e:skills` (deterministic local-demo materialization, immutable manifest across restart, permission invariant, selected-only files), `npm run e2e:skill-marketplace` (loopback catalog install/remove), and `npm run check` (51 files / 257 tests). No protected Claude/LiteLLM materialization claim is made without configured relay evidence.

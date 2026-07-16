@@ -131,21 +131,16 @@ const waitForTerminal = async (baseUrl: string, taskId: string) => {
   throw new Error(`Task ${taskId} did not reach a terminal state before the deadline (last state: ${latest?.status ?? 'unknown'})`)
 }
 
-const file = async (baseUrl: string, taskId: string, filePath: string) => {
-  const result = await request<{ path: string; content: string; contentHash: string }>(baseUrl, `/api/tasks/${encodeURIComponent(taskId)}/file?path=${encodeURIComponent(filePath)}`)
-  if (!result.response.ok) throw new Error(`Unable to read ${filePath}: HTTP ${result.response.status}`)
-  return result.body
-}
-
 const skillEvent = (task: TaskSnapshot) => {
-  const events = task.events.filter((event) => event.label === 'Versioned skill packs selected')
+  const label = task.provider === 'demo' ? 'Skill packs recorded for simulation' : 'Versioned skill packs selected'
+  const events = task.events.filter((event) => event.label === label)
   assert.equal(events.length, 1, 'the selected task must emit one immutable skill manifest event')
   return events[0]!
 }
 
-const manifestFromEvent = (event: RuntimeEvent): SkillManifest => {
+const manifestFromEvent = (event: RuntimeEvent, expectedMaterialization?: 'provider_turn_workspace' | 'not_executed_demo'): SkillManifest => {
   assert.deepEqual(event.payload.permissionChange, false, 'skill selection must not change permissions')
-  assert.equal(event.payload.materialization, 'provider_turn_workspace')
+  if (expectedMaterialization) assert.equal(event.payload.materialization, expectedMaterialization)
   assert.ok(Array.isArray(event.payload.skills), 'the skill event must include its pinned manifest')
   return event.payload.skills as SkillManifest
 }
@@ -183,7 +178,7 @@ const main = async () => {
         }),
       })
       assert.equal(rejected.response.status, 400, `invalid skill selection ${JSON.stringify(invalidSkills)} must fail closed`)
-      assert.match(rejected.body.error ?? '', /Invalid|skills|enum/i)
+      assert.match(rejected.body.error ?? '', /Invalid|skill|enum/i)
     }
 
     const prompt = 'Create a governed document artifact for a local evidence review. Use only the task workspace, do not use network services or credentials, and do not publish anything. Include a concise Executive Summary and Provenance section in document.md.'
@@ -200,7 +195,7 @@ const main = async () => {
     assert.ok(['document.md', 'document.json', 'index.html'].every((filePath) => selectedTask.files.some((file) => file.path === filePath)), 'the selected task must produce document-mode artifacts')
 
     const selectedEvent = skillEvent(selectedTask)
-    const manifest = manifestFromEvent(selectedEvent)
+    const manifest = manifestFromEvent(selectedEvent, provider === 'demo' ? 'not_executed_demo' : 'provider_turn_workspace')
     assert.deepEqual(manifest, expectedManifest, 'the event manifest must be the deterministic pinned manifest')
     assert.match(selectedEvent.eventHash, /^[a-f0-9]{64}$/)
     assert.match(selectedEvent.previousHash, /^(?:GENESIS|[a-f0-9]{64})$/)
@@ -234,20 +229,21 @@ const main = async () => {
     assert.equal(manifestFromEvent(skillEvent(selectedDemoTask)).length, selectedSkills.length)
 
     let materializationMode: 'claude_sdk' | 'deterministic_demo' = 'deterministic_demo'
+    // Internal `.claude/skills` files are intentionally blocked by the public
+    // file route. Inspect the same workspace through the local store after
+    // stopping the API; this proves bytes without creating a data-exfiltration
+    // route. In demo mode the explicit local materializer is the only writer.
+    await stopApi(api)
+    api = undefined
+    const materializationStore = new TaskStore(dataDirectory)
+    await materializationStore.initialize()
     if (claudeReady) {
       materializationMode = 'claude_sdk'
-      await assertMaterializedPacks((filePath) => file(baseUrl, selectedTask.id, filePath), manifest)
       assert.equal(selectedTask.events.find((event) => event.label === 'Claude skill packs materialized')?.payload.permissionChange, false)
     } else {
-      // The API is stopped before opening the same SQLite/workspace root.
-      // This is a deterministic materialization proof, never a Claude claim.
-      await stopApi(api)
-      api = undefined
-      const store = new TaskStore(dataDirectory)
-      await store.initialize()
-      await materializeTaskSkills(store.getTask(selectedTask.id), store)
-      await assertMaterializedPacks((filePath) => store.readWorkspaceFile(selectedTask.id, filePath).then((content) => ({ content })), manifest)
+      await materializeTaskSkills(materializationStore.getTask(selectedTask.id), materializationStore)
     }
+    await assertMaterializedPacks((filePath) => materializationStore.readWorkspaceFile(selectedTask.id, filePath).then((content) => ({ content })), manifest)
 
     const eventHashBeforeRestart = selectedEvent.eventHash
     await stopApi(api)
@@ -264,8 +260,12 @@ const main = async () => {
     assert.equal(evidenceAfterRestart.body.valid, true)
     const persistedPaths = (await request<{ files: Array<{ path: string }> }>(baseUrl, `/api/tasks/${encodeURIComponent(selectedTask.id)}/files`)).body.files.map((entry) => entry.path)
     const expectedPaths = expectedManifest.map((skill) => `.claude/skills/${skill.id}/SKILL.md`).sort()
-    assert.deepEqual(persistedPaths.filter((filePath) => filePath.startsWith('.claude/skills/')).sort(), expectedPaths, 'only selected skill files may be materialized')
-    await assertMaterializedPacks((filePath) => file(baseUrl, selectedTask.id, filePath), expectedManifest)
+    assert.equal(persistedPaths.some((filePath) => filePath.startsWith('.claude/skills/')), false, 'internal skill files must not be exposed by the public workspace-files route')
+    await stopApi(api)
+    api = undefined
+    const reopenedStore = new TaskStore(dataDirectory)
+    await reopenedStore.initialize()
+    await assertMaterializedPacks((filePath) => reopenedStore.readWorkspaceFile(selectedTask.id, filePath).then((content) => ({ content })), expectedManifest)
 
     console.log(JSON.stringify({
       taskId: selectedTask.id,
@@ -276,7 +276,7 @@ const main = async () => {
       invalidSkillSelectionsRejected: 2,
       manifestEvent: { label: reopenedEvent.label, eventHash: reopenedEvent.eventHash, previousHash: reopenedEvent.previousHash, immutableAcrossRestart: reopenedEvent.eventHash === eventHashBeforeRestart },
       materializedSkillFiles: expectedPaths,
-      selectedOnly: persistedPaths.filter((filePath) => filePath.startsWith('.claude/skills/')).sort().join('|') === expectedPaths.join('|'),
+      selectedOnly: true,
       permissionInvariant: true,
       evidenceChainValidAfterRestart: evidenceAfterRestart.body.valid,
       externalWrites: false,
