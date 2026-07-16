@@ -57,7 +57,7 @@ This is an integration blocker, not a reason to weaken the ONEVibe boundary:
 
 1. **Provider API:** create/persist the sandbox identity before optional desktop/Claude bootstrap, then return a stable `provisioning` state immediately.
 2. **Provider API:** expose a pollable state/progress contract and make `DELETE /v1/sandboxes/:id` terminate bootstrap work idempotently.
-3. **ONEVibe:** keep polling state, surface progress as typed evidence, and delete the known sandbox on cancellation, timeout, or post-run cleanup.
+3. **ONEVibe:** keep polling state, surface progress as typed evidence, retain the sandbox for the owning conversation across turns, and release it only through an explicit fenced lifecycle action.
 4. **Security gate:** attest default-deny gateway egress before setting `ONECOMPUTER_GATEWAY_ENFORCED=true`; local API reachability is not proof of gateway enforcement.
 
 Until (1) and (2) are implemented, a caller can cancel before it receives an ID, leaving the provider unable to participate in reliable automatic cleanup. That is unacceptable for production ephemeral-workspace guarantees.
@@ -68,12 +68,13 @@ The ONEVibe runner now persists the provider-returned sandbox ID/state immediate
 
 Run the following after the provider lifecycle change:
 
-1. Start an ephemeral ONEVibe Slides task with `provider=onecomputer`.
+1. Start a ONEVibe Slides conversation with `provider=onecomputer`.
 2. Capture evidence for sandbox ID, `provisioning` → `started`, gateway-attestation state, and X11 visual frame.
 3. Run the controlled agent command, extract real `deck.pptx` and `deck.pdf` outputs, verify their magic bytes, and verify the resulting evidence chain.
-4. Cancel a separate task during bootstrap and prove provider-side deletion with no surviving container or sandbox row.
-5. Complete a normal task and prove automatic destruction within the lifecycle SLO.
-6. Verify the browser has only server-proxied PNG frames and never has runtime, VNC, CDP, API-key, or project-header access.
+4. Send a follow-up turn and prove it reuses the same lease generation, sandbox identity, workspace, and Claude session.
+5. Start a second conversation and prove it receives a distinct sandbox identity.
+6. Explicitly release both conversation leases and prove provider-side deletion with no surviving container or sandbox row.
+7. Verify the browser has only server-proxied PNG frames and never has runtime, VNC, CDP, API-key, or project-header access.
 
 ## Repeatable harness
 
@@ -85,4 +86,4 @@ ONEVIBE_E2E_REQUIRE_GATEWAY=true \
 npm run e2e:onecomputer
 ```
 
-The harness refuses to run if the ONEComputer provider is unavailable. It creates one disposable Slides task, waits for a terminal result, and verifies the recorded sandbox boundary, optional gateway attestation, ephemeral destruction, readiness evidence, optional X11 frame, actual PPTX/PDF deck bytes, and evidence-chain validity. Set `ONEVIBE_E2E_MODE=website` only when exercising the older website path. It intentionally does not send credentials to the browser or attempt a provider-side cancellation stress test; retain that as the separate controlled proof in the required-success list.
+The harness refuses to run if the ONEComputer provider is unavailable. It creates a Slides conversation, verifies real PPTX/PDF bytes, sends a follow-up through the same retained sandbox, creates a separate conversation with a distinct sandbox, validates evidence/X11 expectations, then explicitly releases both leases. Set `ONEVIBE_E2E_MODE=website` only when exercising the older website path. It intentionally does not send credentials to the browser or attempt an ambiguous-create reconciliation stress test; retain that as a separate controlled proof.

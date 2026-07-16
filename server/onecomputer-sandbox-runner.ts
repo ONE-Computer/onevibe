@@ -4,6 +4,7 @@ import type { OneComputerClient } from './onecomputer-client.js'
 import type { RuntimeAdapter, RuntimeContext } from './runtime-adapter.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 import { skillPacksFor } from './skill-packs.js'
+import { RuntimeLeaseService } from './runtime-lease-service.js'
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
@@ -133,8 +134,6 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
   async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
     signal.throwIfAborted()
-    const retainedSandboxId = task.securityContext?.sandboxId
-    if (continuation && (!this.options.retainSandbox || !retainedSandboxId || task.securityContext?.sandboxState === 'destroyed')) throw new Error('ONEComputer sandbox continuation requires an explicitly retained active sandbox')
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'ONEComputer sandbox execution started',
@@ -144,9 +143,8 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     await store.setPlanStep(task.id, 'scope', 'completed')
     await store.setPlanStep(task.id, 'workspace', 'running')
 
-    const sandbox = continuation
-      ? await this.client.getSandbox(retainedSandboxId!, signal)
-      : await this.client.createSandbox(`onevibe-${task.id.slice(-8)}`, signal)
+    const acquired = await new RuntimeLeaseService(store, this.client).acquire(task.id, signal)
+    const sandbox = acquired.sandbox
     let observedSandboxState: string | undefined
     const recordSandboxState = async (candidate: typeof sandbox) => {
       const state = candidate.state ?? 'provisioning'
@@ -167,25 +165,9 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       })
     }
     await recordSandboxState(sandbox)
-    let destroyed = false
     let visualLoop: Promise<void> | undefined
     let stopVisualLoop: (() => void) | undefined
     let lastVisualFrame: { hash: string; path: string } | undefined
-    const destroy = async () => {
-      if (destroyed || this.options.retainSandbox) return
-      await this.client.deleteSandbox(sandbox.id)
-      destroyed = true
-      const current = store.getTask(task.id)
-      await store.updateTask(task.id, {
-        securityContext: { ...current.securityContext!, sandboxState: 'destroyed', destroyedAt: new Date().toISOString() },
-      })
-      await store.appendEvent(task.id, {
-        type: 'activity_delta', lane: 'control', label: 'Ephemeral sandbox destroyed',
-        content: 'Generated artifacts were copied out before the ONEComputer sandbox was deleted.',
-        payload: { sandboxId: sandbox.id, lifecycle: 'destroyed' },
-      })
-    }
-
     try {
       let visualRuntimeReady = false
       let browserAutomationEnabled = false
@@ -230,9 +212,9 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         },
       })
       await store.appendEvent(task.id, {
-        type: 'activity_delta', lane: 'control', label: continuation ? 'ONEComputer retained sandbox resumed' : 'ONEComputer sandbox ready',
-        content: continuation ? `${sandbox.provider ?? 'configured'} retained the task boundary for this continuation.` : `${sandbox.provider ?? 'configured'} provider started an isolated task boundary.`,
-        payload: { sandboxId: sandbox.id, provider: sandbox.provider, state: live.state, gatewayEnforced: this.options.gatewayEnforced, continuation },
+        type: 'activity_delta', lane: 'control', label: acquired.reused ? 'ONEComputer retained sandbox resumed' : 'ONEComputer sandbox ready',
+        content: acquired.reused ? `${sandbox.provider ?? 'configured'} retained the conversation boundary for this turn.` : `${sandbox.provider ?? 'configured'} provider started an isolated conversation boundary.`,
+        payload: { sandboxId: sandbox.id, leaseId: acquired.lease.id, leaseGeneration: acquired.lease.generation, provider: sandbox.provider, state: live.state, gatewayEnforced: this.options.gatewayEnforced, continuation, reused: acquired.reused },
       })
       if (this.options.visualRuntime) {
         const visual = await this.client.startVisualRuntime(sandbox.id, signal)
@@ -535,18 +517,16 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       })
       await store.setPlanStep(task.id, 'verify', 'completed')
       await store.setPlanStep(task.id, 'deliver', 'running')
-      await destroy()
       await store.setPlanStep(task.id, 'deliver', 'completed')
       await store.appendEvent(task.id, {
         type: 'run_completed', lane: 'control', status: 'completed', label: 'ONEComputer sandbox task completed',
         content: `${paths.length} portable artifacts delivered with the sandbox lifecycle recorded in evidence.`,
-        payload: { sandboxId: sandbox.id, sandboxRetained: this.options.retainSandbox, gatewayEnforced: this.options.gatewayEnforced },
+        payload: { sandboxId: sandbox.id, leaseId: acquired.lease.id, leaseGeneration: acquired.lease.generation, sandboxRetained: true, gatewayEnforced: this.options.gatewayEnforced },
       })
       await store.updateTask(task.id, { status: 'completed' })
     } catch (error) {
       stopVisualLoop?.()
       await visualLoop?.catch(() => undefined)
-      await destroy().catch(() => undefined)
       throw error
     }
   }

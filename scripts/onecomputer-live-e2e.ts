@@ -12,7 +12,7 @@ const mode = process.env.ONEVIBE_E2E_MODE === 'website' ? 'website' : 'slides'
 type Snapshot = {
   id: string
   status: string
-  securityContext?: { executionBoundary?: string; gatewayEnforced?: boolean; sandboxState?: string }
+  securityContext?: { executionBoundary?: string; gatewayEnforced?: boolean; sandboxId?: string; sandboxState?: string }
   events: Array<{ type: string; label?: string; payload: Record<string, unknown> }>
 }
 
@@ -65,7 +65,8 @@ const main = async () => {
   if (task.status !== 'completed') throw new Error(`ONEComputer task ${task.id} ended ${task.status}`)
   if (task.securityContext?.executionBoundary !== 'onecomputer_sandbox') throw new Error('Task did not record the ONEComputer sandbox execution boundary')
   if (requireGateway && task.securityContext?.gatewayEnforced !== true) throw new Error('Gateway attestation was required but not recorded')
-  if (task.securityContext?.sandboxState !== 'destroyed') throw new Error(`Expected ephemeral sandbox destruction, found ${task.securityContext?.sandboxState ?? 'unknown'}`)
+  if (task.securityContext?.sandboxState !== 'started' || !task.securityContext.sandboxId) throw new Error(`Expected a retained started sandbox, found ${task.securityContext?.sandboxState ?? 'unknown'}`)
+  const firstSandboxId = task.securityContext.sandboxId
   if (!task.events.some((event) => event.label === 'ONEComputer sandbox ready')) throw new Error('Sandbox readiness event missing')
   if (requireVisual && !task.events.some((event) => event.payload.kind === 'visual_frame')) throw new Error('Required X11 visual evidence missing')
   if (mode === 'slides') {
@@ -78,7 +79,40 @@ const main = async () => {
   }
   const evidence = await request<{ valid: boolean }>(`/api/tasks/${encodeURIComponent(task.id)}/evidence`)
   if (!evidence.valid) throw new Error('Evidence chain verification failed')
-  console.log(JSON.stringify({ taskId: task.id, status: task.status, mode, gatewayEnforced: task.securityContext?.gatewayEnforced === true, visualEvidence: task.events.filter((event) => event.payload.kind === 'visual_frame').length, evidenceValid: evidence.valid }, null, 2))
+
+  await request(`/api/tasks/${encodeURIComponent(task.id)}/messages`, {
+    method: 'POST', body: JSON.stringify({ prompt: 'Confirm the existing workspace and deck remain available. Make one concise improvement to README.md without replacing the deck.' }),
+  })
+  const continued = await waitForTerminalSnapshot(task.id)
+  if (continued.status !== 'completed') throw new Error(`ONEComputer continuation ${task.id} ended ${continued.status}`)
+  if (continued.securityContext?.sandboxId !== firstSandboxId) throw new Error('Conversation follow-up did not reuse its original sandbox')
+  if (!continued.events.some((event) => event.label === 'ONEComputer retained sandbox resumed')) throw new Error('Retained-sandbox continuation evidence missing')
+
+  const separate = await request<{ id: string }>('/api/tasks', {
+    method: 'POST',
+    body: JSON.stringify({
+      prompt: 'Create a concise README.md stating that this is a separate governed conversation. Do not publish or call external services.',
+      provider: 'onecomputer', mode: 'general', projectId: 'project_onevibe', references: [], attachments: [], skills: ['security_review'],
+    }),
+  })
+  const separateTask = await waitForTerminalSnapshot(separate.id)
+  if (separateTask.status !== 'completed') throw new Error(`Separate ONEComputer task ${separate.id} ended ${separateTask.status}`)
+  const secondSandboxId = separateTask.securityContext?.sandboxId
+  if (!secondSandboxId || secondSandboxId === firstSandboxId) throw new Error('Different conversations did not receive distinct sandbox identities')
+
+  const firstRelease = await request<{ status: string }>(`/api/tasks/${encodeURIComponent(task.id)}/sandbox/release`, { method: 'POST' })
+  const secondRelease = await request<{ status: string }>(`/api/tasks/${encodeURIComponent(separate.id)}/sandbox/release`, { method: 'POST' })
+  if (firstRelease.status !== 'released' || secondRelease.status !== 'released') throw new Error('Explicit sandbox cleanup did not release both conversation leases')
+
+  console.log(JSON.stringify({
+    taskId: task.id, separateTaskId: separate.id, status: continued.status, mode,
+    firstSandboxId, continuationSandboxId: continued.securityContext?.sandboxId, secondSandboxId,
+    sameConversationReused: continued.securityContext?.sandboxId === firstSandboxId,
+    conversationsIsolated: secondSandboxId !== firstSandboxId,
+    gatewayEnforced: task.securityContext?.gatewayEnforced === true,
+    visualEvidence: continued.events.filter((event) => event.payload.kind === 'visual_frame').length,
+    evidenceValid: evidence.valid, cleanup: [firstRelease.status, secondRelease.status],
+  }, null, 2))
 }
 
 main().catch((error: unknown) => {

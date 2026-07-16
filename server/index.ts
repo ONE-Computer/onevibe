@@ -6,6 +6,7 @@ import { DemoRuntimeAdapter } from './demo-runner.js'
 import { ClaudeSdkRuntimeAdapter } from './claude-sdk-runner.js'
 import { OneComputerClient } from './onecomputer-client.js'
 import { OneComputerSandboxRuntimeAdapter } from './onecomputer-sandbox-runner.js'
+import { RuntimeLeaseService } from './runtime-lease-service.js'
 import { skillPackManifestFor } from './skill-packs.js'
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
@@ -365,6 +366,21 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       if (!controller) return json(response, 409, { error: 'Task execution is not active' })
       controller.abort()
       return json(response, 202, { status: 'cancelling' })
+    }
+    if (request.method === 'POST' && segments[3] === 'sandbox' && segments[4] === 'release') {
+      if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before releasing its conversation sandbox' })
+      if (!ONECOMPUTER_API_URL || !ONECOMPUTER_SERVICE_TOKEN) return json(response, 503, { error: 'ONEComputer is not configured' })
+      const client = new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL, serviceToken: ONECOMPUTER_SERVICE_TOKEN, projectId: ONECOMPUTER_PROJECT_ID })
+      const lease = await new RuntimeLeaseService(store, client).release(taskId)
+      if (!lease) return json(response, 200, { status: 'not_allocated' })
+      const task = store.getTask(taskId)
+      await store.updateTask(taskId, { securityContext: { ...task.securityContext!, sandboxState: 'destroyed', destroyedAt: lease.releasedAt ?? undefined } })
+      await store.appendEvent(taskId, {
+        type: 'activity_delta', lane: 'control', label: 'Conversation sandbox released',
+        content: 'The retained ONEComputer development sandbox was explicitly released. A future turn will receive a new fenced generation.',
+        payload: { sandboxId: lease.providerSandboxId, leaseId: lease.id, leaseGeneration: lease.generation, lifecycle: 'released' },
+      })
+      return json(response, 200, { status: 'released', leaseId: lease.id, generation: lease.generation })
     }
     if (request.method === 'PATCH' && segments[3] === 'project') {
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before moving it to another project' })

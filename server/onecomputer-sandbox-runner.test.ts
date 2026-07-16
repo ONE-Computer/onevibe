@@ -48,7 +48,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     })
   })
 
-  it('executes Claude in the sandbox, extracts bounded artifacts, and destroys the boundary', async () => {
+  it('executes Claude in a conversation-owned sandbox and retains the boundary', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-'))
     roots.push(root)
     const { TaskStore } = await import('./store.js')
@@ -99,7 +99,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.some((command) => command.includes('claude --print'))).toBe(true)
     expect(commands.some((command) => command.includes('--output-format stream-json --verbose'))).toBe(true)
     expect(commands.some((command) => command.includes('mcp__playwright__browser_navigate'))).toBe(true)
-    expect(client.deleteSandbox).toHaveBeenCalledWith('sandbox-1')
+    expect(client.deleteSandbox).not.toHaveBeenCalled()
     expect(store.listEvents(task.id).filter((event) => event.label === 'ONEComputer sandbox state observed').map((event) => event.payload.state)).toEqual(['creating', 'started'])
     expect(client.startVisualRuntime).toHaveBeenCalledWith('sandbox-1', expect.any(AbortSignal))
     expect(client.getVisualScreenshot).toHaveBeenCalledTimes(7)
@@ -116,7 +116,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-1')
     expect(store.getTask(task.id).plan[0]?.title).toBe('Frame the launch outcome')
     expect(store.listEvents(task.id).some((event) => event.label === 'Task plan refined by runtime' && event.payload.source === 'onecomputer')).toBe(true)
-    expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'destroyed', gatewayEnforced: true })
+    expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'started', gatewayEnforced: true })
+    expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-1', generation: 1 })
     expect(store.listEvents(task.id).some((event) => event.label === 'Governed browser automation ready')).toBe(true)
     expect(commands.some((command) => command.includes('onevibe-browser-review.png'))).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.label === 'Sandbox browser review observed' && event.payload.generatedArtifactPreview === true)).toBe(true)
@@ -127,7 +128,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
-  it('deletes the known provider sandbox when cancellation occurs during provisioning', async () => {
+  it('retains the known conversation sandbox when cancellation occurs during provisioning', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-cancel-provisioning-'))
     roots.push(root)
     const { TaskStore } = await import('./store.js')
@@ -151,9 +152,9 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     controller.abort()
 
     await expect(run).rejects.toMatchObject({ name: 'AbortError' })
-    expect(client.deleteSandbox).toHaveBeenCalledWith('sandbox-provisioning')
-    expect(store.getTask(task.id).securityContext).toMatchObject({ sandboxId: 'sandbox-provisioning', sandboxState: 'destroyed' })
-    expect(store.listEvents(task.id).some((event) => event.label === 'Ephemeral sandbox destroyed')).toBe(true)
+    expect(client.deleteSandbox).not.toHaveBeenCalled()
+    expect(store.getTask(task.id).securityContext).toMatchObject({ sandboxId: 'sandbox-provisioning', sandboxState: 'provisioning' })
+    expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-provisioning' })
   })
 
   it('reuses an explicitly retained sandbox for a continuation', async () => {

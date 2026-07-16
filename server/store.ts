@@ -5,7 +5,7 @@ import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
 import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
-import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, type MessageRecord, type UnitOfWork } from './persistence/index.js'
+import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, type MessageRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type UnitOfWork } from './persistence/index.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -197,6 +197,26 @@ export class TaskStore {
 
   listTasks() {
     return [...this.tasks.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  findActiveRuntimeLease(conversationId: string) {
+    this.getTask(conversationId)
+    return this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.findActiveByConversation(conversationId))
+  }
+
+  listRuntimeLeases(conversationId: string) {
+    this.getTask(conversationId)
+    return this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.listByConversation(conversationId))
+  }
+
+  insertRuntimeLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number) {
+    this.getTask(record.conversationId)
+    this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.insert(record, expectedPreviousGeneration))
+  }
+
+  transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord) {
+    this.getTask(next.conversationId)
+    this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.transition(id, expected, next))
   }
 
   async listLibrary() {
