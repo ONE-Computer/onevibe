@@ -258,7 +258,7 @@ export default function App() {
             </motion.section>
           ) : (
             <motion.section key="task" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`task-view ${mobileInspectorOpen ? 'mobile-inspector-open' : ''}`}>
-              {!snapshot ? <div className="loading-state"><span className="loader" /> Loading governed workspace…</div> : (
+              {!snapshot ? <div className="loading-state"><span className="loader" /> Loading task…</div> : (
                 <>
                   <div className="conversation-pane">
                     <div className="conversation-header">

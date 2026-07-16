@@ -8,7 +8,7 @@ type Props = { compact?: boolean; busy?: boolean; queueable?: boolean; skills?: 
 
 const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: typeof Bot }> = [
   { id: 'chat', label: 'Chat', detail: 'Questions and conversation', icon: Bot },
-  { id: 'general', label: 'Agent', detail: 'Flexible governed task', icon: Bot },
+  { id: 'general', label: 'Agent', detail: 'Flexible task with evidence', icon: Bot },
   { id: 'website', label: 'Website', detail: 'Responsive site and preview', icon: Globe2 },
   { id: 'slides', label: 'Slides', detail: 'Deck, notes, and PPTX', icon: Presentation },
   { id: 'document', label: 'Document', detail: 'Brief, report, or memo', icon: FileText },

@@ -1,5 +1,43 @@
 # Implementation log
 
+## 2026-07-16 — five-phase assistants-ui polish overhaul
+
+Executed the outstanding P0/P1 items in
+`docs/ONEVIBE-ASSISTANTS-UI-UX-OVERHAUL.md` in five bounded commits
+against `main`. Each commit is independently green under
+`npm run lint` + `npm run test` (207/207) and each was screenshotted at
+1440x900 (welcome). Full acceptance matrix (desktop + mobile for
+welcome, skills, library, computers, schedules) stored in
+`docs/evidence/2026-07-16-ux-overhaul/`.
+
+- **Phase 1 — mono purge:** 66 `'IBM Plex Mono'` declarations in
+  `src/index.css` and 2 in `src/timeline.css` replaced with the same
+  Inter / system sans-serif stack. Removed the last visible
+  typography-contract violation from the P1 workstream.
+  `.claude/launch.json` is now gitignored.
+- **Phase 2 — home density:** dropped the composer's nested
+  three-card template gallery, the "Before you delegate" accordion,
+  the home-badge, and the assurance-bullet strip. Hero clamps
+  88px → 64px so the composer sits above the fold. Unused template
+  arrays removed.
+- **Phase 3 — message polish:** removed the "ONEVibe" sender label
+  from every assistant turn; renamed tool-call fallback "Governed
+  runtime" → "Secure runtime"; bumped tool-call and artifact-card
+  typography (11→12/10.5/11.5/10, 10→12/10.5/10); working trace
+  collapses to "Review working trace (N steps)" post-completion.
+- **Phase 4 — sidebar hierarchy:** relocated the "OpenVTC protected"
+  card from the sidebar footer to a compact topbar trust-chip;
+  bumped conversation-row and section-label sizing so the list reads
+  as content, not chrome.
+- **Phase 5 — copy audit:** removed "governed" only where cosmetic
+  ("Loading governed workspace…" → "Loading task…", composer aria
+  label, mode-picker detail, workspace placeholder). "Governed" is
+  preserved wherever it references the durable evidence ledger.
+
+Follow-ups still open (unchanged from the previous entry): active-task
+screenshot on a live provider run, exact-width visual-regression
+baseline harness in CI.
+
 ## 2026-07-16 — mobile Computer inspector handoff
 
 - Added an explicit mobile inspector handoff: at widths below 960px the conversation remains the primary screen, `View computer` opens the full-height Computer inspector, and `Back to conversation` returns without rendering two compressed panes at once.

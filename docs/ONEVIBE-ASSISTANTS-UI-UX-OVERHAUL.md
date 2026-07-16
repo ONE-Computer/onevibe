@@ -186,6 +186,74 @@ Implemented in the local ONEVibe app:
 
 Verification: `npm run check` passed with 37 test files / 207 tests, production build, and E2E harness typecheck. Browser verification used persisted task `task_f8d51a10de4f4d`; the completed trace is collapsed by default, the real artifact cards remain visible, and the Computer handoff toggles the two surfaces without changing backend state. The live Claude gate later passed chat SSE, restart recovery, Markdown plus Bash evidence, and failure/retry recovery; the limitation remains host-process local proof only.
 
+## 2026-07-16 — five-phase polish pass
+
+A second same-day pass closed the remaining P0/P1 items visible in the
+browser acceptance matrix. Each phase is one commit against `main`
+with `npm run lint` + `npm run test 207/207` green.
+
+### Phase 1 — remove IBM Plex Mono / monospace declarations
+
+`src/index.css` (66 hits) and `src/timeline.css` (2 hits) still carried
+`'IBM Plex Mono'`, `ui-monospace`, and other mono declarations for
+uppercase kickers, section labels, evidence IDs, kbd shortcuts,
+timeline anchors, workspace metadata, and notification counters. All
+now resolve to the same Inter / system sans-serif stack used
+elsewhere, closing the visible typography-contract violation from the
+P1 sans-serif system workstream. `.claude/launch.json` is now
+gitignored so the local preview harness does not enter the tree.
+
+### Phase 2 — home / empty-state density
+
+The composer no longer wraps a nested three-card template gallery, the
+"Before you delegate" safety accordion no longer sits inside the
+composer body, and the home-badge plus three-bullet assurance strip
+below the starter prompts are gone. The hero clamps from 88px → 64px
+so the composer stays above the fold at 1440x900. Copy trimmed:
+"Give your team a capable cloud agent…" → "A capable cloud agent…".
+Unused `starterTemplates` / `slideTemplates` / `chatTemplates`
+constants removed with the gallery.
+
+### Phase 3 — assistant message + tool-call polish
+
+- Drop the "ONEVibe" sender label from every assistant turn; header
+  now shows a quiet timestamp plus a Live badge while running.
+- Rename the tool-call fallback string from "Governed runtime" to
+  "Secure runtime" (cosmetic subtitle; "Governed" preserved for real
+  evidence badges, approval labels, and durable ledger references).
+- Bump tool-call typography: strong 11→12px 600, small 9→10.5px, body
+  10→11.5px, timing chip 9→10px. Bump artifact-card: strong 10→12px
+  600, small 8→10.5px, evidence eyebrow 7→10px (drop uppercase).
+- Working trace collapses to "Review working trace (N steps)" once
+  the turn completes; live traces still open automatically.
+
+### Phase 4 — sidebar hierarchy + OpenVTC relocation
+
+The "OpenVTC protected · External approvals enabled" card previously
+occupied prime footer real estate in the sidebar at the same weight
+as the primary user affordance. Moved to a compact "OpenVTC"
+trust-chip in the topbar-right that collapses to icon-only under
+720px. Conversation-row titles 11→12px, subtitles 9→10px, section
+labels 10→10.5px so the sidebar reads as content, not chrome.
+
+### Phase 5 — copy audit + acceptance evidence
+
+Surgical copy audit: "governed" retained wherever it reflects real
+enforcement (Library "Open governed task" opens the durable evidence
+trail; notification "Review the governed task evidence" points at the
+same ledger). Removed where cosmetic:
+- `Loading governed workspace…` → `Loading task…`
+- composer aria-label `Continue this governed task` → `Continue this task`
+- mode picker `Flexible governed task` → `Flexible task with evidence`
+- workspace placeholder `The governed workspace is materializing.` →
+  `Building the task workspace.`
+
+Acceptance screenshots at 1440x900 and 390x844 for welcome, skills,
+library, computers, and schedules are stored in
+`docs/evidence/2026-07-16-ux-overhaul/`. Follow-up: exact-width
+visual-regression baselines and an active-task screenshot on a live
+provider run — the same open items called out in the previous pass.
+
 ## 2026-07-16 — Claude/Perplexity reference alignment
 
 The reference examples exposed two remaining gaps in the first pass: the thread was still a bespoke scroll/footer shell, and assistant responses were plain paragraphs rather than Markdown. The current slice now follows the high-value assistant-ui patterns without importing fake state:
