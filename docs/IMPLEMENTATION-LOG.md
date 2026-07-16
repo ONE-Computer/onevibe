@@ -100,3 +100,12 @@
 - Serialized periodic and tool-adjacent X11 captures inside each task so ffmpeg never races itself, and drain the capture queue before terminal bookkeeping. Screenshot readiness now follows successful display initialization; browser/CDP readiness remains a separate automation capability.
 - Removed a timing-dependent X11 geometry pipeline failure: the provider no longer exits its `awk` reader early under `pipefail`. A deployed fresh-sandbox probe returned two consecutive valid PNG captures and clean teardown.
 - Added repeatable restart/residue and cancellation harnesses. A real API restart preserved transcript/evidence digests with a valid chain and zero credential detectors; a real allocated provider sandbox was cancelled, recorded, explicitly released, and verified destroyed.
+
+# 2026-07-16 — assistant-ui external transcript slice
+
+- Added `@assistant-ui/react` through a lazy-loaded conversation thread.
+- Projected the authoritative `TaskSnapshot.messages` collection through `useExternalStoreRuntime`; the existing API/SSE/SQLite path still owns reads, writes, queueing, and recovery.
+- Routed composer submissions through the existing continuation callback and preserved durable task, turn, provider, message, and status metadata.
+- Removed transcript events from `TaskTimeline`, leaving that surface focused on plan, sandbox, tool, evidence, and artifact operations.
+- Preserved ONEComputer light/dark styling and the bespoke evidence/artifact rail.
+- Added conversion tests and browser-checked the persisted transcript/composer. The assistant-ui bundle is split from the initial application chunk.

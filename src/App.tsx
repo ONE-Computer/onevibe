@@ -1,6 +1,6 @@
 import { Bell, ChevronDown, CodeXml, Link2, Menu, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { PromptComposer } from './components/PromptComposer'
 import { Sidebar } from './components/Sidebar'
 import { TaskPlan } from './components/TaskPlan'
@@ -22,6 +22,7 @@ const starterPrompts = [
   'Research a market and produce an evidence-backed report',
   'Create an internal tool with a governed approval flow',
 ]
+const AssistantThread = lazy(() => import('./components/AssistantThread').then((module) => ({ default: module.AssistantThread })))
 const canStopTask = (status: Task['status']) => status === 'running' || status === 'pending' || status === 'waiting_for_user_input' || status === 'waiting_for_approval'
 type AppView = 'agent' | 'schedules' | 'skills' | 'library' | 'computers'
 const viewFromLocation = (): AppView => {
@@ -198,10 +199,10 @@ export default function App() {
                       <div className="run-controls"><span className={`status-badge ${snapshot.status}`}>{snapshot.status.replaceAll('_', ' ')}</span>{(snapshot.status === 'failed' || snapshot.status === 'cancelled') && <button className="cancel-button" onClick={() => void continueTask('Retry this task using the existing workspace. First inspect the prior evidence and address the failed or cancelled step before continuing.')}><RotateCcw size={10} /> Retry</button>}{canStopTask(snapshot.status) && <button className="cancel-button" onClick={() => void cancelTask(snapshot.id)}><Square size={10} /> Stop</button>}</div>
                     </div>
                     {error && <div className="stream-warning">{error}</div>}
+                    <Suspense fallback={<div className="aui-thread-loading">Loading durable conversation…</div>}><AssistantThread task={snapshot} busy={creating || Boolean(snapshot.inputRequest)} onSubmit={continueTask} /></Suspense>
                     <TaskTimeline task={snapshot} events={snapshot.events} />
                     <TaskPlan plan={snapshot.plan} />
                     {snapshot.queuedGuidance.length > 0 && <section className="guidance-queue"><header><div><ShieldCheck size={13} /><strong>Queued guidance</strong></div><span>Applies after this provider turn</span></header>{snapshot.queuedGuidance.map((guidance, index) => <article key={guidance.id}><div><span>Next {index + 1}</span><p>{guidance.prompt}</p></div><button type="button" onClick={() => void retractQueuedGuidance(snapshot.id, guidance.id)} aria-label={`Remove queued guidance ${index + 1}`} title="Remove before it reaches the provider"><X size={13} /></button></article>)}<footer>Removing a message keeps only cancellation metadata in the evidence ledger.</footer></section>}
-                    <PromptComposer compact busy={creating || Boolean(snapshot.inputRequest)} queueable={snapshot.status === 'running' || snapshot.status === 'pending'} runtime={runtime} onSubmit={(prompt) => continueTask(prompt)} />
                   </div>
                   <div className="workspace-pane"><Workspace task={snapshot} projects={projects} onMoveProject={moveTaskProject} onUpdateTags={setTaskTags} /></div>
                 </>
