@@ -166,3 +166,20 @@ The real-provider cancellation harness allocated sandbox `onevibe-32279349` for 
 - An authenticated provider reconciliation after the harness returned zero sandbox rows. One stale sandbox from an interrupted earlier run was found outside the temporary ONEVibe data directory and removed through the authenticated `DELETE` route with HTTP 204; the final provider list was then empty.
 - Two harness/runtime hardening fixes were required: SSE reader cancellation is now non-blocking with a bounded per-read deadline, and sandbox extraction filters ephemeral `.claude/`, `.claude-state/`, and `.onevibe-*` paths before fetching files. Focused sandbox/artifact tests passed (7 tests); `npm run check:e2e-harness` passed.
 - Boundary: `gatewayEnforced=false` and provider `kasm-local` remain explicit. This closes the development-provider conversation/SSE/visual/PPTX POC, not production microVM attestation, default-deny egress, short-lived secret injection, API restart/failure-injection acceptance, or OpenVTC approval enforcement.
+
+# 2026-07-16 — controlled allocation recovery slice (source-level)
+
+- ONEComputer provider commit `6323e88` adds a deliberately opt-in,
+  non-production-only response-failure hook. With both test flags enabled, the
+  first allocation persists its sandbox and completed receipt, starts
+  asynchronous bootstrap, then returns one generic 504. It is disabled when
+  `NODE_ENV=production` and reflects no provider diagnostics.
+- ONEVibe commit `fd2b060` records the durable lease as `sandboxState=unknown`,
+  emits a bounded immutable-identity recovery event, and adds
+  `npm run e2e:onecomputer-recovery`. The harness expects the first turn to
+  fail, a follow-up to reconcile the exact allocation identity without a
+  duplicate create, completion in the recovered sandbox, and explicit release.
+- Provider route tests (4/4), API typecheck/lint, and the full ONEVibe check
+  (33 test files / 174 tests, build, and harness typecheck) pass. The live
+  Azure recovery run remains open until the hook is deployed temporarily in a
+  development environment, the harness passes, and both flags are removed.

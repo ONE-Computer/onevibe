@@ -122,3 +122,27 @@ The authenticated combined harness passed against the deployed Azure provider wi
 - Cleanup: both conversation leases returned `released`; authenticated provider reconciliation returned zero sandbox rows.
 
 This is a development-provider POC result. `gatewayEnforced=false`, the provider is Kasm, and the run does not close production microVM attestation, default-deny egress, short-lived credential injection, API-restart/failure-injection acceptance, or OpenVTC approval enforcement.
+
+## Controlled allocation-recovery harness — 2026-07-16 (source-level, not live evidence)
+
+The source-level recovery slice is committed and pushed:
+
+- ONEComputer provider: `6323e88` on `codex/sandbox-attestation-guard`.
+- ONEVibe: `fd2b060` on `main`.
+
+The development provider has an explicitly opt-in, non-production-only hook:
+`ONECOMPUTER_TEST_MODE=1` plus
+`ONECOMPUTER_TEST_INJECT_ALLOCATION_RESPONSE_FAILURE_ONCE=1`. It persists the
+allocation and completed receipt, starts asynchronous bootstrap, then returns
+one generic HTTP 504 without reflecting provider diagnostics. ONEVibe records
+the durable lease as `sandboxState=unknown`, emits an immutable recovery event,
+and refuses duplicate allocation. The follow-up harness
+(`npm run e2e:onecomputer-recovery`) then reconciles only by the exact
+operation/idempotency identity and releases the recovered sandbox.
+
+Provider route tests (4/4), API typecheck, API lint, and the full ONEVibe check
+(33 test files / 174 tests, build, and E2E harness typecheck) pass. This is not
+yet live Azure evidence: the provider hook must be deployed temporarily in a
+development environment, the recovery harness must pass against the real
+authenticated provider, and both test flags must be removed before any
+production deployment.
