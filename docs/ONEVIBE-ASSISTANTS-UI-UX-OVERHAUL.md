@@ -12,6 +12,8 @@ The visible typography contract is now enforced at the product surface: body, co
 
 The assistant message now uses `MessagePrimitive.GroupedParts` for adjacent tool calls. The thread presents a collapsible operational group, while the Computer inspector remains the detailed command/result and artifact surface.
 
+On mobile, the inspector is now an explicit handoff rather than a permanently compressed second column: `View computer` opens the full-height evidence surface and `Back to conversation` restores the thread. Exact-width screenshot automation remains open.
+
 ## North star
 
 ONEVibe should feel like a calm, premium agent workspace: one obvious place to talk, one durable conversation history, one clear execution narrative, and one contextual artifact/computer inspector. The interface should feel closer to a high-quality AI product than an operations console.

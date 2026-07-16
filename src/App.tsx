@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, CodeXml, Link2, Menu, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
+import { Bell, ChevronDown, CodeXml, Link2, Menu, Monitor, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { PromptComposer } from './components/PromptComposer'
@@ -59,6 +59,7 @@ export default function App() {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 960px)').matches)
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { snapshot, connected, error, refresh: refreshSnapshot } = useTask(activeTaskId)
 
@@ -134,11 +135,13 @@ export default function App() {
   const navigateToTask = (taskId: string | null) => {
     setView('agent')
     setActiveTaskId(taskId)
+    setMobileInspectorOpen(false)
     window.history.pushState({}, '', taskId ? `/tasks/${taskId}` : '/')
     if (window.matchMedia('(max-width: 960px)').matches) setSidebarOpen(false)
   }
   const navigateToView = (nextView: Exclude<AppView, 'agent'>) => {
     setActiveTaskId(null)
+    setMobileInspectorOpen(false)
     setView(nextView)
     window.history.pushState({}, '', `/?view=${nextView}`)
     if (window.matchMedia('(max-width: 960px)').matches) setSidebarOpen(false)
@@ -251,20 +254,20 @@ export default function App() {
               </div>
             </motion.section>
           ) : (
-            <motion.section key="task" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="task-view">
+            <motion.section key="task" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`task-view ${mobileInspectorOpen ? 'mobile-inspector-open' : ''}`}>
               {!snapshot ? <div className="loading-state"><span className="loader" /> Loading governed workspace…</div> : (
                 <>
                   <div className="conversation-pane">
                     <div className="conversation-header">
                       <div><span className="task-kicker">{projects.find((project) => project.id === snapshot.projectId)?.name ?? 'Project workspace'} · {snapshot.mode === 'chat' ? 'Conversation' : snapshot.provider === 'demo' ? 'Simulation · no model call' : snapshot.provider === 'claude_sdk' ? 'Claude Agent SDK' : snapshot.provider === 'onecomputer' ? 'ONEComputer sandbox' : 'AgentCore runtime'}</span><h2>{snapshot.title}</h2>{(snapshot.skills.length > 0 || snapshot.queuedGuidance.length > 0 || snapshot.references.length > 0 || snapshot.attachments.length > 0) && <div className="task-configuration">{snapshot.skills.map((skill) => <span key={skill}><Sparkles size={10} /> {skill.replaceAll('_', ' ')}</span>)}{snapshot.references.length > 0 && <span title="User-supplied website references are untrusted context"><Link2 size={10} /> {snapshot.references.length} reference{snapshot.references.length === 1 ? '' : 's'}</span>}{snapshot.attachments.length > 0 && <span title="Local attachments are staged as untrusted task input"><Paperclip size={10} /> {snapshot.attachments.length} file{snapshot.attachments.length === 1 ? '' : 's'}</span>}{snapshot.queuedGuidance.length > 0 && <span className="queued-guidance"><ShieldCheck size={10} /> {snapshot.queuedGuidance.length} guidance queued</span>}</div>}</div>
-                      <div className="run-controls"><span className={`status-badge ${snapshot.status}`}>{snapshot.status.replaceAll('_', ' ')}</span>{(snapshot.status === 'failed' || snapshot.status === 'cancelled') && <button className="cancel-button" onClick={() => void retryCurrentTask(snapshot.id)}><RotateCcw size={10} /> Retry</button>}{canStopTask(snapshot.status) && <button className="cancel-button" onClick={() => void cancelTask(snapshot.id)}><Square size={10} /> Stop</button>}</div>
+                      <div className="run-controls"><button type="button" className="mobile-inspector-toggle" onClick={() => setMobileInspectorOpen(true)}><Monitor size={12} /> View computer</button><span className={`status-badge ${snapshot.status}`}>{snapshot.status.replaceAll('_', ' ')}</span>{(snapshot.status === 'failed' || snapshot.status === 'cancelled') && <button className="cancel-button" onClick={() => void retryCurrentTask(snapshot.id)}><RotateCcw size={10} /> Retry</button>}{canStopTask(snapshot.status) && <button className="cancel-button" onClick={() => void cancelTask(snapshot.id)}><Square size={10} /> Stop</button>}</div>
                     </div>
                     {error && <div className="stream-warning">{error}</div>}
                     <Suspense fallback={<div className="aui-thread-loading">Loading durable conversation…</div>}><AssistantThread task={snapshot} busy={creating || Boolean(snapshot.inputRequest)} onSubmit={continueTask} /></Suspense>
                     <TaskTimeline task={snapshot} events={snapshot.events} />
                     {snapshot.queuedGuidance.length > 0 && <section className="guidance-queue"><header><div><ShieldCheck size={13} /><strong>Queued guidance</strong></div><span>Applies after this provider turn</span></header>{snapshot.queuedGuidance.map((guidance, index) => <article key={guidance.id}><div><span>Next {index + 1}</span><p>{guidance.prompt}</p></div><button type="button" onClick={() => void retractQueuedGuidance(snapshot.id, guidance.id)} aria-label={`Remove queued guidance ${index + 1}`} title="Remove before it reaches the provider"><X size={13} /></button></article>)}<footer>Removing a message keeps only cancellation metadata in the evidence ledger.</footer></section>}
                   </div>
-                  <div className="workspace-pane"><Workspace task={snapshot} projects={projects} onMoveProject={moveTaskProject} onUpdateTags={setTaskTags} /></div>
+                  <div className="workspace-pane"><div className="mobile-inspector-bar"><span><Monitor size={13} /> Computer inspector</span><button type="button" onClick={() => setMobileInspectorOpen(false)}>Back to conversation</button></div><Workspace task={snapshot} projects={projects} onMoveProject={moveTaskProject} onUpdateTags={setTaskTags} /></div>
                 </>
               )}
             </motion.section>

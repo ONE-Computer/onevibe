@@ -79,6 +79,7 @@ The UI program is no longer blocked on the completed truthfulness P0s, but must 
 - Commit `5002bb1` added `npm run e2e:chat`, which passed in an isolated temporary API/data root with real chat SSE, two-turn persistence, demo disclosure, Markdown generation, bounded Bash terminal evidence, replay, and restart recovery. The run recorded 8 live frames, 36 replay frames, 2 chat turns, 2 Bash calls, and a valid evidence chain.
 - Commit `b30da27` closed a browser-found presentation defect: internal `.claude/skills` files no longer inflate portable artifact counts, provider thinking-token telemetry is not rendered as reasoning, and deterministic history entries are visibly labelled `Simulation · no model call`.
 - Post-fix live rerun: `task_4ec98deee76e41` / `task_a01f60f606c349` / `task_9ea262fa183949` passed with 23 live SSE frames, 46 replay frames, two chat turns, one bounded Bash call, valid evidence, and restart recovery.
+- The mobile inspector handoff is now implemented and browser-checked: `View computer` switches to a full-height Computer surface and `Back to conversation` restores the thread without horizontal overflow. Exact 390px/tablet screenshot automation remains open.
 - The focused local gate is green: `npm run check` (lint, 37 files / 207 tests, production build, and all E2E harness typechecks). Boundary: host-process local proof only; no microVM/ONEComputer/OpenVTC/production egress claim.
 
 ### Latest development-provider POC evidence

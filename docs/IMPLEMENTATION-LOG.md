@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-16 — mobile Computer inspector handoff
+
+- Added an explicit mobile inspector handoff: at widths below 960px the conversation remains the primary screen, `View computer` opens the full-height Computer inspector, and `Back to conversation` returns without rendering two compressed panes at once.
+- Browser acceptance at the available 390px-class viewport (effective CSS width 487px in the in-app browser) passed both directions: opening set `.task-view.mobile-inspector-open`, hid the conversation, showed the inspector bar, and kept `scrollWidth === clientWidth`; closing restored the conversation and hid the workspace. No console errors or warnings were recorded.
+- Desktop behavior is unchanged: conversation and Computer inspector remain side-by-side. The visual regression suite still needs a stable CI screenshot harness across exact 390px/tablet/desktop dimensions.
+
 ## 2026-07-16 — assistant-ui grouped tool disclosure
 
 - Replaced the flat assistant message part renderer with `MessagePrimitive.GroupedParts` and `groupPartByType`, grouping adjacent tool calls under a collapsible `Tool activity` disclosure while retaining the same custom bounded tool card.
