@@ -110,8 +110,9 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.some((command) => command.includes('--output-format stream-json --verbose'))).toBe(true)
     expect(commands.some((command) => command.includes('export PATH=/opt/node22/bin:/home/kasm-user/.npm-global/bin:$PATH'))).toBe(true)
     const launchCommand = commands.find((command) => command.includes('claude --print'))!
-    expect(launchCommand.indexOf('onevibe_prompt="$(cat .onevibe-prompt)"')).toBeLessThan(launchCommand.indexOf('rm -f .onevibe-prompt'))
-    expect(launchCommand.indexOf('rm -f .onevibe-prompt')).toBeLessThan(launchCommand.indexOf('claude --print'))
+    expect(launchCommand).toContain('< .onevibe-prompt > .onevibe-events.jsonl')
+    expect(launchCommand.indexOf('claude --print')).toBeLessThan(launchCommand.indexOf('rm -f .onevibe-prompt'))
+    expect(launchCommand.indexOf('rm -f .onevibe-prompt')).toBeLessThan(launchCommand.indexOf('printf %s "$onevibe_exit_code"'))
     expect(commands.some((command) => command.includes("export ANTHROPIC_BASE_URL='http://sandbox-reachable-litellm:4100'"))).toBe(true)
     expect(commands.some((command) => command.includes("export ANTHROPIC_API_KEY='placeholder'"))).toBe(true)
     expect(commands.some((command) => command.includes("export ANTHROPIC_AUTH_TOKEN='test-sandbox-bearer-token'"))).toBe(true)

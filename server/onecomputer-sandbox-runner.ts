@@ -312,10 +312,10 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'rm -f .onevibe-events.jsonl .onevibe-exitcode .onevibe-pid',
         '(',
         '  set +e',
-        '  onevibe_prompt="$(cat .onevibe-prompt)"',
+        `  claude --print --output-format stream-json --verbose --model ${shellQuote(configuredClaude.model)} --permission-mode bypassPermissions --setting-sources project --allowedTools ${shellQuote(allowedTools.join(','))}${resumableSessionId ? ` --resume ${shellQuote(resumableSessionId)}` : ''} < .onevibe-prompt > .onevibe-events.jsonl 2>&1`,
+        '  onevibe_exit_code="$?"',
         '  rm -f .onevibe-prompt',
-        `  claude --print --output-format stream-json --verbose --model ${shellQuote(configuredClaude.model)} --permission-mode bypassPermissions --setting-sources project --allowedTools ${shellQuote(allowedTools.join(','))}${resumableSessionId ? ` --resume ${shellQuote(resumableSessionId)}` : ''} "$onevibe_prompt" > .onevibe-events.jsonl 2>&1`,
-        '  printf %s "$?" > .onevibe-exitcode',
+        '  printf %s "$onevibe_exit_code" > .onevibe-exitcode',
         ') < /dev/null > /dev/null 2>&1 &',
         'printf %s "$!" > .onevibe-pid',
       ].join('\n')
