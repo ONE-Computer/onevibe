@@ -823,7 +823,7 @@ baseline harness in CI.
 ## 2026-07-17 — skills E2E truthfulness and identifier fixes
 
 - Fixed the task skill schema to accept the repository’s stable built-in snake_case identifiers (`document`, `security_review`, and the other built-in packs) while preserving bounded marketplace IDs. The previous schema rejected valid built-in selections before execution.
-- Corrected `scripts/skills-e2e.ts` to distinguish truthful demo (`Skill packs recorded for simulation`, `not_executed_demo`) from provider (`Versioned skill packs selected`, `provider_turn_workspace`) evidence. The harness now inspects internal skill bytes only through a stopped local `TaskStore`; the public files route remains prohibited from exposing `.claude/skills`.
+- Corrected `scripts/skills-e2e.ts` to distinguish truthful demo (`Skill packs recorded for simulation`, `not_executed_demo`) from provider (`Versioned skill packs selected`, `adapter_owned`) evidence. The harness now inspects internal skill bytes only through a stopped local `TaskStore`; the public files route remains prohibited from exposing `.claude/skills`. The first protected relay run exposed and closed a stale harness expectation for `provider_turn_workspace`; the runtime contract was already intentionally `adapter_owned`.
 - Passing evidence: `npm run e2e:skills` (deterministic local-demo materialization, immutable manifest across restart, permission invariant, selected-only files), `npm run e2e:skill-marketplace` (loopback catalog install/remove), and `npm run check` (52 files / 259 tests). No protected Claude/LiteLLM materialization claim is made without configured relay evidence.
 
 ## 2026-07-17 — document and website local creation recheck
@@ -842,6 +842,12 @@ baseline harness in CI.
 - Applied all three reviewed Drizzle migrations to a disposable PostgreSQL 18 container and verified the migration ledger and expected application/auth table set before destroying the container. The migration emitted only PostgreSQL’s long-identifier truncation notice; it completed successfully.
 - Added a GitHub Actions `postgres-schema` job that starts PostgreSQL 18, runs `npm run db:migrate`, and validates the reviewed migration manifest with `npm run db:check`.
 - Boundary: this proves schema/migration compatibility only. The API still fails closed when `DATABASE_URL` would select Postgres because the TaskStore repository/runtime adapter, production import, and application idempotency switch remain open.
+
+## 2026-07-17 — protected Claude/LiteLLM skill materialization and SDK path compatibility
+
+- Fixed a real Claude SDK compatibility defect: native file tools can canonicalize a relative path against the parent Node process before `PreToolUse`, causing valid task-workspace `Read`/`Write` calls to appear outside the workspace. Added a bounded normalization path that remaps only process-cwd-relative canonical paths back into the task workspace and rejects all other paths; the normalized input is passed back to both `canUseTool` and `PreToolUse`.
+- Protected evidence through the host-only LiteLLM relay: `npm run e2e:skills` completed with `claudeProviderReady: true`, `materializationMode: claude_sdk`, selected `document` and `security_review` packs, immutable manifest across restart, selected-only internal files, permission invariant, valid evidence chain, no external writes, and no logged secrets. No ONEComputer/microVM isolation claim is made.
+- Corrected the provider harness expectation from the stale `provider_turn_workspace` value to the canonical `adapter_owned` contract. The first relay run exposed this mismatch; the runtime contract itself was already explicit and tested.
 
 ## 2026-07-17 — live GitHub skill catalog acceptance harness
 

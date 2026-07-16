@@ -35,9 +35,9 @@ const download = async (taskId: string, filePath: string) => {
   return new Uint8Array(await response.arrayBuffer())
 }
 
-const readTextFile = async (taskId: string, filePath: string) => {
-  const result = await request<{ content: string }>(`/api/tasks/${taskId}/file?path=${encodeURIComponent(filePath)}`)
-  return result.content
+const assertInternalFileHidden = async (taskId: string, filePath: string) => {
+  const response = await fetch(`${baseUrl}/api/tasks/${taskId}/file?path=${encodeURIComponent(filePath)}`)
+  if (response.status !== 404) throw new Error(`Internal runtime file ${filePath} must remain hidden from the public file route`)
 }
 
 const main = async () => {
@@ -58,10 +58,7 @@ const main = async () => {
   if (!materialized || materialized.payload.permissionChange !== false) throw new Error('Claude skill materialization evidence is missing or widened permissions')
   const materializedIds = Array.isArray(materialized.payload.skills) ? materialized.payload.skills.map((skill) => typeof skill === 'object' && skill !== null && 'id' in skill ? String(skill.id) : '') : []
   if (JSON.stringify(materializedIds) !== JSON.stringify(['slides', 'security_review'])) throw new Error('Claude materialization evidence did not match the selected skill set')
-  for (const skill of ['slides', 'security_review']) {
-    const content = await readTextFile(task.id, `.claude/skills/${skill}/SKILL.md`)
-    if (!content.includes(`name: ${skill}`)) throw new Error(`Materialized ${skill} pack is not readable in the task workspace`)
-  }
+  for (const skill of ['slides', 'security_review']) await assertInternalFileHidden(task.id, `.claude/skills/${skill}/SKILL.md`)
   const renderCall = task.events.find((event) => event.type === 'tool_call_started' && event.label === 'mcp__onevibe__render_slide_deck')
   if (!renderCall) throw new Error('Claude did not invoke the governed slide renderer')
   const [pptx, pdf, outline] = await Promise.all([
@@ -71,7 +68,7 @@ const main = async () => {
   if (String.fromCharCode(...pdf.subarray(0, 5)) !== '%PDF-') throw new Error('PDF export has an invalid signature')
   const slides = JSON.parse(outline.content) as unknown[]
   if (slides.length !== 8) throw new Error(`Expected eight structured slides, found ${slides.length}`)
-  const manifest = JSON.parse(await readTextFile(task.id, 'artifact-manifest.json')) as { outputs?: Array<{ path: string; size: number; sha256: string }> }
+  const manifest = JSON.parse((await request<{ content: string }>(`/api/tasks/${task.id}/file?path=artifact-manifest.json`)).content) as { outputs?: Array<{ path: string; size: number; sha256: string }> }
   const manifestOutputs = manifest.outputs ?? []
   for (const filePath of ['deck.pptx', 'deck.pdf', 'outline.json', 'speaker-notes.md']) {
     const entry = manifestOutputs.find((output) => output.path === filePath)

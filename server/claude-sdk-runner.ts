@@ -55,6 +55,42 @@ const safeBashCommand = (command: string) => {
 
 export const isSafeBashCommand = safeBashCommand
 
+/**
+ * Claude Code's native file tools can canonicalize a model-supplied relative
+ * path against the parent Node process before PreToolUse runs. That is not a
+ * reason to widen the workspace: map only a canonical path that is relative
+ * to this process back into the task workspace, and reject every other path.
+ */
+export const normalizeWorkspaceToolPath = (workspace: string, candidate: string): string | undefined => {
+  if (!candidate || candidate.length > 2_000 || candidate.includes('\0')) return undefined
+  const inside = (root: string, target: string) => {
+    const relative = path.relative(root, target)
+    return !relative.startsWith('..') && !path.isAbsolute(relative) ? relative || '.' : undefined
+  }
+  const direct = inside(workspace, path.resolve(workspace, candidate))
+  if (direct) return direct
+
+  // The SDK may turn `document.md` into `<process.cwd()>/document.md` before
+  // the hook sees it. Only remap paths beneath the known parent process cwd;
+  // the remapped target is still resolved and checked beneath `workspace`.
+  const canonical = path.resolve(candidate)
+  const processRelative = path.relative(process.cwd(), canonical)
+  if (processRelative.startsWith('..') || path.isAbsolute(processRelative)) return undefined
+  return inside(workspace, path.resolve(workspace, processRelative))
+}
+
+const normalizeWorkspaceToolInput = (workspace: string, input: Record<string, unknown>): Record<string, unknown> | undefined => {
+  let updated = input
+  for (const key of ['file_path', 'path']) {
+    const value = input[key]
+    if (typeof value !== 'string') continue
+    const normalized = normalizeWorkspaceToolPath(workspace, value)
+    if (!normalized) return undefined
+    if (normalized !== value) updated = { ...updated, [key]: normalized }
+  }
+  return updated
+}
+
 export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
   readonly name = 'claude_sdk'
   readonly providerId = 'claude_sdk' as const
@@ -166,15 +202,9 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
           return { behavior: 'deny', message: 'Only one bounded, workspace-relative local command is allowed; shell composition, network tools, credentials, and path escapes are denied.', interrupt: false }
         }
       }
-      const candidate = [input.file_path, input.path].find((value): value is string => typeof value === 'string')
-      if (candidate) {
-        const resolved = path.resolve(workspace, candidate)
-        const relative = path.relative(workspace, resolved)
-        if (relative.startsWith('..') || path.isAbsolute(relative)) {
-          return { behavior: 'deny', message: 'File access is outside the task workspace.', interrupt: true }
-        }
-      }
-      return { behavior: 'allow', updatedInput: input }
+      const normalizedInput = normalizeWorkspaceToolInput(workspace, input)
+      if (!normalizedInput) return { behavior: 'deny', message: 'File access is outside the task workspace.', interrupt: true }
+      return { behavior: 'allow', updatedInput: normalizedInput }
     }
     const preToolUse: HookCallback = async (input) => {
       if (input.hook_event_name !== 'PreToolUse') return { continue: true }
@@ -186,15 +216,9 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
       if (input.tool_name === 'Bash' && !safeBashCommand(typeof toolInput.command === 'string' ? toolInput.command : '')) {
         return { continue: true, hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `${message} Bash is limited to one workspace-relative local command without shell composition, network access, credentials, or path escapes.` } }
       }
-      const candidate = [toolInput.file_path, toolInput.path].find((value): value is string => typeof value === 'string')
-      if (candidate) {
-        const resolved = path.resolve(workspace, candidate)
-        const relative = path.relative(workspace, resolved)
-        if (relative.startsWith('..') || path.isAbsolute(relative)) {
-          return { continue: true, hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `${message} File access is outside the task workspace.` } }
-        }
-      }
-      return { continue: true, hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: 'ONEVibe task-workspace policy passed.' } }
+      const normalizedInput = normalizeWorkspaceToolInput(workspace, toolInput)
+      if (!normalizedInput) return { continue: true, hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `${message} File access is outside the task workspace.` } }
+      return { continue: true, hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: 'ONEVibe task-workspace policy passed.', updatedInput: normalizedInput } }
     }
 
     const abortController = new AbortController()

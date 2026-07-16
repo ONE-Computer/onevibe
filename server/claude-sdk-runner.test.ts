@@ -69,7 +69,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-claude-chat-'))
     temporaryRoots.push(root)
     const { TaskStore } = await import('./store.js')
-    const { ClaudeSdkRuntimeAdapter, isSafeBashCommand } = await import('./claude-sdk-runner.js')
+    const { ClaudeSdkRuntimeAdapter, isSafeBashCommand, normalizeWorkspaceToolPath } = await import('./claude-sdk-runner.js')
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('Hello, how are you today?', 'claude_sdk', 'chat')
@@ -87,6 +87,9 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(isSafeBashCommand('node script.js')).toBe(true)
     expect(isSafeBashCommand('python3 -c "import os"')).toBe(false)
     expect(isSafeBashCommand('curl https://example.com')).toBe(false)
+    expect(normalizeWorkspaceToolPath(path.join(root, 'workspace'), 'document.md')).toBe('document.md')
+    expect(normalizeWorkspaceToolPath(path.join(root, 'workspace'), path.join(process.cwd(), 'document.md'))).toBe('document.md')
+    expect(normalizeWorkspaceToolPath(path.join(root, 'workspace'), path.join(process.cwd(), '..', 'outside.txt'))).toBeUndefined()
   })
 
   it('requires an explicit result for success while preserving native events and tool confinement', async () => {

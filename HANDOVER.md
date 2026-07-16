@@ -1,7 +1,7 @@
 # ONEVibe — Agent Handover Document
 
 > **Date**: 2026-07-17
-> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, bounded MCP health probing, a tested opt-in MCP capability facade, truthful demo skill status, a GitHub-catalog skill marketplace boundary, feature-gated Better Auth, authenticated owner scoping, a local organization-membership scaffold, and a reviewed Drizzle/Postgres import proof (including organization/member staging) are present. LiteLLM-only enforcement remains mandatory for every harness and every environment: data sovereignty, centralized routing, cost control, and model optimization are product requirements. The running application is still SQLite-backed; protected Claude/provider acceptance, production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, MCP secret brokering, and external MCP health/attestation remain open.
+> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, bounded MCP health probing, a tested opt-in MCP capability facade, truthful demo skill status, a GitHub-catalog skill marketplace with protected Claude/LiteLLM materialization evidence, feature-gated Better Auth, authenticated owner scoping, a local organization-membership scaffold, and a reviewed Drizzle/Postgres import proof (including organization/member staging) are present. LiteLLM-only enforcement remains mandatory for every harness and every environment: data sovereignty, centralized routing, cost control, and model optimization are product requirements. The running application is still SQLite-backed; production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, MCP secret brokering, and external MCP health/attestation remain open.
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
@@ -56,7 +56,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 6. **Organization membership is not yet a data-plane grant** — local authenticated owners can create organizations and owners can add/remove members, but task/project/runtime access remains owner-scoped until the Postgres-backed organization policy and repository switch are accepted
 7. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; active-task mutations use Query mutation lifecycle/pending state and reconcile server-derived caches without creating a second client authority
 7. **Local metadata writes are now crash-safe** — task/project/schedule/version JSON is written through same-directory temporary files and flush-before-rename; this does not replace the still-open Postgres/object-storage promotion path
-8. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, production MCP secret brokering/external health attestation, and browser evidence remain open in `TODO.md`; the production dependency audit gate is now clean under the reviewed esbuild override
+8. **Remaining extension/release gaps** — production MCP secret brokering/external health attestation and browser evidence remain open in `TODO.md`; the production dependency audit gate is now clean under the reviewed esbuild override
 
 ### How to run it locally
 
@@ -209,7 +209,7 @@ Full task list: `TODO.md`. Summary:
 (See `plan/05-ui-overhaul.md` for details)
 
 ### Phase 6 — MCP + extensions
-**4 tasks. Target: users add MCP servers; verified skill marketplace installation works. The local MCP declaration, bounded health probe, and marketplace install/remove slices exist; authenticated ownership, secret brokering, external health attestation, and protected provider-backed marketplace materialization remain open.**
+**4 tasks. Target: users add MCP servers; verified skill marketplace installation works. The local MCP declaration, bounded health probe, marketplace install/remove slices, live GitHub catalog verification, and protected Claude/LiteLLM skill materialization exist; authenticated ownership, secret brokering, and external health attestation remain open.**
 (See `plan/06-mcp-extensions.md` for details)
 
 ---

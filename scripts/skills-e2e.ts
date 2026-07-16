@@ -138,7 +138,7 @@ const skillEvent = (task: TaskSnapshot) => {
   return events[0]!
 }
 
-const manifestFromEvent = (event: RuntimeEvent, expectedMaterialization?: 'provider_turn_workspace' | 'not_executed_demo'): SkillManifest => {
+const manifestFromEvent = (event: RuntimeEvent, expectedMaterialization?: 'adapter_owned' | 'not_executed_demo'): SkillManifest => {
   assert.deepEqual(event.payload.permissionChange, false, 'skill selection must not change permissions')
   if (expectedMaterialization) assert.equal(event.payload.materialization, expectedMaterialization)
   assert.ok(Array.isArray(event.payload.skills), 'the skill event must include its pinned manifest')
@@ -195,7 +195,7 @@ const main = async () => {
     assert.ok(['document.md', 'document.json', 'index.html'].every((filePath) => selectedTask.files.some((file) => file.path === filePath)), 'the selected task must produce document-mode artifacts')
 
     const selectedEvent = skillEvent(selectedTask)
-    const manifest = manifestFromEvent(selectedEvent, provider === 'demo' ? 'not_executed_demo' : 'provider_turn_workspace')
+    const manifest = manifestFromEvent(selectedEvent, provider === 'demo' ? 'not_executed_demo' : 'adapter_owned')
     assert.deepEqual(manifest, expectedManifest, 'the event manifest must be the deterministic pinned manifest')
     assert.match(selectedEvent.eventHash, /^[a-f0-9]{64}$/)
     assert.match(selectedEvent.previousHash, /^(?:GENESIS|[a-f0-9]{64})$/)

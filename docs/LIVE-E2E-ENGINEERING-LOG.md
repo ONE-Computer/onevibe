@@ -2,6 +2,15 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — protected LiteLLM provider gate and SDK workspace-path compatibility
+
+- The host-only LiteLLM relay advertised the configured `claude-sonnet-5` alias and received the Claude-compatible `/v1/messages` traffic. No direct first-party Anthropic endpoint or credential was used.
+- `npm run e2e:chat` passed through LiteLLM: chat `task_efedfbc7faf944` produced two durable turns, 8 live SSE frames and 39 replay frames, artifact task `task_a982a5e4f8e343` produced a Markdown artifact and bounded Bash evidence, the API restart recovered history, the failure/retry probe recovered to `completed`, and all evidence chains validated. Boundary: `executionBoundary=host_process`.
+- The first protected skills run exposed a stale harness expectation (`provider_turn_workspace` vs the canonical `adapter_owned` event contract). After correcting the harness, `npm run e2e:skills` passed with `task_6c89fa28f7364c`, selected `document` and `security_review` packs, immutable manifest/restart proof, selected-only internal files, permission invariance, valid evidence, and no external writes.
+- A real provider document run exposed the underlying SDK path issue: native file hooks received relative paths canonicalized against the parent process. The bounded normalization fix maps only process-cwd-relative paths back into the task workspace and rejects everything else. The follow-up document run completed all required document artifacts through LiteLLM.
+- `npm run e2e:claude-slides` passed against a temporary LiteLLM-configured API: 8 slides, `deck.pptx` (34,990 bytes), `deck.pdf` (7,546 bytes), and valid evidence. The harness now asserts that `.claude/skills/*` remains hidden from the public file route rather than attempting to read runtime internals through that route.
+- None of these host-process runs prove ONEComputer, microVM, OpenVTC/VTI, or production egress enforcement. Browser evidence remains unavailable because the in-app browser runtime reported no available browser.
+
 ## 2026-07-16 — handover baseline and failure-path slice
 
 - The current checkout is `699fe22` with the handover roadmap as the governing plan. Baseline `npm run check` passed with 37 test files and 207 tests before the slice.
