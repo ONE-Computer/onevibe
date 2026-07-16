@@ -49,6 +49,12 @@ Conversation navigation must use the cursor-paginated `/api/conversations` contr
 
 SSE `runtime_event` frames must include their durable event ID and honor a validated task-bound `Last-Event-ID` cursor. Keep client event-ID deduplication and coalesce snapshot reconciliation; never launch an overlapping full fetch for every streamed delta. Assistant-ui tool cards must be projections of durable `(runId, toolUseId)` start/completion evidence. Do not expose raw tool input values in chat or treat wrapper activity as a provider tool invocation.
 
+Follow-up attachments must pass through the `/api/tasks/:id/messages` ingestion boundary and be written under numbered `inputs/` paths before task metadata changes. Preserve per-file, per-turn, and per-conversation limits. Bind files to the exact turn through durable evidence; queued guidance owns its attachment paths and cancellation must remove those staged files. Never place bytes/base64 content in messages, events, logs, or assistant-ui metadata.
+
+Run `npm run e2e:follow-up-attachment` against a running local API to prove a two-turn transcript, normalized workspace bytes, and exact-turn evidence binding.
+
+For mobile work, verify the sidebar starts collapsed, opens with a backdrop and reachable in-panel close control, and leaves the main task in a nonzero grid column. A DOM-only assertion is insufficient when layout is involved; inspect a 390px browser screenshot and reset the viewport afterward.
+
 ## Sandbox artifact dependencies
 
 Artifact tooling required by an acceptance gate must be image/bootstrap managed and verified before the runtime reports ready. Never make a live agent install packages through the development proxy. Keep Claude's `--tools` availability mode-specific and use `--allowedTools` only as the separate approval layer; adding an approval allowlist does not remove a tool. Slide mode may receive a narrowly documented shell capability to invoke preinstalled renderers, while ordinary conversation modes must not.

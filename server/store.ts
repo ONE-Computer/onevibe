@@ -138,6 +138,7 @@ export class TaskStore {
         task.skills ??= []
         task.tags ??= []
         task.queuedGuidance ??= []
+        task.queuedGuidance = task.queuedGuidance.map((guidance) => ({ ...guidance, attachmentPaths: guidance.attachmentPaths ?? [] }))
         task.projectId ??= 'project_onevibe'
         task.references ??= []
         task.attachments ??= []
@@ -514,15 +515,15 @@ export class TaskStore {
     return this.getTask(taskId)
   }
 
-  async queueGuidance(taskId: string, prompt: string) {
+  async queueGuidance(taskId: string, prompt: string, attachmentPaths: string[] = []) {
     const task = this.getTask(taskId)
     if (task.queuedGuidance.length >= 8) throw new Error('Task already has the maximum of 8 queued guidance messages')
-    const guidance = { id: `guidance_${randomUUID().replaceAll('-', '').slice(0, 12)}`, prompt, createdAt: new Date().toISOString() }
+    const guidance = { id: `guidance_${randomUUID().replaceAll('-', '').slice(0, 12)}`, prompt, attachmentPaths, createdAt: new Date().toISOString() }
     await this.updateTask(taskId, { queuedGuidance: [...task.queuedGuidance, guidance] })
     await this.appendEvent(taskId, {
       type: 'guidance_queued', lane: 'control', label: 'Guidance queued for next turn',
       content: 'The current provider turn is non-interruptible; this guidance will resume the same task immediately after it reaches a terminal state.',
-      payload: { guidanceId: guidance.id, promptLength: prompt.length, appliesAfterRun: task.activeRunId },
+      payload: { guidanceId: guidance.id, promptLength: prompt.length, attachmentCount: attachmentPaths.length, appliesAfterRun: task.activeRunId },
     })
     return guidance
   }
@@ -539,11 +540,12 @@ export class TaskStore {
     const task = this.getTask(taskId)
     const guidance = task.queuedGuidance.find((candidate) => candidate.id === guidanceId)
     if (!guidance) throw new Error('Queued guidance not found')
-    await this.updateTask(taskId, { queuedGuidance: task.queuedGuidance.filter((candidate) => candidate.id !== guidanceId) })
+    await Promise.all(guidance.attachmentPaths.map((filePath) => rm(this.workspacePath(taskId, filePath), { force: true })))
+    await this.updateTask(taskId, { queuedGuidance: task.queuedGuidance.filter((candidate) => candidate.id !== guidanceId), attachments: task.attachments.filter((attachment) => !guidance.attachmentPaths.includes(attachment.path)) })
     await this.appendEvent(taskId, {
       type: 'guidance_cancelled', lane: 'control', label: 'Queued guidance cancelled',
       content: 'A queued follow-up was removed before it was sent to the provider.',
-      payload: { guidanceId, promptLength: guidance.prompt.length, appliesAfterRun: task.activeRunId },
+      payload: { guidanceId, promptLength: guidance.prompt.length, removedAttachmentCount: guidance.attachmentPaths.length, appliesAfterRun: task.activeRunId },
     })
     return this.getTask(taskId)
   }

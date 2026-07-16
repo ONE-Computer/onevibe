@@ -98,3 +98,11 @@ The real-provider cancellation harness allocated sandbox `onevibe-32279349` for 
 - A cursor from another task returned HTTP 400 rather than replaying or crossing conversation boundaries.
 - The persisted slide-generation conversation rendered paired Bash invocations as assistant-ui tool cards in both dark and light themes while retaining the separate ONEComputer evidence/artifact rail.
 - The cards showed the ONEComputer sandbox execution route, input field names, bounded command-result excerpts, completed state, and measured duration. Raw input values were not projected into chat.
+
+# 2026-07-16 — governed follow-up attachment and mobile QA
+
+- Local two-turn demo task `task_49a8df50067749` completed with four durable messages. The second turn accepted `brief follow-up.txt`, normalized it to `inputs/01-brief_follow-up.txt`, retained 18 bytes with the expected content, and emitted one task-input artifact event bound to the second turn's run ID.
+- Browser reload projected the normalized file and size onto the correct user message, exposed assistant-ui copy and attach actions, and retained the working composer.
+- Initial 390×844 QA found the sidebar covered the task and its only collapse control was unreachable beneath the overlay. After correction, mobile loads with `Open sidebar`, preserves task/composer/attachment content, and the sidebar can be opened and closed through a reachable in-panel control.
+- QA also exposed that the previous collapsed grid left the main shell in a zero-width first column. The collapsed layout now uses a single content column; visual recheck rendered the task plan and workspace at full mobile width.
+- `npm run e2e:follow-up-attachment` repeated the full proof on `task_b24af8e6372648`: four messages, 18-byte normalized input, exact second-turn evidence binding, and byte-stable file retrieval. A five-file turn was rejected with HTTP 400 before staging.

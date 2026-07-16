@@ -55,7 +55,7 @@ export type Task = {
   mode: TaskMode
   skills: TaskSkill[]
   tags: string[]
-  queuedGuidance: Array<{ id: string; prompt: string; createdAt: string }>
+  queuedGuidance: Array<{ id: string; prompt: string; attachmentPaths: string[]; createdAt: string }>
   projectId: string
   scheduleId?: string
   references: string[]

@@ -46,7 +46,7 @@ export default function App() {
   const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>([])
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 960px)').matches)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { snapshot, connected, error, refresh: refreshSnapshot } = useTask(activeTaskId)
 
@@ -111,11 +111,13 @@ export default function App() {
     setView('agent')
     setActiveTaskId(taskId)
     window.history.pushState({}, '', taskId ? `/tasks/${taskId}` : '/')
+    if (window.matchMedia('(max-width: 960px)').matches) setSidebarOpen(false)
   }
   const navigateToView = (nextView: Exclude<AppView, 'agent'>) => {
     setActiveTaskId(null)
     setView(nextView)
     window.history.pushState({}, '', `/?view=${nextView}`)
+    if (window.matchMedia('(max-width: 960px)').matches) setSidebarOpen(false)
   }
   const toggleSkill = (skill: TaskSkill) => setSelectedSkills((current) => current.includes(skill) ? current.filter((item) => item !== skill) : current.length >= 4 ? current : [...current, skill])
 
@@ -176,11 +178,11 @@ export default function App() {
 
   if (shareId) return <SharedArtifact shareId={shareId} />
 
-  const continueTask = async (prompt: string) => {
+  const continueTask = async (prompt: string, attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) => {
     if (!activeTaskId) return
     setCreating(true)
     try {
-      await sendFollowUp(activeTaskId, prompt)
+      await sendFollowUp(activeTaskId, prompt, attachments)
     } finally {
       setCreating(false)
     }
@@ -195,7 +197,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <AnimatePresence>{sidebarOpen && <motion.div initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} conversations={conversations} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onSelectTask={(taskId) => navigateToTask(taskId)} hasMoreConversations={Boolean(conversationCursor)} loadingMoreConversations={loadingConversationPage} onLoadMoreConversations={loadMoreConversations} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onRemoveProjectFile={detachProjectFile} onUpdateProjectFile={editProjectFile} onRestoreProjectFile={restoreProjectFile} onUpdateProjectContext={updateProject} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} /></motion.div>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <><motion.button key="sidebar-backdrop" className="sidebar-backdrop" aria-label="Close sidebar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)} /><motion.div key="sidebar-panel" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} conversations={conversations} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onClose={() => setSidebarOpen(false)} onSelectTask={(taskId) => navigateToTask(taskId)} hasMoreConversations={Boolean(conversationCursor)} loadingMoreConversations={loadingConversationPage} onLoadMoreConversations={loadMoreConversations} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onRemoveProjectFile={detachProjectFile} onUpdateProjectFile={editProjectFile} onRestoreProjectFile={restoreProjectFile} onUpdateProjectContext={updateProject} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} /></motion.div></>}</AnimatePresence>
       <main className="main-shell">
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><span className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></span></div>

@@ -10,6 +10,7 @@ type Props = {
   conversations: ConversationSummary[]
   activeTaskId: string | null
   onNewTask: () => void
+  onClose: () => void
   onSelectTask: (taskId: string) => void
   hasMoreConversations: boolean
   loadingMoreConversations: boolean
@@ -29,7 +30,7 @@ type Props = {
   onOpenComputers: () => void
 }
 
-export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers }: Props) => {
+export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers }: Props) => {
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
@@ -70,7 +71,7 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onSelect
   }, [query, conversations, searchResults])
   return (
   <aside className="sidebar">
-    <div className="sidebar-top"><BrandMark /></div>
+    <div className="sidebar-top"><BrandMark /><button type="button" className="sidebar-close" aria-label="Close sidebar" onClick={onClose}><X size={15} /></button></div>
     <button className="new-task" onClick={onNewTask}><Plus size={16} /> New task <kbd>⌘ K</kbd></button>
     <label className="history-search"><Search size={13} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" /></label>
     <nav className="primary-nav" aria-label="Primary">

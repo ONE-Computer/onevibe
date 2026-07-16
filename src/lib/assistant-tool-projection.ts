@@ -11,15 +11,24 @@ export type AssistantToolPart = {
   timing: { startedAt: number; completedAt?: number }
 }
 
-export type AssistantConversationMessage = ChatMessage & { toolParts?: AssistantToolPart[] }
+export type AssistantInputFile = { name: string; path: string; size: number; mimeType: string }
+export type AssistantConversationMessage = ChatMessage & { toolParts?: AssistantToolPart[]; inputFiles?: AssistantInputFile[] }
 
 const stringValue = (value: unknown) => typeof value === 'string' ? value : undefined
 const recordValue = (value: unknown): Record<string, unknown> | undefined => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
 
 export const projectAssistantToolCalls = (messages: ChatMessage[], events: RuntimeEvent[]): AssistantConversationMessage[] => {
   const toolsByTurn = new Map<string, AssistantToolPart[]>()
+  const filesByTurn = new Map<string, AssistantInputFile[]>()
   const byInvocation = new Map<string, AssistantToolPart>()
   for (const event of events) {
+    if (event.runId && event.type === 'artifact_created' && event.payload.kind === 'task_input' && Array.isArray(event.payload.files)) {
+      const files = event.payload.files.flatMap((value) => {
+        const file = recordValue(value)
+        return file && typeof file.name === 'string' && typeof file.path === 'string' && typeof file.size === 'number' && typeof file.mimeType === 'string' ? [{ name: file.name, path: file.path, size: file.size, mimeType: file.mimeType }] : []
+      })
+      if (files.length) filesByTurn.set(event.runId, files)
+    }
     if (!event.runId || (event.type !== 'tool_call_started' && event.type !== 'tool_call_completed')) continue
     const toolCallId = stringValue(event.payload.toolUseId)
     if (!toolCallId) continue
@@ -40,5 +49,5 @@ export const projectAssistantToolCalls = (messages: ChatMessage[], events: Runti
     part.isError = event.payload.isError === true
     part.timing = { ...part.timing, completedAt: Date.parse(event.createdAt) }
   }
-  return messages.map((message) => message.role === 'assistant' ? { ...message, toolParts: toolsByTurn.get(message.turnId) ?? [] } : message)
+  return messages.map((message) => message.role === 'assistant' ? { ...message, toolParts: toolsByTurn.get(message.turnId) ?? [] } : message.role === 'user' ? { ...message, inputFiles: filesByTurn.get(message.turnId) ?? [] } : message)
 }

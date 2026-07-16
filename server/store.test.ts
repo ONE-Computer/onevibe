@@ -498,4 +498,22 @@ describe('TaskStore', () => {
     await reloaded.initialize()
     expect(reloaded.listConversations().conversations.find((item) => item.id === first.id)).toMatchObject({ messageCount: 2, lastMessage: { preview: 'Persisted response' } })
   })
+
+  it('binds staged files to queued guidance and removes them when guidance is cancelled', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-guidance-files-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Continue with an attached brief', 'demo')
+    const attachment = { name: 'brief.txt', path: 'inputs/01-brief.txt', size: 5, mimeType: 'text/plain' }
+    await store.writeWorkspaceBytes(task.id, attachment.path, Buffer.from('brief'))
+    await store.updateTask(task.id, { attachments: [attachment], status: 'running' })
+    const guidance = await store.queueGuidance(task.id, 'Use the brief', [attachment.path])
+    expect(guidance.attachmentPaths).toEqual([attachment.path])
+    await store.cancelQueuedGuidance(task.id, guidance.id)
+    expect(store.getTask(task.id).attachments).toEqual([])
+    expect((await store.listWorkspaceFiles(task.id)).some((file) => file.path === attachment.path)).toBe(false)
+    expect(store.listEvents(task.id).at(-1)?.payload.removedAttachmentCount).toBe(1)
+  })
 })

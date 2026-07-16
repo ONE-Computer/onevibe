@@ -37,6 +37,18 @@ Assistant messages may include assistant-ui tool-call parts projected from durab
 
 Inline cards expose the tool name, execution boundary, input field names, timing, completion state, and a bounded result summary. Raw input values are deliberately excluded from chat projection. The append-only task timeline remains the source of truth; assistant-ui cards are a convenient view over that evidence, never an independent execution state.
 
+## Follow-up attachments and message actions
+
+The assistant-ui composer accepts up to four files per turn, with a 256 KiB per-file and 1 MiB aggregate limit. The API repeats every size, count, filename, and total-byte check; browser validation is only an early usability aid. Filenames are reduced to safe basenames, files receive monotonically numbered `inputs/` paths, and the task metadata update occurs only after workspace writes complete. Conversations retain at most 32 input files.
+
+Immediate follow-up files are added only to that turn's provider context. Files attached to guidance during an active run are stored with the durable queued-guidance record and applied when that exact guidance starts its next turn. Cancelling queued guidance removes its staged files and metadata before provider execution, while preserving a cancellation evidence event with counts but no file content.
+
+An `artifact_created` event binds the normalized file descriptors to the new `runId`; assistant-ui projects those descriptors onto the matching user message. File bytes and base64 payloads never enter chat metadata or evidence. Message copy uses assistant-ui's native action primitive and copies rendered message content without creating another persistence path.
+
+## Responsive navigation
+
+At widths up to 960px the sidebar starts closed so the task remains usable. Opening it creates a modal backdrop and an in-panel close control; selecting a task or primary view closes it again. The collapsed grid has one real content column—never a zero-width placeholder—so both conversation and workspace surfaces remain reachable at mobile breakpoints.
+
 ## Failure and migration rules
 
 - Never introduce browser-local conversation arrays as a fallback.

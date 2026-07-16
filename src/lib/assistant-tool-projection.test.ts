@@ -20,4 +20,10 @@ describe('assistant tool projection', () => {
     expect(projected?.toolParts).toHaveLength(1)
     expect(projected?.toolParts?.[0]?.result).toBeUndefined()
   })
+
+  it('binds durable turn input evidence to the matching user message', () => {
+    const user = { ...message, role: 'user' as const }
+    const attached = event(0, 'artifact_created', { kind: 'task_input', files: [{ name: 'brief.txt', path: 'inputs/02-brief.txt', size: 42, mimeType: 'text/plain' }] })
+    expect(projectAssistantToolCalls([user], [attached])[0]?.inputFiles).toEqual([{ name: 'brief.txt', path: 'inputs/02-brief.txt', size: 42, mimeType: 'text/plain' }])
+  })
 })

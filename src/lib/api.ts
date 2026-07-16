@@ -76,11 +76,11 @@ export const moveTaskToProject = async (taskId: string, projectId: string) =>
 export const updateTaskTags = async (taskId: string, tags: string[]) =>
   parse<Task>(await fetch(`/api/tasks/${taskId}/tags`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tags }) }))
 
-export const sendFollowUp = async (taskId: string, prompt: string) =>
+export const sendFollowUp = async (taskId: string, prompt: string, attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) =>
   parse<{ status: string; taskId: string }>(await fetch(`/api/tasks/${taskId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, attachments }),
   }))
 
 export const cancelQueuedGuidance = async (taskId: string, guidanceId: string) =>

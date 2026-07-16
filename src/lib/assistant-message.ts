@@ -15,5 +15,5 @@ export const toAssistantMessage = (message: AssistantConversationMessage): Threa
   content: [...(message.toolParts ?? []), ...(message.content ? [{ type: 'text' as const, text: message.content }] : [])],
   createdAt: new Date(message.createdAt),
   ...(message.role === 'assistant' ? { status: statusFor(message) } : {}),
-  metadata: { custom: { taskId: message.taskId, turnId: message.turnId, provider: message.provider } },
+  metadata: { custom: { taskId: message.taskId, turnId: message.turnId, provider: message.provider, inputFiles: message.inputFiles ?? [] } },
 })
