@@ -37,6 +37,7 @@ const persistSelectedSkills = (skills: TaskSkill[]) => {
 const reportError = (reason: unknown, fallback: string) => {
   toast.error(reason instanceof Error ? reason.message : fallback)
 }
+const emptyProjects: Project[] = []
 
 export default function App() {
   const shareId = window.location.pathname.match(/^\/share\/([^/]+)$/)?.[1]
@@ -44,7 +45,6 @@ export default function App() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [conversationCursor, setConversationCursor] = useState<string>()
   const [loadingConversationPage, setLoadingConversationPage] = useState(false)
-  const [projects, setProjects] = useState<Project[]>([])
   const [schedules, setSchedules] = useState<TaskSchedule[]>([])
   const [library, setLibrary] = useState<LibraryItem[]>([])
   const queryClient = useQueryClient()
@@ -58,6 +58,8 @@ export default function App() {
   const runtime = runtimeQuery.data
   const mcpQuery = useQuery({ queryKey: ['mcp'], queryFn: listMcpConfigs, staleTime: 15_000 })
   const mcpConfigs = mcpQuery.data?.configs ?? []
+  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: listProjects, staleTime: 30_000 })
+  const projects = projectsQuery.data?.projects ?? emptyProjects
 
   const refreshAuth = useCallback(async () => {
     try { setAuthState(await getAuthSession()) } catch { setAuthState({ enabled: false, session: null }) } finally { setAuthLoading(false) }
@@ -100,11 +102,12 @@ export default function App() {
   useEffect(() => { persistSelectedSkills(selectedSkills) }, [selectedSkills])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)).catch((reason: unknown) => reportError(reason, 'Unable to load schedules')) }, [])
   useEffect(() => { if (mcpQuery.error) reportError(mcpQuery.error, 'Unable to load MCP servers') }, [mcpQuery.error])
+  useEffect(() => { if (projectsQuery.error) reportError(projectsQuery.error, 'Unable to load projects') }, [projectsQuery.error])
   useEffect(() => {
     if (runtimeQuery.data) setBackendOffline(false)
     else if (runtimeQuery.error && isBackendOfflineError(runtimeQuery.error)) setBackendOffline(true)
   }, [runtimeQuery.data, runtimeQuery.error, setBackendOffline])
-  useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }).catch((reason: unknown) => reportError(reason, 'Unable to load projects')) }, [activeProjectId, setActiveProjectId])
+  useEffect(() => { if (projects.length && !projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }, [activeProjectId, projects, setActiveProjectId])
   useEffect(() => {
     const onPopState = () => {
       const nextTaskId = window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null
@@ -157,32 +160,32 @@ export default function App() {
   const addProject = async (name: string, context: string) => {
     try {
       const project = await createProject(name, context)
-      setProjects((current) => [project, ...current])
+      queryClient.setQueryData<{ projects: Project[] }>(['projects'], (current) => ({ projects: [project, ...(current?.projects ?? [])] }))
       setActiveProjectId(project.id)
     } catch (reason) { reportError(reason, 'Unable to create project') }
   }
   const attachProjectFile = async (projectId: string, file: Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }) => {
     try {
       const project = await addProjectFile(projectId, file)
-      setProjects((current) => current.map((item) => item.id === project.id ? project : item))
+      queryClient.setQueryData<{ projects: Project[] }>(['projects'], (current) => ({ projects: (current?.projects ?? []).map((item) => item.id === project.id ? project : item) }))
     } catch (reason) { reportError(reason, 'Unable to attach project knowledge') }
   }
   const updateProject = async (projectId: string, context: string) => {
     try {
       const project = await updateProjectContext(projectId, context)
-      setProjects((current) => current.map((item) => item.id === project.id ? project : item))
+      queryClient.setQueryData<{ projects: Project[] }>(['projects'], (current) => ({ projects: (current?.projects ?? []).map((item) => item.id === project.id ? project : item) }))
     } catch (reason) { reportError(reason, 'Unable to update project context') }
   }
   const detachProjectFile = async (projectId: string, filePath: string) => {
     try {
       const project = await removeProjectFile(projectId, filePath)
-      setProjects((current) => current.map((item) => item.id === project.id ? project : item))
+      queryClient.setQueryData<{ projects: Project[] }>(['projects'], (current) => ({ projects: (current?.projects ?? []).map((item) => item.id === project.id ? project : item) }))
     } catch (reason) { reportError(reason, 'Unable to remove project knowledge') }
   }
   const editProjectFile = async (projectId: string, filePath: string, content: string, expectedHash: string) => {
     try {
       const result = await updateProjectFile(projectId, filePath, content, expectedHash)
-      setProjects((current) => current.map((item) => item.id === result.project.id ? result.project : item))
+      queryClient.setQueryData<{ projects: Project[] }>(['projects'], (current) => ({ projects: (current?.projects ?? []).map((item) => item.id === result.project.id ? result.project : item) }))
     } catch (reason) { reportError(reason, 'Unable to save project knowledge') }
   }
   const retractQueuedGuidance = async (taskId: string, guidanceId: string) => {
@@ -205,7 +208,7 @@ export default function App() {
   }
   const restoreProjectFile = async (projectId: string, filePath: string, versionId: string, expectedHash: string) => {
     const result = await restoreProjectFileVersion(projectId, filePath, versionId, expectedHash)
-    setProjects((current) => current.map((item) => item.id === result.project.id ? result.project : item))
+    queryClient.setQueryData<{ projects: Project[] }>(['projects'], (current) => ({ projects: (current?.projects ?? []).map((item) => item.id === result.project.id ? result.project : item) }))
     return { content: result.content, contentHash: result.contentHash }
   }
 
@@ -261,7 +264,8 @@ export default function App() {
     try {
       await signOutAuth()
       setAuthState({ enabled: true, session: null })
-      setTasks([]); setConversations([]); setProjects([]); setSchedules([]); setLibrary([])
+      setTasks([]); setConversations([]); setSchedules([]); setLibrary([])
+      queryClient.removeQueries({ queryKey: ['projects'] })
     } catch (reason) { reportError(reason, 'Unable to sign out') }
   }
   const shareCurrentTask = async () => {
