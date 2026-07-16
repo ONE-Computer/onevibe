@@ -20,8 +20,51 @@ export const portableArtifactKind = (artifactPath: string) => {
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const isPng = (bytes: Buffer) => bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
-
+const DEFAULT_AGENT_QUIESCENCE_TIMEOUT_MS = 5_000
 const shellQuote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`
+
+type AgentQuiescence = {
+  verified: boolean
+  evidence: 'exitcode' | 'process_absent' | 'unverified'
+  pid?: number
+  exitCode?: string
+  limitation?: string
+}
+
+const parseAgentPid = (output: string) => {
+  const match = output.match(/(?:^|\n)pid:(\d+)(?:\n|$)/)
+  if (!match) return undefined
+  const pid = Number(match[1])
+  return Number.isSafeInteger(pid) && pid > 0 ? pid : undefined
+}
+
+const sandboxAgentCancellationCommand = (workspace: string, retainedPid?: number) => [
+  'set +e',
+  `cd ${shellQuote(workspace)}`,
+  `agent_pid=${retainedPid ? shellQuote(String(retainedPid)) : "''"}`,
+  'if test -z "$agent_pid" && test -s .onevibe-pid; then candidate_pid=$(cat .onevibe-pid); case "$candidate_pid" in ""|0|*[!0-9]*) ;; *) agent_pid="$candidate_pid" ;; esac; fi',
+  'if test -n "$agent_pid" && kill -0 "$agent_pid" 2>/dev/null; then',
+  '  kill -TERM "$agent_pid" 2>/dev/null || true',
+  'fi',
+  'for attempt in $(seq 1 50); do',
+  '  if test -s .onevibe-exitcode; then printf "exitcode:"; cat .onevibe-exitcode; printf "\\n"; exit 0; fi',
+  '  if test -n "$agent_pid" && ! kill -0 "$agent_pid" 2>/dev/null; then printf "absent:%s\\n" "$agent_pid"; exit 0; fi',
+  '  if test "$attempt" -eq 10 && test -n "$agent_pid"; then kill -KILL "$agent_pid" 2>/dev/null || true; fi',
+  '  sleep 0.1',
+  'done',
+  'if test -s .onevibe-exitcode; then printf "exitcode:"; cat .onevibe-exitcode; printf "\\n"; elif test -n "$agent_pid" && ! kill -0 "$agent_pid" 2>/dev/null; then printf "absent:%s\\n" "$agent_pid"; else printf "unverified:no_exitcode_or_process_absence\\n"; fi',
+].join('\n')
+
+const parseAgentQuiescence = (output: string, pid?: number): AgentQuiescence => {
+  const status = output.trim().split('\n')[0] ?? ''
+  if (status.startsWith('exitcode:')) return { verified: true, evidence: 'exitcode', pid, exitCode: status.slice('exitcode:'.length) }
+  if (status.startsWith('absent:')) return { verified: true, evidence: 'process_absent', pid: Number(status.slice('absent:'.length)) || pid }
+  return {
+    verified: false, evidence: 'unverified', pid,
+    limitation: 'The ONEComputer exec provider did not establish a durable .onevibe-exitcode or process-absence observation within the bounded cancellation window.',
+  }
+}
+
 const wait = (milliseconds: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal.aborted) return reject(new DOMException('Task cancelled', 'AbortError'))
   const abort = () => { clearTimeout(timer); reject(new DOMException('Task cancelled', 'AbortError')) }
@@ -143,8 +186,68 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
 
   constructor(
     private readonly client: OneComputerClient,
-    private readonly options: { gatewayEnforced: boolean; retainSandbox: boolean; visualRuntime?: boolean; browserAutomation?: boolean; pollMilliseconds?: number; visualCheckpointMilliseconds?: number } = { gatewayEnforced: false, retainSandbox: false },
+    private readonly options: { gatewayEnforced: boolean; retainSandbox: boolean; visualRuntime?: boolean; browserAutomation?: boolean; pollMilliseconds?: number; visualCheckpointMilliseconds?: number; agentQuiescenceTimeoutMilliseconds?: number } = { gatewayEnforced: false, retainSandbox: false },
   ) {}
+
+  private async quiesceAgentAfterCancellation(taskId: string, sandboxId: string, workspace: string, retainedPid: number | undefined, store: RuntimeContext['store']) {
+    const timeoutMilliseconds = Math.max(this.options.agentQuiescenceTimeoutMilliseconds ?? DEFAULT_AGENT_QUIESCENCE_TIMEOUT_MS, 1)
+    const cancellationEvidence = {
+      sandboxId, agentPid: retainedPid, workspace,
+      journalPath: `${workspace}/.onevibe-events.jsonl`, exitPath: `${workspace}/.onevibe-exitcode`,
+      boundedTimeoutMilliseconds: timeoutMilliseconds,
+    }
+    try {
+      await store.appendEvent(taskId, {
+        type: 'activity_delta', lane: 'control', label: 'ONEComputer agent cancellation requested',
+        content: 'The sandbox agent received a best-effort termination request; its journal and exit marker remain retained for cancellation evidence.',
+        payload: { ...cancellationEvidence, cancellation: 'requested', journalRetained: true },
+      })
+    } catch {
+      // Cancellation cleanup must still be attempted if evidence persistence is unavailable.
+    }
+
+    const cleanupController = new AbortController()
+    const cleanupRequest = this.client.exec(sandboxId, sandboxAgentCancellationCommand(workspace, retainedPid), cleanupController.signal)
+    cleanupRequest.catch(() => undefined)
+    let response: Awaited<ReturnType<OneComputerClient['exec']>> | undefined
+    let timedOut = false
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    try {
+      response = await Promise.race([
+        cleanupRequest,
+        new Promise<undefined>((resolve) => { timeout = setTimeout(() => { timedOut = true; cleanupController.abort(); resolve(undefined) }, timeoutMilliseconds) }),
+      ])
+    } catch {
+      response = undefined
+    } finally {
+      if (timeout) clearTimeout(timeout)
+    }
+
+    const quiescence = response && response.exitCode === 0
+      ? parseAgentQuiescence(response.output, retainedPid)
+      : {
+          verified: false,
+          evidence: 'unverified' as const,
+          pid: retainedPid,
+          limitation: timedOut
+            ? 'The ONEComputer exec provider did not return the bounded termination/verification command before its cancellation deadline; process quiescence is not proven.'
+            : 'The ONEComputer exec provider could not complete the bounded termination/verification command; process quiescence is not proven.',
+        }
+    try {
+      await store.appendEvent(taskId, {
+        type: 'activity_delta', lane: 'control', label: quiescence.verified ? 'ONEComputer agent quiescence verified' : 'ONEComputer agent quiescence not verified',
+        content: quiescence.verified
+          ? 'The cancelled sandbox agent is quiescent; the retained exit marker or process-absence check is preserved as cancellation evidence.'
+          : 'Cancellation stopped the ONEVibe turn without claiming sandbox process quiescence. Release or retry must treat the provider boundary as unverified until independently reconciled.',
+        payload: {
+          ...cancellationEvidence, ...quiescence,
+          cancellation: 'fail_closed', journalRetained: true,
+        },
+      })
+    } catch {
+      // Preserve the original cancellation result even if the local evidence store is unavailable.
+    }
+  }
 
   async run({ task, store, signal, prompt, continuation }: RuntimeContext) {
     signal.throwIfAborted()
@@ -196,6 +299,9 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       throw error
     }
     const sandbox = acquired.sandbox
+    let agentWorkspace: string | undefined
+    let agentPid: number | undefined
+    let agentLaunchAttempted = false
     const resumableSessionId = continuation
       && task.securityContext?.runtimeSessionId
       && task.securityContext.runtimeSessionLeaseId === acquired.lease.id
@@ -355,6 +461,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       ].join('\n\n')
       const encodedPrompt = Buffer.from(agentPrompt).toString('base64')
       const workspace = `/tmp/onevibe/${task.id}`
+      agentWorkspace = workspace
       const allowedTools = governedClaudeTools(browserAutomationEnabled, task.mode === 'slides')
       const slideSeed = task.mode === 'slides' ? Buffer.from(`${JSON.stringify(sandboxSlideSeed(task.title, prompt), null, 2)}\n`).toString('base64') : undefined
       const slideRenderer = task.mode === 'slides' ? Buffer.from(SANDBOX_SLIDE_RENDERER).toString('base64') : undefined
@@ -395,12 +502,16 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         `/opt/node22/bin/node -e "const { createRequire } = require('node:module'); createRequire(process.cwd() + '/.onevibe-agent-sdk.mjs').resolve('@anthropic-ai/claude-agent-sdk')"`,
         '(',
         '  set +e',
-        '  /opt/node22/bin/node .onevibe-agent-sdk.mjs',
+        '  /opt/node22/bin/node .onevibe-agent-sdk.mjs < /dev/null > /dev/null 2>&1 &',
+        '  onevibe_agent_pid="$!"',
+        '  printf %s "$onevibe_agent_pid" > .onevibe-pid',
+        '  wait "$onevibe_agent_pid"',
         '  onevibe_exit_code="$?"',
         '  rm -f .onevibe-prompt',
         '  printf %s "$onevibe_exit_code" > .onevibe-exitcode',
-        ') < /dev/null > /dev/null 2>&1 &',
-        'printf %s "$!" > .onevibe-pid',
+        ') &',
+        'for onevibe_pid_wait in $(seq 1 100); do test -s .onevibe-pid && break; sleep 0.01; done',
+        'if test -s .onevibe-pid; then printf "pid:"; cat .onevibe-pid; printf "\\n"; fi',
       ].join('\n')
       const agentExecution = await store.appendEvent(task.id, {
         type: 'tool_call_started', lane: 'activity', label: 'Execute Claude inside ONEComputer',
@@ -410,8 +521,10 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         payload: { sandboxId: sandbox.id, leaseId: acquired.lease.id, leaseGeneration: acquired.lease.generation, toolName: 'onecomputer.sandbox.exec', agentRuntime: 'claude_agent_sdk', claudeTransport, model: configuredClaude.model, sessionContinuation: Boolean(resumableSessionId), allowedTools, browserAutomation: browserAutomationEnabled, skills: selectedSkills.map(({ id, version, title, sha256 }) => ({ id, version, title, sha256 })) },
       })
       await captureVisualFrame('before_agent', agentExecution.id)
+      agentLaunchAttempted = true
       const spawned = await this.client.exec(sandbox.id, command, signal)
       if (spawned.exitCode !== 0) throw new Error(`Unable to start sandbox Claude process: ${spawned.output.slice(-2_000)}`)
+      agentPid = parseAgentPid(spawned.output)
       let projectedEntries = 0
       let latestJournal = parseClaudeStreamJournal('')
       const browserReviewTools = new Set<string>()
@@ -688,6 +801,9 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       stopVisualLoop?.()
       await visualLoop?.catch(() => undefined)
       await visualCaptureTail.catch(() => undefined)
+      if (signal.aborted && agentLaunchAttempted && agentWorkspace) {
+        await this.quiesceAgentAfterCancellation(task.id, sandbox.id, agentWorkspace, agentPid, store)
+      }
       throw error
     }
   }

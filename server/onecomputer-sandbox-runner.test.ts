@@ -266,6 +266,82 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-provisioning' })
   })
 
+  it('terminates the sandbox agent on cancellation and preserves verified exit evidence', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-cancel-agent-'))
+    roots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { OneComputerSandboxRuntimeAdapter } = await import('./onecomputer-sandbox-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Cancel a running sandbox agent', 'onecomputer')
+    await store.beginTurn(task.id, task.prompt, task.provider)
+    const commands: string[] = []
+    const client = {
+      createSandbox: vi.fn(async () => ({ id: 'sandbox-cancel-agent', state: 'started', provider: 'kasm-local' })),
+      getSandbox: vi.fn(async () => ({ id: 'sandbox-cancel-agent', state: 'started', provider: 'kasm-local' })),
+      exec: vi.fn(async (_id: string, command: string) => {
+        commands.push(command)
+        if (command.includes('kill -TERM')) return { exitCode: 0, output: 'exitcode:143\n' }
+        if (command.includes('/opt/node22/bin/node .onevibe-agent-sdk.mjs')) return { exitCode: 0, output: 'pid:4242\n' }
+        if (command.includes('journal_bytes=')) return { exitCode: 0, output: 'running:\n' }
+        return { exitCode: 0, output: '' }
+      }),
+      deleteSandbox: vi.fn(async () => undefined),
+      startVisualRuntime: vi.fn(),
+      getVisualScreenshot: vi.fn(),
+    } as unknown as OneComputerClient
+    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false, pollMilliseconds: 1, agentQuiescenceTimeoutMilliseconds: 100 })
+    const controller = new AbortController()
+    const run = adapter.run({ task, store, signal: controller.signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+
+    await vi.waitFor(() => expect(commands.some((command) => command.includes('/opt/node22/bin/node .onevibe-agent-sdk.mjs'))).toBe(true))
+    controller.abort()
+    await expect(run).rejects.toMatchObject({ name: 'AbortError' })
+
+    const cleanupCommand = commands.find((command) => command.includes('kill -TERM'))
+    expect(cleanupCommand).toContain("agent_pid='4242'")
+    expect(cleanupCommand).toContain('cat .onevibe-exitcode')
+    expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer agent quiescence verified' && event.payload.evidence === 'exitcode' && event.payload.exitCode === '143')).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer agent cancellation requested' && event.payload.journalRetained === true)).toBe(true)
+  })
+
+  it('keeps cancellation bounded and fails closed when provider quiescence cannot be verified', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-cancel-timeout-'))
+    roots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { OneComputerSandboxRuntimeAdapter } = await import('./onecomputer-sandbox-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Bound cancellation cleanup', 'onecomputer')
+    await store.beginTurn(task.id, task.prompt, task.provider)
+    const commands: string[] = []
+    const client = {
+      createSandbox: vi.fn(async () => ({ id: 'sandbox-cancel-timeout', state: 'started', provider: 'kasm-local' })),
+      getSandbox: vi.fn(async () => ({ id: 'sandbox-cancel-timeout', state: 'started', provider: 'kasm-local' })),
+      exec: vi.fn(async (_id: string, command: string) => {
+        commands.push(command)
+        if (command.includes('kill -TERM')) return new Promise<never>(() => {})
+        if (command.includes('/opt/node22/bin/node .onevibe-agent-sdk.mjs')) return { exitCode: 0, output: 'pid:4343\n' }
+        if (command.includes('journal_bytes=')) return { exitCode: 0, output: 'running:\n' }
+        return { exitCode: 0, output: '' }
+      }),
+      deleteSandbox: vi.fn(async () => undefined),
+      startVisualRuntime: vi.fn(),
+      getVisualScreenshot: vi.fn(),
+    } as unknown as OneComputerClient
+    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false, pollMilliseconds: 1, agentQuiescenceTimeoutMilliseconds: 20 })
+    const controller = new AbortController()
+    const run = adapter.run({ task, store, signal: controller.signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+
+    await vi.waitFor(() => expect(commands.some((command) => command.includes('/opt/node22/bin/node .onevibe-agent-sdk.mjs'))).toBe(true))
+    controller.abort()
+    const startedAt = Date.now()
+    await expect(run).rejects.toMatchObject({ name: 'AbortError' })
+    expect(Date.now() - startedAt).toBeLessThan(200)
+    expect(commands.some((command) => command.includes('kill -TERM "$agent_pid"'))).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer agent quiescence not verified' && event.payload.cancellation === 'fail_closed' && typeof event.payload.limitation === 'string')).toBe(true)
+  })
+
   it('reuses the conversation-owned sandbox and Claude session for a continuation', async () => {
     vi.stubEnv('ONEVIBE_LITELLM_URL', 'http://host-only-litellm:4100')
     vi.stubEnv('ONEVIBE_SANDBOX_LITELLM_URL', 'https://sandbox-relay.example')
