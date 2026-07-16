@@ -1,6 +1,6 @@
 import { Bell, ChevronDown, CodeXml, Link2, Menu, Monitor, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import { PromptComposer } from './components/PromptComposer'
@@ -44,9 +44,6 @@ const emptyLibrary: LibraryItem[] = []
 export default function App() {
   const shareId = window.location.pathname.match(/^\/share\/([^/]+)$/)?.[1]
   const [tasks, setTasks] = useState<Task[]>([])
-  const [conversations, setConversations] = useState<ConversationSummary[]>([])
-  const [conversationCursor, setConversationCursor] = useState<string>()
-  const [loadingConversationPage, setLoadingConversationPage] = useState(false)
   const queryClient = useQueryClient()
   const { activeProjectId, setActiveProjectId, view, setView, activeTaskId, setActiveTaskId, sidebarOpen, setSidebarOpen, mobileInspectorOpen, setMobileInspectorOpen, notificationsOpen, setNotificationsOpen, backendOffline, setBackendOffline, retryingBackend, setRetryingBackend } = useUiStore()
   const { selectedSkills, setSelectedSkills, creating, setCreating } = useComposerStore()
@@ -64,6 +61,20 @@ export default function App() {
   const schedules = schedulesQuery.data?.schedules ?? emptySchedules
   const libraryQuery = useQuery({ queryKey: ['library'], queryFn: listLibrary, staleTime: 15_000 })
   const library = libraryQuery.data?.items ?? emptyLibrary
+  type ConversationPage = Awaited<ReturnType<typeof listConversations>>
+  const { data: conversationsData, error: conversationsError, hasNextPage: conversationsHasNextPage, isFetchingNextPage: conversationsIsFetchingNextPage, fetchNextPage: fetchMoreConversations } = useInfiniteQuery({
+    queryKey: ['conversations'],
+    queryFn: ({ pageParam }) => listConversations(pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+  })
+  const conversations = conversationsData?.pages.flatMap((page) => page.conversations) ?? []
+  const upsertConversationCache = useCallback((incoming: ConversationSummary) => {
+    queryClient.setQueryData<InfiniteData<ConversationPage>>(['conversations'], (current) => {
+      if (!current || !current.pages[0]) return current
+      return { ...current, pages: [{ ...current.pages[0], conversations: upsertConversation(current.pages[0].conversations, incoming) }, ...current.pages.slice(1)] }
+    })
+  }, [queryClient])
 
   const refreshAuth = useCallback(async () => {
     try { setAuthState(await getAuthSession()) } catch { setAuthState({ enabled: false, session: null }) } finally { setAuthLoading(false) }
@@ -74,27 +85,14 @@ export default function App() {
     setTasks(result.tasks)
   }, [])
 
-  const refreshConversations = useCallback(async () => {
-    const result = await listConversations()
-    setConversations(result.conversations)
-    setConversationCursor(result.nextCursor)
-  }, [])
-
   const loadMoreConversations = useCallback(async () => {
-    if (!conversationCursor || loadingConversationPage) return
-    setLoadingConversationPage(true)
-    try {
-      const result = await listConversations(conversationCursor)
-      setConversations((current) => [...current, ...result.conversations.filter((item) => !current.some((existing) => existing.id === item.id))])
-      setConversationCursor(result.nextCursor)
-    } finally {
-      setLoadingConversationPage(false)
-    }
-  }, [conversationCursor, loadingConversationPage])
+    if (!conversationsHasNextPage || conversationsIsFetchingNextPage) return
+    try { await fetchMoreConversations() } catch (reason) { reportError(reason, 'Unable to load more conversations') }
+  }, [conversationsHasNextPage, conversationsIsFetchingNextPage, fetchMoreConversations])
 
   useEffect(() => { void refreshTasks().catch((reason: unknown) => reportError(reason, 'Unable to load tasks')) }, [refreshTasks])
   useEffect(() => { void refreshAuth() }, [refreshAuth])
-  useEffect(() => { void refreshConversations().catch((reason: unknown) => reportError(reason, 'Unable to load conversations')) }, [refreshConversations])
+  useEffect(() => { if (conversationsError) reportError(conversationsError, 'Unable to load conversations') }, [conversationsError])
   useEffect(() => {
     if (skillQuery.data?.skills.length) {
       const catalog = skillQuery.data.skills.map(({ id, title, summary }) => ({ id, title, summary }))
@@ -125,9 +123,9 @@ export default function App() {
   useEffect(() => {
     if (!snapshot) return
     setTasks((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))
-    setConversations((current) => upsertConversation(current, conversationSummaryFromTask(snapshot)))
+    upsertConversationCache(conversationSummaryFromTask(snapshot))
     if (snapshot.status === 'completed') void queryClient.invalidateQueries({ queryKey: ['library'] })
-  }, [queryClient, snapshot])
+  }, [queryClient, snapshot, upsertConversationCache])
 
   const preferredProvider: Task['provider'] = runtime?.defaultProvider ?? (['claude_sdk', 'onecomputer', 'remote'] as const).map((id) => runtime?.providers.find((candidate) => candidate.id === id && candidate.available)?.id).find((id): id is Task['provider'] => Boolean(id)) ?? 'demo'
   const startTask = async (prompt: string, provider: Task['provider'] = preferredProvider, mode: TaskMode = 'chat', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = selectedSkills) => {
@@ -135,7 +133,7 @@ export default function App() {
     try {
       const task = await createTask(prompt, provider, mode, activeProjectId, references, attachments, skills)
       setTasks((current) => [task, ...current])
-      setConversations((current) => upsertConversation(current, conversationSummaryFromTask(task)))
+      upsertConversationCache(conversationSummaryFromTask(task))
       setActiveTaskId(task.id)
       window.history.pushState({}, '', `/tasks/${task.id}`)
     } catch (reason) {
@@ -260,7 +258,7 @@ export default function App() {
       const result = await runScheduleNow(schedule.id)
       queryClient.setQueryData<{ schedules: TaskSchedule[] }>(['schedules'], (current) => ({ schedules: (current?.schedules ?? []).map((item) => item.id === result.schedule.id ? result.schedule : item) }))
       setTasks((current) => [result.task, ...current])
-      setConversations((current) => upsertConversation(current, conversationSummaryFromTask(result.task)))
+      upsertConversationCache(conversationSummaryFromTask(result.task))
       navigateToTask(result.task.id)
     } catch (reason) { reportError(reason, 'Unable to run schedule') }
   }
@@ -268,10 +266,11 @@ export default function App() {
     try {
       await signOutAuth()
       setAuthState({ enabled: true, session: null })
-      setTasks([]); setConversations([])
+      setTasks([])
       queryClient.removeQueries({ queryKey: ['projects'] })
       queryClient.removeQueries({ queryKey: ['schedules'] })
       queryClient.removeQueries({ queryKey: ['library'] })
+      queryClient.removeQueries({ queryKey: ['conversations'] })
     } catch (reason) { reportError(reason, 'Unable to sign out') }
   }
   const shareCurrentTask = async () => {
@@ -302,7 +301,7 @@ export default function App() {
     try {
       const task = await forkTask(taskId, fromMessageId, newPrompt)
       setTasks((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
-      setConversations((current) => upsertConversation(current, conversationSummaryFromTask(task)))
+      upsertConversationCache(conversationSummaryFromTask(task))
       navigateToTask(task.id)
     } catch (reason) {
       reportError(reason, 'Unable to create conversation branch')
@@ -345,7 +344,7 @@ export default function App() {
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
       <Toaster position="bottom-right" closeButton richColors />
       <Toaster position="bottom-right" closeButton richColors />
-      <AnimatePresence>{sidebarOpen && <><motion.button key="sidebar-backdrop" className="sidebar-backdrop" aria-label="Close sidebar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)} /><motion.div key="sidebar-panel" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} conversations={conversations} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onClose={() => setSidebarOpen(false)} onSelectTask={(taskId) => navigateToTask(taskId)} hasMoreConversations={Boolean(conversationCursor)} loadingMoreConversations={loadingConversationPage} onLoadMoreConversations={loadMoreConversations} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onRemoveProjectFile={detachProjectFile} onUpdateProjectFile={editProjectFile} onRestoreProjectFile={restoreProjectFile} onUpdateProjectContext={updateProject} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} skillCount={skillCatalog.length} user={authState?.session?.user} onSignOut={signOut} /></motion.div></>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <><motion.button key="sidebar-backdrop" className="sidebar-backdrop" aria-label="Close sidebar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)} /><motion.div key="sidebar-panel" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} conversations={conversations} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onClose={() => setSidebarOpen(false)} onSelectTask={(taskId) => navigateToTask(taskId)} hasMoreConversations={Boolean(conversationsHasNextPage)} loadingMoreConversations={conversationsIsFetchingNextPage} onLoadMoreConversations={loadMoreConversations} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onRemoveProjectFile={detachProjectFile} onUpdateProjectFile={editProjectFile} onRestoreProjectFile={restoreProjectFile} onUpdateProjectContext={updateProject} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} skillCount={skillCatalog.length} user={authState?.session?.user} onSignOut={signOut} /></motion.div></>}</AnimatePresence>
       <main className="main-shell">
         {backendOffline && <div className="backend-offline-banner" role="alert"><div><TriangleAlert size={15} /><span><strong>Backend offline</strong><small>Run <code>npm run dev</code> in the ONEVibe project root to connect the workspace.</small></span></div><button type="button" onClick={() => void retryBackend()} disabled={retryingBackend}>{retryingBackend ? 'Checking…' : 'Retry'}</button></div>}
         <header className="topbar">
