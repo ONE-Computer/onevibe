@@ -7,7 +7,7 @@
 
 ## Current implementation boundary — 2026-07-17
 
-The local MCP declaration slice is implemented in `server/store.ts` and the local SQLite v6/v7 migrations. The skill marketplace is now implemented through owner-scoped SQLite v8 installations, a GitHub-only catalog/content loader, digest/frontmatter verification, `/api/skills/install` and `/api/skills/:id` routes, Skills Library controls, and provider/demo materialization boundaries. The original design below is a target reference and still overstates capabilities that are intentionally not present: MCP environment secrets, MCP health/tool enumeration, and the two-tool facade remain open. The marketplace remains open for protected Claude/LiteLLM materialization and external GitHub reachability evidence.
+The local MCP declaration slice is implemented in `server/store.ts` and the local SQLite v6/v7 migrations. The skill marketplace is implemented through owner-scoped SQLite v8 installations, a GitHub-only catalog/content loader, digest/frontmatter verification, `/api/skills/install` and `/api/skills/:id` routes, Skills Library controls, and provider/demo materialization boundaries. An opt-in server-owned two-tool facade now enumerates configured stdio MCP tools, token-scores search results, and executes only a capability ID returned by the same catalog. The original design below remains a target reference for MCP environment secrets, health/tool diagnostics, authenticated ownership, and provider-backed acceptance; none of those production controls are implied by the local facade. The marketplace remains open for protected Claude/LiteLLM materialization and external GitHub reachability evidence.
 
 ---
 

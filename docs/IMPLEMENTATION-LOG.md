@@ -2,10 +2,16 @@
 
 ## 2026-07-17 — handover consistency audit and LiteLLM policy reaffirmation
 
-- Re-read `HANDOVER.md`, `TODO.md`, the local parity roadmap, the phase plans, and the live ONEVibe Linear project. The handover now reflects the current 884-line API server, the 1,403-line SQLite TaskStore, the completed Zustand boundary, ordinary-collection TanStack Query migration, and the intentionally open active-task/SSE mutation boundary.
+- Re-read `HANDOVER.md`, `TODO.md`, the local parity roadmap, the phase plans, and the live ONEVibe Linear project. The handover now reflects the current 915-line API server, the 1,427-line SQLite TaskStore, the completed Zustand boundary, ordinary-collection TanStack Query migration, and the intentionally open active-task/SSE mutation boundary.
 - Clarified the handover policy: LiteLLM is the only permitted model-routing boundary for every agentic turn. Direct first-party Anthropic traffic is prohibited as a fallback, development shortcut, test fixture, emergency path, or release path; an unavailable relay must fail closed.
 - Reaffirmed the non-negotiable routing rule: every model request must cross the server-controlled LiteLLM boundary for data-sovereignty, routing, cost, and optimization. No direct first-party Anthropic endpoint, key, or fallback is permitted; the Claude SDK receives only derived LiteLLM-compatible configuration.
 - Reconciled the board snapshot at 46 scoped issues: 9 Done, 26 In Progress, and 11 Backlog. No ticket was advanced from documentation alone. Postgres remains a target contract/import proof rather than the running application driver.
+
+## 2026-07-17 — opt-in MCP capability facade
+
+- Added `server/mcp-facade.ts`: a server-owned, bounded stdio JSON-RPC client that lists configured MCP tools, token-scores capability searches, and executes only an exact capability ID returned by the same catalog. It uses `shell: false`, a secret-free child environment, 5-second request deadlines, bounded frames/results, and explicit cleanup.
+- Integrated the facade into non-chat Claude Agent SDK tasks behind `ONEVIBE_MCP_FACADE_ENABLED=true`. When enabled, raw configured MCP servers are not exposed to the SDK; only `search_capabilities` and `execute_capability` are registered. It does not grant approval authority or bypass LiteLLM.
+- Added a deterministic child-process fixture test covering search, exact-ID execution, unknown-capability rejection, and abort handling. `npm run lint`, `npm run test` (50 files / 247 tests), `npm run build`, `npm run db:check`, and `npm run check:e2e-harness` pass. Production MCP health, secret brokering, authenticated ownership, and protected provider acceptance remain open.
 
 ## 2026-07-17 — handover evidence reconciliation
 

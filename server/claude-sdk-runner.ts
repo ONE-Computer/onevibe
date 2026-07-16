@@ -12,6 +12,7 @@ import { claudeProviderConfig } from './claude-provider-config.js'
 import { writeArtifactManifest, writeDocumentReviewArtifacts, writeStructuredSlides } from './mode-artifacts.js'
 import { portableArtifactKind } from './artifact-path.js'
 import { resolveClaudeRunLimits } from './claude-run-limits.js'
+import { McpCapabilityFacade } from './mcp-facade.js'
 
 const ARTIFACT_MANIFEST_PATH = 'artifact-manifest.json'
 const RUNTIME_REPORT_PATHS = new Set(['validation-report.json', 'sandbox-build-report.json'])
@@ -104,7 +105,11 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
     const inputToolName = 'mcp__onevibe__request_user_input'
     const planToolName = 'mcp__onevibe__set_task_plan'
     const slideToolName = 'mcp__onevibe__render_slide_deck'
-    const allowedTools = new Set(task.mode === 'chat' ? [inputToolName] : ['Read', 'Write', 'Edit', 'Glob', 'Grep', ...(task.mode === 'slides' ? [] : ['Bash']), inputToolName, planToolName, ...(task.mode === 'slides' ? [slideToolName] : [])])
+    const facadeEnabled = process.env.ONEVIBE_MCP_FACADE_ENABLED === 'true' && task.mode !== 'chat' && this.mcpConfigs.length > 0
+    const searchCapabilityToolName = 'mcp__onevibe__search_capabilities'
+    const executeCapabilityToolName = 'mcp__onevibe__execute_capability'
+    const mcpFacade = facadeEnabled ? new McpCapabilityFacade(this.mcpConfigs) : undefined
+    const allowedTools = new Set(task.mode === 'chat' ? [inputToolName] : ['Read', 'Write', 'Edit', 'Glob', 'Grep', ...(task.mode === 'slides' ? [] : ['Bash']), inputToolName, planToolName, ...(task.mode === 'slides' ? [slideToolName] : []), ...(facadeEnabled ? [searchCapabilityToolName, executeCapabilityToolName] : [])])
     const inputTool = tool('request_user_input', 'Pause the task and ask the user a focused question.', {
       prompt: z.string().min(1).max(2_000), options: z.array(z.string().min(1).max(200)).max(8).default([]),
     }, async ({ prompt: question, options }) => {
@@ -126,12 +131,29 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
       const files = await writeStructuredSlides(task, store, slides)
       return { content: [{ type: 'text', text: `Rendered and validated ${slides.length} slides into: ${files.join(', ')}` }] }
     })
+    const searchCapabilityTool = tool('search_capabilities', 'Search the configured MCP servers for a capability before executing it.', {
+      query: z.string().trim().min(2).max(200),
+    }, async ({ query: searchQuery }) => {
+      if (!mcpFacade) return { content: [{ type: 'text', text: 'The MCP capability facade is not enabled for this task.' }] }
+      const matches = await mcpFacade.search(searchQuery, signal)
+      return { content: [{ type: 'text', text: JSON.stringify(matches).slice(0, 16_000) }] }
+    })
+    const executeCapabilityTool = tool('execute_capability', 'Execute a capability returned by search_capabilities. Never guess a capability ID.', {
+      capabilityId: z.string().regex(/^[a-zA-Z0-9._-]{1,255}:[a-zA-Z0-9._-]{1,120}$/),
+      args: z.record(z.string(), z.unknown()).default({}),
+    }, async ({ capabilityId, args }) => {
+      if (!mcpFacade) return { content: [{ type: 'text', text: 'The MCP capability facade is not enabled for this task.' }] }
+      if (JSON.stringify(args).length > 16_000) return { content: [{ type: 'text', text: 'Capability arguments exceed the bounded 16 KiB limit.' }] }
+      const result = await mcpFacade.execute(capabilityId, args, signal)
+      return { content: [{ type: 'text', text: JSON.stringify(result).slice(0, 16_000) }] }
+    })
+    const facadeTools = facadeEnabled ? [searchCapabilityTool, executeCapabilityTool] : []
     const onevibeServer = createSdkMcpServer({
       name: 'onevibe', version: '0.1.0', alwaysLoad: true,
       instructions: 'Use request_user_input only when the task cannot safely continue without a human choice or missing value.',
-      tools: task.mode === 'chat' ? [inputTool] : task.mode === 'slides' ? [inputTool, planTool, slideTool] : [inputTool, planTool],
+      tools: task.mode === 'chat' ? [inputTool] : task.mode === 'slides' ? [inputTool, planTool, slideTool, ...facadeTools] : [inputTool, planTool, ...facadeTools],
     })
-    const configuredMcpServers = Object.fromEntries(this.mcpConfigs
+    const configuredMcpServers = Object.fromEntries((facadeEnabled ? [] : this.mcpConfigs)
       .filter((config) => config.name !== 'onevibe')
       .map((config) => [config.name, { command: config.command, args: config.args, env: config.env }]))
     const canUseTool = async (toolName: string, input: Record<string, unknown>): Promise<PermissionResult> => {
@@ -192,7 +214,8 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
       await store.setPlanStep(task.id, 'workspace', 'completed')
       await store.setPlanStep(task.id, 'build', 'running')
     }
-    for await (const message of query({
+    try {
+      for await (const message of query({
       prompt,
       options: {
         abortController,
@@ -216,6 +239,7 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
           ...(task.mode === 'data' ? ['For data mode, create data.csv, analysis.json, and a dependency-free index.html. Keep assumptions and sample-data limitations explicit.'] : []),
           `The selected creation mode is ${task.mode}. Follow its artifact conventions and produce mode-appropriate source, rationale, and validation notes.`,
           ...(task.mode === 'slides' ? ['For this slide task, after set_task_plan call render_slide_deck immediately as the next substantive action with exactly eight substantive slides. Put all slide title/summary content in that single structured call; do not use Read, Grep, Write, Edit, or self-audit tools to draft or inspect slide content before rendering, and do not construct PPTX or PDF bytes with file tools.'] : []),
+          ...(facadeEnabled ? ['When you need an external MCP capability, call search_capabilities first, then execute_capability using an exact returned capability ID. Do not guess tool names or IDs. External MCP actions remain subject to task policy and separate approval requirements.'] : []),
           'Do not publish, access external services, or claim security certification. Public release requires a separate VTI Wallet.',
         ].join(' '),
         tools: [...allowedTools],
@@ -300,6 +324,9 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
         payload: nativeMessage, projections,
       })
       if (message.type === 'result') terminalNativeEventId = ingested.nativeEventId
+      }
+    } finally {
+      mcpFacade?.close()
     }
 
     signal.removeEventListener('abort', abort)
