@@ -7,7 +7,7 @@ ONEVibe is an open-source, Manus-like agent workspace built as a thin product la
 1. The web UI may request and display an approval. It must never be the approval authority.
 2. Sensitive actions require an external OpenVTC/VTI Wallet proof bound to the exact actor, task, action, target, limits, and expiry.
 3. Do not implement custom cryptography, wallet key storage, or DIDComm. Integrate vetted OpenVTC packages and services at explicit adapters.
-4. Demo mode must be labelled. A simulated event, fixture, or UI state is not security evidence.
+4. Demo mode must be labelled. A simulated event, fixture, or UI state is not security evidence. Read `docs/ONEVIBE-TRUTHFULNESS-BACKLOG.md` before changing provider defaults, task modes, assistant prompts, or artifact validation; a greeting must never silently become a simulated artifact task.
 5. Preserve provider-native events, then normalize into one durable task timeline. Native envelopes are authoritative in the versioned SQLite `native_events` ledger, with projection links and source offsets; runtime events are the typed UI/evidence projection. Never add a second frontend-only event stream.
 6. Every state-changing operation must emit an append-only evidence event. Runtime events are authoritative in the versioned SQLite `runtime_events` ledger for replay; `events.json` is legacy migration input only. Native payloads must pass the shared redaction/boundary helper before persistence. Do not record secrets, tokens, prompt credentials, or hidden chain-of-thought.
 7. Workspaces are path-confined and disposable. Runtime credentials are broker-custodied and never written into the agent filesystem.

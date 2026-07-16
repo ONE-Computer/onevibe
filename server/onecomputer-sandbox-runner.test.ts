@@ -73,7 +73,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     const { OneComputerSandboxRuntimeAdapter } = await import('./onecomputer-sandbox-runner.js')
     const store = new TaskStore(root)
     await store.initialize()
-    const task = await store.createTask('Build a confidential launch page', 'onecomputer', 'website')
+    const task = await store.createTask('Build a confidential launch page', 'onecomputer', 'website', 'project_onevibe', undefined, [], [], ['security_review'])
     await store.beginTurn(task.id, task.prompt, task.provider)
     const commands: string[] = []
     const streamJournal = [
@@ -133,6 +133,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.some((command) => command.includes("export ANTHROPIC_API_KEY='placeholder'"))).toBe(true)
     expect(commands.some((command) => command.includes("export ANTHROPIC_AUTH_TOKEN='test-sandbox-bearer-token'"))).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.type === 'run_started' && event.payload.claudeTransport === 'litellm' && event.payload.agentRuntime === 'claude_agent_sdk')).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer skill packs materialized' && event.payload.permissionChange === false && Array.isArray(event.payload.skills) && (event.payload.skills as Array<{ id: string }>).map((skill) => skill.id).join('|') === 'security_review')).toBe(true)
     expect(JSON.stringify(store.listEvents(task.id))).not.toContain('test-sandbox-routing-key')
     expect(JSON.stringify(store.listEvents(task.id))).not.toContain('test-sandbox-bearer-token')
     expect(JSON.stringify(store.listEvents(task.id))).not.toContain('sandbox-reachable-litellm')

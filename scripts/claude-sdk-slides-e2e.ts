@@ -1,9 +1,13 @@
+import { createHash } from 'node:crypto'
+
 const baseUrl = (process.env.ONEVIBE_E2E_URL ?? 'http://127.0.0.1:4311').replace(/\/$/, '')
 const timeoutMs = Math.max(60_000, Number(process.env.ONEVIBE_E2E_TIMEOUT_MS ?? 10 * 60_000))
 
 type Snapshot = {
   id: string
   status: string
+  skills: string[]
+  files: Array<{ path: string; size: number }>
   events: Array<{ type: string; label?: string; payload: Record<string, unknown> }>
   messages: Array<{ role: string; status: string; content: string }>
 }
@@ -31,6 +35,11 @@ const download = async (taskId: string, filePath: string) => {
   return new Uint8Array(await response.arrayBuffer())
 }
 
+const readTextFile = async (taskId: string, filePath: string) => {
+  const result = await request<{ content: string }>(`/api/tasks/${taskId}/file?path=${encodeURIComponent(filePath)}`)
+  return result.content
+}
+
 const main = async () => {
   const readiness = await request<{ providers: Array<{ id: string; available: boolean; label: string }> }>('/api/runtime')
   const claude = readiness.providers.find((provider) => provider.id === 'claude_sdk')
@@ -44,6 +53,15 @@ const main = async () => {
   })
   const task = await waitForTerminal(created.id)
   if (task.status !== 'completed') throw new Error(`Claude slide task ended ${task.status}`)
+  if (JSON.stringify(task.skills) !== JSON.stringify(['slides', 'security_review'])) throw new Error('Selected slide skills were not persisted on the task')
+  const materialized = task.events.find((event) => event.label === 'Claude skill packs materialized')
+  if (!materialized || materialized.payload.permissionChange !== false) throw new Error('Claude skill materialization evidence is missing or widened permissions')
+  const materializedIds = Array.isArray(materialized.payload.skills) ? materialized.payload.skills.map((skill) => typeof skill === 'object' && skill !== null && 'id' in skill ? String(skill.id) : '') : []
+  if (JSON.stringify(materializedIds) !== JSON.stringify(['slides', 'security_review'])) throw new Error('Claude materialization evidence did not match the selected skill set')
+  for (const skill of ['slides', 'security_review']) {
+    const content = await readTextFile(task.id, `.claude/skills/${skill}/SKILL.md`)
+    if (!content.includes(`name: ${skill}`)) throw new Error(`Materialized ${skill} pack is not readable in the task workspace`)
+  }
   const renderCall = task.events.find((event) => event.type === 'tool_call_started' && event.label === 'mcp__onevibe__render_slide_deck')
   if (!renderCall) throw new Error('Claude did not invoke the governed slide renderer')
   const [pptx, pdf, outline] = await Promise.all([
@@ -53,6 +71,13 @@ const main = async () => {
   if (String.fromCharCode(...pdf.subarray(0, 5)) !== '%PDF-') throw new Error('PDF export has an invalid signature')
   const slides = JSON.parse(outline.content) as unknown[]
   if (slides.length !== 8) throw new Error(`Expected eight structured slides, found ${slides.length}`)
+  const manifest = JSON.parse(await readTextFile(task.id, 'artifact-manifest.json')) as { outputs?: Array<{ path: string; size: number; sha256: string }> }
+  const manifestOutputs = manifest.outputs ?? []
+  for (const filePath of ['deck.pptx', 'deck.pdf', 'outline.json', 'speaker-notes.md']) {
+    const entry = manifestOutputs.find((output) => output.path === filePath)
+    if (!entry) throw new Error(`Artifact manifest is missing ${filePath}`)
+  }
+  if (manifestOutputs.find((output) => output.path === 'deck.pptx')?.sha256 !== createHash('sha256').update(pptx).digest('hex')) throw new Error('PPTX manifest hash does not match the downloaded bytes')
   const evidence = await request<{ valid: boolean }>(`/api/tasks/${task.id}/evidence`)
   if (!evidence.valid) throw new Error('Slide task evidence chain is invalid')
   console.log(JSON.stringify({ taskId: task.id, provider: claude.label, slides: slides.length, pptxBytes: pptx.length, pdfBytes: pdf.length, evidenceValid: true }, null, 2))

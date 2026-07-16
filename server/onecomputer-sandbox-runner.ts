@@ -526,6 +526,15 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const spawned = await this.client.exec(sandbox.id, command, signal)
       if (spawned.exitCode !== 0) throw new Error(`Unable to start sandbox Claude process: ${spawned.output.slice(-2_000)}`)
       agentPid = parseAgentPid(spawned.output)
+      if (selectedSkills.length) await store.appendEvent(task.id, {
+        type: 'activity_delta', lane: 'control', label: 'ONEComputer skill packs materialized',
+        content: `${selectedSkills.length} selected versioned skill pack${selectedSkills.length === 1 ? '' : 's'} materialized in the sandbox task workspace.`,
+        payload: {
+          executionRoute: 'onecomputer_sandbox', sandboxId: sandbox.id, path: '.claude/skills',
+          skills: selectedSkills.map(({ id, version, title, sha256 }) => ({ id, version, title, sha256 })),
+          permissionChange: false,
+        },
+      })
       let projectedEntries = 0
       let latestJournal = parseClaudeStreamJournal('')
       const browserReviewTools = new Set<string>()

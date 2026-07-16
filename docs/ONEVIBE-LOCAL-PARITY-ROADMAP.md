@@ -4,7 +4,7 @@ Updated: 2026-07-16
 
 ## Current release posture — 2026-07-16
 
-The local backend and conversation gate is green. The immediate release slice is now **Skills Library → simple durable chat → document artifacts**. Website/App/Game generation is deliberately parked at **P2 / deferred** until this foundation is reliable. The generated website scaffold has a bounded local build proof, but it is not on the current critical path.
+The local backend and conversation contracts are implemented, but the browser audit found a release-blocking truthfulness gap: new prompts default to the deterministic demo adapter, and both demo and Claude paths treat ordinary greetings as artifact tasks. The immediate release slice is now **truthful runtime selection → real simple chat → Skills Library execution evidence → document artifacts**. Website/App/Game generation is deliberately parked at **P2 / deferred** until this foundation is reliable. See [`docs/ONEVIBE-TRUTHFULNESS-BACKLOG.md`](./ONEVIBE-TRUTHFULNESS-BACKLOG.md) and the tagged Linear bugs for the acceptance matrix.
 
 Skills are a first-class capability contract, not decorative prompt labels: the server owns the catalog and pinned SHA-256 manifests, selections persist with the task, only selected packs materialize into the task workspace, and selection does not widen tools or policy permissions. The demo harness proves this contract; the provider-backed harness is the remaining Claude-specific acceptance gate for this release slice.
 
@@ -20,7 +20,7 @@ The current local release remains green for the tested single-process path, but 
 - Generated projects: validation remains static. The generated app is not yet dependency-installed, built, or browser-tested, and interpolated task text must be treated as a source-escaping boundary.
 - Manus-style review: the Computer rail needs typed previews and grouped deliverables, task checkpoints need deep links into the selected evidence event, browser actions need immutable screenshot-or-miss records, and variable-height card virtualization needs scale/accessibility tests.
 
-These findings are tracked as implementation inputs, not release failures for the already-passed local gate. The local execution order is: Skills Library authority/materialization → simple chat/restart/SSE proof → document artifact round-trip → browser golden-flow automation → broader creation parity. The bounded `e2e:website-build -- --install` harness proves the source/static contract and compiles a generated project to `dist/index.html` in a temporary directory; generated-project browser/a11y evidence remains open and is intentionally deferred. ONEComputer provider completion semantics remain a separate deferred production gate.
+These findings are tracked as implementation inputs, not release failures for the already-passed artifact gate. The local execution order is: truthful provider/intent routing → simple chat/restart/SSE proof → Skills Library authority/materialization → document artifact round-trip → browser golden-flow automation → broader creation parity. The bounded `e2e:website-build -- --install` harness proves the source/static contract and compiles a generated project to `dist/index.html` in a temporary directory; generated-project browser/a11y evidence remains open and is intentionally deferred. ONEComputer provider completion semantics remain a separate deferred production gate.
 
 ## Operating decision
 

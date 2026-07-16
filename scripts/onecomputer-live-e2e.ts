@@ -13,6 +13,8 @@ const mode = process.env.ONEVIBE_E2E_MODE === 'website' ? 'website' : 'slides'
 type Snapshot = {
   id: string
   status: string
+  skills: string[]
+  files: Array<{ path: string; size: number }>
   securityContext?: { executionBoundary?: string; gatewayEnforced?: boolean; sandboxId?: string; sandboxState?: string }
   events: Array<{ type: string; label?: string; payload: Record<string, unknown> }>
 }
@@ -138,6 +140,12 @@ const main = async () => {
   if (!task.events.some((event) => event.label === 'ONEComputer sandbox ready')) throw new Error('Sandbox readiness event missing')
   if (!task.events.some((event) => event.type === 'run_started' && event.payload.agentRuntime === 'claude_agent_sdk')) throw new Error('ONEComputer task did not record the sandbox-resident Claude Agent SDK runtime')
   if (requireLiteLlm && !task.events.some((event) => event.type === 'run_started' && event.payload.claudeTransport === 'litellm')) throw new Error('Sandbox run did not record the required server-controlled LiteLLM transport')
+  const expectedSkills = mode === 'slides' ? ['slides', 'security_review'] : ['web_build', 'security_review']
+  if (JSON.stringify(task.skills) !== JSON.stringify(expectedSkills)) throw new Error('ONEComputer task did not persist the selected skill set')
+  const materializedSkills = task.events.find((event) => event.label === 'ONEComputer skill packs materialized')
+  if (!materializedSkills || materializedSkills.payload.permissionChange !== false) throw new Error('ONEComputer skill materialization evidence is missing or widened permissions')
+  const materializedIds = Array.isArray(materializedSkills.payload.skills) ? materializedSkills.payload.skills.map((skill) => typeof skill === 'object' && skill !== null && 'id' in skill ? String(skill.id) : '') : []
+  if (JSON.stringify(materializedIds) !== JSON.stringify(expectedSkills)) throw new Error('ONEComputer materialized skills did not match task selection')
   if (requireVisual && !task.events.some((event) => event.payload.kind === 'visual_frame')) throw new Error('Required X11 visual evidence missing')
   if (mode === 'slides') {
     const [pptx, pdf] = await Promise.all([download(task.id, 'deck.pptx'), download(task.id, 'deck.pdf')])
