@@ -88,7 +88,7 @@ The local Claude/LiteLLM creation gate is now green for the current contract: tw
 
 Creation outputs now have a deterministic provenance manifest for local deterministic mode writers and successful native Claude turns. The manifest is intentionally metadata-only; ONEComputer provider extraction still needs an explicit projection before this becomes a universal artifact contract.
 
-The latest provider-backed slide proof passed only under an explicitly bounded local turn/budget configuration after one default-configured run exceeded the ten-minute harness deadline. Treat model completion latency and provider timeout policy as a remaining reliability item; do not claim the default slide gate is green until that policy is made deterministic.
+The latest provider-backed slide proof passed only under an explicitly bounded local turn/budget configuration after one default-configured run exceeded the ten-minute harness deadline. The coordinator now has a 15-minute default turn deadline with a bounded cleanup grace and explicit timeout evidence; treat model completion latency and provider budget policy as a remaining reliability item until a default-configured slide run passes within that deadline.
 
 ## Delegated audit synthesis — 2026-07-16
 
