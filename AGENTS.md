@@ -58,3 +58,7 @@ Azure is a curated branch assembled from focused patches, not proof that every l
 Do not run concurrent ffmpeg/X11 screenshot commands against one sandbox display. Serialize periodic and event-caused captures per task, preserve the causal event ID on queued captures, and drain the queue before emitting terminal run state.
 
 Under shell `pipefail`, do not discover X11 geometry with a consumer that exits before `xdpyinfo` finishes; the producer may receive SIGPIPE and turn a valid display into exit 141. Consume the full output, validate the resulting `WIDTHxHEIGHT`, then launch ffmpeg.
+
+Use `npm run e2e:restart-audit -- capture <task-id>` before an API restart and `verify` afterward. The same `ONEVIBE_DATA_DIR` must be used on both sides. The gate requires byte-stable transcript/evidence digests, a valid evidence chain, no active run, and zero named credential-residue detectors; findings report detector and source only, never matched secret text.
+
+Use `npm run e2e:onecomputer-cancel` for the real-provider abort gate. It must wait for a provider sandbox identity, cancel the active run, require durable cancellation evidence, release the fenced lease, and verify both `destroyed` state and release evidence. A cancelled task with a retained or unknown lease is not a passing teardown proof.
