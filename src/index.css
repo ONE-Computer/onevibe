@@ -738,3 +738,71 @@ button.model-selector *{color:inherit}
 
 /* Kill any lingering references to old home-hero recent grids */
 .home-hero-recent,.home-hero-recent-block,.home-hero-recent-grid,.home-hero-recent-artifacts,.home-hero-card,.home-hero-artifact,.home-hero-status{display:none!important}
+
+/* ================================================================
+   PHASE 13 — SIDEBAR RESTRAINT
+   ================================================================ */
+[data-theme=light] .task-row-icon,
+[data-theme=light] .task-row-time{display:none!important}
+[data-theme=light] .task-row{grid-template-columns:6px minmax(0,1fr)!important;padding:9px 12px!important;gap:8px!important;background:transparent!important}
+[data-theme=light] .task-row .task-status{display:none!important}
+[data-theme=light] .task-row{grid-template-columns:minmax(0,1fr)!important;padding:8px 12px!important}
+[data-theme=light] .task-row-body strong{font-size:13px!important;font-weight:400!important;color:var(--text-secondary)!important}
+[data-theme=light] .task-row-body small{display:none!important}
+[data-theme=light] .task-row:hover{background:var(--surface-hover)!important}
+[data-theme=light] .task-row.selected{background:var(--surface-hover)!important}
+[data-theme=light] .task-row.selected .task-row-body strong{color:var(--text-primary)!important;font-weight:500!important}
+[data-theme=light] .task-list-group-label{font-size:11px!important;color:var(--text-muted)!important;padding:12px 12px 4px!important;font-weight:500}
+
+/* New task — plain ghost row like Claude's "+ New chat" */
+[data-theme=light] .new-task{
+  height:38px!important;padding:0 12px!important;
+  background:transparent!important;border:1px solid var(--border-default)!important;
+  color:var(--text-primary)!important;font-weight:500!important;font-size:13px;
+  border-radius:8px!important;
+}
+[data-theme=light] .new-task:hover{background:var(--surface-hover)!important}
+[data-theme=light] .new-task kbd{background:transparent!important;border:1px solid var(--border-subtle)!important;font-size:10px!important;padding:1px 5px!important}
+
+/* Nav-item active — neutral background, no accent bar */
+[data-theme=light] .nav-item.active::before{display:none!important}
+[data-theme=light] .nav-item.active{background:var(--surface-hover)!important;color:var(--text-primary)!important}
+[data-theme=light] .nav-item.active svg{color:var(--text-primary)!important}
+[data-theme=light] .nav-item{color:var(--text-secondary)!important;font-weight:400}
+[data-theme=light] .nav-item:hover{background:var(--surface-hover)!important;color:var(--text-primary)!important}
+[data-theme=light] .nav-item svg{color:var(--text-muted)!important}
+
+/* History search — quieter */
+[data-theme=light] .history-search{background:transparent!important;border:1px solid var(--border-subtle)!important;height:34px!important}
+[data-theme=light] .history-search:focus-within{border-color:var(--border-strong)!important;box-shadow:none!important}
+
+/* Project-knowledge card — retire the terracotta chips and border */
+[data-theme=light] .project-knowledge{background:transparent!important;border:0!important;padding:6px 12px!important;margin:2px 0 4px}
+[data-theme=light] .project-knowledge>div strong{font-size:11px;font-weight:500;color:var(--text-muted)}
+[data-theme=light] .project-knowledge>div span{font-size:11px;color:var(--text-faint)}
+[data-theme=light] .project-knowledge aside button{background:transparent!important;border:1px solid var(--border-subtle)!important;color:var(--text-secondary)!important;font-size:11px!important;padding:4px 8px!important;border-radius:6px!important}
+[data-theme=light] .project-knowledge aside button:hover{background:var(--surface-hover)!important;border-color:var(--border-default)!important}
+[data-theme=light] .project-brief>button{color:var(--text-muted)!important;font-size:11px!important;padding:2px 12px!important}
+[data-theme=light] .project-brief>button:hover{color:var(--text-primary)!important}
+
+/* Project row — plain, no terracotta selected state */
+[data-theme=light] .project-row{color:var(--text-secondary)!important;font-weight:400}
+[data-theme=light] .project-row.selected{background:var(--surface-hover)!important;color:var(--text-primary)!important;box-shadow:none!important}
+
+/* Nav-section labels — quieter */
+[data-theme=light] .nav-section-label{color:var(--text-muted)!important;font-weight:500;font-size:11px!important;padding:14px 12px 4px!important;margin:0!important}
+
+/* Trust chip — icon-only in light so it doesn't scream */
+[data-theme=light] .trust-chip{color:var(--text-muted)!important;font-size:11px;padding:5px 4px}
+[data-theme=light] .trust-chip svg{color:var(--accent)}
+
+/* Model selector — plain */
+[data-theme=light] .model-selector,[data-theme=light] button.model-selector{color:var(--text-primary)!important;font-weight:500}
+[data-theme=light] .model-selector svg:first-child{color:var(--accent)}
+
+/* Topbar Share + GitHub — flatter */
+[data-theme=light] .share-button,[data-theme=light] .github-button{border-radius:8px!important;font-weight:500;background:var(--surface-panel)!important;border:1px solid var(--border-default)!important;color:var(--text-primary)!important}
+[data-theme=light] .github-button{background:var(--text-primary)!important;color:var(--surface-panel)!important;border-color:var(--text-primary)!important}
+
+/* Sidebar footer avatar row — remove tinted bg */
+[data-theme=light] .avatar{background:var(--surface-hover)!important;color:var(--text-secondary)!important;border:1px solid var(--border-default)!important;font-weight:500}
