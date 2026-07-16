@@ -602,11 +602,11 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'PATCH' && segments[3] === 'project') {
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before moving it to another project' })
       const input = moveTaskProjectInput.parse(await readBody(request))
-      return json(response, 200, await store.moveTaskToProject(taskId, input.projectId))
+      return json(response, 200, await store.moveTaskToProject(taskId, input.projectId, actorUserId))
     }
     if (request.method === 'PATCH' && segments[3] === 'tags') {
       const input = updateTaskTagsInput.parse(await readBody(request))
-      return json(response, 200, await store.updateTaskTags(taskId, input.tags))
+      return json(response, 200, await store.updateTaskTags(taskId, input.tags, actorUserId))
     }
     if (request.method === 'POST' && segments[3] === 'messages') {
       const input = followUpInput.parse(await readBody(request, 1_500_000))

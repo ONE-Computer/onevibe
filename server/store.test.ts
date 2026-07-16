@@ -33,6 +33,8 @@ describe('TaskStore', () => {
     expect(store.listConversations({ ownerUserId: 'user-a' }).conversations.map((conversation) => conversation.id)).toEqual([taskA.id])
     expect(() => store.getTask(taskB.id, 'user-a')).toThrow('Task not found')
     expect(() => store.getProject(projectB.id, 'user-a')).toThrow('Project not found')
+    await expect(store.moveTaskToProject(taskA.id, projectB.id, 'user-a')).rejects.toThrow('Project not found')
+    await expect(store.updateTaskTags(taskB.id, ['cross-user'], 'user-a')).rejects.toThrow('Task not found')
   })
 
   it('persists governed MCP declarations without accepting secret material', async () => {

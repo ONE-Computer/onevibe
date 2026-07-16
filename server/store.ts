@@ -625,11 +625,11 @@ export class TaskStore {
     return updated
   }
 
-  async moveTaskToProject(taskId: string, projectId: string) {
-    const task = this.getTask(taskId)
-    const destination = this.getProject(projectId)
+  async moveTaskToProject(taskId: string, projectId: string, ownerUserId?: string) {
+    const task = this.getTask(taskId, ownerUserId)
+    const destination = this.getProject(projectId, ownerUserId)
     if (task.projectId === destination.id) return task
-    const origin = this.getProject(task.projectId)
+    const origin = this.getProject(task.projectId, ownerUserId)
     await this.updateTask(taskId, { projectId: destination.id })
     await this.appendEvent(taskId, {
       type: 'activity_delta', lane: 'control', label: 'Task moved to project',
@@ -639,8 +639,8 @@ export class TaskStore {
     return this.getTask(taskId)
   }
 
-  async updateTaskTags(taskId: string, tags: string[]) {
-    const task = this.getTask(taskId)
+  async updateTaskTags(taskId: string, tags: string[], ownerUserId?: string) {
+    const task = this.getTask(taskId, ownerUserId)
     const normalized = [...new Set(tags.map((tag) => tag.trim().toLowerCase()))]
     if (normalized.length > 8 || normalized.some((tag) => !/^[a-z0-9][a-z0-9-]{0,31}$/.test(tag))) throw new Error('Task tags must be 1–32 lowercase letters, numbers, or hyphens')
     if (normalized.join('|') === task.tags.join('|')) return task

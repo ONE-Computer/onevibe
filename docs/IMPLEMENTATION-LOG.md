@@ -24,6 +24,11 @@
 - Browser QA at a 1,280×900 viewport found that Sonner's notification region was being rendered inside `.app-shell` as an extra CSS-grid child. That pushed the main shell onto a second row, compressed the task view to the first grid track, and produced a 9px horizontal overflow despite the mobile layout appearing healthy.
 - Moved `<Toaster>` outside the application grid and pinned `.main-shell` to the second grid column. Rechecked the current Vite app at 1,280×900 and 390×844: both report no horizontal overflow; the 390px task flow completed an explicit simulation chat (`task_81887ee319804a`) with the conversation surface visible. The protected Claude/LiteLLM browser acceptance remains open because no relay credentials were present in this local session.
 
+## 2026-07-17 — owner scope propagation for task mutations
+
+- Closed a concrete local multi-tenancy gap: authenticated task routes already asserted task ownership, but `moveTaskToProject` and `updateTaskTags` discarded the actor scope when entering `TaskStore`. Both APIs now accept and enforce `ownerUserId`; task-to-project movement cannot target another user's project, and tag mutation cannot address another user's task.
+- Added negative coverage for both cross-user cases in `server/store.test.ts`. Focused store tests, lint, and build pass. HTTP-level negative coverage, Postgres ownership, and organization membership remain open under P4-06/ONE-253.
+
 ## 2026-07-17 — handover evidence reconciliation
 
 - Reconciled the phase checklist against the current implementation and regression evidence: P1-01 backend-offline recovery, P1-08 permanent simulation disclosure, and P2-07 durable guidance queueing are complete and now marked as such in `TODO.md`.
