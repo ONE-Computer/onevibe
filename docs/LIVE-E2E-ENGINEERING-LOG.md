@@ -138,6 +138,13 @@ The real-provider cancellation harness allocated sandbox `onevibe-32279349` for 
 - The adapter now bounds sandbox `exec` requests to 30 seconds and retries transient event-journal poll failures within the existing task deadline, recording a non-sensitive `ONEComputer agent poll retry` event. The timeout race covers both response headers and JSON body parsing; an earlier version only bounded `fetch()` and could still hang while parsing a chunked provider body. This is covered by a focused test alongside the status-poll retry test. A fresh combined run is still required to prove continuation completion and distinct-conversation isolation after this change.
 - The live harness now opens `/api/tasks/:id/events` while the ONEComputer task runs, requires durable `runtime_event` frames with task-bound IDs, and reconnects with `Last-Event-ID` to require suffix-only replay. This makes native SSE delivery an explicit acceptance gate alongside snapshot polling; the next passing run must report live and replay frame counts.
 
+# 2026-07-16 — Azure allocation-receipt promotion and authenticated E2E gate
+
+- Promoted the provider allocation-receipt implementation onto the Azure deployment branch as commit `4ff7533`. The deployment applied migration `20260716150000_add_sandbox_allocation_operations`, rebuilt the web and gateway components, restarted the services, and reported active web, gateway, and LiteLLM bridge units. Public `/v1/health` returned HTTP 200.
+- Focused provider verification passed on the VM: API/database type checks, formatting, and the sandbox allocation/operation tests (7 tests). The deployment is source/runtime evidence for the receipt contract, not proof of timeout/replay recovery with a live sandbox.
+- A fresh ONEVibe API on port 4313 attempted the real-provider harness with visual evidence and LiteLLM requirements enabled. Runtime readiness reported `claude_agent_sdk` and `onecomputer` available, but `POST /v1/sandboxes` returned HTTP 401 before a provider sandbox identity was issued. The run therefore produced no sandbox, no artifact, and no live/replay SSE evidence; it was stopped without weakening the auth boundary.
+- The remaining gate is to configure a valid server-side ONEComputer project credential (or the documented development-auth mechanism) for ONEVibe's provider client, then rerun the combined conversation/SSE/visual/slides/release harness. Do not use an arbitrary placeholder token and do not mark ONE-221 Done from the prior development-provider pass.
+
 ## 2026-07-16 — combined ONEComputer + Claude + SSE gate passed
 
 - Fresh isolated API run passed with primary task `task_f53b06f25cf740` and separate task `task_84878cf22c6f40`.
