@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — validate legacy import relationships before Postgres writes
+
+- Moved Postgres legacy-import relationship validation into `server/persistence/import-validation.ts` so it can be tested without importing or executing the CLI entrypoint.
+- The importer now rejects a task or schedule whose project reference is missing or whose owner differs from the referenced project owner before opening a Postgres transaction. This closes a concrete cross-owner foreign-key association risk in the legacy path; it does not replace database constraints or complete the Postgres repository/runtime switch.
+- Added regression coverage for valid same-owner relationships and missing/cross-owner task/schedule references. `npm run db:import -- --dry-run` remains owner-gated, and the release gate now type-checks the importer with the server's `skipLibCheck` policy.
+
 ## 2026-07-17 — handover consistency audit and LiteLLM policy reaffirmation
 
 - Re-read `HANDOVER.md`, `TODO.md`, the local parity roadmap, the phase plans, and the live ONEVibe Linear project. The handover now reflects the current 915-line API server, the 1,427-line SQLite TaskStore, the completed Zustand boundary, ordinary-collection TanStack Query migration, and the intentionally open active-task/SSE mutation boundary.

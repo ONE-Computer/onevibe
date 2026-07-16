@@ -8,7 +8,7 @@
 >
 > **Current state**: The local-first foundation is substantially implemented: backend-offline recovery, truthful simulation labelling, durable SSE replay/reconnect, LiteLLM-only routing, provider-neutral runtime lifecycle, runtime health/routing, task workspaces, durable guidance queueing, assistant-ui conversation rendering, owner-scoped local auth, an opt-in MCP capability facade, and the initial skill marketplace boundary are in place. Remaining release blockers are live provider acceptance, Postgres/runtime deployment, sandbox attestation, production MCP secret/health controls, document/provider/browser evidence, and the remaining professional-UI gates. See `HANDOVER.md` and `plan/00-gap-analysis.md`.
 >
-> **Release gate**: `npm run check` must stay green (oxlint + 247 vitest tests + tsc build + e2e harness typecheck) after every task.
+> **Release gate**: `npm run check` must stay green (oxlint + 250 vitest tests + tsc build + e2e harness typecheck) after every task.
 
 > **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The Claude SDK configuration now fails closed unless the server-controlled relay is configured; Codex/AgentCore remain blocked until their adapters also use the same boundary.
 
@@ -65,7 +65,7 @@ Reference: `plan/03-runtime-routing.md`
 Reference: `plan/04-cloud-infrastructure.md`
 
 - [ ] **P4-01** Add auth — feature-gated Better Auth + hashed email-OTP foundation, real delivery webhook, session middleware, login UI, and hardcoded-identity removal are now implemented locally; keep open until production delivery, all route/session acceptance, and Postgres-backed ownership are complete
-- [ ] **P4-02** Migrate database — Drizzle/PostgreSQL schema contract, two migrations, owner-required importer, disposable live import/restart proof, and a fail-closed persistence-driver guard are now present; keep open until the TaskStore repository adapter, production legacy import, application-level idempotency proof, and a controlled `DATABASE_URL` runtime switch are complete
+- [ ] **P4-02** Migrate database — Drizzle/PostgreSQL schema contract, two migrations, owner-required importer, cross-owner relationship validation, disposable live import/restart proof, and a fail-closed persistence-driver guard are now present; keep open until the TaskStore repository adapter, production legacy import, application-level idempotency proof, and a controlled `DATABASE_URL` runtime switch are complete
 - [ ] **P4-03** Containerise — current non-root multi-stage `Dockerfile`, hardened SQLite-volume `docker-compose.yml`, and `.env.example` are implemented; keep open until the P4-02 Postgres contract is wired into the image/Compose path rather than shipping an unused database service
 - [ ] **P4-04** Deploy to Railway or Fly.io — `railway.toml` or `fly.toml`; deploy instructions in `plan/04-cloud-infrastructure.md#deploy`
 - [ ] **P4-05** Add cloud sandbox — integrate **e2b.dev** (`@e2b/code-interpreter`) as the default `sandboxed` execution backend; surface sandbox preview URL in workspace iframe; `E2bRuntimeAdapter` wraps e2b and implements the full `RuntimeAdapter` interface

@@ -3,6 +3,7 @@ import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { eq } from 'drizzle-orm'
 import * as schema from '../server/db/schema.js'
+import { validateImportRelationships, type OwnedProjectRow, type OwnedScheduleRow, type OwnedTaskRow } from '../server/persistence/import-validation.js'
 import { TaskStore } from '../server/store.js'
 import type { ChatMessage, Project, Task, TaskSchedule } from '../server/types.js'
 
@@ -38,11 +39,12 @@ const run = async () => {
   const mcpConfigs = store.listMcpConfigs()
   const skillInstallations = store.listSkillInstallationRecords()
   const owners = new Set<string>()
-  const projectRows = projects.map((project: Project) => { const ownerUserId = ownerFor(project, options, 'Project', project.id); owners.add(ownerUserId); return { project, ownerUserId } })
-  const taskRows = tasks.map((task: Task) => { const ownerUserId = ownerFor(task, options, 'Task', task.id); owners.add(ownerUserId); return { task, ownerUserId } })
-  const scheduleRows = schedules.map((schedule: TaskSchedule) => { const ownerUserId = ownerFor(schedule, options, 'Schedule', schedule.id); owners.add(ownerUserId); return { schedule, ownerUserId } })
+  const projectRows: OwnedProjectRow[] = projects.map((project: Project) => { const ownerUserId = ownerFor(project, options, 'Project', project.id); owners.add(ownerUserId); return { project, ownerUserId } })
+  const taskRows: OwnedTaskRow[] = tasks.map((task: Task) => { const ownerUserId = ownerFor(task, options, 'Task', task.id); owners.add(ownerUserId); return { task, ownerUserId } })
+  const scheduleRows: OwnedScheduleRow[] = schedules.map((schedule: TaskSchedule) => { const ownerUserId = ownerFor(schedule, options, 'Schedule', schedule.id); owners.add(ownerUserId); return { schedule, ownerUserId } })
   const mcpRows = mcpConfigs.map((config) => { const ownerUserId = ownerFor(config, options, 'MCP config', config.id); owners.add(ownerUserId); return { config, ownerUserId } })
   const skillRows = skillInstallations.map((skill) => { const ownerUserId = ownerFor(skill, options, 'Skill installation', skill.id); owners.add(ownerUserId); return { skill, ownerUserId } })
+  validateImportRelationships(projectRows, taskRows, scheduleRows)
 
   const counts = { projects: projectRows.length, tasks: taskRows.length, schedules: scheduleRows.length, mcpConfigs: mcpRows.length, skillInstallations: skillRows.length, messages: 0, events: 0, nativeEvents: 0, versions: 0 }
   for (const { task } of taskRows) {
