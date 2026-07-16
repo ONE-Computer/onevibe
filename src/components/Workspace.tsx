@@ -70,6 +70,7 @@ export const Workspace = ({ task, projects, runtime, onMoveProject, onUpdateTags
   const [tagDraft, setTagDraft] = useState(task.tags.join(', '))
   const [savingTags, setSavingTags] = useState(false)
   const [tagError, setTagError] = useState<string | null>(null)
+  const [workspaceRefresh, setWorkspaceRefresh] = useState(0)
   const runtimeCapabilities = runtime?.providers.find((candidate) => candidate.id === task.provider)?.capabilities
   const hasCapability = (capability: RuntimeCapability) => runtimeCapabilities ? runtimeCapabilities.includes(capability) : true
   const completedSteps = task.plan.filter((step) => step.status === 'completed').length
@@ -126,7 +127,7 @@ export const Workspace = ({ task, projects, runtime, onMoveProject, onUpdateTags
       setFiles(result.files)
       setSelectedFile((current) => current ?? result.files[0]?.path ?? null)
     })
-  }, [task.events.length, task.id])
+  }, [task.events.length, task.id, workspaceRefresh])
   useEffect(() => {
     if (!selectedFile) return
     if (isBinary(selectedFile)) { setContent(''); setDraft(''); return }
@@ -214,7 +215,7 @@ export const Workspace = ({ task, projects, runtime, onMoveProject, onUpdateTags
           {task.status === 'completed' && <button className={tab === 'handoff' ? 'active' : ''} onClick={() => selectTab('handoff')}><GitFork size={14} /> Handoff</button>}
           <button className={tab === 'settings' ? 'active' : ''} onClick={() => selectTab('settings')}><Settings2 size={14} /> Settings</button>
         </div>
-        <div className="workspace-tools"><button title="Make a provenance-linked copy" onClick={() => void copyTask(task.id).then((copy) => window.location.assign(`/tasks/${copy.id}`))}><Copy size={14} /></button><a title="Download source, evidence, and GitHub handoff" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
+        <div className="workspace-tools"><button title="Make a provenance-linked copy" aria-label="Make a provenance-linked copy" onClick={() => void copyTask(task.id).then((copy) => window.location.assign(`/tasks/${copy.id}`))}><Copy size={14} /></button><a title="Download source, evidence, and GitHub handoff" aria-label="Download source, evidence, and GitHub handoff" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button title="Refresh workspace files" aria-label="Refresh workspace files" onClick={() => setWorkspaceRefresh((value) => value + 1)}><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} aria-label={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
       </header>
               <div className="workspace-meta"><span className="live-dot" /> local.onevibe.dev/{task.id.slice(-6)}<span className="workspace-policy"><ShieldCheck size={12} /> {task.securityContext?.gatewayEnforced ? 'ONEComputer gateway enforced' : `${providerLabel(task.provider)} policy`}</span></div>
       <div className="workspace-body">

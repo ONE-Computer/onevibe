@@ -17,6 +17,12 @@
 - Added `docker-compose.yml` with a named SQLite data volume, API healthcheck, read-only root filesystem, no-new-privileges, dropped capabilities, and bounded `/tmp`. A Docker build and 22-second smoke run returned `/api/runtime` and `/` successfully; the container became healthy and ran as user `onevibe`.
 - This is a deployable local container shape, not completion of cloud Phase 4: Postgres/Drizzle, auth/session middleware, multi-user isolation, managed deployment, and sandbox attestation remain open. The Compose file intentionally does not advertise an unused Postgres service.
 
+## 2026-07-17 — close two professional-UI dead ends
+
+- Completed P5-04 locally: removed non-functional Settings affordances, made the workspace refresh control reload the authoritative task file list, and replaced the hardcoded Skills badge with the live catalog count.
+- Completed P5-05 locally: the sidebar search input debounces server-backed conversation search so unloaded history is discoverable through `/api/conversations?q=...`; short queries retain the loaded-summary filter and empty/error states remain explicit.
+- Verification: `npm run lint` and `npm run build` pass. This slice does not claim auth-backed search isolation; that remains part of Phase 4.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.
