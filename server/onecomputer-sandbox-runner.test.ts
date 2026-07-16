@@ -39,6 +39,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(portableArtifactKind('deck.pptx')).toBe('slide_deck')
     expect(portableArtifactKind('notes/speaker-notes.md')).toBe('source_file')
     expect(portableArtifactKind('.claude/skills/slides/SKILL.md')).toBeUndefined()
+    expect(portableArtifactKind('.claude-state/sessions/active.json')).toBeUndefined()
     expect(portableArtifactKind('.gitignore')).toBe('source_file')
     expect(portableArtifactKind('evidence/visual/frame.png')).toBeUndefined()
     expect(portableArtifactKind('inputs/01-brief.txt')).toBeUndefined()

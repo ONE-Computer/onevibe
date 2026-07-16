@@ -501,9 +501,18 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       if (listing.exitCode !== 0) throw new Error('Unable to enumerate sandbox artifacts')
       const paths = Buffer.from(listing.output.trim(), 'base64').toString('utf8').split('\0').filter(Boolean).map((item) => item.replace(/^\.\//, ''))
       if (paths.length > 100) throw new Error('Sandbox produced more than the 100-file extraction limit')
+      // The worker and Claude SDK create ephemeral runtime state under
+      // `.claude/`, `.claude-state/`, and `.onevibe-*`. Those files can be
+      // created or removed while the sandbox is being enumerated, so do not
+      // attempt to fetch them as user artifacts. This also keeps runtime
+      // journals/backups out of the portable deliverable boundary.
+      const extractablePaths = paths.filter((item) => {
+        const normalized = path.posix.normalize(item)
+        return normalized === 'index.html' || normalized === 'validation-report.json' || portableArtifactKind(normalized) !== undefined
+      })
       let totalBytes = 0
       const portableArtifacts: Array<{ path: string; size: number; kind: string }> = []
-      for (const relativePath of paths) {
+      for (const relativePath of extractablePaths) {
         const normalized = path.posix.normalize(relativePath)
         if (normalized.startsWith('../') || path.posix.isAbsolute(normalized) || normalized === '..') throw new Error('Sandbox returned an unsafe artifact path')
         const file = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && base64 -w0 -- ${shellQuote(normalized)}`, signal)
@@ -517,8 +526,8 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       }
       await store.appendEvent(task.id, {
         type: 'tool_call_completed', lane: 'activity', label: 'Sandbox artifacts extracted',
-        content: `${paths.length} files copied from the disposable boundary.`,
-        payload: { sandboxId: sandbox.id, fileCount: paths.length, totalBytes },
+        content: `${extractablePaths.length} portable files copied from the disposable boundary.`,
+        payload: { sandboxId: sandbox.id, fileCount: extractablePaths.length, enumeratedFileCount: paths.length, totalBytes },
       })
       for (const artifact of portableArtifacts) await store.appendEvent(task.id, {
         type: 'artifact_created', lane: 'artifact', label: artifact.kind === 'slide_deck' ? 'Sandbox presentation export' : 'Sandbox deliverable', content: artifact.path,

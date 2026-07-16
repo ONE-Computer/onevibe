@@ -108,3 +108,17 @@ npm run e2e:onecomputer
 ```
 
 The harness refuses to run if the ONEComputer provider is unavailable. It creates a Slides conversation, verifies real PPTX/PDF bytes, sends a follow-up through the same retained sandbox, creates a separate conversation with a distinct sandbox, validates evidence/X11 expectations, then explicitly releases both leases. Set `ONEVIBE_E2E_MODE=website` only when exercising the older website path. It intentionally does not send credentials to the browser or attempt an ambiguous-create reconciliation stress test; retain that as a separate controlled proof.
+
+## Latest development-provider pass — 2026-07-16
+
+The authenticated combined harness passed against the deployed Azure provider with a temporary ONEVibe data directory:
+
+- Primary task `task_30236182861f43`, sandbox `onevibe-82861f43`; follow-up reused the same lease/sandbox.
+- Separate task `task_9e70682f63eb40`, sandbox `onevibe-2f63eb40`; identity was distinct.
+- Claude Agent SDK ran inside the sandbox through the VM-supported `claude-granola-5-2` LiteLLM route.
+- Live SSE frames: 4. `Last-Event-ID` suffix replay frames: 31. Suffix-only replay: true.
+- Visual evidence: 6 frames. Evidence chain: valid.
+- Sandbox-origin artifacts: `deck.pptx` 105,984 bytes with `PK` signature; `deck.pdf` 5,461 bytes with `%PDF-` signature.
+- Cleanup: both conversation leases returned `released`; authenticated provider reconciliation returned zero sandbox rows.
+
+This is a development-provider POC result. `gatewayEnforced=false`, the provider is Kasm, and the run does not close production microVM attestation, default-deny egress, short-lived credential injection, API-restart/failure-injection acceptance, or OpenVTC approval enforcement.

@@ -64,7 +64,7 @@ const parseSseFrames = (source: string): SseFrame[] => source.split(/\r?\n\r?\n/
 
 const readSseFrames = async (taskId: string, lastEventId?: string, minimumFrames = 4) => {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 20_000)
+  const deadline = Date.now() + 20_000
   try {
     const response = await fetch(`${baseUrl}/api/tasks/${encodeURIComponent(taskId)}/events`, {
       headers: { Accept: 'text/event-stream', ...(lastEventId ? { 'Last-Event-ID': lastEventId } : {}) },
@@ -76,15 +76,30 @@ const readSseFrames = async (taskId: string, lastEventId?: string, minimumFrames
     let source = ''
     let frames: SseFrame[] = []
     while (frames.length < minimumFrames) {
-      const chunk = await reader.read()
+      const remainingMs = deadline - Date.now()
+      if (remainingMs <= 0) throw new Error(`SSE stream did not produce ${minimumFrames} frames before its deadline`)
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      const timedRead = new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error(`SSE stream did not produce ${minimumFrames} frames before its deadline`)), remainingMs)
+        void reader.read().then(resolve, reject)
+      })
+      let chunk: ReadableStreamReadResult<Uint8Array>
+      try {
+        chunk = await timedRead
+      } finally {
+        if (timeout) clearTimeout(timeout)
+      }
       if (chunk.done) break
       source += decoder.decode(chunk.value, { stream: true })
       frames = parseSseFrames(source)
     }
-    await reader.cancel()
+    // Node's undici reader cancellation can wait indefinitely on a server
+    // that intentionally keeps the task stream open after terminal state.
+    // The controller abort in finally is the authoritative cleanup signal;
+    // do not make acceptance depend on the remote stream honoring cancel.
+    void reader.cancel().catch(() => undefined)
     return frames
   } finally {
-    clearTimeout(timeout)
     controller.abort()
   }
 }
