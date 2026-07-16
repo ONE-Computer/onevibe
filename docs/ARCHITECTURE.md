@@ -57,11 +57,13 @@ It does not claim VM isolation, egress enforcement, real wallet signatures, or c
 
 The Compose path intentionally does not pretend to use Postgres yet. `DATABASE_URL`, `better-auth`, user scoping, and a Postgres service belong to the still-open Phase 4 persistence/auth slices. Until those contracts land, cloud promotion must treat the SQLite volume as a single-instance local deployment boundary rather than a multi-user production database.
 
+The GitHub Actions container gate builds this same image and starts it with an immutable root, bounded writable data/tmp mounts, dropped capabilities, and no-new-privileges. It verifies the health endpoint and non-root UID; this is a packaging/runtime contract, not evidence of cloud deployment or sandbox isolation.
+
 The proposed auth/database contract is recorded in [`AUTH-POSTGRES-ADR.md`](AUTH-POSTGRES-ADR.md). It is intentionally a migration design, not evidence that auth, Postgres, or multi-user isolation already exist.
 
 ## Execution-path diagnostics
 
-`GET /api/diagnostics` is an authenticated, bounded status contract for the Computers view. It reports whether the server-controlled LiteLLM boundary is configured, whether the current request is session-scoped, which local persistence driver is active, provider readiness, the configured sandbox boundary, and the count of secret-free MCP declarations. It never returns credentials, prompts, raw provider payloads, or production attestation claims. The Postgres contract and cloud/microVM boundaries remain explicit follow-up work until their runtime proofs exist.
+`GET /api/diagnostics` is an authenticated, bounded status contract for the Computers view. It reports whether the server-controlled LiteLLM boundary is configured, whether the current request is session-scoped, which local persistence driver is active, provider readiness, the configured sandbox boundary, and the count of secret-free MCP declarations. `GET /api/mcp/:id/health` independently probes one owner-scoped declaration through initialization and `tools/list`, returning only bounded status, latency, tool count, and generic failure detail. Neither route returns credentials, prompts, raw provider payloads, or production attestation claims. The Postgres contract and cloud/microVM boundaries remain explicit follow-up work until their runtime proofs exist.
 
 Skill selection is also provider-owned: Claude-backed adapters materialize the selected, hashed packs in the task workspace; the deterministic demo records selection as `not_executed_demo` and never writes skill files. The UI and event ledger must not collapse these states into a generic "skill applied" label.
 
