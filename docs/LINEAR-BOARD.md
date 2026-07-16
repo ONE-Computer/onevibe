@@ -20,6 +20,8 @@ The current release gate is [ONE-230](https://linear.app/onecomputer/issue/ONE-2
 
 The handover adds [ONE-245](https://linear.app/onecomputer/issue/ONE-245/secp0-enforce-litellm-only-model-routing-for-every-harness) as a security release gate: every harness must route model traffic through the server-controlled LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The current Claude SDK path now fails closed without the relay; Codex/AgentCore remain open until their adapters use the same boundary.
 
+The first handover Phase 2 engineering ticket is [ONE-246](https://linear.app/onecomputer/issue/ONE-246/bep1-implement-provider-neutral-runtimeadapter-lifecycle-contract). It tracks the provider-neutral lifecycle contract now implemented in commit `dfb6b89`, including the remaining removal of the transitional legacy overload and the runtime registry boundary.
+
 The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critical path:
 
 1. `ONE-216` — transactional conversation, turn, and message service.
@@ -36,7 +38,7 @@ The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critica
 
 ## Status snapshot — 2026-07-16 (local ONEVibe parity pivot; ONE-245 enforcement slice)
 
-The board contains 31 scoped issues: 4 Done, 13 In Progress, and 14 Backlog. That is **13% strict ticket completion** (4/31), or **34% weighted delivery progress** when an In Progress ticket counts as half (4 + 13×0.5 = 10.5/31, rounded). ONE-233 through ONE-235 are now Done from real local Claude/LiteLLM evidence; ONE-236 and ONE-237 remain release blockers under ONE-230. ONE-245 is In Progress: the Claude SDK path now fails closed without LiteLLM, while Codex/AgentCore enforcement remains open. The assistants-ui UX program is ONE-238 through ONE-244: it is a P0/P1 overhaul of the conversation architecture, composer, execution narrative, artifact inspector, navigation, skills surfaces, and sans-serif design system. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
+The board contains 32 scoped issues: 4 Done, 14 In Progress, and 14 Backlog. That is **13% strict ticket completion** (4/32), or **34% weighted delivery progress** when an In Progress ticket counts as half (4 + 14×0.5 = 11/32, rounded). ONE-233 through ONE-235 are now Done from real local Claude/LiteLLM evidence; ONE-236 and ONE-237 remain release blockers under ONE-230. ONE-245 is In Progress: the Claude SDK path now fails closed without LiteLLM, while Codex/AgentCore enforcement remains open. ONE-246 is In Progress with the provider-neutral lifecycle base and persisted event-stream bridge implemented. The assistants-ui UX program is ONE-238 through ONE-244: it is a P0/P1 overhaul of the conversation architecture, composer, execution narrative, artifact inspector, navigation, skills surfaces, and sans-serif design system. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
 
 ### Current phase — ONEVibe local reliability and Manus parity
 
