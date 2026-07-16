@@ -172,7 +172,7 @@ export const nativeProjectionOffset = pgTable('native_projection_offset', {
   projectorVersion: integer('projector_version').notNull(),
   lastSourceSequence: integer('last_source_sequence').notNull(),
   updatedAt: updatedAt(),
-}, (table) => [primaryKey({ columns: [table.taskId, table.runId, table.source, table.projectorVersion] })])
+}, (table) => [primaryKey({ name: 'native_projection_offset_pk', columns: [table.taskId, table.runId, table.source, table.projectorVersion] })])
 
 export const idempotencyKey = pgTable('idempotency_key', {
   scope: text('scope').notNull(),

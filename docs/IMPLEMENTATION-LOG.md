@@ -842,3 +842,8 @@ baseline harness in CI.
 - Applied all three reviewed Drizzle migrations to a disposable PostgreSQL 18 container and verified the migration ledger and expected application/auth table set before destroying the container. The migration emitted only PostgreSQL’s long-identifier truncation notice; it completed successfully.
 - Added a GitHub Actions `postgres-schema` job that starts PostgreSQL 18, runs `npm run db:migrate`, and validates the reviewed migration manifest with `npm run db:check`.
 - Boundary: this proves schema/migration compatibility only. The API still fails closed when `DATABASE_URL` would select Postgres because the TaskStore repository/runtime adapter, production import, and application idempotency switch remain open.
+
+## 2026-07-17 — explicit Postgres projection constraint name
+
+- Added Drizzle migration `0003_slim_jack_flag.sql` to rename the long auto-generated `native_projection_offset` primary-key constraint to `native_projection_offset_pk`. This keeps the historical migration intact while making newly applied schemas deterministic and readable.
+- Re-ran the disposable PostgreSQL 18 migration sequence and verified the resulting primary-key constraint name. PostgreSQL still reports the expected notice while replaying the historical migration, but the final schema is canonical; no migration failed.

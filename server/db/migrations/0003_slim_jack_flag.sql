@@ -1,0 +1,2 @@
+ALTER TABLE "native_projection_offset" DROP CONSTRAINT "native_projection_offset_task_id_run_id_source_projector_version_pk";--> statement-breakpoint
+ALTER TABLE "native_projection_offset" ADD CONSTRAINT "native_projection_offset_pk" PRIMARY KEY("task_id","run_id","source","projector_version");
