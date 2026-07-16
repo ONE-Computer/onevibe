@@ -1,7 +1,7 @@
 # ONEVibe — Agent Handover Document
 
 > **Date**: 2026-07-16
-> **Status**: Roadmap written, cosmetic UX inherited, Phase 1 foundation work in progress. P1-01/P1-07 have an implementation slice; browser acceptance remains open.
+> **Status**: Roadmap and local backend foundation are implemented through the RuntimeRegistry/routing phase. LiteLLM-only enforcement, canonical runtime lifecycle, bounded startup health, mode-aware selection, and explicit user-selected fallback are in the current branch. Cloud auth, Postgres migration, deployment, and production attestation remain open.
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
@@ -41,11 +41,11 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
-| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 207 tests passing |
+| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 224 tests passing |
 
 ### What is critically broken
 
-1. **Default provider is `demo`** — every new user gets fake scripted responses, not Claude
+1. **No governed runtime configured** — the local fallback is explicitly labelled Simulation and makes no model call; when the protected LiteLLM route is configured, the registry selects a compatible governed runtime instead
 2. **Backend down = silent blank screen** — when `server/index.ts` isn't running, all API calls silently fail with no error message
 3. **SSE event drop** — `useTask.ts:52` drops events that arrive before the initial REST snapshot loads
 4. **No auth** — `"Terence"` is hardcoded in `Sidebar.tsx:174`; all tasks are global
@@ -70,7 +70,7 @@ Do not configure a direct Anthropic API key as a substitute for the relay. Local
 ```bash
 npm run check
 # = oxlint src server scripts
-# + vitest run (207 tests)
+# + vitest run (224 tests at this handover update)
 # + tsc -b
 # + tsc -p tsconfig.server.json
 # + vite build
@@ -164,7 +164,7 @@ Full task list: `TODO.md`. Summary:
 - Permanent demo-mode banner in conversation pane (`P1-08`)
 
 ### Phase 2 — Harden the runtime abstraction
-**10 tasks. Target: Codex and AgentCore work as real providers; capabilities drive UI.**
+**10 tasks. Target: provider-neutral lifecycle and LiteLLM-routed harness boundaries; capabilities drive UI.**
 
 - Audit and harden `RuntimeAdapter` interface (`P2-01`)
 - Add `CodexRuntimeAdapter` — OpenAI Codex (`P2-02`)
@@ -178,7 +178,7 @@ Full task list: `TODO.md`. Summary:
 - Approval panel above composer (`P2-10`)
 
 ### Phase 3 — Runtime routing layer
-**7 tasks. Target: informed harness selection; mode-aware suggestions; health dashboard.**
+**7 tasks. Target: informed harness selection; mode-aware suggestions; bounded startup health and health dashboard.**
 
 - `RuntimeRegistry` server-side discovery + health checks (`P3-01`)
 - Mode → provider routing suggestions (`P3-02`)
@@ -265,14 +265,10 @@ ONECOMPUTER_API_URL=https://...
 ONECOMPUTER_SERVICE_TOKEN=oc_...
 ONECOMPUTER_PROJECT_ID=proj_...
 
-# To add (Phase 2): Codex
-OPENAI_API_KEY=sk-...
-
-# To add (Phase 2): AgentCore
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_REGION=ap-southeast-2
-AGENTCORE_RUNTIME_ARN=arn:aws:bedrock-agentcore:...
+# Codex-compatible and AgentCore routes do not receive direct model or cloud
+# credentials in ONEVibe. They must use server-controlled endpoints that
+# explicitly declare LiteLLM routing. Raw OpenAI, Anthropic, AWS, or Bedrock
+# credentials are not valid substitutes for this boundary.
 
 # To add (Phase 3): runtime default
 ONEVIBE_DEFAULT_PROVIDER=claude_sdk
@@ -318,16 +314,12 @@ The cosmetic work is **not a regression risk** — it is in `src/index.css` as s
 
 ## 10. Handoff checklist for the next agent
 
-Before writing a single line of code:
+When resuming work:
 
-- [ ] Read this document in full
-- [ ] Read `TODO.md` — understand the full task list and phase structure
-- [ ] Read `plan/00-gap-analysis.md` — understand the 10 root causes and 50 UX issues
-- [ ] Read `plan/README.md` — understand the architecture diagram and phase rules
-- [ ] Run `npm run dev` locally, confirm the app starts
-- [ ] Run `npm run check`, confirm it passes (207 tests green)
-- [ ] Open `http://localhost:5173`, confirm the UI loads in light mode
-- [ ] Read `server/runtime-adapter.ts` — understand the interface before adding any adapter
-- [ ] If implementing Phase 2+: clone `/tmp/openwork` and read the relevant files listed in `plan/00-gap-analysis.md` section 6
-
-Start with **P1-01** (backend-down banner). Do not skip ahead. Each phase depends on the previous.
+- [ ] Read `TODO.md`, the relevant phase plan, and the latest Linear comments
+- [ ] Run `npm run check` and record the exact test count
+- [ ] Open `http://127.0.0.1:5173` with the API running and inspect the current provider/mode state in the browser
+- [ ] Preserve the LiteLLM-only policy: direct first-party Anthropic, OpenAI, Bedrock, or other first-party model credentials are never a fallback
+- [ ] Read `server/runtime-adapter.ts` before changing a harness or provider contract
+- [ ] Keep provider-specific details in server-side adapters/payloads; UI routing must use capability and health metadata
+- [ ] Update `docs/IMPLEMENTATION-LOG.md`, `docs/LINEAR-BOARD.md`, and the relevant Linear issue after each meaningful slice
