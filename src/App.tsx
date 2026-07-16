@@ -1,5 +1,6 @@
 import { Bell, ChevronDown, CodeXml, Link2, Menu, Monitor, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import { PromptComposer } from './components/PromptComposer'
@@ -15,7 +16,7 @@ import { HomeHero } from './components/HomeHero'
 import { LoginPage } from './components/LoginPage'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
+import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
 import { getAuthSession, signOut as signOutAuth } from './lib/auth'
 import { providerLabel, statusLabel } from './lib/runtime-labels'
@@ -49,10 +50,11 @@ export default function App() {
   const [runtime, setRuntime] = useState<RuntimeReadiness>()
   const [mcpConfigs, setMcpConfigs] = useState<RuntimeMcpConfig[]>([])
   const { activeProjectId, setActiveProjectId, view, setView, activeTaskId, setActiveTaskId, sidebarOpen, setSidebarOpen, mobileInspectorOpen, setMobileInspectorOpen, notificationsOpen, setNotificationsOpen, backendOffline, setBackendOffline, retryingBackend, setRetryingBackend } = useUiStore()
-  const [skillCatalog, setSkillCatalog] = useState<SkillOption[]>(fallbackSkillCatalog)
   const { selectedSkills, setSelectedSkills, creating, setCreating } = useComposerStore()
   const { authState, setAuthState, authLoading, setAuthLoading } = useSessionStore()
   const { snapshot, connected, error, retry: retryConnection, refresh: refreshSnapshot } = useTask(activeTaskId)
+  const skillQuery = useQuery({ queryKey: ['skills'], queryFn: listSkills, staleTime: 60_000 })
+  const skillCatalog = skillQuery.data?.skills.map(({ id, title, summary }) => ({ id, title, summary })) ?? fallbackSkillCatalog
 
   const refreshAuth = useCallback(async () => {
     try { setAuthState(await getAuthSession()) } catch { setAuthState({ enabled: false, session: null }) } finally { setAuthLoading(false) }
@@ -86,15 +88,12 @@ export default function App() {
   useEffect(() => { void refreshConversations().catch((reason: unknown) => reportError(reason, 'Unable to load conversations')) }, [refreshConversations])
   useEffect(() => { void listLibrary().then(({ items }) => setLibrary(items)).catch((reason: unknown) => reportError(reason, 'Unable to load Library')) }, [])
   useEffect(() => {
-    let mounted = true
-    void listSkills().then(({ skills }) => {
-      if (!mounted || !skills.length) return
-      const catalog = skills.map(({ id, title, summary }) => ({ id, title, summary }))
-      setSkillCatalog(catalog)
+    if (skillQuery.data?.skills.length) {
+      const catalog = skillQuery.data.skills.map(({ id, title, summary }) => ({ id, title, summary }))
       setSelectedSkills((current) => normalizeSelectedSkillIds(current, catalog))
-    }).catch((reason: unknown) => reportError(reason, 'Unable to load the skill catalog; local guides remain available.'))
-    return () => { mounted = false }
-  }, [setSelectedSkills])
+    }
+  }, [setSelectedSkills, skillQuery.data?.skills])
+  useEffect(() => { if (skillQuery.error) reportError(skillQuery.error, 'Unable to load the skill catalog; local guides remain available.') }, [skillQuery.error])
   useEffect(() => { persistSelectedSkills(selectedSkills) }, [selectedSkills])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)).catch((reason: unknown) => reportError(reason, 'Unable to load schedules')) }, [])
   useEffect(() => { void listMcpConfigs().then(({ configs }) => setMcpConfigs(configs)).catch((reason: unknown) => reportError(reason, 'Unable to load MCP servers')) }, [])

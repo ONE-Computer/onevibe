@@ -677,3 +677,9 @@ baseline harness in CI.
 - Added `useUiStore`, `useComposerStore`, and `useSessionStore` and migrated App navigation/inspector state, selected skill/running composer state, and auth session state onto them. Server-backed collections deliberately remain in the transitional App layer pending TanStack Query.
 - Added focused store tests. This is an in-progress P5-01 slice, not a claim that all App state or data fetching has migrated.
 - Focused verification: `npm run lint`, `npm run test` passed with 46 test files / 236 tests, and `npm run build` passed.
+
+# 2026-07-17 — TanStack Query foundation
+
+- Mounted a single QueryClient at the SPA root with bounded retry, stale-time, and no focus refetch. Migrated the Skills catalog from a hand-written effect/local fetch into a cached query with an explicit fallback and visible error toast.
+- Kept task/SSE state on `useTask`: an append-only replayable event stream is not treated as ordinary query data. Remaining collection queries and mutations are intentionally open under P5-02.
+- Focused verification: lint, 46 test files / 236 tests, and production build passed.
