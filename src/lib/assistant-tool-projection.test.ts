@@ -43,4 +43,18 @@ describe('assistant tool projection', () => {
     const [projected] = projectAssistantToolCalls([message], events)
     expect(projected?.artifacts).toEqual([expect.objectContaining({ path: 'notes.md', uri: '/api/tasks/task_a/file?path=notes.md&download=1' })])
   })
+
+  it('projects a safe, turn-scoped operational trace without raw tool input', () => {
+    const events = [
+      event(0, 'run_started', { executionRoute: 'claude_agent_sdk' }, 'Provider stream opened.'),
+      event(1, 'activity_delta', { executionRoute: 'claude_agent_sdk' }, 'Answering conversationally.'),
+      { ...event(2, 'tool_call_started', { toolUseId: 'tool_trace', executionRoute: 'claude_agent_sdk', input: { command: 'secret --token abc' } }, 'Bash'), label: 'Bash' },
+      event(3, 'tool_call_completed', { toolUseId: 'tool_trace', isError: false }, 'Command completed.'),
+      event(4, 'run_completed', { executionRoute: 'claude_agent_sdk' }, 'Done.'),
+    ]
+    const [projected] = projectAssistantToolCalls([message], events)
+    expect(projected?.trace).toHaveLength(3)
+    expect(projected?.trace?.find((item) => item.kind === 'tool')).toMatchObject({ label: 'Bash', status: 'completed' })
+    expect(JSON.stringify(projected?.trace)).not.toContain('secret')
+  })
 })

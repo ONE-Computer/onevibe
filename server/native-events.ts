@@ -15,6 +15,7 @@ export type NativeEventInput = {
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 const secretKey = /authorization|cookie|token|secret|api[_-]?key|password|credential/i
 const hiddenReasoningKey = /^(thinking|redacted_thinking|reasoning|reasoning_content|encrypted_content)$/i
+const hostPath = /\/(?:Users|home|private\/tmp|tmp)\/[^\s'"`]+/g
 
 /**
  * Native provider envelopes are evidence, not a transcript. Keep bounded
@@ -23,7 +24,10 @@ const hiddenReasoningKey = /^(thinking|redacted_thinking|reasoning|reasoning_con
  */
 export const sanitizeNativePayload = (value: unknown, depth = 0): unknown => {
   if (depth > 7) return '[Max depth]'
-  if (typeof value === 'string') return value.length > 64_000 ? `${value.slice(0, 64_000)}…[truncated]` : value
+  if (typeof value === 'string') {
+    const redacted = value.replace(hostPath, '<workspace-path>')
+    return redacted.length > 64_000 ? `${redacted.slice(0, 64_000)}…[truncated]` : redacted
+  }
   if (typeof value === 'number' || typeof value === 'boolean' || value === null || value === undefined) return value
   if (Array.isArray(value)) return value.slice(0, 250).map((item) => sanitizeNativePayload(item, depth + 1))
   if (!isRecord(value)) return '[Unsupported native value]'

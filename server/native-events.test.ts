@@ -6,6 +6,7 @@ describe('native event envelopes', () => {
     expect(sanitizeNativePayload({ access_token: 'secret', reasoning_content: 'do not persist', nested: { apiKey: 'also secret' } })).toEqual({
       access_token: '[REDACTED]', reasoning_content: '[OMITTED_HIDDEN_REASONING]', nested: { apiKey: '[REDACTED]' },
     })
+    expect(sanitizeNativePayload({ cwd: '/tmp/onevibe/workspaces/task_a', file_path: '/Users/gini/private.txt' })).toEqual({ cwd: '<workspace-path>', file_path: '<workspace-path>' })
   })
 
   it('bounds oversized native payloads while retaining a digest', () => {

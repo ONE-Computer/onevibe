@@ -96,7 +96,7 @@ describe('Computer timeline terminal inspection', () => {
 
   it('projects a CLI command without exposing credentials or host paths', () => {
     const command = commandFor({ command: 'API_KEY=not-for-the-rail node /Users/operator/project/build.mjs --token top-secret' })
-    expect(command).toBe('API_KEY=<redacted> node <host-path> --token=<redacted>')
+    expect(command).toBe('API_KEY=<redacted> node <workspace-path> --token=<redacted>')
     const activity = terminalActivityFor({ id: 'command', kind: 'terminal', title: 'Bash', createdAt: '2026-07-16T00:00:00.000Z', payload: { input: { command: 'pwd' } } }, [])
     expect(activity.command).toBe('pwd')
     expect(activity.workspaceLabel).toBe('Sandbox workspace')
@@ -133,6 +133,7 @@ describe('Computer timeline terminal inspection', () => {
     const preview: ComputerItem = { id: 'preview', kind: 'preview', title: 'Interactive preview', createdAt: '2026-07-16T00:00:02.000Z' }
     const control: ComputerItem = { id: 'control', kind: 'approval', title: 'Approval pending', createdAt: '2026-07-16T00:00:03.000Z' }
     expect(defaultComputerItem([terminal, preview, control], true)?.id).toBe('preview')
+    expect(defaultComputerItem([terminal, control], true)?.id).toBe('terminal')
     expect(defaultComputerItem([terminal, preview, control], false)?.id).toBe('control')
   })
 

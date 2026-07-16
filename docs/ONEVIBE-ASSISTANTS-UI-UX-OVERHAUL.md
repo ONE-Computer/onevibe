@@ -4,6 +4,10 @@ Status: **P0 product-quality program**
 Updated: 2026-07-16  
 Design constraint: **sans-serif typography only**
 
+## Implementation update — 2026-07-16
+
+The first execution-narrative slice is now in place: the assistant-ui projection receives real running state, renders a compact operational trace from durable events, removes the duplicate raw runtime checkpoint list from the default conversation, and opens tool-backed tasks directly in the Computer inspector. The trace is deliberately evidence-oriented rather than hidden chain-of-thought. The broader native composer, inspector, typography, and responsive visual-regression work remains on the roadmap below.
+
 ## North star
 
 ONEVibe should feel like a calm, premium agent workspace: one obvious place to talk, one durable conversation history, one clear execution narrative, and one contextual artifact/computer inspector. The interface should feel closer to a high-quality AI product than an operations console.
@@ -161,4 +165,3 @@ The overhaul is not complete when the page merely resembles an assistant-ui exam
 6. Sans-serif design-system cleanup and visual regression.
 
 The redesign must not broaden into website generation until the simple-chat and document-artifact journeys are reliable.
-

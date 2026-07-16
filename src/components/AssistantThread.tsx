@@ -15,7 +15,7 @@ import {
 import type { TaskSnapshot } from '../types'
 import { toAssistantMessage } from '../lib/assistant-message'
 import { projectAssistantToolCalls } from '../lib/assistant-tool-projection'
-import type { AssistantArtifact } from '../lib/assistant-tool-projection'
+import type { AssistantArtifact, AssistantTraceItem } from '../lib/assistant-tool-projection'
 
 const timestamp = (value?: Date) => value?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ?? ''
 
@@ -44,11 +44,17 @@ const ArtifactCards = ({ artifacts }: { artifacts: AssistantArtifact[] }) => art
   return <article key={artifact.path} className="aui-artifact-card"><span>{deck ? <Presentation size={16} /> : <FileText size={16} />}</span><div><strong>{artifact.path.split('/').at(-1)}</strong><small>{artifact.label} · {readableBytes(artifact.size) ?? 'portable file'}</small><em><ShieldCheck size={9} /> ONEComputer evidence {artifact.eventId.split(':').at(-1)}</em></div><a href={artifact.uri} target={artifact.action === 'preview' ? '_blank' : undefined} rel="noreferrer" download={artifact.action === 'download' ? '' : undefined} aria-label={`${artifact.action === 'preview' ? 'Preview' : 'Download'} ${artifact.path}`}>{artifact.action === 'preview' ? <Eye size={14} /> : <Download size={14} />}</a></article>
 })}</div> : null
 
+const WorkingTrace = () => {
+  const trace = useAuiState((state) => (state.message.metadata.custom as { trace?: AssistantTraceItem[] } | undefined)?.trace ?? [])
+  if (!trace.length) return null
+  return <details className="aui-working-trace" open><summary><span><ShieldCheck size={12} /> Working trace</span><em>{trace.length} recorded step{trace.length === 1 ? '' : 's'}</em></summary><p className="aui-working-trace-note">Operational summaries and tool evidence from the provider stream. Hidden chain-of-thought is not exposed.</p><ol>{trace.map((item) => <li key={item.id} className={item.status}><span>{item.status === 'running' ? <LoaderCircle className="spin" size={12} /> : item.status === 'failed' ? <TriangleAlert size={12} /> : <CheckCircle2 size={12} />}</span><div><strong>{item.label}</strong>{item.detail && <small>{item.detail.replace(/\s+/g, ' ').slice(0, 240)}</small>}</div><em>{item.status === 'running' ? 'Working' : item.status === 'failed' ? 'Failed' : 'Done'}</em></li>)}</ol></details>
+}
+
 const AssistantMessage = () => {
   const createdAt = useAuiState((state) => state.message.createdAt)
   const running = useAuiState((state) => state.message.status?.type === 'running')
   const artifacts = useAuiState((state) => (state.message.metadata.custom as { artifacts?: AssistantArtifact[] } | undefined)?.artifacts ?? [])
-  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb">O</div><div><strong>ONEVibe <small>{running ? '· writing' : `· ${timestamp(createdAt)}`}</small></strong><MessagePrimitive.Parts components={{ tools: { Fallback: ToolCallCard } }} /><ArtifactCards artifacts={artifacts} />{running && <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>}<MessageActions /></div></MessagePrimitive.Root>
+  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb">O</div><div><strong>ONEVibe <small>{running ? '· writing' : `· ${timestamp(createdAt)}`}</small></strong><WorkingTrace /><MessagePrimitive.Parts components={{ tools: { Fallback: ToolCallCard } }} /><ArtifactCards artifacts={artifacts} />{running && <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>}<MessageActions /></div></MessagePrimitive.Root>
 }
 
 type MessageRow = { id: string; role: 'user' | 'assistant' | 'system' }
@@ -168,7 +174,7 @@ export const AssistantThread = ({ task, busy, onSubmit }: Props) => {
     onNew: send,
     // The backend, not browser memory, owns durable guidance queueing while a
     // provider turn runs, so this external thread stays sendable.
-    isRunning: false,
+    isRunning: task.status === 'pending' || task.status === 'running' || task.status === 'waiting_for_user_input',
     isSendDisabled: busy || Boolean(task.inputRequest),
   })
 

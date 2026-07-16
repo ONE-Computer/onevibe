@@ -34,7 +34,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
       type: 'stream_event', session_id: 'session-test', parent_tool_use_id: null,
       event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Building safely.' } },
     }
-    yield {
+    if (!prompt.startsWith('Hello')) yield {
       type: 'assistant', session_id: 'session-test', parent_tool_use_id: null,
       message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Write', input: { file_path: 'index.html' } }] },
     }
@@ -60,6 +60,29 @@ afterEach(async () => {
 })
 
 describe('ClaudeSdkRuntimeAdapter', () => {
+  it('keeps chat conversational and skips the artifact contract', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-claude-chat-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { ClaudeSdkRuntimeAdapter, isSafeBashCommand } = await import('./claude-sdk-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Hello, how are you today?', 'claude_sdk', 'chat')
+    await store.beginTurn(task.id, task.prompt, task.provider)
+
+    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'test answer' })
+
+    const events = store.listEvents(task.id)
+    expect(events.at(-1)?.type).toBe('run_completed')
+    expect(events.some((event) => event.label === 'Static artifact contract passed' || event.label === 'Static artifact contract needs review')).toBe(false)
+    expect(events.some((event) => event.type === 'artifact_created')).toBe(false)
+    expect(store.getTask(task.id).status).toBe('completed')
+    expect(permissionChecks).toEqual(['deny', 'deny', 'deny'])
+    expect(isSafeBashCommand('node script.js')).toBe(true)
+    expect(isSafeBashCommand('python3 -c "import os"')).toBe(false)
+    expect(isSafeBashCommand('curl https://example.com')).toBe(false)
+  })
+
   it('requires an explicit result for success while preserving native events and tool confinement', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-claude-sdk-'))
     temporaryRoots.push(root)

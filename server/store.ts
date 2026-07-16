@@ -34,12 +34,14 @@ const panelFor = (input: EventInput): PresentationDescriptor | undefined => {
   if (input.payload.kind === 'visual_frame') return { panel: 'screenshot', uri, artifactPath }
   if (input.type === 'artifact_updated') return { panel: 'diff', uri, artifactPath }
   if (input.payload.kind === 'slide_deck' || artifactPath?.toLowerCase().endsWith('.pptx')) return { panel: 'slide', uri, artifactPath }
-  if (uri) return { panel: 'preview', uri, artifactPath }
+  if (uri && (uri.includes('/preview') || input.payload.kind === 'website')) return { panel: 'preview', uri, artifactPath }
   return { panel: 'file', artifactPath }
 }
 
 const planFor = (mode: TaskMode, prompt: string): Task['plan'] => {
+  if (mode === 'chat') return []
   const middle: Record<TaskMode, [string, string, string]> = {
+    chat: ['Respond conversationally', 'Continue the conversation', 'Preserve the conversation record'],
     general: ['Prepare the governed workspace', 'Create the requested artifact', 'Validate output and policy decisions'],
     website: ['Generate and select a design concept', 'Build the responsive website', 'Run build, browser, and accessibility checks'],
     slides: ['Draft the slide-by-slide outline', 'Render the deck and speaker notes', 'Validate layout and export formats'],

@@ -34,11 +34,11 @@ The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critica
 
 ## Status snapshot — 2026-07-16 (local ONEVibe parity pivot)
 
-The board contains 30 scoped issues: 1 Done, 8 In Progress, and 21 Backlog. That is **3% strict ticket completion** (1/30), or **17% weighted delivery progress** when an In Progress ticket counts as half (1 + 8×0.5 = 5/30, rounded). The truthfulness tickets ONE-233 through ONE-237 are release blockers under ONE-230. The new assistants-ui UX program is ONE-238 through ONE-244: it is a P0/P1 overhaul of the conversation architecture, composer, execution narrative, artifact inspector, navigation, skills surfaces, and sans-serif design system. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
+The board contains 30 scoped issues: 4 Done, 12 In Progress, and 14 Backlog. That is **13% strict ticket completion** (4/30), or **33% weighted delivery progress** when an In Progress ticket counts as half (4 + 12×0.5 = 10/30, rounded). ONE-233 through ONE-235 are now Done from real local Claude/LiteLLM evidence; ONE-236 and ONE-237 remain release blockers under ONE-230. The assistants-ui UX program is ONE-238 through ONE-244: it is a P0/P1 overhaul of the conversation architecture, composer, execution narrative, artifact inspector, navigation, skills surfaces, and sans-serif design system. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
 
 ### Current phase — ONEVibe local reliability and Manus parity
 
-ONE-230 is the active P0. Its release gate now has a preceding truthfulness checkpoint: ONE-233 must stop silent demo defaults, ONE-234 must separate chat intent from artifact orchestration, and ONE-235 must stop artifact validation from failing successful chat. ONE-237 owns the release-blocking hello matrix. After truthfulness is green, ONE-238 is the major assistants-ui-native UX parent, with ONE-239 through ONE-241 as P0 conversation/runtime slices and ONE-242 through ONE-244 as P1 inspector, navigation/skills, and design-system slices. Only after those foundations are green does the broader local gate cover durable history, reconnectable SSE, follow-up turns, cancellation/retry/error states, assistant-ui conversation rendering, plan/tool/activity evidence, screenshots/terminal cards, artifact rail, and responsive browser QA. PPTX/PDF generation remains part of the explicit artifact path. The UI must never imply that local mode is a production network-containment boundary.
+ONE-230 is the active P0. Its release gate now has a preceding truthfulness checkpoint: ONE-233 through ONE-235 are complete; ONE-236 owns truthful skill status and ONE-237 owns the release-blocking hello matrix. ONE-238 is the major assistants-ui-native UX parent, with ONE-239 through ONE-241 as P0 conversation/runtime slices and ONE-242 through ONE-244 as P1 inspector, navigation/skills, and design-system slices. Only after those foundations are green does the broader local gate cover durable history, reconnectable SSE, follow-up turns, cancellation/retry/error states, assistant-ui conversation rendering, plan/tool/activity evidence, screenshots/terminal cards, artifact rail, and responsive browser QA. PPTX/PDF generation remains part of the explicit artifact path. The UI must never imply that local mode is a production network-containment boundary.
 
 ONE-223 and ONE-229 are the active UX workstream. ONE-216 through ONE-220 remain the backend foundation. ONE-221, ONE-225, and ONE-226 are deliberately back in Backlog: their Azure/provider recovery and attested microVM work will resume only after ONE-230 is green. ONE-215 is retained as a historical dependency epic and is back in Backlog. ONE-224, ONE-227, and ONE-228 remain deferred platform/security work.
 
@@ -52,9 +52,9 @@ The truthfulness audit found five mandatory local tickets that were missing from
 
 The browser audit reproduced a plain greeting entering the deterministic demo artifact pipeline as `task_869e454fe3b140`. An isolated explicit Claude/LiteLLM task `task_0a4206809d3d4c` produced a provider-backed greeting but was then incorrectly marked `failed` by artifact validation. The detailed evidence and acceptance criteria are in [`docs/ONEVIBE-TRUTHFULNESS-BACKLOG.md`](./ONEVIBE-TRUTHFULNESS-BACKLOG.md).
 
-- `ONE-233` — `[BUG][TRUTHFULNESS][P0]` Stop silently defaulting new conversations to deterministic demo.
-- `ONE-234` — `[BUG][TRUTHFULNESS][P0]` Add chat intent distinct from artifact task orchestration.
-- `ONE-235` — `[BUG][TRUTHFULNESS][P0]` Do not fail provider-backed chat on artifact validation.
+- `ONE-233` — `[BUG][TRUTHFULNESS][P0]` Stop silently defaulting new conversations to deterministic demo (**Done**).
+- `ONE-234` — `[BUG][TRUTHFULNESS][P0]` Add chat intent distinct from artifact task orchestration (**Done**).
+- `ONE-235` — `[BUG][TRUTHFULNESS][P0]` Do not fail provider-backed chat on artifact validation (**Done**).
 - `ONE-236` — `[BUG][TRUTHFULNESS][P1]` Make skill execution status truthful in demo mode.
 - `ONE-237` — `[TEST][TRUTHFULNESS][P1]` Add hello acceptance matrix across demo, Claude, SSE, and reload.
 
@@ -70,7 +70,13 @@ The cloned `assistant-ui/assistant-ui` reference was studied at commit `f1dcd8b`
 - `ONE-243` — `[UX][P1]` Rebuild thread list, skills command palette, and project context.
 - `ONE-244` — `[DESIGN][P1]` Enforce the sans-serif design system and visual regression.
 
-The UI program is blocked on the truthfulness P0s and must not be closed from screenshots alone. It requires real runtime state, durable history, artifact provenance, browser QA, and the sans-serif/static audit.
+The UI program is no longer blocked on the completed truthfulness P0s, but must not be closed from screenshots alone. It requires real runtime state, durable history, artifact provenance, browser QA, and the sans-serif/static audit.
+
+### Current local slice evidence
+
+- `task_45213c6170d243`: real Claude/LiteLLM chat with streamed deltas and no artifact pipeline.
+- `task_f8d51a10de4f4d`: real Claude/LiteLLM Markdown artifact plus bounded Bash, passing validation, durable command/result evidence, and host-path redaction.
+- The focused local gate is green: `npm run lint`, `npm test` (37 files / 206 tests), and `npm run build`.
 
 ### Latest development-provider POC evidence
 

@@ -4,6 +4,18 @@ Status: **P0 release blocker**
 Observed: 2026-07-16  
 Scope: local ONEVibe product path before broader Manus parity work
 
+## Implementation update — 2026-07-16
+
+The first backend/runtime slice is now implemented and live-tested locally:
+
+- New conversations default to the configured Claude Agent SDK provider in the API and to `chat` mode in the UI; the deterministic provider is explicitly labelled `Simulation · no model call`.
+- `chat` bypasses plans, artifact generation, validation, and wallet publication flows. A real LiteLLM-routed greeting produced durable SSE deltas, one completed assistant message, no files, and a completed task.
+- General artifact mode now accepts portable outputs such as Markdown without forcing `index.html`.
+- Claude SDK tool execution has a pre-tool enforcement hook. Bash is allowlisted to one workspace-relative local command and denies shell composition, network commands, credentials, and path escapes. Host paths are redacted from persisted native evidence and the UI.
+- The assistant thread now shows a compact, turn-scoped operational trace while preserving the explicit rule that hidden chain-of-thought is not exposed. The Computer rail opens for tool-backed tasks and displays the Bash command/result and artifact evidence.
+
+Remaining release work: browser acceptance automation, the true microVM/ONEComputer runtime proof, richer assistant-ui-native composer primitives, and the full sans-serif visual-system pass.
+
 ## Why this exists
 
 The browser currently makes the deterministic local demo path too easy to enter and too easy to mistake for a real agent conversation. A plain greeting therefore becomes an artifact task, and the user can see a canned response, generated preview, five-step plan, validation, and wallet approval instead of a normal assistant reply.
@@ -94,4 +106,3 @@ Acceptance criteria:
 ## Release rule
 
 ONEVibe is **not** ready for broader Manus parity claims until the P0 truthfulness tickets pass. A green demo-mode artifact test is not evidence that chat works, and a visually convincing timeline must not imply a provider call that did not occur.
-

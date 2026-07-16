@@ -69,6 +69,17 @@
 - SSE task events now subscribe before reading replay, buffer events during the replay/drain phase, deduplicate by durable event ID, and then enter live delivery. The HTTP route is wired to this handoff and validates task-bound cursors before headers.
 - Implementation was delegated into disjoint worker scopes and integrated by the main agent in `27b7123`. Focused worker tests and the full check passed; local Claude/LiteLLM two-turn E2E remained green.
 
+## 2026-07-16 — truthful Claude chat, bounded Bash, and Manus-style evidence view
+
+- Added an explicit `chat` task mode. Real Claude Agent SDK conversations now stream through LiteLLM into durable assistant history and complete from the provider terminal result without artifact validation, generated files, or publication approval.
+- Changed API/UI defaults so configured Claude is preferred and the deterministic runtime is visibly labelled as a simulation with no model call. Artifact modes remain explicit.
+- Relaxed the generic artifact contract for `general` mode so Markdown, JSON, CSV, and code outputs can pass without an invented browser preview; preview-backed modes retain their stricter contracts.
+- Added a Claude SDK `PreToolUse` policy hook in addition to the callback guard. This matters because SDK settings can auto-allow built-in tools without invoking the interactive permission callback. Bash is limited to a single workspace-relative local command and denies shell composition, network commands, credentials, and path escapes.
+- Added host-path redaction to native envelopes, tool results, traces, and the Computer rail. The live UI now labels this route accurately as `Claude host policy · no gateway`.
+- Added a compact, turn-scoped operational trace to the assistant-ui projection, filtering low-signal provider stream events while retaining plan, tool, artifact, and terminal lifecycle evidence. Removed the duplicate raw runtime checkpoint list from the default conversation surface.
+- The Computer inspector now auto-opens for tool-backed tasks and prefers a terminal evidence card when no visual preview exists. Live browser verification completed a Claude/LiteLLM greeting and a Markdown-plus-Bash task; the latter produced `NOTES.md`, a passing validation report, a durable Bash command/result, and a clean completed status.
+- Verification: `npm run lint`, `npm test` (37 files / 206 tests), and `npm run build` pass.
+
 ## 2026-07-16 — restart reconciliation, idempotent retry, and local slide proof
 
 - `5c4e6ba` reconciles stale durable active turns after API restart. It emits one retryable process-restart failure, finalizes the assistant message, clears the active run, and remains idempotent across repeated initialization.

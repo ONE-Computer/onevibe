@@ -1,6 +1,6 @@
 import { Activity, ArrowLeft, ArrowRight, Check, CheckCircle2, ClipboardCheck, Code2, Copy, Download, Eye, File, Files, GitFork, Globe2, History, Image, LoaderCircle, Maximize2, Minimize2, Network, Palette, Pencil, Presentation, RefreshCw, Save, Search, Settings2, ShieldCheck, Table2, TerminalSquare, TriangleAlert } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { compareVersion, copyTask, getEvidence, getFile, getFiles, getVersions, restoreVersion, updateFile } from '../lib/api'
 import type { Project, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 import { ComputerTimeline } from './ComputerTimeline'
@@ -18,6 +18,12 @@ type DesignPhilosophy = { name: string; description: string }
 const formatBytes = (bytes: number) => bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
 const isBinary = (filePath: string) => /\.(pptx|pdf|png|jpe?g|gif|zip)$/i.test(filePath)
 const formatElapsed = (milliseconds: number) => milliseconds < 1_000 ? '<1s' : milliseconds < 60_000 ? `${Math.round(milliseconds / 1_000)}s` : `${Math.floor(milliseconds / 60_000)}m ${Math.round((milliseconds % 60_000) / 1_000)}s`
+const initialTabFor = (task: TaskSnapshot): Tab => {
+  const requested = new URLSearchParams(window.location.search).get('tab')
+  if (requested) return workspaceTabFromSearch(window.location.search)
+  if (task.mode === 'chat') return 'dashboard'
+  return task.events.some((event) => event.type.startsWith('tool_call')) ? 'computer' : 'preview'
+}
 const activitySummary = (event: TaskSnapshot['events'][number]) => {
   if (event.label) return event.label
   if (event.type === 'tool_call_started') return 'Tool started'
@@ -34,7 +40,8 @@ const activityIcon = (event: TaskSnapshot['events'][number]) => {
 }
 
 export const Workspace = ({ task, projects, onMoveProject, onUpdateTags }: { task: TaskSnapshot; projects: Project[]; onMoveProject: (taskId: string, projectId: string) => Promise<void>; onUpdateTags: (taskId: string, tags: string[]) => Promise<void> }) => {
-  const [tab, setTab] = useState<Tab>(() => workspaceTabFromSearch(window.location.search))
+  const [tab, setTab] = useState<Tab>(() => initialTabFor(task))
+  const manualTabSelection = useRef(Boolean(new URLSearchParams(window.location.search).get('tab')))
   const [files, setFiles] = useState<WorkspaceFile[]>(task.files)
   const [selectedFile, setSelectedFile] = useState<string | null>(task.files[0]?.path ?? null)
   const [content, setContent] = useState('')
@@ -80,9 +87,14 @@ export const Workspace = ({ task, projects, onMoveProject, onUpdateTags }: { tas
     if (event?.label === 'Sandbox browser review not observed') return { state: 'not observed', detail: 'Browser was enabled, but no review tool was recorded' }
     return { state: 'not requested', detail: 'No browser-review evidence was requested for this task' }
   }, [task.events])
+  const meaningfulActivity = useMemo(() => task.events.filter((event) => {
+    if (event.lane === 'transcript' || event.type === 'assistant_text_delta') return false
+    return !/^Claude SDK · (init|status|stream event|assistant|prompt suggestion)$/i.test(event.label ?? '')
+  }).slice(-8).reverse(), [task.events])
   const filteredDataRows = useMemo(() => filterDataRows(dataRows, dataQuery), [dataQuery, dataRows])
 
   const selectTab = (next: Tab) => {
+    manualTabSelection.current = true
     setTab(next)
     window.history.pushState(window.history.state, '', workspaceLocationForTab(window.location.href, next))
   }
@@ -92,7 +104,14 @@ export const Workspace = ({ task, projects, onMoveProject, onUpdateTags }: { tas
     window.addEventListener('popstate', restore)
     return () => window.removeEventListener('popstate', restore)
   }, [])
-  useEffect(() => { setTab(workspaceTabFromSearch(window.location.search)) }, [task.id])
+  // Reset only when the conversation changes; event updates are handled by
+  // the guarded auto-computer effect below so a reviewer can keep a manual tab.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { manualTabSelection.current = Boolean(new URLSearchParams(window.location.search).get('tab')); setTab(initialTabFor(task)) }, [task.id])
+  useEffect(() => {
+    if (manualTabSelection.current) return
+    if (tab === 'preview' && task.events.some((event) => event.type.startsWith('tool_call'))) setTab('computer')
+  }, [tab, task.events])
   useEffect(() => { setTagDraft(task.tags.join(', ')); setTagError(null) }, [task.id, task.tags])
   useEffect(() => {
     if (workspaceTabFromSearch(window.location.search) === tab) return
@@ -194,10 +213,10 @@ export const Workspace = ({ task, projects, onMoveProject, onUpdateTags }: { tas
         </div>
         <div className="workspace-tools"><button title="Make a provenance-linked copy" onClick={() => void copyTask(task.id).then((copy) => window.location.assign(`/tasks/${copy.id}`))}><Copy size={14} /></button><a title="Download source, evidence, and GitHub handoff" href={`/api/tasks/${task.id}/download`}><Download size={14} /></a><button><RefreshCw size={14} /></button><button title={fullscreen ? 'Exit fullscreen' : 'Expand workspace'} onClick={() => setFullscreen((value) => !value)}>{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button></div>
       </header>
-      <div className="workspace-meta"><span className="live-dot" /> local.onevibe.dev/{task.id.slice(-6)}<span className="workspace-policy"><ShieldCheck size={12} /> {task.securityContext?.gatewayEnforced ? 'ONEComputer gateway enforced' : 'local policy demo'}</span></div>
+      <div className="workspace-meta"><span className="live-dot" /> local.onevibe.dev/{task.id.slice(-6)}<span className="workspace-policy"><ShieldCheck size={12} /> {task.securityContext?.gatewayEnforced ? 'ONEComputer gateway enforced' : task.provider === 'claude_sdk' ? 'Claude host policy · no gateway' : 'local simulation policy'}</span></div>
       <div className="workspace-body">
         <AnimatePresence mode="wait">
-          {tab === 'dashboard' && <motion.div key="dashboard" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="dashboard-pane"><header><div><span>Task workspace</span><strong>{task.status.replaceAll('_', ' ')}</strong></div><p>{task.securityContext?.executionBoundary === 'onecomputer_sandbox' ? 'ONEComputer sandbox boundary' : task.securityContext?.executionBoundary === 'remote_runtime' ? 'Remote runtime boundary' : 'Local task workspace'}</p></header><div className="dashboard-grid"><article><span>Plan progress</span><strong>{completedSteps} / {task.plan.length}</strong><small>{task.plan.find((step) => step.status === 'running')?.title ?? 'No active plan step'}</small></article><article><span>Portable artifacts</span><strong>{files.filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')).length}</strong><small>{files.length} files in workspace</small></article><article><span>Evidence events</span><strong>{task.events.length}</strong><small>{task.activeRunId ? `Active run ${task.activeRunId.slice(-6)}` : 'No active run'}</small></article><article><span>Approval boundary</span><strong>{task.approval?.state ?? 'none'}</strong><small>{task.approval ? 'Decision remains in VTI Wallet' : 'No consequential action pending'}</small></article></div><section className="dashboard-boundary"><ShieldCheck size={17} /><div><strong>{task.securityContext?.gatewayEnforced ? 'Gateway enforcement attested' : 'Policy boundary visible'}</strong><span>{task.securityContext?.gatewayEnforced ? 'Runtime reports gateway enforcement for this task.' : 'This task does not claim production gateway attestation.'}</span></div></section><section className="activity-rail-panel"><header><div><span>Live execution</span><strong>{task.status === 'running' ? 'Agent is working' : 'Execution record'}</strong></div><small>{task.events.length} durable events · replayable</small></header><div className="activity-rail-progress"><div className="activity-rail-progress-label"><span>Plan</span><strong>{completedSteps} / {task.plan.length}</strong></div><div className="activity-rail-progress-track"><motion.span animate={{ width: `${task.plan.length ? (completedSteps / task.plan.length) * 100 : 0}%` }} /></div></div><div className="activity-rail-events">{task.events.slice(-8).reverse().map((event) => <article key={event.id} className={event.payload.isError === true ? 'error' : ''}><span className="activity-rail-icon">{activityIcon(event)}</span><div><strong>{activitySummary(event)}</strong><small>{event.content ? event.content.slice(0, 150) : event.type.replaceAll('_', ' ')}</small></div><time>{new Date(event.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></article>)}</div><p className="activity-rail-note"><ShieldCheck size={12} /> Activity is projected from the server-owned event ledger. Hidden reasoning and credentials are never shown.</p></section></motion.div>}
+          {tab === 'dashboard' && <motion.div key="dashboard" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="dashboard-pane"><header><div><span>Task workspace</span><strong>{task.status.replaceAll('_', ' ')}</strong></div><p>{task.securityContext?.executionBoundary === 'onecomputer_sandbox' ? 'ONEComputer sandbox boundary' : task.securityContext?.executionBoundary === 'remote_runtime' ? 'Remote runtime boundary' : 'Local task workspace'}</p></header><div className="dashboard-grid"><article><span>Plan progress</span><strong>{completedSteps} / {task.plan.length}</strong><small>{task.plan.find((step) => step.status === 'running')?.title ?? 'No active plan step'}</small></article><article><span>Portable artifacts</span><strong>{files.filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')).length}</strong><small>{files.length} files in workspace</small></article><article><span>Evidence events</span><strong>{task.events.length}</strong><small>{task.activeRunId ? `Active run ${task.activeRunId.slice(-6)}` : 'No active run'}</small></article><article><span>Approval boundary</span><strong>{task.approval?.state ?? 'none'}</strong><small>{task.approval ? 'Decision remains in VTI Wallet' : 'No consequential action pending'}</small></article></div><section className="dashboard-boundary"><ShieldCheck size={17} /><div><strong>{task.securityContext?.gatewayEnforced ? 'Gateway enforcement attested' : 'Policy boundary visible'}</strong><span>{task.securityContext?.gatewayEnforced ? 'Runtime reports gateway enforcement for this task.' : 'This task does not claim production gateway attestation.'}</span></div></section><section className="activity-rail-panel"><header><div><span>Live execution</span><strong>{task.status === 'running' ? 'Agent is working' : 'Execution record'}</strong></div><small>{task.events.length} durable events · replayable</small></header><div className="activity-rail-progress"><div className="activity-rail-progress-label"><span>Plan</span><strong>{completedSteps} / {task.plan.length}</strong></div><div className="activity-rail-progress-track"><motion.span animate={{ width: `${task.plan.length ? (completedSteps / task.plan.length) * 100 : 0}%` }} /></div></div><div className="activity-rail-events">{meaningfulActivity.map((event) => <article key={event.id} className={event.payload.isError === true ? 'error' : ''}><span className="activity-rail-icon">{activityIcon(event)}</span><div><strong>{activitySummary(event)}</strong><small>{event.content ? event.content.slice(0, 150) : event.type.replaceAll('_', ' ')}</small></div><time>{new Date(event.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></article>)}</div><p className="activity-rail-note"><ShieldCheck size={12} /> Activity is projected from the server-owned event ledger. Hidden reasoning and credentials are never shown.</p></section></motion.div>}
           {tab === 'computer' && <motion.div key="computer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="computer-pane"><ComputerTimeline task={task} /></motion.div>}
           {tab === 'observe' && <motion.div key="observe" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="observability-pane"><header><div><span>Task-scoped execution facts</span><strong>Observability</strong></div><em>Derived from recorded events</em></header><div className="observability-grid"><article><span>Observed duration</span><strong>{formatElapsed(observability.duration)}</strong><small>From task start to latest recorded event</small></article><article><span>Tool calls</span><strong>{observability.toolCalls}</strong><small>{observability.toolFailures ? `${observability.toolFailures} reported errors` : 'No reported tool errors'}</small></article><article><span>Visual evidence</span><strong>{observability.visualFrames}</strong><small>{task.securityContext?.visualRuntimeReady ? 'X11 capture enabled' : 'No visual runtime attested'}</small></article><article><span>Browser review</span><strong>{browserReview.state}</strong><small>{browserReview.detail}</small></article><article><span>Artifacts</span><strong>{observability.artifacts}</strong><small>{files.filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/')).length} portable files available</small></article></div><section className="observability-run"><div><Activity size={15} /><span>Run boundary</span></div><strong>{task.provider === 'onecomputer' ? 'ONEComputer sandbox' : task.provider === 'claude_sdk' ? 'Claude Agent SDK' : task.provider === 'remote' ? 'Remote runtime' : 'Local demo runtime'}</strong><small>Started {new Date(observability.startedAt).toLocaleString()} · {task.securityContext?.gatewayEnforced ? 'gateway enforcement attested' : 'no gateway attestation claimed'}</small></section><section className="observability-note"><ShieldCheck size={14} /><p>This is a review surface, not an infrastructure control plane. It reports only task evidence available to ONEVibe; provider metrics, network flows, and organization telemetry are intentionally not inferred.</p></section></motion.div>}
           {tab === 'validation' && <motion.div key="validation" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="validation-pane-wrap"><ValidationReportPane taskId={task.id} /></motion.div>}

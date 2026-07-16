@@ -33,7 +33,10 @@ const check = (checks: ArtifactCheck[], id: string, pass: boolean, detail: strin
 
 export const validateModeArtifacts = async (task: Task, store: TaskStore): Promise<ArtifactValidation> => {
   const checks: ArtifactCheck[] = []
-  const preview = await required(store, task.id, 'index.html', checks)
+  // General tasks may intentionally deliver a Markdown, JSON, CSV, or code
+  // artifact without pretending that a browser preview exists. Preview-backed
+  // modes retain their explicit index.html contract below.
+  const preview = task.mode === 'general' ? await store.readWorkspaceFile(task.id, 'index.html').catch(() => undefined) : await required(store, task.id, 'index.html', checks)
   if (preview) {
     check(checks, 'preview:language', /<html[^>]+lang=["']en["']/i.test(preview), 'Preview declares document language')
     check(checks, 'preview:viewport', /<meta[^>]+name=["']viewport["']/i.test(preview), 'Preview declares a responsive viewport')
@@ -53,6 +56,11 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
     let parsedOutline: unknown[] | undefined
     try { parsedOutline = outline ? JSON.parse(outline) as unknown[] : undefined } catch { /* recorded below */ }
     check(checks, 'slides:outline', Array.isArray(parsedOutline) && parsedOutline.length === 8, 'Deck outline has eight slides')
+  }
+  if (task.mode === 'general') {
+    const files = await store.listWorkspaceFiles(task.id)
+    const portable = files.filter((file) => !file.path.startsWith('.') && !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/') && !['artifact-manifest.json', 'validation-report.json'].includes(file.path))
+    check(checks, 'general:portable-output', portable.length > 0, 'General task produced at least one portable output')
   }
   if (task.mode === 'document') {
     const document = await required(store, task.id, 'document.md', checks)

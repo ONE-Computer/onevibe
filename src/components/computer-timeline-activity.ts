@@ -24,7 +24,7 @@ const redactCommand = (command: string) => command
   .replace(/\b(authorization|api[_-]?key|token|password|secret)\s*=\s*([^\s'"`]+)/gi, '$1=<redacted>')
   .replace(/(--(?:api[-_]?key|token|password|secret))(?:=|\s+)([^\s'"`]+)/gi, '$1=<redacted>')
   .replace(/\bBearer\s+[^\s'"`]+/gi, 'Bearer <redacted>')
-  .replace(/\/(?:Users|home)\/[^\s'"`]+/g, '<host-path>')
+  .replace(/\/(?:Users|home|private\/tmp|tmp)\/[^\s'"`]+/g, '<workspace-path>')
 
 const redactText = (value: string) => redactCommand(value)
   .replace(/\b(authorization|api[_-]?key|token|password|secret)\s*[:=]\s*(["'])?([^\s,"'}\]]+)\2?/gi, '$1=<redacted>')
@@ -53,7 +53,7 @@ const compactValue = (value: unknown): string | undefined => {
   const paths = Array.isArray(input.paths) ? input.paths.filter((path): path is string => typeof path === 'string').slice(0, 2) : []
   if (operation) return `${operation}${paths.length ? ` · ${paths.join(', ')}` : ''}`
   const visible = Object.entries(input).filter(([key]) => !redactedKeys.has(key.toLowerCase())).slice(0, 2)
-  return visible.length ? visible.map(([key, candidate]) => `${key}=${typeof candidate === 'string' ? candidate : '…'}`).join(' · ') : undefined
+  return visible.length ? visible.map(([key, candidate]) => `${key}=${typeof candidate === 'string' ? redactText(candidate) : '…'}`).join(' · ') : undefined
 }
 
 export const activityPreviewFor = (payload?: Record<string, unknown>) => compactValue(payload?.input)
@@ -192,7 +192,9 @@ export const artifactRailItems = (items: ComputerItem[]) => {
 export const defaultComputerItem = (items: ComputerItem[], settled: boolean) => {
   if (!items.length) return undefined
   if (!settled) return items.at(-1)
-  return [...items].reverse().find((item) => item.kind === 'screenshot' || item.kind === 'preview' || item.kind === 'slide') ?? items.at(-1)
+  return [...items].reverse().find((item) => item.kind === 'screenshot' || item.kind === 'preview' || item.kind === 'slide')
+    ?? [...items].reverse().find((item) => item.kind === 'terminal')
+    ?? items.at(-1)
 }
 
 export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) => {
