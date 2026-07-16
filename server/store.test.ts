@@ -531,6 +531,28 @@ describe('TaskStore', () => {
     await expect(store.listLibrary()).resolves.toEqual([expect.objectContaining({ task: expect.objectContaining({ id: task.id }), files: [expect.objectContaining({ path: 'README.md' })] })])
   })
 
+  it('hides a Library item without deleting its conversation or workspace', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-library-hide-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Keep the source conversation', 'demo')
+    await store.writeWorkspaceFile(task.id, 'README.md', '# Keep me')
+    await store.updateTask(task.id, { status: 'completed' })
+
+    expect(await store.hideLibraryItem(task.id)).toMatchObject({ id: task.id, libraryHiddenAt: expect.any(String) })
+    expect(await store.listLibrary()).toEqual([])
+    expect(store.getTask(task.id).status).toBe('completed')
+    expect(await store.readWorkspaceFile(task.id, 'README.md')).toBe('# Keep me')
+    expect(store.listEvents(task.id).at(-1)?.label).toBe('Library item hidden')
+
+    const reloaded = new TaskStore(root)
+    await reloaded.initialize()
+    expect(await reloaded.listLibrary()).toEqual([])
+    expect(await reloaded.readWorkspaceFile(task.id, 'README.md')).toBe('# Keep me')
+  })
+
   it('persists queued guidance in the evidence chain and drains it in arrival order', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-guidance-'))
     temporaryRoots.push(root)

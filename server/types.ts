@@ -164,6 +164,7 @@ export type Task = {
   plan: PlanStep[]
   createdAt: string
   updatedAt: string
+  libraryHiddenAt?: string
   previewPath?: string
   securityContext?: {
     mode: 'local_demo' | 'onecomputer'

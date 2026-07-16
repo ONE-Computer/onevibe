@@ -303,11 +303,25 @@ export class TaskStore {
   }
 
   async listLibrary() {
-    const completed = this.listTasks().filter((task) => task.status === 'completed')
+    const completed = this.listTasks().filter((task) => task.status === 'completed' && !task.libraryHiddenAt)
     return Promise.all(completed.map(async (task) => ({
       task,
       files: (await this.listWorkspaceFiles(task.id)).filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/') && !isInternalWorkspacePath(file.path)),
     })))
+  }
+
+  async hideLibraryItem(taskId: string) {
+    const task = this.getTask(taskId)
+    if (task.status !== 'completed') throw new Error('Only completed tasks can be removed from the Library')
+    if (task.libraryHiddenAt) return task
+    const hiddenAt = new Date().toISOString()
+    await this.updateTask(taskId, { libraryHiddenAt: hiddenAt })
+    await this.appendEvent(taskId, {
+      type: 'activity_delta', lane: 'control', label: 'Library item hidden',
+      content: 'The artifact was removed from the Library view. The originating conversation, workspace, and evidence remain available.',
+      payload: { libraryHiddenAt: hiddenAt, reversibleBy: 'server_task_metadata', destructiveDelete: false },
+    })
+    return this.getTask(taskId)
   }
 
   listProjects() { return [...this.projects.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }

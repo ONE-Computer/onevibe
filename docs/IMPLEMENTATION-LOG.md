@@ -58,6 +58,11 @@
 - Added `docs/AUTH-POSTGRES-ADR.md` after reviewing the current Better Auth Drizzle and email-OTP contracts. It defines the migration sequence, ownership/session boundaries, production OTP transport requirement, cross-user negative tests, and the explicit `ONEVIBE_AUTH_ENABLED` deployment policy.
 - This is a design artifact only. No auth or Postgres ticket was marked complete, and the current Docker Compose path remains a single-instance SQLite deployment. The LiteLLM-only model-routing rule is carried into the target architecture.
 
+## 2026-07-17 — auditable Library removal
+
+- Completed P5-07 locally: `DELETE /api/library/:taskId` hides a completed artifact from the Library view, records an evidence event, and preserves the originating task, workspace, conversation, and evidence chain. The UI requires explicit confirmation and explains that removal is non-destructive.
+- Focused store suite passes with 41 tests; lint and production build pass. The next full gate will reconcile the repository total.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.

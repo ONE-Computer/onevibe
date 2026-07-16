@@ -359,6 +359,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   }
   if (request.method === 'GET' && url.pathname === '/api/skills') return json(response, 200, { skills: skillCatalog() })
   if (request.method === 'GET' && url.pathname === '/api/library') return json(response, 200, { items: await store.listLibrary() })
+  if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'library' && segments[2]) return json(response, 200, await store.hideLibraryItem(segments[2]))
 
   if (request.method === 'GET' && url.pathname === '/api/projects') return json(response, 200, { projects: store.listProjects() })
   if (request.method === 'POST' && url.pathname === '/api/projects') {

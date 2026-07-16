@@ -72,6 +72,7 @@ export const listConversations = async (cursor?: string, limit = 50, query?: str
 export const getRuntimeReadiness = async () => parse<RuntimeReadiness>(await fetch('/api/runtime'))
 export const testRuntime = async (provider: Task['provider']) => parse<{ provider: Task['provider']; health: RuntimeHealth }>(await fetch(`/api/runtime/test/${encodeURIComponent(provider)}`, { method: 'POST' }))
 export const listLibrary = async () => parse<{ items: LibraryItem[] }>(await fetch('/api/library'))
+export const removeLibraryItem = async (taskId: string) => parse<Task>(await fetch(`/api/library/${taskId}`, { method: 'DELETE' }))
 export const listSkills = async () => parse<{ skills: SkillCatalogEntry[] }>(await fetch('/api/skills'))
 
 export const createTask = async (prompt: string, provider: Task['provider'], mode: TaskMode, projectId = 'project_onevibe', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = []) =>
