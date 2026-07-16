@@ -1,6 +1,6 @@
 import { Bell, ChevronDown, CodeXml, Link2, Menu, Monitor, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { Toaster, toast } from 'sonner'
 import { PromptComposer } from './components/PromptComposer'
@@ -165,6 +165,60 @@ export default function App() {
   }
   const toggleSkill = (skill: TaskSkill) => setSelectedSkills((current) => normalizeSelectedSkillIds(current.includes(skill) ? current.filter((item) => item !== skill) : current.length >= 4 ? current : [...current, skill], skillCatalog))
 
+  const cancelTaskMutation = useMutation({
+    mutationFn: (taskId: string) => cancelTask(taskId),
+    onSuccess: async () => {
+      await Promise.all([refreshSnapshot(), refreshTasks()])
+    },
+  })
+  const cancelGuidanceMutation = useMutation({
+    mutationFn: ({ taskId, guidanceId }: { taskId: string; guidanceId: string }) => cancelQueuedGuidance(taskId, guidanceId),
+    onSuccess: async (task) => {
+      updateTasksCache((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
+      upsertConversationCache(conversationSummaryFromTask(task))
+      await refreshSnapshot()
+    },
+  })
+  const moveTaskMutation = useMutation({
+    mutationFn: ({ taskId, projectId }: { taskId: string; projectId: string }) => moveTaskToProject(taskId, projectId),
+    onSuccess: async (task) => {
+      updateTasksCache((current) => current.map((candidate) => candidate.id === task.id ? task : candidate))
+      upsertConversationCache(conversationSummaryFromTask(task))
+      await Promise.all([refreshSnapshot(), queryClient.invalidateQueries({ queryKey: ['library'] })])
+    },
+  })
+  const updateTaskTagsMutation = useMutation({
+    mutationFn: ({ taskId, tags }: { taskId: string; tags: string[] }) => updateTaskTags(taskId, tags),
+    onSuccess: async (task) => {
+      updateTasksCache((current) => current.map((candidate) => candidate.id === task.id ? task : candidate))
+      upsertConversationCache(conversationSummaryFromTask(task))
+      await Promise.all([refreshSnapshot(), queryClient.invalidateQueries({ queryKey: ['library'] })])
+    },
+  })
+  const followUpMutation = useMutation({
+    mutationFn: ({ taskId, prompt, attachments }: { taskId: string; prompt: string; attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> }) => sendFollowUp(taskId, prompt, attachments),
+  })
+  const branchMutation = useMutation({
+    mutationFn: ({ taskId, fromMessageId, newPrompt }: { taskId: string; fromMessageId: string; newPrompt: string }) => forkTask(taskId, fromMessageId, newPrompt),
+    onSuccess: (task) => {
+      updateTasksCache((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
+      upsertConversationCache(conversationSummaryFromTask(task))
+      navigateToTask(task.id)
+    },
+  })
+  const retryMutation = useMutation({
+    mutationFn: ({ taskId, provider }: { taskId: string; provider?: Task['provider'] }) => retryTask(taskId, `retry_${crypto.randomUUID()}`, provider),
+    onSuccess: async () => {
+      await Promise.all([refreshSnapshot(), refreshTasks()])
+    },
+  })
+  const shareMutation = useMutation({
+    mutationFn: (taskId: string) => requestShare(taskId),
+    onSuccess: async () => {
+      await refreshSnapshot()
+    },
+  })
+
   const addProject = async (name: string, context: string) => {
     try {
       const project = await createProject(name, context)
@@ -197,22 +251,13 @@ export default function App() {
     } catch (reason) { reportError(reason, 'Unable to save project knowledge') }
   }
   const retractQueuedGuidance = async (taskId: string, guidanceId: string) => {
-    try {
-      await cancelQueuedGuidance(taskId, guidanceId)
-      await Promise.all([refreshSnapshot(), refreshTasks()])
-    } catch (reason) { reportError(reason, 'Unable to remove queued guidance') }
+    try { await cancelGuidanceMutation.mutateAsync({ taskId, guidanceId }) } catch (reason) { reportError(reason, 'Unable to remove queued guidance') }
   }
   const moveTaskProject = async (taskId: string, projectId: string) => {
-    try {
-      await moveTaskToProject(taskId, projectId)
-      await Promise.all([refreshSnapshot(), refreshTasks(), queryClient.invalidateQueries({ queryKey: ['library'] })])
-    } catch (reason) { reportError(reason, 'Unable to move task') }
+    try { await moveTaskMutation.mutateAsync({ taskId, projectId }) } catch (reason) { reportError(reason, 'Unable to move task') }
   }
   const setTaskTags = async (taskId: string, tags: string[]) => {
-    try {
-      await updateTaskTags(taskId, tags)
-      await Promise.all([refreshSnapshot(), refreshTasks(), queryClient.invalidateQueries({ queryKey: ['library'] })])
-    } catch (reason) { reportError(reason, 'Unable to update task tags') }
+    try { await updateTaskTagsMutation.mutateAsync({ taskId, tags }) } catch (reason) { reportError(reason, 'Unable to update task tags') }
   }
   const restoreProjectFile = async (projectId: string, filePath: string, versionId: string, expectedHash: string) => {
     const result = await restoreProjectFileVersion(projectId, filePath, versionId, expectedHash)
@@ -281,10 +326,7 @@ export default function App() {
   }
   const shareCurrentTask = async () => {
     if (!snapshot) return
-    try {
-      await requestShare(snapshot.id)
-      await refreshSnapshot()
-    } catch (reason) { reportError(reason, 'Unable to request a share link') }
+    try { await shareMutation.mutateAsync(snapshot.id) } catch (reason) { reportError(reason, 'Unable to request a share link') }
   }
 
   if (shareId) return <SharedArtifact shareId={shareId} />
@@ -294,37 +336,15 @@ export default function App() {
   const continueTask = async (prompt: string, attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) => {
     if (!activeTaskId) return
     setCreating(true)
-    try {
-      await sendFollowUp(activeTaskId, prompt, attachments)
-    } catch (reason) {
-      reportError(reason, 'Unable to send the message')
-    } finally {
-      setCreating(false)
-    }
+    try { await followUpMutation.mutateAsync({ taskId: activeTaskId, prompt, attachments }) } catch (reason) { reportError(reason, 'Unable to send the message') } finally { setCreating(false) }
   }
   const branchFromMessage = async (taskId: string, fromMessageId: string, newPrompt: string) => {
     setCreating(true)
-    try {
-      const task = await forkTask(taskId, fromMessageId, newPrompt)
-      updateTasksCache((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
-      upsertConversationCache(conversationSummaryFromTask(task))
-      navigateToTask(task.id)
-    } catch (reason) {
-      reportError(reason, 'Unable to create conversation branch')
-    } finally {
-      setCreating(false)
-    }
+    try { await branchMutation.mutateAsync({ taskId, fromMessageId, newPrompt }) } catch (reason) { reportError(reason, 'Unable to create conversation branch') } finally { setCreating(false) }
   }
   const retryCurrentTask = async (taskId: string, provider?: Task['provider']) => {
     setCreating(true)
-    try {
-      await retryTask(taskId, `retry_${crypto.randomUUID()}`, provider)
-      await refreshSnapshot()
-    } catch (reason) {
-      reportError(reason, 'Unable to retry the task')
-    } finally {
-      setCreating(false)
-    }
+    try { await retryMutation.mutateAsync({ taskId, provider }) } catch (reason) { reportError(reason, 'Unable to retry the task') } finally { setCreating(false) }
   }
   const retryBackend = async () => {
     setRetryingBackend(true)
@@ -348,7 +368,6 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <Toaster position="bottom-right" closeButton richColors />
       <Toaster position="bottom-right" closeButton richColors />
       <AnimatePresence>{sidebarOpen && <><motion.button key="sidebar-backdrop" className="sidebar-backdrop" aria-label="Close sidebar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)} /><motion.div key="sidebar-panel" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} conversations={conversations} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onClose={() => setSidebarOpen(false)} onSelectTask={(taskId) => navigateToTask(taskId)} hasMoreConversations={Boolean(conversationsHasNextPage)} loadingMoreConversations={conversationsIsFetchingNextPage} onLoadMoreConversations={loadMoreConversations} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onRemoveProjectFile={detachProjectFile} onUpdateProjectFile={editProjectFile} onRestoreProjectFile={restoreProjectFile} onUpdateProjectContext={updateProject} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} skillCount={skillCatalog.length} user={authState?.session?.user} onSignOut={signOut} /></motion.div></>}</AnimatePresence>
       <main className="main-shell">
@@ -375,7 +394,7 @@ export default function App() {
                   <div className="conversation-pane">
                     <div className="conversation-header">
                       <div><span className="task-kicker">{projects.find((project) => project.id === snapshot.projectId)?.name ?? 'Project workspace'} · {snapshot.mode === 'chat' ? 'Conversation' : providerLabel(snapshot.provider)}</span><h2>{snapshot.title}</h2>{(snapshot.skills.length > 0 || snapshot.queuedGuidance.length > 0 || snapshot.references.length > 0 || snapshot.attachments.length > 0) && <div className="task-configuration">{snapshot.skills.map((skill) => <span key={skill}><Sparkles size={10} /> {skill.replaceAll('_', ' ')}</span>)}{snapshot.references.length > 0 && <span title="User-supplied website references are untrusted context"><Link2 size={10} /> {snapshot.references.length} reference{snapshot.references.length === 1 ? '' : 's'}</span>}{snapshot.attachments.length > 0 && <span title="Local attachments are staged as untrusted task input"><Paperclip size={10} /> {snapshot.attachments.length} file{snapshot.attachments.length === 1 ? '' : 's'}</span>}{snapshot.queuedGuidance.length > 0 && <span className="queued-guidance"><ShieldCheck size={10} /> {snapshot.queuedGuidance.length} guidance queued</span>}</div>}</div>
-                      <div className="run-controls"><button type="button" className="mobile-inspector-toggle" onClick={() => setMobileInspectorOpen(true)}><Monitor size={12} /> View computer</button><span className={`status-badge ${snapshot.status}`}>{statusLabel(snapshot.status)}</span>{(snapshot.status === 'failed' || snapshot.status === 'cancelled') && <button className="cancel-button" onClick={() => void retryCurrentTask(snapshot.id)}><RotateCcw size={10} /> Retry</button>}{canStopTask(snapshot.status) && <button className="cancel-button" onClick={() => void cancelTask(snapshot.id)}><Square size={10} /> Stop</button>}</div>
+                      <div className="run-controls"><button type="button" className="mobile-inspector-toggle" onClick={() => setMobileInspectorOpen(true)}><Monitor size={12} /> View computer</button><span className={`status-badge ${snapshot.status}`}>{statusLabel(snapshot.status)}</span>{(snapshot.status === 'failed' || snapshot.status === 'cancelled') && <button className="cancel-button" onClick={() => void retryCurrentTask(snapshot.id)} disabled={retryMutation.isPending}><RotateCcw size={10} /> {retryMutation.isPending ? 'Retrying…' : 'Retry'}</button>}{canStopTask(snapshot.status) && <button className="cancel-button" onClick={() => void cancelTaskMutation.mutateAsync(snapshot.id).catch((reason: unknown) => reportError(reason, 'Unable to stop the task'))} disabled={cancelTaskMutation.isPending}><Square size={10} /> {cancelTaskMutation.isPending ? 'Stopping…' : 'Stop'}</button>}</div>
                     </div>
                     {error && <div className="stream-warning"><span>{error}</span><button type="button" onClick={retryConnection}>Retry connection</button></div>}
                     {snapshot.provider === 'demo' && <div className="demo-mode-banner" role="status"><div><Sparkles size={14} /><span><strong>Simulation only</strong><small>No model call is made in this task. Use a configured LiteLLM-backed runtime for real provider execution.</small></span></div>{preferredProvider !== 'demo' && <button type="button" onClick={() => navigateToTask(null)}>Start a new governed task</button>}</div>}
