@@ -139,7 +139,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
           ...(task.mode === 'research' ? ['For research mode, create report.md, sources.json, and a dependency-free index.html. Treat references as declared user context unless the runtime explicitly records verified retrieval.'] : []),
           ...(task.mode === 'data' ? ['For data mode, create data.csv, analysis.json, and a dependency-free index.html. Keep assumptions and sample-data limitations explicit.'] : []),
           `The selected creation mode is ${task.mode}. Follow its artifact conventions and produce mode-appropriate source, rationale, and validation notes.`,
-          ...(task.mode === 'slides' ? ['For this slide task, you must call render_slide_deck exactly once with eight substantive slides. Do not attempt to construct PPTX or PDF bytes with file tools.'] : []),
+          ...(task.mode === 'slides' ? ['For this slide task, after set_task_plan call render_slide_deck immediately as the next substantive action with exactly eight substantive slides. Put all slide title/summary content in that single structured call; do not use Read, Grep, Write, Edit, or self-audit tools to draft or inspect slide content before rendering, and do not construct PPTX or PDF bytes with file tools.'] : []),
           'Do not publish, access external services, or claim security certification. Public release requires a separate VTI Wallet.',
         ].join(' '),
         tools: [...allowedTools],
