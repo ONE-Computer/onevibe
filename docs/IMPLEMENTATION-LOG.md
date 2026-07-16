@@ -12,6 +12,12 @@
 
 - Updated `HANDOVER.md`, `AGENTS.md`, and `TODO.md`: all model traffic must traverse the server-controlled LiteLLM relay for data sovereignty, routing, cost, and optimization. Direct first-party Anthropic traffic is prohibited and any legacy fallback remains a hardening gap.
 
+## 2026-07-16 — handover Phase 1: SSE pre-snapshot replay
+
+- Fixed P1-02 in `src/hooks/useTask.ts`: runtime events received while the initial REST snapshot is still loading are buffered and merged into the snapshot once it arrives.
+- The merge is ID-deduplicated and preserves the latest durable status; events already present in the REST snapshot are not appended a second time.
+- Added focused tests for buffered replay, status convergence, and persisted/live duplicate suppression.
+
 ## 2026-07-16 — light-mode Claude calibration (Phases 11–15)
 
 User feedback ("prefer a light color; motion too cheesy; want
