@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — fail closed on known first-party model endpoints
+
+- Expanded the shared `isLiteLlmRelayUrl` guard used by the Claude SDK and ONEComputer worker to reject known Anthropic, OpenAI, Bedrock, Gemini, Groq, Mistral, Cohere, xAI, and DeepSeek first-party hosts when they are mislabeled as LiteLLM relays.
+- Added regression coverage for OpenAI, Bedrock, Gemini, and Groq endpoints. A relay must remain an operator-controlled HTTP(S) endpoint without embedded credentials; the server never silently falls back to a first-party provider.
+- Focused provider tests, lint, build, and the full test suite pass (51 files / 256 tests).
+
 ## 2026-07-17 — enforce the hardened container contract in CI
 
 - Added a separate GitHub Actions container job that builds the multi-stage image, starts it with a read-only root filesystem, no-new-privileges, dropped capabilities, and an ephemeral writable data mount, then verifies `/api/health` and UID 10001.

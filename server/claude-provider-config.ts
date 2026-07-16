@@ -6,6 +6,17 @@ export type ClaudeProviderConfig = {
 }
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '')
+const firstPartyProviderHost = (hostname: string) => hostname === 'api.anthropic.com'
+  || hostname.endsWith('.anthropic.com')
+  || hostname === 'api.openai.com'
+  || hostname.endsWith('.openai.com')
+  || hostname === 'generativelanguage.googleapis.com'
+  || hostname === 'api.groq.com'
+  || hostname === 'api.mistral.ai'
+  || hostname === 'api.cohere.com'
+  || hostname === 'api.x.ai'
+  || hostname === 'api.deepseek.com'
+  || /^bedrock(?:-runtime)?\.[a-z0-9-]+\.amazonaws\.com$/.test(hostname)
 
 /**
  * A relay variable is not permission to call a provider directly. Keep the
@@ -17,7 +28,7 @@ export const isLiteLlmRelayUrl = (value: string): boolean => {
     const url = new URL(value)
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false
     const hostname = url.hostname.toLowerCase()
-    return hostname !== 'api.anthropic.com' && !hostname.endsWith('.anthropic.com')
+    return !firstPartyProviderHost(hostname)
   } catch {
     return false
   }

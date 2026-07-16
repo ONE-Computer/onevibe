@@ -36,4 +36,13 @@ describe('Claude provider configuration', () => {
     expect(isLiteLlmRelayUrl('https://api.anthropic.com')).toBe(false)
     expect(isLiteLlmRelayUrl('https://relay.internal.example/v1')).toBe(true)
   })
+
+  it.each([
+    'https://api.openai.com/v1',
+    'https://bedrock-runtime.us-east-1.amazonaws.com',
+    'https://generativelanguage.googleapis.com/v1beta',
+    'https://api.groq.com/openai/v1',
+  ])('rejects known first-party provider relay URL %s', (url) => {
+    expect(isLiteLlmRelayUrl(url)).toBe(false)
+  })
 })
