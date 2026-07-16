@@ -87,23 +87,38 @@ export class OneComputerClient {
   }
 
   private async request<T>(pathname: string, init: RequestInit = {}, timeoutMs = 4 * 60_000): Promise<T> {
-    const response = await this.fetcher(`${this.baseUrl}${pathname}`, {
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${this.options.serviceToken}`,
-        ...(this.options.projectId ? { 'X-Project-Id': this.options.projectId } : {}),
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...init.headers,
-      },
-      signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
-    })
-    if (!response.ok) {
-      // Provider bodies can contain upstream topology, diagnostics, or reflected
-      // secrets. They are deliberately not propagated into task evidence/logs.
-      throw new OneComputerApiError(pathname, response.status)
+    const timeoutController = new AbortController()
+    const requestSignal = init.signal ? AbortSignal.any([init.signal, timeoutController.signal]) : timeoutController.signal
+    let rejectTimeout: ((reason?: unknown) => void) | undefined
+    const timeoutPromise = new Promise<never>((_, reject) => { rejectTimeout = reject })
+    const timeout = setTimeout(() => {
+      timeoutController.abort()
+      rejectTimeout?.(new Error(`ONEComputer ${pathname} request timed out`))
+    }, timeoutMs)
+    try {
+      const response = await Promise.race([
+        this.fetcher(`${this.baseUrl}${pathname}`, {
+          ...init,
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${this.options.serviceToken}`,
+            ...(this.options.projectId ? { 'X-Project-Id': this.options.projectId } : {}),
+            ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+            ...init.headers,
+          },
+          signal: requestSignal,
+        }),
+        timeoutPromise,
+      ])
+      if (!response.ok) {
+        // Provider bodies can contain upstream topology, diagnostics, or reflected
+        // secrets. They are deliberately not propagated into task evidence/logs.
+        throw new OneComputerApiError(pathname, response.status)
+      }
+      if (response.status === 204) return undefined as T
+      return await Promise.race([response.json() as Promise<T>, timeoutPromise])
+    } finally {
+      clearTimeout(timeout)
     }
-    if (response.status === 204) return undefined as T
-    return response.json() as Promise<T>
   }
 }
