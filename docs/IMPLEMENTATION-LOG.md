@@ -69,6 +69,11 @@
 - The canonical adapter initializer now creates the task-specific working directory before provider execution. Every current adapter receives the same path, and file/preview hooks plus the API file projection remain rooted there.
 - This closes the P2-05 workspace ownership contract without claiming cross-task isolation beyond the current host-process/development-provider boundaries; production microVM evidence remains separately tracked.
 
+## 2026-07-16 — Phase 2 frame-batched live event projection
+
+- `useTask.ts` now buffers live events into a frame-sized UI queue and applies one snapshot update per animation frame (with a 16 ms fallback where `requestAnimationFrame` is unavailable). The append-only event ledger, event IDs, replay cursor, and pre-snapshot buffer remain unchanged, so batching cannot erase evidence or create duplicate history.
+- Terminal status and reconnect handling remain immediate; only React presentation updates are batched. This closes P2-06 without changing server SSE semantics.
+
 ## 2026-07-16 — Phase 2 Codex-compatible LiteLLM adapter
 
 - Added `server/codex-runner.ts` as a real OpenAI-compatible streaming adapter that calls only the configured LiteLLM `/v1/chat/completions` route. It normalizes streamed text and bounded workspace tool calls into the ONEVibe event ledger and confines reads/writes to the task workspace.

@@ -20,6 +20,8 @@ export const useTask = (taskId: string | null) => {
   const [error, setError] = useState<string | null>(null)
   const seen = useRef(new Set<string>())
   const pendingEvents = useRef<RuntimeEvent[]>([])
+  const pendingUiEvents = useRef<RuntimeEvent[]>([])
+  const snapshotReady = useRef(false)
   const status = useRef<TaskSnapshot['status'] | undefined>(undefined)
   const [retryGeneration, setRetryGeneration] = useState(0)
 
@@ -28,8 +30,9 @@ export const useTask = (taskId: string | null) => {
     const next = await getTask(taskId)
     next.events.forEach((event) => seen.current.add(event.id))
     setSnapshot(() => {
-      const merged = mergeRuntimeEventsIntoSnapshot(next, pendingEvents.current.splice(0))
+      const merged = mergeRuntimeEventsIntoSnapshot(next, [...pendingEvents.current.splice(0), ...pendingUiEvents.current.splice(0)])
       status.current = merged.status
+      snapshotReady.current = true
       return merged
     })
     return next
@@ -38,6 +41,8 @@ export const useTask = (taskId: string | null) => {
   useEffect(() => {
     seen.current = new Set()
     pendingEvents.current = []
+    pendingUiEvents.current = []
+    snapshotReady.current = false
     status.current = undefined
     setSnapshot(null)
     setError(null)
@@ -45,11 +50,29 @@ export const useTask = (taskId: string | null) => {
     let disposed = false
     let activeStream: EventSource | undefined
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+    let frameHandle: number | ReturnType<typeof setTimeout> | undefined
+    let frameUsesAnimationFrame = false
     let reconnectAttempt = 0
     const scheduler = createRefreshScheduler(refresh)
     const closeStream = () => {
       activeStream?.close()
       activeStream = undefined
+    }
+    const flushUiEvents = () => {
+      frameHandle = undefined
+      frameUsesAnimationFrame = false
+      const queued = pendingUiEvents.current.splice(0)
+      if (!queued.length) return
+      setSnapshot((current) => current ? mergeRuntimeEventsIntoSnapshot(current, queued) : current)
+    }
+    const scheduleUiFlush = () => {
+      if (frameHandle !== undefined) return
+      if (typeof window.requestAnimationFrame === 'function') {
+        frameUsesAnimationFrame = true
+        frameHandle = window.requestAnimationFrame(flushUiEvents)
+      } else {
+        frameHandle = setTimeout(flushUiEvents, 16)
+      }
     }
     const connect = () => {
       if (disposed) return
@@ -86,13 +109,11 @@ export const useTask = (taskId: string | null) => {
         if (seen.current.has(event.id)) return
         seen.current.add(event.id)
         if (event.status) status.current = event.status
-        setSnapshot((current) => {
-          if (!current) {
-            pendingEvents.current.push(event)
-            return current
-          }
-          return appendRuntimeEvent(current, event)
-        })
+        if (!snapshotReady.current) pendingEvents.current.push(event)
+        else {
+          pendingUiEvents.current.push(event)
+          scheduleUiFlush()
+        }
         void scheduler.run().catch(() => undefined)
         if (event.status && terminalStatuses.has(event.status)) {
           closeStream()
@@ -114,6 +135,11 @@ export const useTask = (taskId: string | null) => {
       disposed = true
       scheduler.dispose()
       if (reconnectTimer) clearTimeout(reconnectTimer)
+      if (frameHandle !== undefined) {
+        if (frameUsesAnimationFrame && typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(frameHandle as number)
+        else clearTimeout(frameHandle as ReturnType<typeof setTimeout>)
+        frameHandle = undefined
+      }
       closeStream()
       setConnected(false)
     }
