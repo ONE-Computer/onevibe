@@ -157,6 +157,23 @@ export const nativeEvent = pgTable('native_event', {
   receivedAt: createdAt('received_at'),
 }, (table) => [uniqueIndex('native_event_source_id_idx').on(table.taskId, table.runId, table.source, table.sourceEventId), uniqueIndex('native_event_source_sequence_idx').on(table.taskId, table.runId, table.source, table.sourceSequence)])
 
+export const nativeEventProjection = pgTable('native_event_projection', {
+  nativeEventId: text('native_event_id').notNull().references(() => nativeEvent.id, { onDelete: 'cascade' }),
+  projectionIndex: integer('projection_index').notNull(),
+  runtimeEventId: text('runtime_event_id').notNull().references(() => runtimeEvent.id, { onDelete: 'cascade' }).unique(),
+  projectorVersion: integer('projector_version').notNull(),
+  projectedAt: createdAt('projected_at'),
+}, (table) => [primaryKey({ columns: [table.nativeEventId, table.projectionIndex] })])
+
+export const nativeProjectionOffset = pgTable('native_projection_offset', {
+  taskId: text('task_id').notNull().references(() => task.id, { onDelete: 'cascade' }),
+  runId: text('run_id').notNull(),
+  source: text('source').notNull(),
+  projectorVersion: integer('projector_version').notNull(),
+  lastSourceSequence: integer('last_source_sequence').notNull(),
+  updatedAt: updatedAt(),
+}, (table) => [primaryKey({ columns: [table.taskId, table.runId, table.source, table.projectorVersion] })])
+
 export const idempotencyKey = pgTable('idempotency_key', {
   scope: text('scope').notNull(),
   key: text('key').notNull(),
@@ -223,4 +240,4 @@ export const runtimeMcpConfig = pgTable('runtime_mcp_config', {
 
 export const orgTables = { org, orgMember }
 export const authTables = { user, session, account, verification }
-export const oneVibeTables = { project, task, turn, message, runtimeEvent, nativeEvent, idempotencyKey, runtimeLease, schedule, workspaceVersion, runtimeMcpConfig }
+export const oneVibeTables = { project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, runtimeLease, schedule, workspaceVersion, runtimeMcpConfig }

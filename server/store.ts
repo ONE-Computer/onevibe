@@ -812,6 +812,11 @@ export class TaskStore {
     return this.readEventsFromDatabase(taskId)
   }
 
+  listNativeEvents(taskId: string) {
+    this.getTask(taskId)
+    return this.requireUnitOfWork().run((repositories) => repositories.nativeEvents.listByConversation(taskId))
+  }
+
   async beginTurn(taskId: string, content: string, provider: Task['provider']) {
     const now = new Date().toISOString()
     const turnId = `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`

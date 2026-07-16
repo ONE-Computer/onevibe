@@ -633,3 +633,8 @@ baseline harness in CI.
 - Added `server/db/schema.ts` with the target PostgreSQL contract for Better Auth, users/orgs, owner-scoped projects/tasks/schedules/MCP, turns/messages, runtime/native event ledgers, idempotency, runtime leases, and workspace versions.
 - Generated `server/db/migrations/0000_onevibe_initial_contract.sql` and added `drizzle.config.ts` plus `npm run db:generate`, `npm run db:migrate`, and `npm run db:check`. `npm run db:check` passes without requiring a live database.
 - This is a schema/DDL slice only. The running product remains SQLite-backed until a Postgres repository adapter, explicit owner-aware legacy import, connection/restart/idempotency proof, and a controlled `DATABASE_URL` runtime switch are implemented. No cloud deployment claim is made.
+
+# 2026-07-17 — explicit legacy import seam
+
+- Added `scripts/postgres-import.ts` and `npm run db:import`. It reads the durable local store, requires explicit ownership for ownerless legacy records, refuses mixed owners in the first migration, requires the Better Auth user to already exist in Postgres, and imports projects, tasks, schedules, MCP declarations, turns/messages, runtime/native events, and workspace-version metadata inside one Drizzle transaction.
+- `npm run db:import -- --dry-run` was exercised against a fresh temporary data root and produced an owner/count manifest without connecting to a database. The live write path remains intentionally unclaimed until a real Postgres restart/idempotency proof is run.

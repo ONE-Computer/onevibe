@@ -31,7 +31,8 @@
     "e2e:website-build": "tsx scripts/website-build-e2e.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:check": "drizzle-kit check"
+    "db:check": "drizzle-kit check",
+    "db:import": "tsx scripts/postgres-import.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.210",
