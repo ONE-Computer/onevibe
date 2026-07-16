@@ -14,6 +14,12 @@ The first backend/runtime slice is now implemented and live-tested locally:
 - Claude SDK tool execution has a pre-tool enforcement hook. Bash is allowlisted to one workspace-relative local command and denies shell composition, network commands, credentials, and path escapes. Host paths are redacted from persisted native evidence and the UI.
 - The assistant thread now shows a compact, turn-scoped operational trace while preserving the explicit rule that hidden chain-of-thought is not exposed. The Computer rail opens for tool-backed tasks and displays the Bash command/result and artifact evidence.
 
+The repeatable acceptance gate is now also in place:
+
+- `npm run e2e:chat` proves a real Claude/LiteLLM chat stream, follow-up persistence, demo labeling, a generated Markdown artifact, bounded Bash terminal evidence, and API restart recovery from a temporary data root.
+- Passing run on 2026-07-16: 8 live SSE frames, 36 replay frames, 2 chat turns, 2 Bash calls, and a valid evidence chain.
+- This remains host-process local proof. It must not be described as a microVM, ONEComputer, OpenVTC, or production network-containment proof.
+
 Remaining release work: browser acceptance automation, the true microVM/ONEComputer runtime proof, richer assistant-ui-native composer primitives, and the full sans-serif visual-system pass.
 
 ## Why this exists

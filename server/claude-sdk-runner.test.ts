@@ -78,6 +78,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(events.some((event) => event.type === 'artifact_created')).toBe(false)
     expect(store.getTask(task.id).status).toBe('completed')
     expect(permissionChecks).toEqual(['deny', 'deny', 'deny'])
+    expect(isSafeBashCommand('pwd')).toBe(true)
     expect(isSafeBashCommand('node script.js')).toBe(true)
     expect(isSafeBashCommand('python3 -c "import os"')).toBe(false)
     expect(isSafeBashCommand('curl https://example.com')).toBe(false)

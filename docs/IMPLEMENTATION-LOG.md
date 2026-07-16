@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-16 — repeatable truthful Claude acceptance gate
+
+- Added `scripts/claude-chat-e2e.ts` and `npm run e2e:chat` as a release-oriented local acceptance harness. It starts an isolated API/data root, uses the protected LiteLLM route without printing credentials, and exercises real Claude Agent SDK chat rather than frontend fixtures.
+- Passing run: chat `task_51d0f590186c49`, demo `task_18883e55f8f544`, and artifact/Bash `task_61e96e4a3c514c`. The run observed 8 live SSE frames, 36 replay frames, two persisted chat turns, two bounded Bash calls, valid evidence, and successful recovery after an API restart.
+- The artifact task generated a Markdown file and exposed the Bash command/result through the terminal evidence projection. `pwd` is now included in the bounded local command policy because it is required for workspace orientation and remains non-networked.
+- Verification: the focused Claude runner suite passed (5 tests), the harness typechecked, and `npm run e2e:chat` passed. Boundary: `executionBoundary=host_process`; this is not evidence of ONEComputer, microVM, OpenVTC, or production egress enforcement.
+
 ## 2026-07-16 — website shell contract and browser review
 
 - Strengthened generated Website/App/Game artifacts with a portable `app/index.html` shell: language metadata, viewport metadata, description/title, root mount, and Vite entry wiring.

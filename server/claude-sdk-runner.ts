@@ -44,7 +44,7 @@ const safeBashCommand = (command: string) => {
   // The SDK process owns cwd; shell composition and path escapes are denied.
   if (/[\r\n;&|`$<>]/.test(trimmed) || /\.\.(?:[\\/]|$)/.test(trimmed) || /(?:^|\s)(?:~|\/)/.test(trimmed)) return false
   const [program, ...args] = trimmed.split(/\s+/)
-  const allowedPrograms = new Set(['cat', 'cut', 'find', 'git', 'grep', 'head', 'ls', 'node', 'npm', 'python', 'python3', 'rg', 'sed', 'sort', 'stat', 'tail', 'tr', 'uniq', 'wc'])
+  const allowedPrograms = new Set(['cat', 'cut', 'find', 'git', 'grep', 'head', 'ls', 'node', 'npm', 'pwd', 'python', 'python3', 'rg', 'sed', 'sort', 'stat', 'tail', 'tr', 'uniq', 'wc'])
   if (!allowedPrograms.has(program)) return false
   if ((program === 'node' || program === 'python' || program === 'python3') && args.some((arg) => ['-c', '-e'].includes(arg))) return false
   if (args.some((arg) => ['install', 'publish', 'exec', 'config', 'push', 'commit', 'checkout', 'reset', 'clean'].includes(arg))) return false

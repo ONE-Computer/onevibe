@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-16 — isolated local Claude chat and terminal acceptance gate
+
+- `npm run e2e:chat` passed against an isolated temporary API/data root and the protected local LiteLLM route. The harness uses an explicit `claude-sonnet-5` alias because the raw handover alias is not accepted by this router.
+- Safe evidence: chat `task_51d0f590186c49`, demo `task_18883e55f8f544`, artifact/Bash `task_61e96e4a3c514c`; 8 live SSE frames, 36 replay frames, 2 chat turns, 2 Bash calls, valid evidence, and restart recovery.
+- The chat route remained conversational: no plan, files, artifacts, approval, or synthetic artifact response. The artifact route produced Markdown and surfaced bounded `pwd`/`wc` terminal evidence.
+- Boundary and limitation: `executionBoundary=host_process`. The run does not prove microVM isolation, ONEComputer policy enforcement, OpenVTC approval, or default-deny production egress.
+
 ## 2026-07-16 — Azure ONEComputer + sandbox Claude
 
 ### Allocation lifecycle
