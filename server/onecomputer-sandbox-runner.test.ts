@@ -108,6 +108,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.join('\n')).not.toContain(task.prompt)
     expect(commands.some((command) => command.includes('claude --print'))).toBe(true)
     expect(commands.some((command) => command.includes('--output-format stream-json --verbose'))).toBe(true)
+    expect(commands.some((command) => command.includes('export PATH=/opt/node22/bin:/home/kasm-user/.npm-global/bin:$PATH'))).toBe(true)
     expect(commands.some((command) => command.includes("export ANTHROPIC_BASE_URL='http://sandbox-reachable-litellm:4100'"))).toBe(true)
     expect(commands.some((command) => command.includes("export ANTHROPIC_API_KEY='placeholder'"))).toBe(true)
     expect(commands.some((command) => command.includes("export ANTHROPIC_AUTH_TOKEN='test-sandbox-bearer-token'"))).toBe(true)

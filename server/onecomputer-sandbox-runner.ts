@@ -297,6 +297,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       const allowedTools = governedClaudeTools(browserAutomationEnabled)
       const command = [
         'set -eu',
+        'export PATH=/opt/node22/bin:/home/kasm-user/.npm-global/bin:$PATH',
         ...(sandboxBaseUrl ? [`export ANTHROPIC_BASE_URL=${shellQuote(sandboxBaseUrl)}`] : []),
         ...(sandboxApiKey ? [`export ANTHROPIC_API_KEY=${shellQuote(sandboxApiKey)}`] : []),
         ...(sandboxAuthToken ? [`export ANTHROPIC_AUTH_TOKEN=${shellQuote(sandboxAuthToken)}`] : []),
