@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { createHash } from 'node:crypto'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { inArray } from 'drizzle-orm'
@@ -81,8 +82,11 @@ const run = async () => {
       if (projectRows.length) await tx.insert(schema.project).values(projectRows.map(({ project, ownerUserId: owner }) => ({
         id: project.id, ownerUserId: owner, name: project.name, context: project.context, filesJson: project.files, createdAt: new Date(project.createdAt), updatedAt: new Date(project.updatedAt),
       }))).onConflictDoNothing()
+      if (taskRows.length) await tx.insert(schema.conversation).values(taskRows.map(({ task, ownerUserId: owner }) => ({
+        id: task.id, ownerUserId: owner, title: task.title, status: 'active', createdAt: new Date(task.createdAt), updatedAt: new Date(task.updatedAt),
+      }))).onConflictDoNothing()
       if (taskRows.length) await tx.insert(schema.task).values(taskRows.map(({ task, ownerUserId: owner }) => ({
-        id: task.id, ownerUserId: owner, projectId: task.projectId, title: task.title, prompt: task.prompt, provider: task.provider, mode: task.mode, status: task.status,
+        id: task.id, ownerUserId: owner, conversationId: task.id, projectId: task.projectId, title: task.title, prompt: task.prompt, provider: task.provider, mode: task.mode, status: task.status,
         skillsJson: task.skills, tagsJson: task.tags, queuedGuidanceJson: task.queuedGuidance, referencesJson: task.references, attachmentsJson: task.attachments, planJson: task.plan,
         securityContextJson: task.securityContext ?? null, approvalJson: task.approval ?? null, inputRequestJson: task.inputRequest ?? null, shareJson: task.share ?? null,
         previewPath: task.previewPath ?? null, libraryHiddenAt: date(task.libraryHiddenAt), activeRunId: task.activeRunId ?? null, scheduleId: task.scheduleId ?? null,
@@ -119,6 +123,16 @@ const run = async () => {
         if (nativeEvents.length) await tx.insert(schema.nativeEvent).values(nativeEvents.map((event) => ({ id: event.id, taskId: task.id, runId: event.runId, source: event.source, sourceEventId: event.sourceEventId, sourceSequence: event.sourceSequence, nativeType: event.nativeType, payloadJson: JSON.parse(event.payloadJson), payloadHash: event.payloadHash, receivedAt: new Date(event.receivedAt) }))).onConflictDoNothing()
         const versions = await store.listWorkspaceVersions(task.id)
         if (versions.length) await tx.insert(schema.workspaceVersion).values(versions.map((version) => ({ id: version.id, taskId: task.id, label: version.label, fileCount: version.fileCount, evidenceHash: version.evidenceHash, createdAt: new Date(version.createdAt) }))).onConflictDoNothing()
+        const sourceDigest = createHash('sha256').update(JSON.stringify({
+          version: 'task-store-projection-v1', taskId: task.id, updatedAt: task.updatedAt,
+          messageIds: messages.map((message) => message.id), eventIds: events.map((event) => event.id),
+          nativeEventIds: nativeEvents.map((event) => event.id), versionIds: versions.map((version) => version.id),
+        })).digest('hex')
+        await tx.insert(schema.legacyImport).values({
+          sourceKind: 'task_store_projection', sourceId: task.id, sourceDigest, conversationId: task.id,
+          resultJson: { status: 'imported', messageCount: messages.length, eventCount: events.length, nativeEventCount: nativeEvents.length, versionCount: versions.length },
+          importedAt: new Date(),
+        }).onConflictDoNothing()
       }
     })
     console.log(JSON.stringify({ imported: true, ownerUserId, counts }, null, 2))

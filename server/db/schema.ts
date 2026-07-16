@@ -71,11 +71,12 @@ export const orgMember = pgTable('org_member', {
 // must not infer conversation lineage from process-local maps.
 export const conversation = pgTable('conversation', {
   id: text('id').primaryKey(),
+  ownerUserId: text('owner_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   title: text('title'),
   status: text('status').notNull().default('active'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
-}, (table) => [index('conversation_status_updated_idx').on(table.status, table.updatedAt)])
+}, (table) => [index('conversation_owner_updated_idx').on(table.ownerUserId, table.updatedAt), index('conversation_status_updated_idx').on(table.status, table.updatedAt)])
 
 export const project = pgTable('project', {
   id: text('id').primaryKey(),
@@ -92,6 +93,7 @@ export const task = pgTable('task', {
   id: text('id').primaryKey(),
   ownerUserId: text('owner_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   orgId: text('org_id').references(() => org.id, { onDelete: 'set null' }),
+  conversationId: text('conversation_id').references(() => conversation.id, { onDelete: 'cascade' }),
   projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'restrict' }),
   title: text('title').notNull(),
   prompt: text('prompt').notNull(),

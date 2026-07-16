@@ -2,6 +2,12 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — disposable Postgres owner-scoped chat proof
+
+- Applied the reviewed Drizzle migrations through `0005_deep_rachel_grey.sql` to disposable PostgreSQL 18. The expected long-identifier notice from replaying the historical native-projection migration was non-fatal; the migration sequence completed successfully.
+- `npm run e2e:postgres-chat` exercised the isolated async repository: owner-bound conversation/task creation, client-request replay without a duplicate user message, assistant persistence with a provider message ID, one durable runtime event, and owner B denial. The run reported two messages, one runtime event, and `ownerIsolation=true` without retaining credentials or model payloads.
+- The application still fails closed when `DATABASE_URL` would select Postgres. This is a repository vertical proof, not a claim that the live TaskStore, production migration procedure, microVM boundary, OpenVTC/VTI approval, or model provider path has switched.
+
 ## 2026-07-17 — protected LiteLLM provider gate and SDK workspace-path compatibility
 
 - The host-only LiteLLM relay advertised the configured `claude-sonnet-5` alias and received the Claude-compatible `/v1/messages` traffic. No direct first-party Anthropic endpoint or credential was used.

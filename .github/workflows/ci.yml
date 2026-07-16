@@ -98,3 +98,7 @@ jobs:
         run: npm run db:migrate
       - name: Validate Drizzle migration manifest
         run: npm run db:check
+      - name: Prove owner-scoped Postgres chat vertical slice
+        env:
+          DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
+        run: npm run e2e:postgres-chat

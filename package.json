@@ -10,7 +10,7 @@
     "dev:web": "vite",
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "check": "npm run lint && npm run test && npm run build && npm run check:e2e-harness",
-    "check:e2e-harness": "tsc --ignoreConfig --noEmit --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext --types node scripts/dev-check.ts scripts/linear-cli.ts scripts/onecomputer-live-e2e.ts scripts/onecomputer-allocation-recovery-e2e.ts scripts/onecomputer-cancel-e2e.ts scripts/claude-sdk-live-e2e.ts scripts/claude-sdk-slides-e2e.ts scripts/claude-chat-e2e.ts scripts/restart-residue-e2e.ts scripts/follow-up-attachment-e2e.ts scripts/retry-http-e2e.ts scripts/onevibe-golden-e2e.ts scripts/document-roundtrip-e2e.ts scripts/website-build-e2e.ts scripts/skills-e2e.ts scripts/skill-marketplace-e2e.ts scripts/skill-marketplace-github-e2e.ts scripts/auth-owner-e2e.ts scripts/postgres-import.ts",
+    "check:e2e-harness": "tsc --ignoreConfig --noEmit --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext --types node scripts/dev-check.ts scripts/linear-cli.ts scripts/onecomputer-live-e2e.ts scripts/onecomputer-allocation-recovery-e2e.ts scripts/onecomputer-cancel-e2e.ts scripts/claude-sdk-live-e2e.ts scripts/claude-sdk-slides-e2e.ts scripts/claude-chat-e2e.ts scripts/restart-residue-e2e.ts scripts/follow-up-attachment-e2e.ts scripts/retry-http-e2e.ts scripts/onevibe-golden-e2e.ts scripts/document-roundtrip-e2e.ts scripts/website-build-e2e.ts scripts/skills-e2e.ts scripts/skill-marketplace-e2e.ts scripts/skill-marketplace-github-e2e.ts scripts/auth-owner-e2e.ts scripts/postgres-import.ts scripts/postgres-chat-e2e.ts",
     "lint": "oxlint src server scripts",
     "test": "vitest run",
     "preview": "vite preview",
@@ -35,7 +35,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
-    "db:import": "tsx scripts/postgres-import.ts"
+    "db:import": "tsx scripts/postgres-import.ts",
+    "e2e:postgres-chat": "tsx scripts/postgres-chat-e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.210",

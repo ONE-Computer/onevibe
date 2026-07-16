@@ -1,9 +1,16 @@
 # Implementation log
 
+## 2026-07-17 — prove the first async Postgres chat vertical slice
+
+- Added `server/persistence/postgres-chat.ts` as an isolated repository boundary. It creates owner-bound conversations/tasks, locks the owner conversation and task rows during turn/message/event writes, makes client-request turn creation idempotent, persists provider message IDs, and exposes owner-filtered transcript/runtime-event reads.
+- Extended `scripts/postgres-import.ts` to populate owner-bound conversations, set `task.conversation_id`, and write bounded `legacy_imports` receipts whose digest covers stable source identity/count metadata rather than copying raw task/provider content.
+- Added `npm run e2e:postgres-chat` and a CI PostgreSQL job step. Against disposable PostgreSQL 18, reviewed migrations applied, duplicate client requests replayed without a second user message, assistant/provider-message persistence and runtime-event replay passed, and a second owner was denied.
+- This is not a production switch: `TaskStore` remains SQLite-backed, the full repository surface is not yet async, and `DATABASE_URL` still fails closed. No model traffic is involved; the LiteLLM-only routing rule is unchanged.
+
 ## 2026-07-17 — extend the Postgres target contract for durable identity and audit
 
-- Added Drizzle migration `0004_majestic_multiple_man.sql` and schema parity for a first-class `conversation` identity, task fork lineage, turn error metadata, provider message IDs, runtime-lease allocation/idempotency uniqueness, append-only MCP configuration events, and source-keyed `legacy_imports` provenance.
-- `npm run db:generate`, `npm run db:check`, and `git diff --check` pass. This is intentionally a target-contract slice: the running TaskStore remains SQLite-backed, the importer does not yet write the new provenance tables, and no `DATABASE_URL` runtime switch is enabled.
+- Added Drizzle migration `0004_majestic_multiple_man.sql` and schema parity for a first-class `conversation` identity, task fork lineage, turn error metadata, provider message IDs, runtime-lease allocation/idempotency uniqueness, append-only MCP configuration events, and source-keyed `legacy_imports` provenance; migration `0005_deep_rachel_grey.sql` adds owner-bound conversation and task identity.
+- `npm run db:generate`, `npm run db:check`, and `git diff --check` pass. The target-contract slice is now consumed by the isolated async repository/import proof; the running TaskStore remains SQLite-backed and no `DATABASE_URL` runtime switch is enabled.
 - All model traffic remains LiteLLM-only. The schema change does not add provider credentials, direct first-party Anthropic configuration, or a model-routing fallback.
 
 ## 2026-07-17 — fail closed on known first-party model endpoints
