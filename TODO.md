@@ -100,7 +100,7 @@ Reference: `plan/06-mcp-extensions.md`
 - [x] **P6-01** Add MCP config management — local SQLite-backed UI to add/remove MCP servers; store in `runtime_mcp_configs` (not on-disk JSON); inject secret-free declarations into adapters that support `'tool_use'`. Authenticated ownership and a production secret broker remain part of P4.
 - [ ] **P6-02** Add skill marketplace — GitHub-backed catalog; install/remove from SkillsLibrary; inject as system-prompt blocks per task
 - [ ] **P6-03** Add two-tool MCP facade — `search_capabilities` + `execute_capability`; reduces context waste for agents with many MCP servers
-- [ ] **P6-04** Add agent context diagnostics — `/api/diagnostics` health check; surface as status panel: API key → runtime reachable → sandbox → MCP servers
+- [x] **P6-04** Add agent context diagnostics — authenticated `/api/diagnostics` and a Computers status panel now report the LiteLLM model boundary, session scope, persistence driver/contract, runtime readiness, sandbox boundary, and MCP declaration count without returning credentials, prompts, or provider payloads. This is local operational visibility, not production attestation.
 
 ---
 

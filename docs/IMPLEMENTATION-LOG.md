@@ -644,3 +644,9 @@ baseline harness in CI.
 - Started a disposable PostgreSQL 18 container on a non-default local port, applied both Drizzle migrations with `npm run db:migrate`, inserted a pre-existing Better Auth import owner, and imported a temporary local workspace through `npm run db:import`.
 - The transactional import reported 2 projects, 1 task, 2 messages, and 2 runtime events. A direct Postgres query confirmed those row counts, then the container was restarted and the same counts were confirmed after reconnect.
 - This proves the DDL and import seam against a real database, not the application runtime switch. The container was stopped after the proof; no existing workspace container was modified.
+
+# 2026-07-17 — secret-free execution-path diagnostics
+
+- Added authenticated `GET /api/diagnostics` and a Computers status panel for the release-critical execution path: LiteLLM model boundary, session scope, active persistence driver and Postgres contract, runtime readiness, sandbox boundary, and MCP declaration state.
+- The endpoint reports bounded booleans/status/detail only. It does not return credentials, prompts, raw provider responses, or attestation claims. In auth-enabled mode it is protected by the same session guard as the data plane.
+- Verification: `npm run check` passed with 43 test files / 229 tests, lint, production build, and E2E harness typecheck. This is local operational visibility; it does not close Postgres runtime switching or production sandbox attestation.

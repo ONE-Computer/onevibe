@@ -363,6 +363,18 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   const actorUserId = authService?.isEnabled && !publicReadOnly ? (await authService.getSession(request))?.user.id : undefined
   if (authService?.isEnabled && !publicReadOnly && !actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
   if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, await runtimeSnapshot())
+  if (request.method === 'GET' && url.pathname === '/api/diagnostics') {
+    const readiness = await runtimeSnapshot()
+    const reachable = await oneComputerReachability()
+    return json(response, 200, {
+      modelBoundary: { name: 'LiteLLM', configured: claudeConfigured, directFirstPartyAllowed: false, detail: claudeConfigured ? 'Model traffic is configured to traverse the server-controlled LiteLLM relay.' : 'Configure the server-controlled LiteLLM relay; direct first-party model credentials are not accepted.' },
+      auth: { enabled: Boolean(authService?.isEnabled), sessionScoped: Boolean(actorUserId), productionReady: false, detail: authService?.isEnabled ? 'Local user scope is active; Postgres/org/production acceptance remains open.' : 'Authentication is disabled in local mode.' },
+      persistence: { active: 'sqlite', postgresContract: true, runtimeSwitchReady: false, detail: 'The running TaskStore is local SQLite; the reviewed Drizzle/Postgres contract is not the active runtime driver.' },
+      runtime: { providers: readiness.providers, defaultProvider: readiness.defaultProvider },
+      sandbox: { configured: oneComputerConfigured, ...(reachable !== undefined ? { reachable } : {}), boundary: oneComputerConfigured ? 'development ONEComputer adapter' : 'host-process local runtime', detail: oneComputerConfigured ? (reachable ? 'ONEComputer health probe is reachable; production attestation remains open.' : 'ONEComputer is configured but the health probe is unreachable.') : 'No isolated sandbox is configured.' },
+      mcp: { configuredCount: store.listMcpConfigs(actorUserId).length, secretValuesAccepted: false, detail: 'MCP declarations are server-owned and secret-free; secret brokering and external-server health remain open.' },
+    })
+  }
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'runtime' && segments[2] === 'test' && segments[3] && segments.length === 4) {
     const provider = runtimeProviderInput.parse(segments[3])
     const readiness = await runtimeSnapshot()

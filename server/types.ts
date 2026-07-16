@@ -234,3 +234,12 @@ export type RuntimeMcpConfig = {
   createdAt: string
   updatedAt: string
 }
+
+export type RuntimeDiagnostics = {
+  modelBoundary: { name: 'LiteLLM'; configured: boolean; directFirstPartyAllowed: false; detail: string }
+  auth: { enabled: boolean; sessionScoped: boolean; productionReady: false; detail: string }
+  persistence: { active: 'sqlite'; postgresContract: boolean; runtimeSwitchReady: false; detail: string }
+  runtime: { providers: RuntimeProviderState[]; defaultProvider?: Task['provider'] }
+  sandbox: { configured: boolean; reachable?: boolean; boundary: string; detail: string }
+  mcp: { configuredCount: number; secretValuesAccepted: false; detail: string }
+}
