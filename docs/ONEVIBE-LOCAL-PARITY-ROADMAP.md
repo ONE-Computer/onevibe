@@ -8,6 +8,18 @@ The local backend and conversation gate is green. Website parity is in progress:
 
 The next delegated reviews are read-only and non-authoritative: one agent is auditing backend P0/P1 risks, one is auditing Manus/OpenWebUI interaction parity, and one is auditing roadmap/Linear hygiene. The main agent retains ownership of shared contracts, integration, full checks, Linear updates, and release claims.
 
+## Delegated audit synthesis — follow-up pass
+
+The current local release remains green for the tested single-process path, but the next reliability work is not yet proven:
+
+- Persistence: task JSON writes are not crash-atomic, initialization can skip corrupt task state, and the task-file/SQLite active-run update window is not covered by a torn-write test.
+- Cancellation: an adapter that ignores abort could still attempt late writes after the durable run is marked cancelled; generation/CAS fencing is required before claiming hard cancellation semantics.
+- Streaming: live SSE is process-local and future/expired cursor behavior is under-specified; replay correctness is proven for the current process, not for a multi-worker deployment.
+- Generated projects: validation remains static. The generated app is not yet dependency-installed, built, or browser-tested, and interpolated task text must be treated as a source-escaping boundary.
+- Manus-style review: the Computer rail needs typed previews and grouped deliverables, task checkpoints need deep links into the selected evidence event, browser actions need immutable screenshot-or-miss records, and variable-height card virtualization needs scale/accessibility tests.
+
+These findings are tracked as implementation inputs, not release failures for the already-passed local gate. The local execution order is: generated Website build proof → browser golden-flow automation → artifact-rail previews/deep links → cancellation/CAS hardening → multi-worker SSE/replay semantics. ONEComputer provider completion semantics remain a separate deferred production gate.
+
 ## Operating decision
 
 The active product is ONEVibe: a reliable local-first agent workspace with Manus-level interaction quality. ONEComputer, Azure, OpenVTC/VTI approvals, attested microVMs, and enterprise identity are later enforcement and platform tracks. They remain in Linear, but they do not compete with the local release gate.

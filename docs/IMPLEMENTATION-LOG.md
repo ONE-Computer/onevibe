@@ -8,6 +8,13 @@
 - At 390×844, the browser review found no horizontal overflow (`scrollWidth=375`), the sidebar was hidden/collapsed, and the composer/task content remained usable. This is shell/UI evidence only; it does not claim that dependencies were installed, the generated app was built, or browser-tested inside the generated artifact itself.
 - The remaining website parity gate is to install/build a generated project in a bounded runtime, capture browser/a11y evidence from that built output, and automate the new-task → stream → artifact → follow-up → reload flow.
 
+## 2026-07-16 — delegated follow-up audits
+
+- The backend audit found no new local P0, but identified three P1 hardening tracks: atomic task-file writes and cross-store crash windows, generation/CAS fencing for late adapter writes after cancellation, and multi-worker SSE delivery/cursor-gap semantics. Existing tests prove the current single-process contracts; they do not prove those distributed/crash boundaries.
+- The Manus-parity audit identified the next UI priorities: typed inline previews and turn-level bundles in the Computer rail, causal screenshot-or-explicit-miss records for browser actions, deep links from task checkpoints into the selected evidence card, and variable-height virtualized replay tests. These are now the next UI execution queue rather than claims of feature parity.
+- A worker was assigned the bounded generated-Website build proof. It may add only a dedicated E2E script and minimal package wiring; it may not change shared runtime contracts, Linear, or security boundaries. The main agent will review its diff and rerun the full gate.
+- A separate platform observation remains deferred: the ONEComputer adapter can still over-report completion when provider-side artifact validation fails. This is a real production-provider risk, but it is not allowed to expand the local-first ONEVibe POC scope before the local creation and conversation gates are stronger.
+
 ## 2026-07-16 — product-lead queue and delegation cadence
 
 - Reframed the next phase as five bounded workstreams: a local API golden flow, document round-trip, quoted-CSV/data lineage, website build/review, and browser golden-flow coverage.
