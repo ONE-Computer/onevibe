@@ -220,7 +220,7 @@ Full task list: `TODO.md`. Summary:
 | `src/lib/api.ts` | All HTTP calls to the server. `parse()` at line 32 needs typed `ApiError` (P1-07) |
 | `src/types.ts` | Shared TypeScript types. `Task['provider']` union needs widening; `RuntimeProviderState` needs `capabilities` field (P2-04) |
 | `src/components/PromptComposer.tsx` | Composer and durable guidance handoff; running turns queue follow-ups through the server (P2-07 complete) |
-| `src/components/AssistantThread.tsx` | Conversation rendering via `@assistant-ui/react`. Has duplicate typing indicator bug (P5-13) |
+| `src/components/AssistantThread.tsx` | Conversation rendering via `@assistant-ui/react`; running state, bounded trace, tool groups, artifacts, and explicit message branching are wired to durable task data |
 | `src/components/Workspace.tsx` | Right-panel workspace. 287 lines. Has forever-spinner, broken image, UUID display bugs |
 | `src/components/Sidebar.tsx` | Left sidebar. Has hardcoded `"Terence"`, dead `<Settings2>` icons, hardcoded `8` badge |
 
