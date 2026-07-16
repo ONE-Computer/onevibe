@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import path from 'node:path'
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import PptxGenJS from 'pptxgenjs'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { portableArtifactKind } from './artifact-path.js'
@@ -105,10 +106,13 @@ const wrapPdfText = (text: string, maxWidth: number, font: { widthOfTextAtSize: 
 
 const writeSlidePdf = async (task: Task, store: TaskStore, slides: Array<[string, string]>) => {
   const pdf = await PDFDocument.create()
+  const artifactDate = new Date(task.createdAt)
   pdf.setTitle(`${task.title} — ONEVibe deck`)
   pdf.setAuthor('ONEVibe')
   pdf.setSubject(task.prompt)
   pdf.setCreator('ONEVibe governed workspace')
+  pdf.setCreationDate(artifactDate)
+  pdf.setModificationDate(artifactDate)
   const regular = await pdf.embedFont(StandardFonts.Helvetica)
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
   const mono = await pdf.embedFont(StandardFonts.Courier)
@@ -129,6 +133,18 @@ const writeSlidePdf = async (task: Task, store: TaskStore, slides: Array<[string
     page.drawText(String(index + 1).padStart(2, '0'), { x: 870, y: 28, size: 9, font: mono, color: rgb(0.39, 0.44, 0.41) })
   }
   await store.writeWorkspaceBytes(task.id, 'deck.pdf', await pdf.save())
+}
+
+const normalizePptxMetadata = (bytes: Uint8Array, task: Task) => {
+  const normalizedDate = new Date(task.createdAt).toISOString().replace(/\.\d{3}Z$/, 'Z')
+  const entries = unzipSync(bytes)
+  for (const [entryPath, entryBytes] of Object.entries(entries)) {
+    if (!entryPath.endsWith('.xml')) continue
+    const xml = strFromU8(entryBytes)
+      .replace(/(<dcterms:(?:created|modified)[^>]*>)[^<]*(<\/dcterms:(?:created|modified)>)/g, `$1${normalizedDate}$2`)
+    entries[entryPath] = strToU8(xml)
+  }
+  return zipSync(entries, { level: 6 })
 }
 
 export type StructuredSlide = { title: string; summary: string }
@@ -156,7 +172,7 @@ export const writeStructuredSlides = async (task: Task, store: TaskStore, outlin
   }
   const bytes = await deck.write({ outputType: 'uint8array', compression: true })
   if (!(bytes instanceof Uint8Array)) throw new Error('PPTX generator returned an unexpected output type')
-  await store.writeWorkspaceBytes(task.id, 'deck.pptx', bytes)
+  await store.writeWorkspaceBytes(task.id, 'deck.pptx', normalizePptxMetadata(bytes, task))
   await writeSlidePdf(task, store, slides)
   await store.writeWorkspaceFile(task.id, 'outline.json', `${JSON.stringify(slides.map(([title, summary], index) => ({ number: index + 1, title, summary })), null, 2)}\n`)
   await store.writeWorkspaceFile(task.id, 'speaker-notes.md', slides.map(([title, summary], index) => `## ${index + 1}. ${title}\n\n${summary}\n`).join('\n'))

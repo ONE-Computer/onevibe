@@ -11,6 +11,7 @@ import { claudeProviderConfig } from './claude-provider-config.js'
 import { SANDBOX_SLIDE_RENDERER, sandboxSlideSeed } from './sandbox-slide-renderer.js'
 import { portableArtifactKind as portableArtifactPathKind } from './artifact-path.js'
 import { ONEVIBE_SANDBOX_AGENT_SDK_WORKER } from './onecomputer-agent-sdk-worker.js'
+import { writeArtifactManifest } from './mode-artifacts.js'
 
 export const portableArtifactKind = (artifactPath: string) => {
   const normalized = path.posix.normalize(artifactPath)
@@ -677,6 +678,16 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         payload: {
           executionRoute: 'onecomputer_sandbox', sandboxId: sandbox.id, kind: artifact.kind, size: artifact.size,
           uri: `/api/tasks/${task.id}/file?path=${encodeURIComponent(artifact.path)}&download=1`, portable: true,
+        },
+      })
+      const manifestInputs = extractablePaths.filter((artifactPath) => artifactPath !== 'validation-report.json')
+      await writeArtifactManifest(task, store, manifestInputs)
+      const manifestFile = (await store.listWorkspaceFiles(task.id)).find((file) => file.path === 'artifact-manifest.json')
+      if (manifestFile) await store.appendEvent(task.id, {
+        type: 'artifact_created', lane: 'artifact', label: 'ONEComputer artifact manifest', content: 'artifact-manifest.json',
+        payload: {
+          executionRoute: 'onecomputer_sandbox', sandboxId: sandbox.id, kind: 'artifact_manifest', size: manifestFile.size, portable: true,
+          uri: `/api/tasks/${task.id}/file?path=artifact-manifest.json&download=1`,
         },
       })
       let generatedArtifactPreview = false

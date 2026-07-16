@@ -163,8 +163,12 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(frames.at(-1)?.payload.uri).toContain(`/api/tasks/${task.id}/file?path=evidence%2Fvisual%2Fbrowser-review-`)
     expect(store.listEvents(task.id).some((event) => event.label === 'Static artifact contract needs review' && event.content === 'validation-report.json')).toBe(true)
     const deliverables = store.listEvents(task.id).filter((event) => event.payload.portable === true)
-    expect(deliverables.map((event) => event.content)).toEqual(['README.md'])
+    expect(deliverables.map((event) => event.content)).toEqual(['README.md', 'artifact-manifest.json'])
     expect(deliverables[0]?.payload.uri).toBe(`/api/tasks/${task.id}/file?path=README.md&download=1`)
+    expect(deliverables[1]?.payload).toMatchObject({ kind: 'artifact_manifest', sandboxId: 'sandbox-1', uri: `/api/tasks/${task.id}/file?path=artifact-manifest.json&download=1` })
+    const manifest = JSON.parse(await store.readWorkspaceFile(task.id, 'artifact-manifest.json')) as { outputs: Array<{ path: string; size: number; sha256: string }> }
+    expect(manifest.outputs.map((output) => output.path)).toEqual(['index.html', 'README.md'])
+    expect(manifest.outputs.some((output) => output.path === 'validation-report.json')).toBe(false)
     expect(await store.readWorkspaceFile(task.id, 'validation-report.json')).toContain('Static contract validation only')
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
     expect(store.verifyChain(task.id)).toBe(true)
