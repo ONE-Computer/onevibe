@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationSummary, LibraryItem, Project, ProjectFileVersion, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { ChatMessage, ConversationSummary, LibraryItem, Project, ProjectFileVersion, RuntimeHealth, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 export type SkillCatalogEntry = { id: TaskSkill; version: number; title: string; summary: string; sha256: string }
 export type SkillOption = Pick<SkillCatalogEntry, 'id' | 'title' | 'summary'>
@@ -70,6 +70,7 @@ export const listConversations = async (cursor?: string, limit = 50, query?: str
   return parse<{ conversations: ConversationSummary[]; nextCursor?: string }>(await fetch(`/api/conversations?${params}`))
 }
 export const getRuntimeReadiness = async () => parse<RuntimeReadiness>(await fetch('/api/runtime'))
+export const testRuntime = async (provider: Task['provider']) => parse<{ provider: Task['provider']; health: RuntimeHealth }>(await fetch(`/api/runtime/test/${encodeURIComponent(provider)}`, { method: 'POST' }))
 export const listLibrary = async () => parse<{ items: LibraryItem[] }>(await fetch('/api/library'))
 export const listSkills = async () => parse<{ skills: SkillCatalogEntry[] }>(await fetch('/api/skills'))
 

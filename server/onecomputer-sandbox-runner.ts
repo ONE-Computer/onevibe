@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { OneComputerClient } from './onecomputer-client.js'
 import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
+import type { RuntimeHealth } from './types.js'
 import type { EventInput } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
 import { validateModeArtifacts } from './artifact-validation.js'
@@ -186,6 +187,16 @@ export class OneComputerSandboxRuntimeAdapter extends RuntimeAdapterBase {
   readonly name = 'onecomputer'
   readonly providerId = 'onecomputer' as const
   readonly capabilities = ['streaming', 'tool_use', 'file_system', 'sandboxed', 'preview_url', 'computer_use'] as const
+
+  async health(): Promise<RuntimeHealth> {
+    const started = Date.now()
+    try {
+      await this.client.health()
+      return { status: 'online', latencyMs: Date.now() - started, detail: 'ONEComputer authenticated health probe succeeded.' }
+    } catch {
+      return { status: 'offline', latencyMs: Date.now() - started, detail: 'ONEComputer authenticated health probe failed.' }
+    }
+  }
 
   constructor(
     private readonly client: OneComputerClient,

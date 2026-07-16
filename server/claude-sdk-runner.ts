@@ -4,6 +4,7 @@ import { createSdkMcpServer, query, tool, type HookCallback, type PermissionResu
 import { z } from 'zod'
 import type { EventInput } from './types.js'
 import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
+import type { RuntimeHealth } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 import { materializeTaskSkills } from './skill-packs.js'
@@ -57,6 +58,22 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
   readonly name = 'claude_sdk'
   readonly providerId = 'claude_sdk' as const
   readonly capabilities = ['streaming', 'tool_use', 'file_system', 'preview_url'] as const
+
+  async health(): Promise<RuntimeHealth> {
+    const provider = claudeProviderConfig()
+    if (!provider.configured || provider.transport !== 'litellm') return { status: 'not_configured', detail: 'Configure the server-controlled LiteLLM relay before testing Claude.' }
+    const endpoint = process.env.ONEVIBE_LITELLM_URL?.trim().replace(/\/+$/, '')
+    const key = process.env.ONEVIBE_LITELLM_API_KEY?.trim()
+    if (!endpoint || !key) return { status: 'not_configured', detail: 'Configure the server-controlled LiteLLM relay before testing Claude.' }
+    const started = Date.now()
+    try {
+      const response = await fetch(`${endpoint}/health`, { headers: { Accept: 'application/json', Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(5_000) })
+      if (!response.ok) return { status: 'offline', latencyMs: Date.now() - started, detail: 'LiteLLM health probe did not return a successful response.' }
+      return { status: 'online', latencyMs: Date.now() - started, detail: 'Claude Agent SDK is routed through the configured LiteLLM relay.' }
+    } catch {
+      return { status: 'offline', latencyMs: Date.now() - started, detail: 'The configured LiteLLM relay could not be reached.' }
+    }
+  }
 
   protected async execute({ task, store, signal, prompt, continuation, requestUserInput }: LegacyRuntimeContext) {
     signal.throwIfAborted()

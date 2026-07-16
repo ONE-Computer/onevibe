@@ -1,6 +1,6 @@
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import type { RuntimeProviderState } from './runtime-readiness.js'
-import type { RuntimeCapability, RuntimeReadiness, RuntimeSuggestion, Task, TaskMode } from './types.js'
+import type { RuntimeCapability, RuntimeHealth, RuntimeReadiness, RuntimeSuggestion, Task, TaskMode } from './types.js'
 
 export type RuntimeFactoryMap = Partial<Record<Task['provider'], () => RuntimeAdapter>>
 
@@ -67,6 +67,21 @@ export class RuntimeRegistry {
     const factory = this.options.factories[provider]
     if (!factory) throw new Error(`Runtime provider '${provider}' is not registered`)
     return factory()
+  }
+
+  async test(provider: Task['provider'], states: RuntimeProviderState[]): Promise<RuntimeHealth> {
+    const state = states.find((candidate) => candidate.id === provider)
+    if (!state?.available) return { status: 'not_configured', detail: state?.detail ?? 'Runtime is not registered.' }
+    const adapter = this.create(provider)
+    const started = Date.now()
+    try {
+      const health = await adapter.health?.()
+      return health ? { ...health, latencyMs: health.latencyMs ?? Date.now() - started } : { status: 'unknown', latencyMs: Date.now() - started, detail: 'Runtime is configured, but no provider-specific health probe is available.' }
+    } catch {
+      return { status: 'offline', latencyMs: Date.now() - started, detail: 'The runtime health probe failed.' }
+    } finally {
+      await adapter.destroy().catch(() => undefined)
+    }
   }
 
   snapshot(states: RuntimeProviderState[]): RuntimeReadiness {

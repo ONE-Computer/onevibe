@@ -53,6 +53,12 @@
 - Added `ONEVIBE_DEFAULT_PROVIDER`; it is honored only when the requested provider is registered, available, and compatible, then falls back to the highest-ranked governed provider and finally the explicitly labelled simulation runtime.
 - Added focused registry tests for ranking, operator-default fallback, capability explanations, and readiness snapshots. The server create/schedule/follow-up paths now use the registry's generic availability contract rather than provider-specific error branches.
 
+## 2026-07-16 — Phase 3 runtime health probe slice
+
+- Added provider-owned runtime health probes to the registry boundary and `POST /api/runtime/test/:provider`. Claude probes only the configured LiteLLM `/health` endpoint, ONEComputer uses its authenticated health route, and the demo runtime reports its explicit simulation boundary; unsupported probes return `unknown` rather than claiming connectivity.
+- Health responses are bounded to status, latency, and generic detail. Endpoint URLs, credentials, provider response bodies, and control-plane payloads never enter the browser response.
+- Full `npm run check` passes with 41 test files and 219 tests, lint, production build, and E2E harness typecheck. The rich settings dashboard and user-consent fallback remain open P3 work.
+
 ## 2026-07-16 — Phase 2 runtime lifecycle contract
 
 - Added `RuntimeAdapterBase` and the canonical lifecycle surface: `initialize(task, workingDir, mcpConfigs)`, `run(prompt, context, signal)` as an async stream, `cancel`, `destroy`, `getFiles`, and `getPreviewUrl`.

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { evaluateAction } from './policy.js'
 import { approvalIntentHash, evidenceHeadFor } from './approval-intent.js'
 import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
+import type { RuntimeHealth } from './types.js'
 import { writeModeArtifacts } from './mode-artifacts.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 
@@ -37,6 +38,10 @@ export class DemoRuntimeAdapter extends RuntimeAdapterBase {
   readonly name = 'demo'
   readonly providerId = 'demo' as const
   readonly capabilities = ['streaming', 'file_system', 'preview_url'] as const
+
+  async health(): Promise<RuntimeHealth> {
+    return { status: 'online', latencyMs: 0, detail: 'Deterministic simulation is available locally; it never makes a model call.' }
+  }
 
   protected async execute({ task, store, signal, prompt, requestUserInput }: LegacyRuntimeContext) {
     signal.throwIfAborted()

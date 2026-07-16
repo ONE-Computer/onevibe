@@ -1,4 +1,4 @@
-import type { Task, RuntimeCapability, RuntimeEvent, WorkspaceFile } from './types.js'
+import type { Task, RuntimeCapability, RuntimeEvent, RuntimeHealth, WorkspaceFile } from './types.js'
 import type { TaskStore } from './store.js'
 
 export type McpConfig = {
@@ -73,6 +73,7 @@ export interface RuntimeAdapter {
   run(prompt: string, context: RunContext, signal: AbortSignal): AsyncIterable<RuntimeEvent>
   cancel(): Promise<void>
   destroy(): Promise<void>
+  health?(): Promise<RuntimeHealth>
   getFiles?(): Promise<WorkspaceFile[]>
   getFile?(path: string): Promise<{ content: string; contentHash: string }>
   writeFile?(path: string, content: string, expectedHash?: string): Promise<{ contentHash: string }>
@@ -131,6 +132,10 @@ export abstract class RuntimeAdapterBase implements RuntimeAdapter {
     this.initializedStore = undefined
     this.workingDir = ''
     this.mcpConfigs = []
+  }
+
+  async health(): Promise<RuntimeHealth> {
+    return { status: 'unknown', detail: 'This runtime is registered, but no provider-specific connectivity probe is configured.' }
   }
 
   protected bindStore(store: TaskStore) {

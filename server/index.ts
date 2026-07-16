@@ -86,6 +86,8 @@ const runtimeSnapshot = async () => runtimeRegistry.snapshot(runtimeReadiness({
   oneComputerReachable: await oneComputerReachability(),
 }).providers)
 
+const runtimeProviderInput = z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote'])
+
 const providerAvailability = async (provider: Task['provider']) => {
   const readiness = await runtimeSnapshot()
   const state = readiness.providers.find((candidate) => candidate.id === provider)
@@ -310,6 +312,11 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     })
   }
   if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, await runtimeSnapshot())
+  if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'runtime' && segments[2] === 'test' && segments[3] && segments.length === 4) {
+    const provider = runtimeProviderInput.parse(segments[3])
+    const readiness = await runtimeSnapshot()
+    return json(response, 200, { provider, health: await runtimeRegistry.test(provider, readiness.providers) })
+  }
 
   if (request.method === 'GET' && url.pathname === '/api/conversations') {
     await store.reconcileExpiredApprovals()
