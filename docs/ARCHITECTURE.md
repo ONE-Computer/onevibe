@@ -57,6 +57,8 @@ It does not claim VM isolation, egress enforcement, real wallet signatures, or c
 
 The Compose path intentionally does not pretend to use Postgres yet. `DATABASE_URL`, `better-auth`, user scoping, and a Postgres service belong to the still-open Phase 4 persistence/auth slices. Until those contracts land, cloud promotion must treat the SQLite volume as a single-instance local deployment boundary rather than a multi-user production database.
 
+The proposed auth/database contract is recorded in [`AUTH-POSTGRES-ADR.md`](AUTH-POSTGRES-ADR.md). It is intentionally a migration design, not evidence that auth, Postgres, or multi-user isolation already exist.
+
 ## Implemented production adapters
 
 - `RemoteRuntimeAdapter` consumes the AgentCore/backend typed SSE contract. Its optional bearer token remains server-side.

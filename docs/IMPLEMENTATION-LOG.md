@@ -53,6 +53,11 @@
 - Added machine-readable `dateTime` to the sidebar, Library, runtime health, and Computer inventory timestamps; runtime latency is now rendered as a duration rather than a misleading `<time>`; screenshot thumbnails receive meaningful alt text.
 - P5-11 remains open for the remaining Workspace activity timestamp and the full keyboard/screen-reader browser audit; this slice is intentionally not marked complete from source inspection alone.
 
+## 2026-07-17 — auth/Postgres architecture decision
+
+- Added `docs/AUTH-POSTGRES-ADR.md` after reviewing the current Better Auth Drizzle and email-OTP contracts. It defines the migration sequence, ownership/session boundaries, production OTP transport requirement, cross-user negative tests, and the explicit `ONEVIBE_AUTH_ENABLED` deployment policy.
+- This is a design artifact only. No auth or Postgres ticket was marked complete, and the current Docker Compose path remains a single-instance SQLite deployment. The LiteLLM-only model-routing rule is carried into the target architecture.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.
