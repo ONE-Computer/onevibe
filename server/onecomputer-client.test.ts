@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { OneComputerClient } from './onecomputer-client.js'
+import { OneComputerApiError, OneComputerClient } from './onecomputer-client.js'
 
 describe('OneComputerClient', () => {
   it('provisions through the authenticated production sandbox route', async () => {
@@ -45,5 +45,19 @@ describe('OneComputerClient', () => {
     expect(fetcher).toHaveBeenCalledWith('https://onecomputer.example/v1/sandboxes/sandbox-1/visual/screenshot', expect.objectContaining({
       headers: expect.objectContaining({ Authorization: 'Bearer oc_org_visual-secret', Accept: 'image/png', 'X-Project-Id': 'project_abc' }),
     }))
+  })
+
+  it('does not propagate provider response bodies into caller-visible errors', async () => {
+    const fetcher = vi.fn(async () => new Response('<html>upstream=internal token=never-project-this</html>', { status: 504 })) as unknown as typeof fetch
+    const client = new OneComputerClient({ baseUrl: 'https://onecomputer.example', serviceToken: 'server-secret', fetcher })
+
+    const error = await client.createSandbox('bounded-name').catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(OneComputerApiError)
+    expect(error).toMatchObject({ status: 504, operation: '/v1/sandboxes' })
+    expect(String(error)).toBe('OneComputerApiError: ONEComputer /v1/sandboxes returned HTTP 504')
+    expect(String(error)).not.toContain('internal')
+    expect(String(error)).not.toContain('never-project-this')
+    expect(String(error)).not.toContain('server-secret')
   })
 })

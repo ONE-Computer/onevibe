@@ -58,6 +58,14 @@ The ONEComputer integration source contains the lifecycle repair at `d0438e0` (`
 
 This proves the source contract, not Azure promotion. The stale public timestamp above means the deployed runtime cannot yet be assumed to include `d0438e0`; deployment provenance, fresh health time, server-side credentials, and gateway attestation remain required before the controlled ONEVibe E2E can run.
 
+## Upgraded harness attempt — 2026-07-16
+
+The backend-first harness was run locally against the public Azure ONEComputer development provider with the sandbox-reachable LiteLLM relay configured and visual capture disabled. Preflight reported both `claude_sdk` and `onecomputer` available. Task `task_0e49cda2385b44` recorded `claudeTransport=litellm`, entered allocation, then received HTTP 504 from `POST /v1/sandboxes` after approximately one minute without a provider sandbox ID.
+
+ONEVibe persisted the allocation lease as `unknown` with no `provider_sandbox_id` and did not retry, preserving the one-conversation/one-sandbox invariant under an ambiguous create result. A read-only authenticated provider listing immediately afterward returned no sandbox rows, so no visible orphan could be identified; this is not equivalent to a provider operation receipt. The required two-turn/deck proof therefore remains incomplete.
+
+The attempt also found that the client propagated the provider's HTML error body into the task failure event. That observability leak was removed immediately: provider errors now expose only the bounded operation path and HTTP status, with a regression test proving response bodies and credentials cannot appear in the caller-visible error.
+
 ## Blocking gap: asynchronous provisioning lifecycle
 
 This is an integration blocker, not a reason to weaken the ONEVibe boundary:

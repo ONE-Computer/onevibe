@@ -15,6 +15,13 @@ export type OneComputerClientOptions = {
 export type OneComputerExecResult = { exitCode: number; output: string }
 export type OneComputerVisualFrame = { png: Uint8Array; capturedAt?: string }
 
+export class OneComputerApiError extends Error {
+  constructor(readonly operation: string, readonly status: number) {
+    super(`ONEComputer ${operation} returned HTTP ${status}`)
+    this.name = 'OneComputerApiError'
+  }
+}
+
 export class OneComputerClient {
   private readonly baseUrl: string
   private readonly fetcher: typeof fetch
@@ -84,8 +91,9 @@ export class OneComputerClient {
       signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(4 * 60_000)]) : AbortSignal.timeout(4 * 60_000),
     })
     if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      throw new Error(`ONEComputer ${pathname} returned HTTP ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ''}`)
+      // Provider bodies can contain upstream topology, diagnostics, or reflected
+      // secrets. They are deliberately not propagated into task evidence/logs.
+      throw new OneComputerApiError(pathname, response.status)
     }
     if (response.status === 204) return undefined as T
     return response.json() as Promise<T>
