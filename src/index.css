@@ -473,3 +473,23 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 @media(prefers-reduced-motion:reduce){
   .composer textarea::placeholder{transition:none}
 }
+
+/* ================================================================
+   PHASE 9 — SIDEBAR GROUPS + PER-TASK ICONS
+   ================================================================ */
+.task-list{gap:8px}
+.task-list-group{display:grid;gap:2px}
+.task-list-group-label{padding:8px 10px 4px;color:var(--text-faint);font-size:10.5px;font-weight:500;letter-spacing:.02em;text-transform:none}
+.task-row{
+  grid-template-columns:6px 22px minmax(0,1fr) auto!important;
+  gap:9px!important;padding:8px 10px!important;border-radius:9px;
+  align-items:center;
+}
+.task-row-icon{display:grid;place-items:center;width:22px;height:22px;color:var(--text-muted);border-radius:6px;background:transparent;transition:background .15s ease,color .15s ease}
+.task-row:hover .task-row-icon,.task-row.selected .task-row-icon{background:var(--surface-hover);color:var(--accent)}
+.task-row-body{display:grid;gap:2px;min-width:0}
+.task-row-body strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;color:var(--text-secondary)}
+.task-row.selected .task-row-body strong{color:var(--text-primary)}
+.task-row-body small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;color:var(--text-faint)}
+.task-row-time{font-size:10px;color:var(--text-faint);font-variant-numeric:tabular-nums;flex-shrink:0;padding-left:4px}
+.task-row.selected .task-row-time{color:var(--accent)}

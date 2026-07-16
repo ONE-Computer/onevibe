@@ -1,7 +1,7 @@
-import { Blocks, Clock3, FolderKanban, Library, MonitorCog, Pencil, Plus, Search, Settings2, Sparkles, X } from 'lucide-react'
+import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileText, FolderKanban, Gamepad2, Globe2, Library, MonitorCog, Palette, Pencil, Plus, Presentation, Search, Settings2, Sparkles, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ConversationSummary, Project, ProjectFileVersion } from '../types'
+import type { ConversationSummary, Project, ProjectFileVersion, TaskMode } from '../types'
 import { getProjectFile, listConversations, listProjectFileVersions } from '../lib/api'
 import { BrandMark } from './BrandMark'
 
@@ -37,6 +37,44 @@ const conversationSourceLabel = (provider: ConversationSummary['provider']) => p
     : provider === 'onecomputer'
       ? 'ONEComputer sandbox'
       : 'Remote runtime'
+
+const modeIconFor = (mode: TaskMode) => {
+  switch (mode) {
+    case 'chat': return Bot
+    case 'website': return Globe2
+    case 'slides': return Presentation
+    case 'document': return FileText
+    case 'research': return Search
+    case 'data': return BarChart3
+    case 'design': return Palette
+    case 'app': return AppWindow
+    case 'game': return Gamepad2
+    default: return Sparkles
+  }
+}
+
+const relativeShort = (iso: string, now: number): string => {
+  const seconds = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000))
+  if (seconds < 60) return 'now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d`
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+const bucketFor = (iso: string, now: number): 'Today' | 'Yesterday' | 'This week' | 'Older' => {
+  const then = new Date(iso).getTime()
+  const nowDate = new Date(now); nowDate.setHours(0, 0, 0, 0)
+  const thenDate = new Date(then); thenDate.setHours(0, 0, 0, 0)
+  const days = Math.round((nowDate.getTime() - thenDate.getTime()) / 86_400_000)
+  if (days <= 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return 'This week'
+  return 'Older'
+}
 
 export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers }: Props) => {
   const [query, setQuery] = useState('')
@@ -77,6 +115,18 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
     if (normalized.length >= 2) return searchResults
     return conversations.filter((conversation) => conversation.title.toLocaleLowerCase().includes(normalized) || conversation.lastMessage?.preview.toLocaleLowerCase().includes(normalized))
   }, [query, conversations, searchResults])
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(id) }, [])
+  const groupedConversations = useMemo(() => {
+    const groups: Array<{ label: 'Today' | 'Yesterday' | 'This week' | 'Older'; items: ConversationSummary[] }> = [
+      { label: 'Today', items: [] }, { label: 'Yesterday', items: [] }, { label: 'This week', items: [] }, { label: 'Older', items: [] },
+    ]
+    for (const conv of visibleConversations) {
+      const bucket = bucketFor(conv.updatedAt, now)
+      groups.find((g) => g.label === bucket)!.items.push(conv)
+    }
+    return groups.filter((g) => g.items.length > 0)
+  }, [visibleConversations, now])
   return (
   <aside className="sidebar">
     <div className="sidebar-top"><BrandMark /><button type="button" className="sidebar-close" aria-label="Close sidebar" onClick={onClose}><X size={15} /></button></div>
@@ -96,16 +146,27 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
     <div className="nav-section-label"><span>Conversations</span><Settings2 size={13} /></div>
     <div className="task-list">
       {visibleConversations.length === 0 && <p className="empty-sidebar">{query ? 'No matching conversations.' : 'Your work will appear here.'}</p>}
-      {visibleConversations.map((conversation) => (
-        <motion.button
-          layout
-          key={conversation.id}
-          className={`task-row ${activeTaskId === conversation.id ? 'selected' : ''}`}
-          onClick={() => onSelectTask(conversation.id)}
-        >
-          <span className={`task-status ${conversation.status}`} />
-          <span><strong>{conversation.title}</strong>{conversation.lastMessage && <small>{conversationSourceLabel(conversation.provider)} · {conversation.lastMessage.role === 'user' ? 'You' : 'ONEVibe'} · {conversation.lastMessage.preview}</small>}</span>
-        </motion.button>
+      {groupedConversations.map((group) => (
+        <div key={group.label} className="task-list-group">
+          <div className="task-list-group-label">{group.label}</div>
+          {group.items.map((conversation) => {
+            const ModeIcon = modeIconFor(conversation.mode)
+            return (
+              <motion.button
+                layout
+                key={conversation.id}
+                className={`task-row ${activeTaskId === conversation.id ? 'selected' : ''}`}
+                onClick={() => onSelectTask(conversation.id)}
+                title={`${conversationSourceLabel(conversation.provider)} · ${conversation.lastMessage?.preview ?? ''}`.trim()}
+              >
+                <span className={`task-status ${conversation.status}`} aria-hidden="true" />
+                <span className="task-row-icon" aria-hidden="true"><ModeIcon size={13} /></span>
+                <span className="task-row-body"><strong>{conversation.title}</strong>{conversation.lastMessage && <small>{conversation.lastMessage.role === 'user' ? 'You' : 'ONEVibe'} · {conversation.lastMessage.preview}</small>}</span>
+                <time className="task-row-time">{relativeShort(conversation.updatedAt, now)}</time>
+              </motion.button>
+            )
+          })}
+        </div>
       ))}
       {!query && hasMoreConversations && <button type="button" className="load-more-conversations" disabled={loadingMoreConversations} onClick={() => void onLoadMoreConversations()}>{loadingMoreConversations ? 'Loading…' : 'Load older conversations'}</button>}
     </div>
