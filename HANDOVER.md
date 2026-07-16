@@ -249,6 +249,9 @@ ONEVIBE_LITELLM_MODEL=claude-sonnet-5
 # Optional operator-selected runtime default (demo, claude_sdk, onecomputer, remote)
 ONEVIBE_DEFAULT_PROVIDER=
 
+# Optional Codex-compatible model alias; it is still routed through LiteLLM.
+ONEVIBE_CODEX_MODEL=
+
 # ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY are derived for the child SDK
 # process from the relay configuration; do not use a direct first-party key.
 

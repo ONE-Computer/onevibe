@@ -83,72 +83,45 @@ export type McpConfig = {
 
 **File**: `server/codex-runner.ts` (new)
 
-**Context**: OpenAI Codex (via the Responses API) runs code-focused agent tasks. It has strong file system capabilities and can run terminal commands. It is a direct competitor to Claude SDK for `'app'`, `'website'`, and `'data'` mode tasks.
+**Context**: ONEVibe exposes a Codex-compatible coding harness through LiteLLM's OpenAI-compatible streaming endpoint. It is a code-focused alternative to the Claude SDK for document, website, app, and data work, while keeping model routing under the same server-controlled data-sovereignty boundary.
 
 **Required env vars**:
 ```
-OPENAI_API_KEY=sk-...
+ONEVIBE_LITELLM_URL=http://127.0.0.1:4100
+ONEVIBE_LITELLM_API_KEY=
+ONEVIBE_CODEX_MODEL=
 ```
 
 **Capability declaration**:
 ```ts
-readonly capabilities: RuntimeCapability[] = ['streaming', 'tool_use', 'file_system', 'sandboxed']
+readonly capabilities: RuntimeCapability[] = ['streaming', 'tool_use', 'file_system']
 ```
 
-**Stub structure**:
+ONEVibe routes this adapter through the protected LiteLLM OpenAI-compatible
+endpoint rather than a direct `OPENAI_API_KEY` or first-party provider
+endpoint. The current implementation provides bounded workspace read/write
+tools and does not claim `sandboxed` until a real isolated Codex execution
+boundary is proven.
+
+**Implemented structure**:
 ```ts
-import OpenAI from 'openai'
-
-export class CodexRuntimeAdapter implements RuntimeAdapter {
+export class CodexRuntimeAdapter extends RuntimeAdapterBase {
   readonly providerId = 'codex' as const
-  readonly capabilities = ['streaming', 'tool_use', 'file_system', 'sandboxed'] as const
-
-  private client: OpenAI
-  private workingDir: string = ''
-
-  constructor() {
-    this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  }
-
-  async initialize(task: Task, workingDir: string, mcpConfigs: McpConfig[]) {
-    this.workingDir = workingDir
-    // Codex MCP injection: pass mcpConfigs as tool definitions
-  }
-
-  async *run(prompt: string, context: RunContext, signal: AbortSignal): AsyncIterable<RuntimeEvent> {
-    const stream = await this.client.responses.stream({
-      model: 'codex-mini-latest',
-      input: buildMessages(context.history, prompt),
-      tools: buildTools(context.mcpConfigs),
-      stream: true,
-    })
-
-    for await (const event of stream) {
-      if (signal.aborted) break
-      // Normalize Codex SSE events → RuntimeEvent
-      yield normalizeCodexEvent(event, context.taskId)
-    }
-  }
-
-  // ... cancel, destroy, getFiles, getPreviewUrl
+  readonly capabilities = ['streaming', 'tool_use', 'file_system'] as const
 }
 ```
+
+The current implementation uses `fetch` against `/v1/chat/completions`,
+normalizes streamed deltas, and exposes only `workspace_read` and
+`workspace_write` tools. These tools are path-confined and bounded. It does
+not expose a shell, direct OpenAI credential, or sandbox capability.
 
 **Normalization**: The critical work is `normalizeCodexEvent` — map Codex's event shapes to ONEVibe's canonical `RuntimeEvent` schema. Never let Codex-specific fields appear outside this file.
 
-**Registration** in `server/runtime-readiness.ts`:
-```ts
-if (process.env.OPENAI_API_KEY) {
-  providers.push({
-    id: 'codex',
-    label: 'OpenAI Codex',
-    boundary: 'OpenAI cloud',
-    available: true,
-    detail: 'Code-focused agent with file system and terminal access',
-    capabilities: CodexRuntimeAdapter.capabilities,
-  })
-}
-```
+**Registration** is through `RuntimeRegistry`. The provider is available only
+when the protected LiteLLM relay is configured; an explicit Codex-compatible
+model alias is recorded in runtime evidence. Live provider acceptance remains
+pending a configured relay alias and E2E run.
 
 ---
 

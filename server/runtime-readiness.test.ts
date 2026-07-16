@@ -30,4 +30,11 @@ describe('runtime readiness', () => {
     expect(state).toMatchObject({ available: true, label: 'Claude SDK · LiteLLM', detail: expect.stringMatching(/LiteLLM gateway/) })
     expect(JSON.stringify(state)).not.toMatch(/127\.0\.0\.1|credential.*value/i)
   })
+
+  it('exposes the Codex-compatible LiteLLM route only when the relay is configured', () => {
+    const unavailable = runtimeReadiness({ claudeConfigured: false, remoteConfigured: false, oneComputerConfigured: false }).providers.find((provider) => provider.id === 'codex')
+    expect(unavailable).toMatchObject({ available: false, detail: expect.stringMatching(/LiteLLM/i) })
+    const available = runtimeReadiness({ claudeConfigured: true, claudeTransport: 'litellm', codexConfigured: true, remoteConfigured: false, oneComputerConfigured: false }).providers.find((provider) => provider.id === 'codex')
+    expect(available).toMatchObject({ available: true, label: expect.stringMatching(/Codex.*LiteLLM/), capabilities: expect.arrayContaining(['tool_use', 'file_system']) })
+  })
 })

@@ -144,7 +144,7 @@ export type Task = {
   id: string
   title: string
   prompt: string
-  provider: 'demo' | 'claude_sdk' | 'onecomputer' | 'remote'
+  provider: 'demo' | 'claude_sdk' | 'codex' | 'onecomputer' | 'remote'
   mode: TaskMode
   skills: TaskSkill[]
   tags: string[]

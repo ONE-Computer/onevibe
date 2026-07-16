@@ -59,6 +59,12 @@
 - Health responses are bounded to status, latency, and generic detail. Endpoint URLs, credentials, provider response bodies, and control-plane payloads never enter the browser response.
 - Full `npm run check` passes with 41 test files and 219 tests, lint, production build, and E2E harness typecheck. The rich settings dashboard and user-consent fallback remain open P3 work.
 
+## 2026-07-16 — Phase 2 Codex-compatible LiteLLM adapter
+
+- Added `server/codex-runner.ts` as a real OpenAI-compatible streaming adapter that calls only the configured LiteLLM `/v1/chat/completions` route. It normalizes streamed text and bounded workspace tool calls into the ONEVibe event ledger and confines reads/writes to the task workspace.
+- Added the `codex` provider to the shared task/runtime contract, readiness projection, registry factory, server task/schedule routes, provider labels, and native-event source vocabulary. It is available only when the server-controlled LiteLLM relay is configured.
+- This adapter does not claim a sandboxed execution capability; host workspace operations are path-confined but still require the later sandbox boundary. Live provider acceptance remains pending a configured Codex-compatible LiteLLM alias and E2E run.
+
 ## 2026-07-16 — Phase 2 runtime lifecycle contract
 
 - Added `RuntimeAdapterBase` and the canonical lifecycle surface: `initialize(task, workingDir, mcpConfigs)`, `run(prompt, context, signal)` as an async stream, `cancel`, `destroy`, `getFiles`, and `getPreviewUrl`.

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { z } from 'zod'
 import { DemoRuntimeAdapter } from './demo-runner.js'
 import { ClaudeSdkRuntimeAdapter } from './claude-sdk-runner.js'
+import { CodexRuntimeAdapter } from './codex-runner.js'
 import { OneComputerClient } from './onecomputer-client.js'
 import { OneComputerSandboxRuntimeAdapter } from './onecomputer-sandbox-runner.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
@@ -70,6 +71,7 @@ const runtimeRegistry = new RuntimeRegistry({
   factories: {
     demo: () => new DemoRuntimeAdapter(),
     claude_sdk: () => new ClaudeSdkRuntimeAdapter(),
+    codex: () => new CodexRuntimeAdapter(),
     remote: () => new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN),
     onecomputer: () => new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN!, projectId: ONECOMPUTER_PROJECT_ID }), {
       gatewayEnforced: ONECOMPUTER_GATEWAY_ENFORCED, retainSandbox: ONECOMPUTER_RETAIN_SANDBOX,
@@ -81,12 +83,13 @@ const runtimeRegistry = new RuntimeRegistry({
 const runtimeSnapshot = async () => runtimeRegistry.snapshot(runtimeReadiness({
   claudeConfigured,
   claudeTransport: claudeProvider.transport,
+  codexConfigured: claudeProvider.configured,
   remoteConfigured: Boolean(REMOTE_RUNTIME_URL),
   oneComputerConfigured,
   oneComputerReachable: await oneComputerReachability(),
 }).providers)
 
-const runtimeProviderInput = z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote'])
+const runtimeProviderInput = z.enum(['demo', 'claude_sdk', 'codex', 'onecomputer', 'remote'])
 
 const providerAvailability = async (provider: Task['provider']) => {
   const readiness = await runtimeSnapshot()
@@ -121,7 +124,7 @@ const taskSkill = z.enum(['research', 'web_build', 'slides', 'data_analysis', 'd
 const skillCatalog = () => skillPackCatalog()
 const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
-  provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).optional(),
+  provider: z.enum(['demo', 'claude_sdk', 'codex', 'onecomputer', 'remote']).optional(),
   mode: z.enum(['chat', 'general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']).default('chat'),
   projectId: z.string().regex(/^project_[a-z0-9]+$/).default('project_onevibe'),
   references: z.array(referenceUrl).max(8).default([]),
@@ -132,7 +135,7 @@ const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), c
 const updateProjectInput = z.object({ context: z.string().trim().max(8_000) })
 const createScheduleInput = z.object({
   name: z.string().trim().min(2).max(100), prompt: z.string().trim().min(3).max(8_000),
-  provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).default('demo'),
+  provider: z.enum(['demo', 'claude_sdk', 'codex', 'onecomputer', 'remote']).default('demo'),
   mode: z.enum(['chat', 'general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']).default('general'),
   projectId: z.string().regex(/^project_[a-z0-9]+$/), intervalMinutes: z.number().int().min(15).max(10_080),
 })

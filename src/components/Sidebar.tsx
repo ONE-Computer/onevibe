@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationSummary, Project, ProjectFileVersion, TaskMode } from '../types'
 import { getProjectFile, listConversations, listProjectFileVersions } from '../lib/api'
+import { providerLabel } from '../lib/runtime-labels'
 import { BrandMark } from './BrandMark'
 
 type Props = {
@@ -30,13 +31,7 @@ type Props = {
   onOpenComputers: () => void
 }
 
-const conversationSourceLabel = (provider: ConversationSummary['provider']) => provider === 'demo'
-  ? 'Simulation · no model call'
-  : provider === 'claude_sdk'
-    ? 'Claude Agent SDK'
-    : provider === 'onecomputer'
-      ? 'ONEComputer sandbox'
-      : 'Remote runtime'
+const conversationSourceLabel = (provider: ConversationSummary['provider']) => providerLabel(provider)
 
 const modeIconFor = (mode: TaskMode) => {
   switch (mode) {

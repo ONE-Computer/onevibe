@@ -1143,7 +1143,7 @@ export class TaskStore {
       id: record.id, taskId: record.conversationId, turnId: record.turnId ?? `legacy_turn_${record.sequence}`,
       role: record.role === 'tool' ? 'system' : record.role,
       content: typeof content.text === 'string' ? content.text : '', status: record.status,
-      provider: content.provider === 'demo' || content.provider === 'claude_sdk' || content.provider === 'onecomputer' || content.provider === 'remote' ? content.provider : task.provider,
+      provider: content.provider === 'demo' || content.provider === 'claude_sdk' || content.provider === 'codex' || content.provider === 'onecomputer' || content.provider === 'remote' ? content.provider : task.provider,
       createdAt: record.createdAt, updatedAt: typeof content.updatedAt === 'string' ? content.updatedAt : record.createdAt,
     }
   }
