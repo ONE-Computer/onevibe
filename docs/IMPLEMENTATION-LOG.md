@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — prove owner-scoped Postgres metadata persistence
+
+- Added `server/persistence/postgres-metadata.ts` for owner-scoped project/task/schedule persistence. Task creation transactionally verifies the project owner, creates the durable conversation identity, and inserts the task; project/task/schedule updates use timestamp optimistic-concurrency checks.
+- Added `npm run e2e:postgres-metadata` and CI coverage. Disposable PostgreSQL 18 evidence passed restart reload, owner B isolation, task update, stale-write rejection, and schedule deletion. The repository keeps JSON task fields bounded to the reviewed schema and does not copy workspace bytes or secrets into metadata.
+- This remains an adapter proof, not the driver switch: the running `TaskStore` is still SQLite-backed, and the complete persistence surface (MCP, skills, leases, native projections, retry/idempotency, and workspace/object storage policy) must be integrated before enabling `DATABASE_URL`.
+
 ## 2026-07-17 — prove Better Auth OTP and sessions on Drizzle/Postgres
 
 - Extended `server/auth.ts` with a Postgres mode using `@better-auth/drizzle-adapter` and the reviewed `authTables`; SQLite retains its existing Better Auth migration path. Postgres deliberately skips Better Auth's Kysely-only automatic migration helper so the Drizzle migration ledger remains authoritative.

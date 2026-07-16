@@ -14,6 +14,12 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 - `npm run e2e:auth-postgres` then passed against PostgreSQL 18: two loopback-delivered OTPs created two distinct users and two durable sessions through `@better-auth/drizzle-adapter`. No secret or OTP value was retained in output.
 - Boundary: the running API/TaskStore still uses SQLite and does not yet select this Postgres auth database. Production email delivery, org-backed authorization, provider routing, and sandbox/OpenVTC evidence remain separate gates.
 
+## 2026-07-17 — disposable Postgres metadata restart/isolation proof
+
+- `npm run e2e:postgres-metadata` applied migrations through `0005`, inserted an owner-bound project/task/schedule transactionally, closed the connection, reopened it, and recovered one of each record.
+- The same proof denied a second owner all three inventories, accepted a task update, rejected a stale timestamp write, and deleted the schedule. Output retained only counts/status and no credentials or task content.
+- Boundary: this is the project/task/schedule repository slice only; the running TaskStore remains SQLite-backed and no production driver switch is claimed.
+
 ## 2026-07-17 — protected LiteLLM provider gate and SDK workspace-path compatibility
 
 - The host-only LiteLLM relay advertised the configured `claude-sonnet-5` alias and received the Claude-compatible `/v1/messages` traffic. No direct first-party Anthropic endpoint or credential was used.
