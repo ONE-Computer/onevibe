@@ -166,6 +166,41 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('retries a transient provider status poll instead of stranding provisioning', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-poll-retry-'))
+    roots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { OneComputerSandboxRuntimeAdapter } = await import('./onecomputer-sandbox-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Retry provider polling', 'onecomputer', 'general')
+    const journal = Buffer.from(JSON.stringify({ type: 'result', session_id: 'session-poll-retry', result: 'Done.' })).toString('base64')
+    const exec = vi.fn(async (_id: string, command: string) => {
+      if (command.includes('.onevibe-exitcode')) return { exitCode: 0, output: `done:0\n${journal}` }
+      if (command.includes('find .')) return { exitCode: 0, output: Buffer.from('README.md\0').toString('base64') }
+      if (command.endsWith("'README.md'")) return { exitCode: 0, output: Buffer.from('# retry proof').toString('base64') }
+      return { exitCode: 0, output: '' }
+    })
+    const client = {
+      createSandbox: vi.fn(async () => ({ id: 'sandbox-poll-retry', state: 'provisioning', provider: 'kasm-local' })),
+      getSandbox: vi.fn()
+        .mockRejectedValueOnce(new Error('transient provider timeout'))
+        .mockResolvedValue({ id: 'sandbox-poll-retry', state: 'started', bootstrapped: true, provider: 'kasm-local' }),
+      exec,
+      deleteSandbox: vi.fn(async () => undefined),
+      startVisualRuntime: vi.fn(),
+      getVisualScreenshot: vi.fn(),
+    } as unknown as OneComputerClient
+    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false, pollMilliseconds: 1 })
+
+    await adapter.run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+
+    expect(client.getSandbox).toHaveBeenCalledTimes(2)
+    expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer sandbox poll retry' && event.payload.retry === true)).toBe(true)
+    expect(store.getTask(task.id).securityContext).toMatchObject({ sandboxState: 'started', sandboxId: 'sandbox-poll-retry' })
+    expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
+  })
+
   it('retains the known conversation sandbox when cancellation occurs during provisioning', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-cancel-provisioning-'))
     roots.push(root)

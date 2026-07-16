@@ -231,7 +231,20 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       while (!isSandboxRuntimeReady(live)) {
         if (live.state === 'error' || Date.now() >= deadline) throw new Error(`ONEComputer sandbox failed to start (state=${live.state ?? 'unknown'})`)
         await wait(this.options.pollMilliseconds ?? 2_000, signal)
-        live = await this.client.getSandbox(sandbox.id, signal)
+        try {
+          live = await this.client.getSandbox(sandbox.id, signal)
+        } catch (error) {
+          if (signal.aborted) throw error
+          await store.appendEvent(task.id, {
+            type: 'activity_delta', lane: 'control', label: 'ONEComputer sandbox poll retry',
+            content: 'The provider status poll did not complete; ONEVibe will retry within the bounded startup window.',
+            payload: {
+              sandboxId: sandbox.id, operation: 'get_sandbox', retry: true,
+              errorClass: error instanceof Error ? error.name : 'unknown_error',
+            },
+          })
+          continue
+        }
         await recordSandboxState(live)
       }
       await store.appendEvent(task.id, {

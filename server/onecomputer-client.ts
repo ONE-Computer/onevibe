@@ -17,6 +17,8 @@ export type OneComputerClientOptions = {
 export type OneComputerExecResult = { exitCode: number; output: string }
 export type OneComputerVisualFrame = { png: Uint8Array; capturedAt?: string }
 
+const SANDBOX_STATUS_POLL_TIMEOUT_MS = 15_000
+
 export class OneComputerApiError extends Error {
   constructor(readonly operation: string, readonly status: number) {
     super(`ONEComputer ${operation} returned HTTP ${status}`)
@@ -52,7 +54,10 @@ export class OneComputerClient {
   }
 
   async getSandbox(id: string, signal?: AbortSignal): Promise<OneComputerSandbox> {
-    return this.request<OneComputerSandbox>(`/v1/sandboxes/${encodeURIComponent(id)}`, { signal })
+    const pollTimeout = AbortSignal.timeout(SANDBOX_STATUS_POLL_TIMEOUT_MS)
+    return this.request<OneComputerSandbox>(`/v1/sandboxes/${encodeURIComponent(id)}`, {
+      signal: signal ? AbortSignal.any([signal, pollTimeout]) : pollTimeout,
+    })
   }
 
   async triggerGovernedAction(id: string): Promise<{ approvalId: string; status: string }> {
