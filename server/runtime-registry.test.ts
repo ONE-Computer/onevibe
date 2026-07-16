@@ -5,6 +5,7 @@ import { runtimeReadiness } from './runtime-readiness.js'
 import { RuntimeRegistry } from './runtime-registry.js'
 
 const adapter = {} as RuntimeAdapter
+const healthyAdapter = { health: async () => ({ status: 'online' as const, detail: 'test probe' }), destroy: async () => undefined } as RuntimeAdapter
 
 describe('RuntimeRegistry', () => {
   it('ranks a governed runtime above simulation for compatible work', () => {
@@ -36,5 +37,12 @@ describe('RuntimeRegistry', () => {
     expect(snapshot.defaultProvider).toBe('onecomputer')
     expect(snapshot.suggestions.document?.[0]?.id).toBe('onecomputer')
     expect(snapshot.suggestions.chat?.some((candidate) => candidate.reason.length > 0)).toBe(true)
+  })
+
+  it('runs a provider-owned health probe without exposing provider details', async () => {
+    const states = runtimeReadiness({ claudeConfigured: true, claudeTransport: 'litellm', remoteConfigured: false, oneComputerConfigured: false }).providers
+    const registry = new RuntimeRegistry({ factories: { claude_sdk: () => healthyAdapter } })
+    await expect(registry.test('claude_sdk', states)).resolves.toMatchObject({ status: 'online', detail: 'test probe' })
+    await expect(registry.test('remote', states)).resolves.toMatchObject({ status: 'not_configured' })
   })
 })
