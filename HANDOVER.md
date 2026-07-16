@@ -41,7 +41,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
-| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 225 tests passing |
+| Tests | `server/*.test.ts`, `src/components/*.test.ts` | 226 tests passing |
 | Container | `Dockerfile`, `docker-compose.yml` | Local hardened image verified; SQLite volume only until Postgres/auth slices land |
 
 ### What is critically broken
@@ -71,7 +71,7 @@ Do not configure a direct Anthropic API key as a substitute for the relay. Local
 ```bash
 npm run check
 # = oxlint src server scripts
-# + vitest run (225 tests at this handover update)
+# + vitest run (226 tests at this handover update)
 # + tsc -b
 # + tsc -p tsconfig.server.json
 # + vite build

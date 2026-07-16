@@ -28,6 +28,11 @@
 - Completed P5-06 locally: added durable `DELETE /api/schedules/:id`, a confirmed trash action in the Schedules view, and regression coverage proving schedule removal persists while previously dispatched tasks remain intact.
 - Verification: focused store suite passes (40 tests), lint passes, and the production build passes. The confirmation is a user-intent guard, not an authorization boundary; auth and multi-user ownership remain open.
 
+## 2026-07-17 — make skill capacity explicit
+
+- Completed the remaining P5-13 skill-capacity UX slice: once four guides are selected, unselected skill buttons are disabled and explain how to make room. This makes the existing server/client four-skill limit visible instead of silently ignoring the fifth click.
+- Full `npm run check` passes with 43 test files and 226 tests, lint, production build, and E2E harness typecheck.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.
