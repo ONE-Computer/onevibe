@@ -66,6 +66,10 @@ export type Project = {
   updatedAt: string
 }
 
+export type OrganizationRole = 'owner' | 'member'
+export type Organization = { id: string; name: string; createdAt: string; updatedAt: string }
+export type OrganizationMember = { organizationId: string; userId: string; role: OrganizationRole; createdAt: string }
+
 export type ProjectFile = { name: string; path: string; size: number; mimeType: string; createdAt: string }
 export type ProjectFileVersion = { id: string; path: string; createdAt: string; size: number; contentHash: string }
 

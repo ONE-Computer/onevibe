@@ -1,7 +1,7 @@
 # ONEVibe — Agent Handover Document
 
 > **Date**: 2026-07-17
-> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, bounded MCP health probing, a tested opt-in MCP capability facade, truthful demo skill status, a GitHub-catalog skill marketplace boundary, feature-gated Better Auth, authenticated owner scoping, and a reviewed Drizzle/Postgres import proof are present. LiteLLM-only enforcement remains mandatory. The running application is still SQLite-backed; protected Claude/provider acceptance, production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, MCP secret brokering, and external MCP health/attestation remain open.
+> **Status**: Local phases 1–3 are implemented and the professional UI has crossed the Zustand and ordinary-collection TanStack Query boundaries. Governed MCP declarations, bounded MCP health probing, a tested opt-in MCP capability facade, truthful demo skill status, a GitHub-catalog skill marketplace boundary, feature-gated Better Auth, authenticated owner scoping, a local organization-membership scaffold, and a reviewed Drizzle/Postgres import proof are present. LiteLLM-only enforcement remains mandatory for every harness and every environment: data sovereignty, centralized routing, cost control, and model optimization are product requirements. The running application is still SQLite-backed; protected Claude/provider acceptance, production auth, the Postgres repository/runtime switch, deployment, cloud sandbox attestation, MCP secret brokering, and external MCP health/attestation remain open.
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
@@ -39,7 +39,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | Claude SDK adapter | `server/claude-sdk-runner.ts` (422 lines) | Real — wraps `@anthropic-ai/claude-agent-sdk` and fails closed without LiteLLM; opt-in MCP facade is local-only |
 | ONEComputer adapter | `server/onecomputer-sandbox-runner.ts` (845 lines) | Real — wraps the development ONEComputer cloud sandbox; production microVM attestation remains open |
 | Demo adapter | `server/demo-runner.ts` (172 lines) | Fake — scripted responses, zero model calls |
-| Task store | `server/store.ts` + `server/persistence/` | Real — local SQLite via `better-sqlite3`; Postgres/Drizzle schema, owner-aware importer, and disposable migration/restart proof exist, but the running repository adapter is still open |
+| Task store | `server/store.ts` + `server/persistence/` | Real — local SQLite via `better-sqlite3`; Postgres/Drizzle schema, owner-aware importer, disposable migration/restart proof, and local org/member records exist, but the running repository adapter and org-backed data scope are still open |
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
@@ -53,7 +53,8 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 3. **The running app is not Postgres-backed** — local user scoping is proven, and the Drizzle schema/import/restart proof exists; the TaskStore repository adapter, idempotent application-level proof, and `DATABASE_URL` runtime switch remain Phase 4 work
 4. **No managed deploy path** — a non-root Docker image and local Compose smoke path now exist, but Railway/Fly configuration, secrets, auth, and production operations remain open
 5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
-6. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; active-task mutations use Query mutation lifecycle/pending state and reconcile server-derived caches without creating a second client authority
+6. **Organization membership is not yet a data-plane grant** — local authenticated owners can create organizations and owners can add/remove members, but task/project/runtime access remains owner-scoped until the Postgres-backed organization policy and repository switch are accepted
+7. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; active-task mutations use Query mutation lifecycle/pending state and reconcile server-derived caches without creating a second client authority
 7. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, production MCP secret brokering/external health attestation, dependency advisory resolution, and browser evidence remain open in `TODO.md`
 
 ### How to run it locally

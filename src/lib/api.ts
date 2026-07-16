@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, Organization, OrganizationMember, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 export type SkillCatalogEntry = SkillInstallation
 export type SkillOption = Pick<SkillCatalogEntry, 'id' | 'title' | 'summary' | 'source' | 'installed' | 'contentUrl'> & { selectable?: boolean }
@@ -97,6 +97,15 @@ export const listProjects = async () => parse<{ projects: Project[] }>(await fet
 export const createProject = async (name: string, context: string) => parse<Project>(await fetch('/api/projects', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, context }),
 }))
+export const listOrganizations = async () => parse<{ organizations: Organization[] }>(await fetch('/api/organizations'))
+export const createOrganization = async (name: string) => parse<Organization>(await fetch('/api/organizations', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+}))
+export const listOrganizationMembers = async (organizationId: string) => parse<{ members: OrganizationMember[] }>(await fetch(`/api/organizations/${encodeURIComponent(organizationId)}/members`))
+export const addOrganizationMember = async (organizationId: string, userId: string) => parse<OrganizationMember>(await fetch(`/api/organizations/${encodeURIComponent(organizationId)}/members`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId }),
+}))
+export const removeOrganizationMember = async (organizationId: string, userId: string) => parse<{ organizationId: string; userId: string; removed: true }>(await fetch(`/api/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' }))
 export const updateProjectContext = async (projectId: string, context: string) => parse<Project>(await fetch(`/api/projects/${projectId}`, {
   method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context }),
 }))

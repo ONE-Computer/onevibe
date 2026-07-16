@@ -164,6 +164,8 @@ const createTaskInput = z.object({
 })
 const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), context: z.string().trim().max(8_000).default('') })
 const updateProjectInput = z.object({ context: z.string().trim().max(8_000) })
+const createOrganizationInput = z.object({ name: z.string().trim().min(2).max(160) })
+const organizationMemberInput = z.object({ userId: z.string().trim().min(1).max(255) })
 const createScheduleInput = z.object({
   name: z.string().trim().min(2).max(100), prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote']).default('demo'),
@@ -439,6 +441,24 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'mcp' && segments[2] && segments.length === 3) {
     if (!store.deleteMcpConfig(segments[2], actorUserId)) return json(response, 404, { error: 'MCP configuration not found' })
     return json(response, 200, { id: segments[2], deleted: true })
+  }
+  if (segments[0] === 'api' && segments[1] === 'organizations') {
+    if (!actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
+    if (request.method === 'GET' && segments.length === 2) return json(response, 200, { organizations: store.listOrganizations(actorUserId) })
+    if (request.method === 'POST' && segments.length === 2) {
+      const input = createOrganizationInput.parse(await readBody(request))
+      return json(response, 201, store.createOrganization(input.name, actorUserId))
+    }
+    if (segments[2] && request.method === 'GET' && segments.length === 4 && segments[3] === 'members') {
+      return json(response, 200, { members: store.listOrganizationMembers(segments[2], actorUserId) })
+    }
+    if (segments[2] && request.method === 'POST' && segments.length === 4 && segments[3] === 'members') {
+      const input = organizationMemberInput.parse(await readBody(request))
+      return json(response, 201, store.addOrganizationMember(segments[2], input.userId, actorUserId))
+    }
+    if (segments[2] && segments[3] === 'members' && segments[4] && request.method === 'DELETE' && segments.length === 5) {
+      return json(response, 200, store.removeOrganizationMember(segments[2], segments[4], actorUserId))
+    }
   }
   if (request.method === 'GET' && url.pathname === '/api/library') return json(response, 200, { items: await store.listLibrary(actorUserId) })
   if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'library' && segments[2]) return json(response, 200, await store.hideLibraryItem(segments[2], actorUserId))
@@ -915,8 +935,9 @@ createServer((request, response) => {
     const message = error instanceof Error ? error.message : String(error)
     const status = error instanceof z.ZodError || error instanceof RangeError ? 400
       : message === 'Wallet authorization failed' ? 401
+          : message === 'Organization owner access required' ? 403
           : /not found(?:$|\s)/.test(message) ? 404
-          : /(?:not pending|has expired|no longer active)/.test(message) ? 409
+          : /(?:not pending|has expired|no longer active|cannot remove themselves)/.test(message) ? 409
             : 500
     json(response, status, { error: message })
   })

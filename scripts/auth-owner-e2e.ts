@@ -6,9 +6,9 @@
  * reads that delivery to complete the real sign-in flow. No product route
  * accepts an OTP from the browser or exposes a development bypass.
  *
- * This proves SQLite/local HTTP ownership boundaries. It does not prove
- * production email delivery, Postgres ownership, organization membership, or
- * provider/sandbox isolation.
+ * This proves SQLite/local HTTP ownership boundaries and the local organization
+ * membership scaffold. It does not prove production email delivery, Postgres
+ * ownership, organization-backed data authorization, or provider/sandbox isolation.
  */
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
@@ -145,6 +145,8 @@ const main = async () => {
     assert.equal(unauthorized.body.code, 'unauthorized')
 
     const ownerA = await signIn(baseUrl, 'owner-a@example.test', mail.delivered)
+    const organization = await request<{ id: string }>(baseUrl, '/api/organizations', { method: 'POST', body: JSON.stringify({ name: 'Owner A organization' }) }, ownerA.cookie)
+    assert.equal(organization.response.status, 201, JSON.stringify(organization.body))
     const projectA = await request<{ id: string }>(baseUrl, '/api/projects', { method: 'POST', body: JSON.stringify({ name: 'Owner A workspace', context: 'Private A context' }) }, ownerA.cookie)
     assert.equal(projectA.response.status, 201, JSON.stringify(projectA.body))
     const projectFile = await request<{ files: Array<{ path: string }> }>(baseUrl, `/api/projects/${projectA.body.id}/files`, { method: 'POST', body: JSON.stringify({ name: 'private-notes.md', mimeType: 'text/markdown', dataBase64: Buffer.from('owner A only').toString('base64') }) }, ownerA.cookie)
@@ -165,6 +167,26 @@ const main = async () => {
     assert.equal(created.response.status, 201, JSON.stringify(created.body))
 
     const ownerB = await signIn(baseUrl, 'owner-b@example.test', mail.delivered)
+    const ownerBOrganizationsBeforeMembership = await request<{ organizations: Array<{ id: string }> }>(baseUrl, '/api/organizations', {}, ownerB.cookie)
+    assert.equal(ownerBOrganizationsBeforeMembership.response.status, 200)
+    assert.deepEqual(ownerBOrganizationsBeforeMembership.body.organizations, [])
+    const addedMember = await request<{ organizationId: string; userId: string; role: string }>(baseUrl, `/api/organizations/${organization.body.id}/members`, { method: 'POST', body: JSON.stringify({ userId: ownerB.userId }) }, ownerA.cookie)
+    assert.equal(addedMember.response.status, 201, JSON.stringify(addedMember.body))
+    assert.equal(addedMember.body.role, 'member')
+    const ownerBOrganizations = await request<{ organizations: Array<{ id: string }> }>(baseUrl, '/api/organizations', {}, ownerB.cookie)
+    assert.equal(ownerBOrganizations.response.status, 200)
+    assert.deepEqual(ownerBOrganizations.body.organizations.map((organization) => organization.id), [organization.body.id])
+    const members = await request<{ members: Array<{ userId: string; role: string }> }>(baseUrl, `/api/organizations/${organization.body.id}/members`, {}, ownerB.cookie)
+    assert.equal(members.response.status, 200)
+    assert.deepEqual(members.body.members.map((member) => ({ userId: member.userId, role: member.role })), [
+      { userId: ownerA.userId, role: 'owner' }, { userId: ownerB.userId, role: 'member' },
+    ])
+    const forbiddenOrganizationMutation = await request<{ error?: string }>(baseUrl, `/api/organizations/${organization.body.id}/members`, { method: 'POST', body: JSON.stringify({ userId: ownerA.userId }) }, ownerB.cookie)
+    assert.equal(forbiddenOrganizationMutation.response.status, 403)
+    assert.equal(forbiddenOrganizationMutation.body.error, 'Organization owner access required')
+    const forbiddenOwnerRemoval = await request<{ error?: string }>(baseUrl, `/api/organizations/${organization.body.id}/members/${encodeURIComponent(ownerA.userId)}`, { method: 'DELETE' }, ownerA.cookie)
+    assert.equal(forbiddenOwnerRemoval.response.status, 409)
+    assert.equal(forbiddenOwnerRemoval.body.error, 'Organization owner cannot remove themselves')
     const ownerBProjects = await request<{ projects: Array<{ id: string }> }>(baseUrl, '/api/projects', {}, ownerB.cookie)
     assert.equal(ownerBProjects.response.status, 200)
     assert.ok(!ownerBProjects.body.projects.some((project) => project.id === projectA.body.id))
@@ -207,7 +229,7 @@ const main = async () => {
     assert.equal(ownerATask.body.id, created.body.id)
     assert.equal(ownerATask.body.ownerUserId, ownerA.userId)
 
-    console.log(JSON.stringify({ auth: 'better-auth email OTP through loopback delivery fixture', unauthorizedStatus: unauthorized.response.status, ownerA: ownerA.userId, ownerB: ownerB.userId, taskId: created.body.id, ownerBTaskCount: ownerBTasks.body.tasks.length, forbiddenStatuses: [forbiddenTask.response.status, forbiddenMove.response.status, forbiddenTags.response.status, forbiddenProjectUpdate.response.status, forbiddenProjectFile.response.status, forbiddenSchedule.response.status, forbiddenMcp.response.status, forbiddenMcpHealth.response.status], ownerReadStatus: ownerATask.response.status, productionLimitations: ['real email delivery', 'Postgres repository/runtime', 'organization membership'] }, null, 2))
+    console.log(JSON.stringify({ auth: 'better-auth email OTP through loopback delivery fixture', unauthorizedStatus: unauthorized.response.status, ownerA: ownerA.userId, ownerB: ownerB.userId, organizationId: organization.body.id, taskId: created.body.id, ownerBTaskCount: ownerBTasks.body.tasks.length, forbiddenStatuses: [forbiddenTask.response.status, forbiddenMove.response.status, forbiddenTags.response.status, forbiddenProjectUpdate.response.status, forbiddenProjectFile.response.status, forbiddenSchedule.response.status, forbiddenMcp.response.status, forbiddenMcpHealth.response.status, forbiddenOrganizationMutation.response.status, forbiddenOwnerRemoval.response.status], ownerReadStatus: ownerATask.response.status, productionLimitations: ['real email delivery', 'Postgres repository/runtime', 'organization-backed data authorization', 'provider/sandbox isolation'] }, null, 2))
   } finally {
     await api.stop(); await rm(dataRoot, { recursive: true, force: true }); await new Promise<void>((resolve) => mail.server.close(() => resolve()))
   }
