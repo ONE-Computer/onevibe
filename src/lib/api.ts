@@ -128,9 +128,9 @@ export const getEvidence = async (taskId: string) =>
 export const cancelTask = async (taskId: string) =>
   parse<{ status: string }>(await fetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' }))
 
-export const retryTask = async (taskId: string, idempotencyKey = `retry_${crypto.randomUUID()}`) =>
+export const retryTask = async (taskId: string, idempotencyKey = `retry_${crypto.randomUUID()}`, provider?: Task['provider']) =>
   parse<{ status: string; taskId: string; retryKey: string }>(await fetch(`/api/tasks/${taskId}/retry`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idempotencyKey }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idempotencyKey, ...(provider ? { provider } : {}) }),
   }))
 
 export const moveTaskToProject = async (taskId: string, projectId: string) =>

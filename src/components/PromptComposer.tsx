@@ -1,7 +1,7 @@
 import { AppWindow, ArrowUp, BarChart3, Bot, ChevronDown, Cloud, FileText, Gamepad2, Globe2, Link2, Monitor, Palette, Paperclip, Presentation, Search, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
-import type { RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSkill } from '../types'
+import type { RuntimeCapability, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSkill } from '../types'
 
 type DraftAttachment = Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string; size: number }
 type Props = { compact?: boolean; busy?: boolean; queueable?: boolean; skills?: TaskSkill[]; runtime?: RuntimeReadiness; initialProvider?: Task['provider']; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[]) => Promise<void> }
@@ -18,6 +18,16 @@ const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: ty
   { id: 'app', label: 'App', detail: 'Interactive React application', icon: AppWindow },
   { id: 'game', label: 'Game', detail: 'Playable web experience', icon: Gamepad2 },
 ]
+
+const capabilityLabels: Record<RuntimeCapability, string> = {
+  streaming: 'Live',
+  tool_use: 'Tools',
+  file_system: 'Files',
+  sandboxed: 'Sandboxed',
+  preview_url: 'Preview',
+  computer_use: 'Computer',
+  fork: 'Fork',
+}
 
 export const PromptComposer = ({ compact = false, busy = false, queueable = false, skills = [], runtime, initialProvider = 'demo', onSubmit }: Props) => {
   const [prompt, setPrompt] = useState('')
@@ -47,16 +57,31 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
   const selectedMode = modeCatalog.find((candidate) => candidate.id === mode) ?? modeCatalog[0]!
   const providerStates = runtime?.providers ?? [{ id: 'demo' as const, label: 'Simulation · no model call', boundary: 'Local task workspace', available: true, detail: 'Deterministic simulation for UI contracts only; not a provider or VM.', capabilities: ['streaming', 'file_system', 'preview_url'] as const }]
   const selectedProvider = providerStates.find((candidate) => candidate.id === provider) ?? providerStates[0]!
+  const fallbackSuggestions = providerStates.map((candidate) => ({ id: candidate.id, score: candidate.available ? 0 : -100, available: candidate.available, compatible: true, reason: candidate.detail, capabilities: [...candidate.capabilities] }))
+  const modeSuggestions = runtime?.suggestions?.[mode] ?? fallbackSuggestions
+  const suggestionByProvider = new Map(modeSuggestions.map((suggestion) => [suggestion.id, suggestion]))
+  const rankedProviders = [...providerStates].sort((left, right) => (suggestionByProvider.get(right.id)?.score ?? -100) - (suggestionByProvider.get(left.id)?.score ?? -100) || left.label.localeCompare(right.label))
+  const selectedSuggestion = suggestionByProvider.get(selectedProvider.id)
+  const recommendedProvider = rankedProviders.find((candidate) => {
+    const suggestion = suggestionByProvider.get(candidate.id)
+    return candidate.available && suggestion?.compatible !== false
+  })
+  const selectedProviderCanRun = selectedProvider.available && selectedSuggestion?.compatible !== false
 
   useEffect(() => {
     if (providerTouched || !runtime) return
-    const preferred = runtime.providers.find((candidate) => candidate.available && candidate.id !== 'demo') ?? runtime.providers.find((candidate) => candidate.id === 'demo')
+    const preferred = runtime.providers.find((candidate) => candidate.id === runtime.defaultProvider && candidate.available) ?? runtime.providers.find((candidate) => candidate.available && candidate.id !== 'demo') ?? runtime.providers.find((candidate) => candidate.id === 'demo')
     if (preferred) setProvider(preferred.id)
   }, [providerTouched, runtime])
 
+  useEffect(() => {
+    if (!selectedSuggestion || selectedSuggestion.compatible || !recommendedProvider || recommendedProvider.id === selectedProvider.id) return
+    setProvider(recommendedProvider.id)
+  }, [recommendedProvider, selectedProvider.id, selectedSuggestion])
+
   const submit = async () => {
     const value = prompt.trim()
-    if (!value || busy || !runtime || !selectedProvider.available) return
+    if (!value || busy || !runtime || !selectedProviderCanRun) return
     await onSubmit(value, provider, mode, references, attachments, skills)
     setPrompt('')
     setReferences([])
@@ -88,10 +113,10 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
           {!compact && <button className="composer-icon-action" title="Connect website reference" aria-label="Connect website reference" onClick={() => setReferencesOpen((value) => !value)}><Link2 size={14} /> Reference</button>}
           <span className="composer-divider" />
           {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen((value) => !value)}><Monitor size={15} /> {selectedMode.label} <ChevronDown size={13} /></button>{modePickerOpen && <motion.div className="mode-catalog" role="menu" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}>{modeCatalog.map((candidate) => { const Icon = candidate.icon; return <button key={candidate.id} role="menuitem" className={candidate.id === mode ? 'selected' : ''} onClick={() => { setMode(candidate.id); setModePickerOpen(false) }}><Icon size={15} /><span><strong>{candidate.label}</strong><small>{candidate.detail}</small></span>{candidate.id === mode && <ShieldCheck size={13} />}</button> })}</motion.div>}</div>}
-          {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={providerPickerOpen} onClick={() => setProviderPickerOpen((value) => !value)}><span className={`runtime-dot ${selectedProvider.available ? 'ready' : 'unavailable'}`} />{provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}{selectedProvider.label} <ChevronDown size={13} /></button>{providerPickerOpen && <motion.div className="mode-catalog provider-catalog" role="menu" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}>{providerStates.map((candidate) => <button key={candidate.id} role="menuitem" className={candidate.id === provider ? 'selected' : ''} disabled={!candidate.available} onClick={() => { setProvider(candidate.id); setProviderTouched(true); setProviderPickerOpen(false) }}><span className={`runtime-dot ${candidate.available ? 'ready' : 'unavailable'}`} />{candidate.id === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}<span><strong>{candidate.label}</strong><small>{candidate.boundary} · {candidate.detail}</small><em className="provider-capabilities">{candidate.capabilities.join(' · ')}</em></span>{candidate.id === provider && <ShieldCheck size={13} />}</button>)}</motion.div>}</div>}
+          {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={providerPickerOpen} onClick={() => setProviderPickerOpen((value) => !value)}><span className={`runtime-dot ${selectedProviderCanRun ? 'ready' : 'unavailable'}`} />{provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}{selectedProvider.label} <ChevronDown size={13} /></button>{providerPickerOpen && <motion.div className="mode-catalog provider-catalog" role="menu" aria-label={`Choose a runtime for ${selectedMode.label} mode`} initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}><header><strong>Choose runtime</strong><small>{selectedMode.label} · suggestions are advisory</small></header>{rankedProviders.map((candidate) => { const suggestion = suggestionByProvider.get(candidate.id); const compatible = suggestion?.compatible !== false; const selectable = candidate.available && compatible; const recommended = candidate.id === recommendedProvider?.id; return <button key={candidate.id} role="menuitem" className={`${candidate.id === provider ? 'selected ' : ''}${!selectable ? 'incompatible' : ''}`} disabled={!selectable} onClick={() => { setProvider(candidate.id); setProviderTouched(true); setProviderPickerOpen(false) }}><span className={`runtime-dot ${selectable ? 'ready' : 'unavailable'}`} />{candidate.id === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}<span className="provider-option-copy"><strong>{candidate.label}{recommended && <em className="recommended-badge">Recommended</em>}</strong><small>{candidate.boundary}</small><span className="provider-capability-list">{candidate.capabilities.map((capability) => <em key={capability}>{capabilityLabels[capability]}</em>)}</span><small className="provider-reason">{selectable ? suggestion?.reason ?? candidate.detail : suggestion?.reason ?? candidate.detail}</small></span>{candidate.id === provider && <ShieldCheck size={13} />}</button> })}</motion.div>}</div>}
         </div>
         <div className="composer-right">
-          <button className="send-button" disabled={!prompt.trim() || busy || !runtime || !selectedProvider.available} onClick={() => void submit()} aria-label={queueable ? 'Queue guidance for next turn' : 'Start task'}><ArrowUp size={17} /></button>
+          <button className="send-button" disabled={!prompt.trim() || busy || !runtime || !selectedProviderCanRun} onClick={() => void submit()} aria-label={queueable ? 'Queue guidance for next turn' : 'Start task'}><ArrowUp size={17} /></button>
         </div>
       </div>
     </motion.div>

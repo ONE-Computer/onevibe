@@ -8,15 +8,15 @@ type ModeRequirement = { capabilities: RuntimeCapability[]; reason: string }
 
 const modeRequirements: Record<TaskMode, ModeRequirement> = {
   chat: { capabilities: ['streaming'], reason: 'streams conversational responses' },
-  general: { capabilities: ['streaming'], reason: 'supports a live task conversation' },
-  website: { capabilities: ['streaming', 'file_system'], reason: 'can stream and write portable workspace files' },
-  slides: { capabilities: ['streaming', 'file_system'], reason: 'can stream and create portable slide outputs' },
+  general: { capabilities: ['streaming', 'tool_use'], reason: 'supports a live task conversation with governed tools' },
+  website: { capabilities: ['streaming', 'tool_use', 'file_system'], reason: 'can stream, use governed tools, and write portable workspace files' },
+  slides: { capabilities: ['streaming', 'tool_use', 'file_system'], reason: 'can stream, use governed tools, and create portable slide outputs' },
   document: { capabilities: ['streaming', 'file_system'], reason: 'can stream and write document outputs' },
-  research: { capabilities: ['streaming'], reason: 'can stream a research conversation' },
-  data: { capabilities: ['streaming', 'file_system'], reason: 'can stream and write data outputs' },
-  design: { capabilities: ['streaming', 'file_system'], reason: 'can stream and write design outputs' },
-  app: { capabilities: ['streaming', 'file_system'], reason: 'can stream and write an application workspace' },
-  game: { capabilities: ['streaming', 'file_system'], reason: 'can stream and write a game workspace' },
+  research: { capabilities: ['streaming', 'tool_use'], reason: 'can stream research with governed tools' },
+  data: { capabilities: ['streaming', 'tool_use', 'file_system'], reason: 'can stream, use governed tools, and write data outputs' },
+  design: { capabilities: ['streaming', 'tool_use'], reason: 'can stream design work with governed tools' },
+  app: { capabilities: ['streaming', 'tool_use', 'file_system'], reason: 'can stream, use governed tools, and write an application workspace' },
+  game: { capabilities: ['streaming', 'tool_use', 'file_system'], reason: 'can stream, use governed tools, and write a game workspace' },
 }
 
 const missingCapabilities = (state: RuntimeProviderState, required: RuntimeCapability[]) => required.filter((capability) => !state.capabilities.includes(capability))

@@ -80,6 +80,13 @@
 - Removed `waiting_for_user_input` from assistant-ui's `isRunning` state. The composer now says it is waiting for the user's answer, disables attachment/send controls while the request is pending, and preserves the external wallet as the approval authority.
 - Fixed a release-gate flake exposed by the full test run: PPTX normalization now sorts ZIP entries and pins container timestamps to the durable task creation time. Focused and full gates are green after the fix: 43 test files / 222 tests, lint, production build, and E2E harness typecheck.
 
+## 2026-07-16 — Phase 3 runtime choice and explicit fallback
+
+- Replaced the flat composer runtime list with a ranked, mode-aware provider selector. It now shows the advisory recommendation, availability, capability badges, execution boundary, and the registry's reason; providers missing required capabilities are visible but disabled rather than silently hidden.
+- Added the explicit fallback contract. A failed provider run can project a compatible alternative as `runtime_fallback_available`; the user must choose the alternative, and the retry API records the provider switch plus a reset execution boundary before starting the retry. No runtime substitution happens automatically.
+- Tightened mode requirements so artifact and agent modes require governed tool use and file access where their workflows depend on it. The canonical runtime event schema remains provider-neutral; provider-specific metadata stays in bounded payloads/native envelopes.
+- The full release gate remains the acceptance check; browser confirmation of the new selector/fallback card is still required before closing the remaining visual QA work.
+
 ## 2026-07-16 — Phase 2 Codex-compatible LiteLLM adapter
 
 - Added `server/codex-runner.ts` as a real OpenAI-compatible streaming adapter that calls only the configured LiteLLM `/v1/chat/completions` route. It normalizes streamed text and bounded workspace tool calls into the ONEVibe event ledger and confines reads/writes to the task workspace.

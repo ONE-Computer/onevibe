@@ -52,11 +52,11 @@ Reference: `plan/03-runtime-routing.md`
 
 - [ ] **P3-01** Build `RuntimeRegistry` — server-side registry that discovers all configured adapters, health-checks them on startup, and exposes `/api/runtime` with capability metadata per provider
 - [x] **P3-02** Build runtime routing suggestions — `RuntimeRegistry.suggest(mode)` returns a ranked, capability-based list with availability, compatibility, missing-capability explanation, and a human-readable reason; `/api/runtime` exposes the suggestions without provider secrets
-- [ ] **P3-03** Overhaul provider picker UI — replace the current flat dropdown with a rich provider selector: shows each runtime's availability status, capability badges (sandboxed, streaming, computer use), and why it's suggested for the current mode
+- [x] **P3-03** Overhaul provider picker UI — the composer now ranks runtimes for the selected mode, shows availability/recommendation/capability badges and suitability reasons, and disables incompatible choices
 - [x] **P3-04** Add runtime health dashboard — the Computers → Runtimes surface shows every registered adapter, status (online/offline/not configured/unknown), bounded detail/latency, and a Test button backed by `POST /api/runtime/test/:provider`; probes never expose credentials or provider response bodies
-- [ ] **P3-05** Add runtime fallback chain — if the chosen runtime fails mid-task (network error, quota exceeded), surface a "Switch to [fallback] and retry?" prompt; never silently fail
+- [x] **P3-05** Add runtime fallback chain — provider failures now expose an explicit compatible-runtime suggestion; retry accepts a user-selected provider and records the boundary switch, never silently substituting a harness
 - [x] **P3-06** Add `ONEVIBE_DEFAULT_PROVIDER` env var — operators can set the default runtime for their deployment; the registry honors it only when available/compatible and safely falls back; individual users can override per task
-- [ ] **P3-07** Runtime-neutral event schema — audit `RuntimeEvent` types in `server/types.ts`; ensure no harness-specific fields leak into the canonical event schema; use `payload` for harness-specific data
+- [x] **P3-07** Runtime-neutral event schema — canonical `EventType`/`EventLane`/`RuntimeEvent` fields are provider-neutral; harness-specific model/tool/native metadata is confined to bounded `payload` or the sanitized native envelope
 
 ---
 

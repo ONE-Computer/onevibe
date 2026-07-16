@@ -42,6 +42,7 @@ export type EventType =
   | 'guidance_applied'
   | 'artifact_created'
   | 'artifact_updated'
+  | 'runtime_fallback_available'
   | 'run_completed'
   | 'run_failed'
   | 'run_cancelled'

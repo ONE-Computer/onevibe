@@ -17,6 +17,7 @@ import {
 import type { TaskSnapshot } from '../types'
 import { toAssistantMessage } from '../lib/assistant-message'
 import { projectAssistantToolCalls } from '../lib/assistant-tool-projection'
+import { providerLabel } from '../lib/runtime-labels'
 import type { AssistantArtifact, AssistantTraceItem } from '../lib/assistant-tool-projection'
 import { MarkdownText } from './MarkdownText'
 
@@ -161,13 +162,24 @@ const VirtualizedMessages: FC<{ taskId: string }> = ({ taskId }) => {
   return <ThreadPrimitive.Viewport className="aui-thread-scroll" ref={scrollRef}><div className="aui-thread-content" ref={contentRef} style={{ paddingTop, paddingBottom }}>{virtualItems.map((item) => <div key={item.key} ref={virtualizer.measureElement} data-index={item.index} className="aui-thread-turn">{turns[item.index]?.messageIds.map((messageId) => <ThreadPrimitive.Unstable_MessageById key={messageId} messageId={messageId} components={MESSAGE_COMPONENTS} />)}</div>)} </div>{!atBottom && <button type="button" className="aui-thread-jump" onClick={jumpToBottom} aria-label="Scroll to latest activity" title="Scroll to latest activity"><ArrowDown size={14} /></button>}</ThreadPrimitive.Viewport>
 }
 
-type Props = { task: TaskSnapshot; busy: boolean; onSubmit: (prompt: string, attachments?: DraftFollowUpAttachment[]) => Promise<void> }
+type Props = { task: TaskSnapshot; busy: boolean; onSubmit: (prompt: string, attachments?: DraftFollowUpAttachment[]) => Promise<void>; onSwitchRuntime: (provider: TaskSnapshot['provider']) => Promise<void> }
 
-export const AssistantThread = ({ task, busy, onSubmit }: Props) => {
+const fallbackProviderFor = (task: TaskSnapshot): TaskSnapshot['provider'] | undefined => {
+  const knownProviders = new Set<TaskSnapshot['provider']>(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote'])
+  for (const event of [...task.events].reverse()) {
+    if (event.type !== 'runtime_fallback_available' && event.type !== 'run_failed') continue
+    const candidate = event.payload.fallbackProvider
+    if (typeof candidate === 'string' && knownProviders.has(candidate as TaskSnapshot['provider'])) return candidate as TaskSnapshot['provider']
+  }
+  return undefined
+}
+
+export const AssistantThread = ({ task, busy, onSubmit, onSwitchRuntime }: Props) => {
   const [attachments, setAttachments] = useState<DraftFollowUpAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
   const messages = useMemo(() => projectAssistantToolCalls(task.messages, task.events), [task.events, task.messages])
+  const fallbackProvider = useMemo(() => fallbackProviderFor(task), [task])
   const send = useCallback(async (message: AppendMessage) => {
     const prompt = message.content.filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text').map((part) => part.text).join('\n').trim()
     if (prompt) { await onSubmit(prompt, attachments); setAttachments([]); setAttachmentError('') }
@@ -193,5 +205,5 @@ export const AssistantThread = ({ task, busy, onSubmit }: Props) => {
     isSendDisabled: busy || Boolean(task.inputRequest),
   })
 
-  return <AssistantRuntimeProvider runtime={runtime}><ThreadPrimitive.Root className="aui-thread"><VirtualizedMessages taskId={task.id} /><ThreadPrimitive.ViewportFooter className="aui-thread-footer"><ComposerPrimitive.Root className="aui-composer"><input ref={fileInput} className="file-input" type="file" multiple onChange={(event) => { void chooseFiles(event.target.files); event.currentTarget.value = '' }} />{attachments.length > 0 && <div className="aui-composer-files">{attachments.map((file) => <span key={`${file.name}-${file.size}`}><Paperclip size={10} />{file.name}<small>{Math.ceil(file.size / 1024)} KB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== file))}><X size={10} /></button></span>)}</div>}{attachmentError && <p className="aui-attachment-error">{attachmentError}</p>}<ComposerPrimitive.Input aria-label="Continue this task" placeholder={task.inputRequest ? 'Choose an answer above to resume…' : task.status === 'running' ? 'Add guidance for the next provider turn…' : 'Continue this task…'} rows={1} /><div className="aui-composer-meta"><span><ShieldCheck size={11} /> {task.inputRequest ? 'Waiting for your answer' : task.status === 'running' ? 'Durably queued while this turn runs' : 'Bound to this conversation workspace'}</span><div><button type="button" className="aui-attach" aria-label="Attach files to this turn" title="Attach files to this turn" disabled={attachments.length >= 4 || busy || Boolean(task.inputRequest)} onClick={() => fileInput.current?.click()}><Paperclip size={14} /></button><ComposerPrimitive.Send className="aui-send" aria-label="Send message"><ArrowUp size={15} /></ComposerPrimitive.Send></div></div></ComposerPrimitive.Root></ThreadPrimitive.ViewportFooter></ThreadPrimitive.Root></AssistantRuntimeProvider>
+  return <AssistantRuntimeProvider runtime={runtime}><ThreadPrimitive.Root className="aui-thread"><VirtualizedMessages taskId={task.id} />{fallbackProvider && task.status === 'failed' && <div className="aui-runtime-fallback" role="alert"><div><TriangleAlert size={14} /><span><strong>Try another runtime?</strong><small>The selected runtime failed. Switching is explicit and starts a new retry on a different execution boundary.</small></span></div><button type="button" onClick={() => void onSwitchRuntime(fallbackProvider)}>Switch to {providerLabel(fallbackProvider)} and retry</button></div>}<ThreadPrimitive.ViewportFooter className="aui-thread-footer"><ComposerPrimitive.Root className="aui-composer"><input ref={fileInput} className="file-input" type="file" multiple onChange={(event) => { void chooseFiles(event.target.files); event.currentTarget.value = '' }} />{attachments.length > 0 && <div className="aui-composer-files">{attachments.map((file) => <span key={`${file.name}-${file.size}`}><Paperclip size={10} />{file.name}<small>{Math.ceil(file.size / 1024)} KB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== file))}><X size={10} /></button></span>)}</div>}{attachmentError && <p className="aui-attachment-error">{attachmentError}</p>}<ComposerPrimitive.Input aria-label="Continue this task" placeholder={task.inputRequest ? 'Choose an answer above to resume…' : task.status === 'running' ? 'Add guidance for the next provider turn…' : 'Continue this task…'} rows={1} /><div className="aui-composer-meta"><span><ShieldCheck size={11} /> {task.inputRequest ? 'Waiting for your answer' : task.status === 'running' ? 'Durably queued while this turn runs' : 'Bound to this conversation workspace'}</span><div><button type="button" className="aui-attach" aria-label="Attach files to this turn" title="Attach files to this turn" disabled={attachments.length >= 4 || busy || Boolean(task.inputRequest)} onClick={() => fileInput.current?.click()}><Paperclip size={14} /></button><ComposerPrimitive.Send className="aui-send" aria-label="Send message"><ArrowUp size={15} /></ComposerPrimitive.Send></div></div></ComposerPrimitive.Root></ThreadPrimitive.ViewportFooter></ThreadPrimitive.Root></AssistantRuntimeProvider>
 }

@@ -103,6 +103,11 @@ const providerAvailability = async (provider: Task['provider']) => {
   return { readiness, state }
 }
 
+const fallbackRuntimeFor = async (task: Task) => {
+  const readiness = await runtimeSnapshot()
+  return runtimeRegistry.suggest(task.mode, readiness.providers).find((candidate) => candidate.id !== task.provider && candidate.available && candidate.compatible)
+}
+
 const json = (response: ServerResponse, status: number, value: unknown) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
   response.end(JSON.stringify(value))
@@ -147,7 +152,7 @@ const createScheduleInput = z.object({
 })
 const scheduleStateInput = z.object({ enabled: z.boolean() })
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000), attachments: z.array(taskAttachment).max(4).default([]) })
-const retryInput = z.object({ idempotencyKey: z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/) })
+const retryInput = z.object({ idempotencyKey: z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/), provider: runtimeProviderInput.optional() })
 const moveTaskProjectInput = z.object({ projectId: z.string().regex(/^project_[a-z0-9]+$/) })
 const updateTaskTagsInput = z.object({ tags: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/)).max(8) })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
@@ -247,6 +252,15 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       await adapter.destroy()
       if (activeAdapters.get(task.id) === adapter) activeAdapters.delete(task.id)
     }
+    const finishedTask = store.getTask(task.id)
+    if (finishedTask.status === 'failed' && !store.listEvents(task.id).some((event) => event.type === 'runtime_fallback_available')) {
+      const fallback = await fallbackRuntimeFor(finishedTask)
+      if (fallback) await store.appendEvent(task.id, {
+        type: 'runtime_fallback_available', lane: 'control', label: 'A compatible runtime is available',
+        content: `The selected runtime failed. Switch to ${fallback.id} and retry only if you choose to change the execution boundary.`,
+        payload: { fallbackProvider: fallback.id, fallbackReason: fallback.reason, userChoiceRequired: true },
+      })
+    }
     controller.signal.throwIfAborted()
     if (store.getTask(task.id).status === 'completed') await store.createWorkspaceVersion(task.id, prompt)
   }
@@ -281,11 +295,12 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
     }
     const message = error instanceof Error ? error.message : String(error)
     const failedTask = store.getTask(task.id)
+    const fallback = await fallbackRuntimeFor(failedTask)
     const activeStep = failedTask.plan.find((step) => step.status === 'running') ?? failedTask.plan.find((step) => step.status === 'pending')
     if (activeStep) await store.setPlanStep(task.id, activeStep.id, 'blocked')
     await store.appendEvent(task.id, {
       type: 'run_failed', lane: 'control', status: 'failed', label: 'Task failed', content: message,
-      payload: { executionRoute: 'runtime_adapter', failureReason: 'provider_execution_failure', retryable: true },
+      payload: { executionRoute: 'runtime_adapter', failureReason: 'provider_execution_failure', retryable: true, ...(fallback ? { fallbackProvider: fallback.id, fallbackReason: fallback.reason, userChoiceRequired: true } : {}) },
     })
     await store.updateTask(task.id, { status: 'failed' })
   }).finally(async () => {
@@ -526,6 +541,12 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       if (task.status !== 'failed' && task.status !== 'cancelled') {
         return json(response, 409, { error: `Task cannot be retried from ${task.status}` })
       }
+      const retryProvider = input.provider ?? task.provider
+      const retryReadiness = await runtimeSnapshot()
+      const retryState = retryReadiness.providers.find((candidate) => candidate.id === retryProvider)
+      const retrySuggestion = retryReadiness.suggestions?.[task.mode]?.find((candidate) => candidate.id === retryProvider)
+      if (!retryState?.available) return json(response, 409, { error: `${retryState?.label ?? retryProvider} is unavailable: ${retryState?.detail ?? 'runtime is not configured'}` })
+      if (retrySuggestion?.compatible === false) return json(response, 409, { error: `${retryState.label} does not support ${task.mode} mode: ${retrySuggestion.reason}` })
       const prompt = 'Retry this task using the existing workspace. Inspect the prior evidence and address the failed or cancelled step before continuing.'
       const claim = await store.claimRetry(taskId, input.idempotencyKey, prompt)
       if (!claim.claimed) {
@@ -533,7 +554,12 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       }
       const accepted = { status: 'queued', taskId, retryKey: input.idempotencyKey }
       await store.completeRetry(taskId, input.idempotencyKey, accepted)
-      await store.updateTask(taskId, { status: 'pending' })
+      await store.updateTask(taskId, { status: 'pending', ...(retryProvider !== task.provider ? { provider: retryProvider, securityContext: undefined } : {}) })
+      if (retryProvider !== task.provider) await store.appendEvent(taskId, {
+        type: 'activity_delta', lane: 'control', label: 'Runtime switched by user',
+        content: `The retry will run on ${retryState.label}. ONEVibe did not switch runtimes automatically.`,
+        payload: { previousProvider: task.provider, provider: retryProvider, userChoice: true },
+      })
       setTimeout(() => executeTask(taskId, prompt, true, undefined, input.idempotencyKey), 25)
       return json(response, 202, accepted)
     }
