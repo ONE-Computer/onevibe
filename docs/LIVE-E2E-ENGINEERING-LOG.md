@@ -227,3 +227,10 @@ The real-provider cancellation harness allocated sandbox `onevibe-32279349` for 
 - Passing result: primary `task_b6b320da756747` and separate `task_e81422d4ca1541`; Claude SDK routed through LiteLLM with explicit model alias `claude-sonnet-5`, two durable turns, 5 live SSE frames, 75 suffix-only replay frames, valid evidence, API restart recovery, and task/global/conversation search recovery.
 - The first configuration attempt used the handover file's raw `LITELLM_MODEL` (`claude-sonnet-4-5`) and failed with the router's model validation error. No credential values or raw provider bodies were retained.
 - Boundary: host-process local proof; no ONEComputer, microVM, OpenVTC/VTI Wallet, gateway-attestation, or production egress claim.
+
+# 2026-07-16 — local Claude chat, artifact, and retry gate
+
+- The protected LiteLLM run used an isolated temporary API/data root and the explicit `claude-sonnet-5` route. Chat task `task_b47dcbab442345` completed two durable turns with 31 live SSE frames and 80 suffix-replayed frames; the Markdown/Bash task `task_ce7415292df54c` completed with two bounded Bash calls and a valid evidence chain; API restart recovered the persisted transcript and search index.
+- The failure-injection subprobe `task_4c1e953f5c4d40` started with an intentionally invalid model alias, recorded a durable `run_failed` with `provider_execution_failure`, stopped the API, restarted against the same SQLite directory with the valid model, retried using an idempotency key, and completed with a valid evidence chain.
+- The first attempt exposed a genuine classification defect: adapter failures before a provider terminal result were recorded with an empty failure payload. The generic execution catch now records only bounded metadata (`executionRoute=runtime_adapter`, `failureReason=provider_execution_failure`, `retryable=true`); provider bodies and credentials are not written to evidence.
+- This is host-process local LiteLLM/Claude-compatible evidence. It does not prove ONEComputer microVM isolation, OpenVTC/VTI Wallet enforcement, production gateway attestation, or egress controls.

@@ -38,9 +38,10 @@ const availablePort = async () => new Promise<number>((resolve, reject) => {
   })
 })
 
-const startApi = (dataDirectory: string, port: number) => {
+const startApi = (dataDirectory: string, port: number, modelOverride?: string) => {
   const env: NodeJS.ProcessEnv = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: process.env.HOME ?? dataDirectory, TMPDIR: dataDirectory, LANG: 'C', NODE_ENV: 'test', ONEVIBE_DATA_DIR: dataDirectory, ONEVIBE_API_HOST: '127.0.0.1', ONEVIBE_API_PORT: String(port) }
   for (const key of ['ONEVIBE_LITELLM_URL', 'ONEVIBE_LITELLM_API_KEY', 'ONEVIBE_LITELLM_MODEL', 'ONEVIBE_CLAUDE_MODEL', 'ONEVIBE_CLAUDE_MAX_TURNS', 'ONEVIBE_CLAUDE_MAX_BUDGET_USD', 'ONEVIBE_TURN_TIMEOUT_MS']) if (process.env[key]) env[key] = process.env[key]
+  if (modelOverride) env.ONEVIBE_LITELLM_MODEL = modelOverride
   const child = spawn(process.execPath, [tsxEntry, serverEntry], { cwd: repoRoot, env, stdio: ['ignore', 'ignore', 'ignore'], detached: true })
   const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
   return { child, exited }
@@ -110,6 +111,36 @@ const readSse = async (baseUrl: string, taskId: string, lastEventId?: string, mi
 
 const createTask = async (baseUrl: string, prompt: string, provider: 'claude_sdk' | 'demo', mode: 'chat' | 'general') => request<{ id: string }>(baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ prompt, provider, mode, projectId: 'project_onevibe', references: [], attachments: [], skills: [] }) })
 
+const failureRetryProbe = async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), 'onevibe-failure-retry-e2e-'))
+  const port = await availablePort()
+  const baseUrl = `http://127.0.0.1:${port}`
+  let api = startApi(dataDirectory, port, 'onevibe-invalid-model-for-retry-proof')
+  try {
+    await waitForHealth(baseUrl, api)
+    const task = await createTask(baseUrl, 'Answer this short question in one sentence: what is 2 + 2?', 'claude_sdk', 'chat')
+    const failed = await waitForTerminal(baseUrl, task.id)
+    assert.equal(failed.status, 'failed', JSON.stringify(terminalSummary(failed)))
+    assert.ok(failed.events.some((event) => event.type === 'run_failed' && ['provider_result_failure', 'missing_terminal_result', 'provider_execution_failure'].includes(String(event.payload.failureReason))), JSON.stringify(terminalSummary(failed)))
+
+    await stopApi(api)
+    api = startApi(dataDirectory, port, process.env.ONEVIBE_LITELLM_MODEL ?? 'claude-sonnet-5')
+    await waitForHealth(baseUrl, api)
+    const retry = await request<{ status: string; taskId: string; retryKey: string }>(baseUrl, `/api/tasks/${encodeURIComponent(task.id)}/retry`, { method: 'POST', body: JSON.stringify({ idempotencyKey: 'claude-failure-retry-proof' }) })
+    assert.equal(retry.status, 'queued'); assert.equal(retry.taskId, task.id)
+    const recovered = await waitForTerminal(baseUrl, task.id)
+    assert.equal(recovered.status, 'completed', JSON.stringify(terminalSummary(recovered)))
+    assert.ok(recovered.events.some((event) => event.label === 'Retry attempt started'), 'retry evidence must be recorded')
+    assert.ok(recovered.events.some((event) => event.type === 'run_completed'), 'retry must produce a completed provider run')
+    const evidence = await request<{ valid: boolean }>(baseUrl, `/api/tasks/${encodeURIComponent(task.id)}/evidence`)
+    assert.equal(evidence.valid, true)
+    return { taskId: task.id, failedRun: true, retried: true, recovered: recovered.status, evidenceValid: evidence.valid }
+  } finally {
+    await stopApi(api)
+    await rm(dataDirectory, { recursive: true, force: true })
+  }
+}
+
 const main = async () => {
   if (!process.env.ONEVIBE_LITELLM_URL || !process.env.ONEVIBE_LITELLM_API_KEY) throw new Error('Set server-only ONEVIBE_LITELLM_URL and ONEVIBE_LITELLM_API_KEY before running this gate')
   const dataDirectory = await mkdtemp(path.join(os.tmpdir(), 'onevibe-chat-e2e-')); const port = await availablePort(); const baseUrl = `http://127.0.0.1:${port}`; let api = startApi(dataDirectory, port)
@@ -138,7 +169,8 @@ const main = async () => {
 
     await stopApi(api); api = startApi(dataDirectory, port); await waitForHealth(baseUrl, api); const reopened = await request<Snapshot>(baseUrl, `/api/tasks/${encodeURIComponent(chat.id)}`); assert.equal(reopened.messages.length, continued.messages.length); assert.equal(reopened.status, 'completed')
     const search = await request<{ results: Array<{ taskId: string }> }>(baseUrl, '/api/search?q=2%20%2B%202'); assert.ok(search.results.some((result) => result.taskId === chat.id), 'reload must retain searchable chat history')
-    console.log(JSON.stringify({ chatTaskId: chat.id, demoTaskId: demo.id, artifactTaskId: artifact.id, chatTurns: reopened.messages.filter((message) => message.role === 'user').length, liveSseFrames: liveSse.length, replaySseFrames: replay.length, bashCalls: bashStarts.length, evidenceValid: evidence.valid, restartRecovered: reopened.messages.length === continued.messages.length, executionBoundary: reopened.securityContext?.executionBoundary, limitation: 'host_process local proof; no ONEComputer/microVM/OpenVTC enforcement claim' }, null, 2))
+    const failureRetry = await failureRetryProbe()
+    console.log(JSON.stringify({ chatTaskId: chat.id, demoTaskId: demo.id, artifactTaskId: artifact.id, chatTurns: reopened.messages.filter((message) => message.role === 'user').length, liveSseFrames: liveSse.length, replaySseFrames: replay.length, bashCalls: bashStarts.length, evidenceValid: evidence.valid, restartRecovered: reopened.messages.length === continued.messages.length, failureRetry, executionBoundary: reopened.securityContext?.executionBoundary, limitation: 'host_process local proof; no ONEComputer/microVM/OpenVTC enforcement claim' }, null, 2))
   } finally { await stopApi(api); await rm(dataDirectory, { recursive: true, force: true }) }
 }
 

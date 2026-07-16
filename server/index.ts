@@ -242,7 +242,8 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
     const activeStep = failedTask.plan.find((step) => step.status === 'running') ?? failedTask.plan.find((step) => step.status === 'pending')
     if (activeStep) await store.setPlanStep(task.id, activeStep.id, 'blocked')
     await store.appendEvent(task.id, {
-      type: 'run_failed', lane: 'control', status: 'failed', label: 'Task failed', content: message, payload: {},
+      type: 'run_failed', lane: 'control', status: 'failed', label: 'Task failed', content: message,
+      payload: { executionRoute: 'runtime_adapter', failureReason: 'provider_execution_failure', retryable: true },
     })
     await store.updateTask(task.id, { status: 'failed' })
   }).finally(async () => {

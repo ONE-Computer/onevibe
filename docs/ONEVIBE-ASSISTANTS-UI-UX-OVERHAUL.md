@@ -171,3 +171,17 @@ The overhaul is not complete when the page merely resembles an assistant-ui exam
 6. Sans-serif design-system cleanup and visual regression.
 
 The redesign must not broaden into website generation until the simple-chat and document-artifact journeys are reliable.
+
+## 2026-07-16 — first shell overhaul pass
+
+The first implementation pass addressed the most visible failure from browser review: at the browser's effective 1140px width, the old layout rendered the sidebar, conversation, and Computer inspector simultaneously. The conversation was compressed to roughly 408px and read like a telemetry console rather than an assistant product.
+
+Implemented in the local ONEVibe app:
+
+- The conversation is now the primary surface below 1250px; `View computer` opens a full-height, task-scoped inspector and `Back to conversation` returns to the thread. Desktop split view remains available on wider screens.
+- Completed operational traces are progressive-disclosure details instead of a permanently expanded checklist. Live traces stay open while a provider turn runs; the complete server-backed trace remains available on demand.
+- The assistant-ui message projection now includes a visible provider error surface through `MessagePrimitive.Error`, while tool calls remain grouped and artifact cards remain task-bound.
+- The visual hierarchy now uses readable sans-serif sizing, larger message/composer controls, less telemetry-like microcopy, more whitespace, and a calmer light-surface treatment while retaining the ONEComputer green trust signal.
+- Reduced-motion behavior is explicit, and the responsive inspector handoff was browser-checked with no horizontal overflow.
+
+Verification: `npm run check` passed with 37 test files / 207 tests, production build, and E2E harness typecheck. Browser verification used persisted task `task_f8d51a10de4f4d`; the completed trace is collapsed by default, the real artifact cards remain visible, and the Computer handoff toggles the two surfaces without changing backend state. The live Claude gate later passed chat SSE, restart recovery, Markdown plus Bash evidence, and failure/retry recovery; the limitation remains host-process local proof only.
