@@ -111,6 +111,7 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     let terminalNativeEventId: string | undefined
     let nativeSequence = 0
     let buildStarted = false
+    let validationPassed = true
     const beginBuild = async () => {
       if (buildStarted) return
       buildStarted = true
@@ -241,28 +242,34 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         payload: { executionRoute: 'claude_agent_sdk', kind: 'website', uri: `/api/tasks/${task.id}/preview`, version: 1 },
       })
     }
-    const success = terminal?.success === true
-    const failureReason = terminal ? 'provider_result_failure' : 'missing_terminal_result'
-    if (success) {
+    const providerSuccess = terminal?.success === true
+    if (providerSuccess) {
       await beginBuild()
       await store.setPlanStep(task.id, 'build', 'completed')
       await store.setPlanStep(task.id, 'verify', 'running')
       const validation = await validateModeArtifacts(store.getTask(task.id), store)
+      validationPassed = validation.passed
       await store.appendEvent(task.id, {
         type: 'artifact_created', lane: 'artifact', label: validation.passed ? 'Static artifact contract passed' : 'Static artifact contract needs review',
         content: 'validation-report.json',
         payload: { executionRoute: 'claude_agent_sdk', kind: 'validation_report', passed: validation.passed, checkCount: validation.checks.length },
       })
-      await store.setPlanStep(task.id, 'verify', 'completed')
-      await store.setPlanStep(task.id, 'deliver', 'running')
-      await store.setPlanStep(task.id, 'deliver', 'completed')
+      if (validation.passed) {
+        await store.setPlanStep(task.id, 'verify', 'completed')
+        await store.setPlanStep(task.id, 'deliver', 'running')
+        await store.setPlanStep(task.id, 'deliver', 'completed')
+      } else {
+        await store.setPlanStep(task.id, 'verify', 'blocked')
+      }
     }
+    const success = providerSuccess && validationPassed
+    const failureReason = !terminal ? 'missing_terminal_result' : !providerSuccess ? 'provider_result_failure' : !validationPassed ? 'artifact_validation_failed' : undefined
     await store.appendEvent(task.id, {
       type: success ? 'run_completed' : 'run_failed', lane: 'control', status: success ? 'completed' : 'failed',
-      label: terminal ? (success ? 'Claude Agent SDK completed' : 'Claude Agent SDK failed') : 'Claude Agent SDK stream closed before terminal result',
-      content: terminal?.content ?? (terminal ? undefined : 'The SDK stream ended without an explicit result message.'),
+      label: terminal ? (success ? 'Claude Agent SDK completed' : failureReason === 'artifact_validation_failed' ? 'Claude Agent SDK artifact validation failed' : 'Claude Agent SDK failed') : 'Claude Agent SDK stream closed before terminal result',
+      content: terminal?.content ?? (terminal ? failureReason === 'artifact_validation_failed' ? 'Required static artifact checks did not pass; inspect validation-report.json before retrying.' : undefined : 'The SDK stream ended without an explicit result message.'),
       payload: terminal
-        ? { executionRoute: 'claude_agent_sdk', nativeType: 'result', nativeEventId: terminalNativeEventId }
+        ? { executionRoute: 'claude_agent_sdk', nativeType: 'result', nativeEventId: terminalNativeEventId, ...(failureReason ? { failureReason } : {}) }
         : { executionRoute: 'claude_agent_sdk', failureReason },
     })
     await store.updateTask(task.id, { status: success ? 'completed' : 'failed' })
