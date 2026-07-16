@@ -175,8 +175,13 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     await store.initialize()
     const task = await store.createTask('Retry provider polling', 'onecomputer', 'general')
     const journal = Buffer.from(JSON.stringify({ type: 'result', session_id: 'session-poll-retry', result: 'Done.' })).toString('base64')
+    let journalPolls = 0
     const exec = vi.fn(async (_id: string, command: string) => {
-      if (command.includes('.onevibe-exitcode')) return { exitCode: 0, output: `done:0\n${journal}` }
+      if (command.includes('journal_bytes=')) {
+        journalPolls += 1
+        if (journalPolls === 1) throw new Error('transient event poll timeout')
+        return { exitCode: 0, output: `done:0\n${journal}` }
+      }
       if (command.includes('find .')) return { exitCode: 0, output: Buffer.from('README.md\0').toString('base64') }
       if (command.endsWith("'README.md'")) return { exitCode: 0, output: Buffer.from('# retry proof').toString('base64') }
       return { exitCode: 0, output: '' }
@@ -197,6 +202,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
 
     expect(client.getSandbox).toHaveBeenCalledTimes(2)
     expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer sandbox poll retry' && event.payload.retry === true)).toBe(true)
+    expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer agent poll retry' && event.payload.retry === true)).toBe(true)
     expect(store.getTask(task.id).securityContext).toMatchObject({ sandboxState: 'started', sandboxId: 'sandbox-poll-retry' })
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
   })

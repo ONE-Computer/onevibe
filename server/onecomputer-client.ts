@@ -18,6 +18,7 @@ export type OneComputerExecResult = { exitCode: number; output: string }
 export type OneComputerVisualFrame = { png: Uint8Array; capturedAt?: string }
 
 const SANDBOX_STATUS_POLL_TIMEOUT_MS = 15_000
+const SANDBOX_EXEC_TIMEOUT_MS = 30_000
 
 export class OneComputerApiError extends Error {
   constructor(readonly operation: string, readonly status: number) {
@@ -65,7 +66,7 @@ export class OneComputerClient {
   }
 
   async exec(id: string, command: string, signal?: AbortSignal): Promise<OneComputerExecResult> {
-    return this.request(`/v1/sandboxes/${encodeURIComponent(id)}/exec`, { method: 'POST', body: JSON.stringify({ command }), signal })
+    return this.request(`/v1/sandboxes/${encodeURIComponent(id)}/exec`, { method: 'POST', body: JSON.stringify({ command }), signal }, SANDBOX_EXEC_TIMEOUT_MS)
   }
 
   async deleteSandbox(id: string): Promise<void> {
@@ -85,7 +86,7 @@ export class OneComputerClient {
     return { png: new Uint8Array(await response.arrayBuffer()), capturedAt: response.headers.get('X-OneComputer-Captured-At') || undefined }
   }
 
-  private async request<T>(pathname: string, init: RequestInit = {}): Promise<T> {
+  private async request<T>(pathname: string, init: RequestInit = {}, timeoutMs = 4 * 60_000): Promise<T> {
     const response = await this.fetcher(`${this.baseUrl}${pathname}`, {
       ...init,
       headers: {
@@ -95,7 +96,7 @@ export class OneComputerClient {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
       },
-      signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(4 * 60_000)]) : AbortSignal.timeout(4 * 60_000),
+      signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
     })
     if (!response.ok) {
       // Provider bodies can contain upstream topology, diagnostics, or reflected

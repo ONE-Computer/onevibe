@@ -430,7 +430,18 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       while (agentExitCode === undefined) {
         if (Date.now() >= journalDeadline) throw new Error('Sandbox Claude process exceeded the 20-minute task limit')
         await wait(this.options.pollMilliseconds ?? 1_000, signal)
-        const snapshot = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && journal_bytes=$(wc -c < .onevibe-events.jsonl 2>/dev/null || printf 0) && if test "$journal_bytes" -gt 4194304; then printf 'oversize:%s\n' "$journal_bytes"; elif test -f .onevibe-exitcode; then printf 'done:'; cat .onevibe-exitcode; printf '\n'; else printf 'running:\n'; fi; if test "$journal_bytes" -le 4194304; then base64 -w0 .onevibe-events.jsonl 2>/dev/null || true; fi`, signal)
+        let snapshot: Awaited<ReturnType<OneComputerClient['exec']>>
+        try {
+          snapshot = await this.client.exec(sandbox.id, `cd ${shellQuote(workspace)} && journal_bytes=$(wc -c < .onevibe-events.jsonl 2>/dev/null || printf 0) && if test "$journal_bytes" -gt 4194304; then printf 'oversize:%s\n' "$journal_bytes"; elif test -f .onevibe-exitcode; then printf 'done:'; cat .onevibe-exitcode; printf '\n'; else printf 'running:\n'; fi; if test "$journal_bytes" -le 4194304; then base64 -w0 .onevibe-events.jsonl 2>/dev/null || true; fi`, signal)
+        } catch (error) {
+          if (signal.aborted) throw error
+          await store.appendEvent(task.id, {
+            type: 'activity_delta', lane: 'control', label: 'ONEComputer agent poll retry',
+            content: 'The sandbox event-journal poll did not complete; ONEVibe will retry within the bounded task window.',
+            payload: { sandboxId: sandbox.id, operation: 'exec_event_journal', retry: true, errorClass: error instanceof Error ? error.name : 'unknown_error' },
+          })
+          continue
+        }
         if (snapshot.exitCode !== 0) throw new Error('Unable to poll sandbox Claude event journal')
         const [status, encodedJournal = ''] = snapshot.output.split('\n', 2)
         if (status?.startsWith('oversize:')) throw new Error(`Sandbox Claude event journal exceeded the 4 MiB limit (${status.slice('oversize:'.length)} bytes)`)
