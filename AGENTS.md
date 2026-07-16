@@ -59,6 +59,8 @@ Run `npm run e2e:golden` for the local release flow: it starts its own temporary
 
 Run `npm run e2e:document-roundtrip` for the deterministic document contract: it starts a temporary API, creates a demo document, edits `document.md` through the HTTP route, verifies the derived HTML/PDF change, restores the pre-edit immutable version, and verifies source/preview/PDF hashes plus evidence-chain validity.
 
+Data mode must parse CSV through the bounded shared parser in `src/lib/csv.ts`; never use `split(',')` for user/provider-authored data. Malformed quoting and inconsistent column counts must fail visibly, and analysis metadata must retain source lineage without copying secrets or raw provider payloads.
+
 ## Frontend foundation
 
 Use `assistant-ui` as the preferred foundation for ONEVibe conversation threads, streaming messages, composer, history navigation, accessible message actions, and tool-state rendering. Preserve ONEComputer's bespoke dark/light visual system and custom evidence/artifact rail rather than forcing those surfaces into generic chat components. Any adoption must bind to the real server transcript/SSE contracts; demo arrays or browser-authoritative history are prohibited.

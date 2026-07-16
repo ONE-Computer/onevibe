@@ -24,6 +24,12 @@
 - Remaining limitation: this proves the local source/projection contract; native document live-provider evidence and richer layout/Markdown semantics remain open.
 - Added `npm run e2e:document-roundtrip` for the HTTP-level proof. Task `task_9c72a7cd51ee4f` passed source edit, derived preview/PDF change, immutable pre-edit restore, exact source/preview/PDF restoration, PDF content type, and evidence-chain verification.
 
+## 2026-07-16 — bounded CSV parsing and lineage
+
+- Replaced the workspace data table's naïve comma split with the shared bounded parser in `src/lib/csv.ts`. Quoted commas, embedded newlines, escaped quotes, CRLF input, row/column limits, malformed quoting, and inconsistent columns are covered by tests.
+- Server artifact validation now uses the same parser and rejects malformed data clearly. Deterministic data artifacts record bounded schema, row count, and source lineage in `analysis.json`; the UI surfaces parse failures as “Dataset needs review”.
+- Full local check passes with 36 test files / 201 tests. This is local artifact/data-contract evidence; connectors, live sources, chart editing, and provider-derived data lineage remain open.
+
 ## 2026-07-16 — local-first Manus parity pivot and activity rail
 
 - Re-scoped the active release gate to ONE-230: local ONEVibe reliability and Manus parity. Azure, ONEComputer, OpenVTC/VTI, and attested microVM work remain tracked but are explicitly deferred until the local gate is green.

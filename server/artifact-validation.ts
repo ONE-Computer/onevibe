@@ -1,6 +1,7 @@
 import type { TaskStore } from './store.js'
 import type { Task, TaskMode } from './types.js'
 import { PDFDocument } from 'pdf-lib'
+import { parseCsv } from '../src/lib/csv.js'
 
 export type ArtifactCheck = {
   id: string
@@ -72,8 +73,22 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
   if (task.mode === 'data') {
     const csv = await required(store, task.id, 'data.csv', checks)
     const analysis = await required(store, task.id, 'analysis.json', checks)
-    check(checks, 'data:rows', Boolean(csv?.split('\n').filter(Boolean).length && csv.split('\n').filter(Boolean).length >= 2), 'Dataset contains a header and at least one row')
-    try { JSON.parse(analysis ?? '') ; check(checks, 'data:analysis-json', true, 'Analysis manifest is valid JSON') } catch { check(checks, 'data:analysis-json', false, 'Analysis manifest is valid JSON') }
+    try {
+      const parsed = parseCsv(csv ?? '')
+      check(checks, 'data:rows', parsed.rowCount > 0, 'Dataset contains a header and at least one row')
+      check(checks, 'data:columns', parsed.columnCount > 0, 'Dataset has a bounded schema')
+    } catch (error) {
+      check(checks, 'data:rows', false, error instanceof Error ? error.message : 'Dataset CSV could not be parsed')
+      check(checks, 'data:columns', false, 'Dataset schema is unavailable because CSV parsing failed')
+    }
+    try {
+      const parsed = JSON.parse(analysis ?? '') as { lineage?: unknown }
+      check(checks, 'data:analysis-json', true, 'Analysis manifest is valid JSON')
+      check(checks, 'data:lineage', Boolean(parsed && typeof parsed === 'object' && parsed.lineage), 'Analysis metadata records source lineage')
+    } catch {
+      check(checks, 'data:analysis-json', false, 'Analysis manifest is valid JSON')
+      check(checks, 'data:lineage', false, 'Analysis metadata records source lineage')
+    }
   }
   if (task.mode === 'design') {
     await required(store, task.id, 'ideas.md', checks)

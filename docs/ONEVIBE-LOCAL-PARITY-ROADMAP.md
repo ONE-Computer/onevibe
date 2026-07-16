@@ -124,6 +124,8 @@ Each slice must report: issue identifier, exact files touched, tests run, eviden
 
 The document slice is now implemented locally: deterministic and native Claude document tasks derive `index.html` and `document.pdf` from `document.md`, and the server regenerates those outputs after guarded source edits and version restores. Focused mode/validation tests, the HTTP round-trip (`task_9c72a7cd51ee4f`), and the full local check pass. Native-provider live document evidence and richer layout/Markdown semantics remain open; this is not a claim that all document authoring features are complete.
 
+The data slice now has a shared bounded CSV parser, visible malformed-input handling, and deterministic source-lineage metadata. The remaining data acceptance work is a provider-backed quoted-CSV golden task plus richer table/chart review; connector and live-source work remains out of scope for the local POC.
+
 ## Metrics for the local POC
 
 - ≥95% of golden tasks complete without manual server intervention.
