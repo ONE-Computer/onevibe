@@ -18,6 +18,11 @@
 - Closed the remaining local P5-02 boundary. Active task stop/retry/follow-up/branch/share/guidance/project/tag actions already use TanStack Query mutation hooks; this pass makes share requests and queued-guidance removal visibly pending, keeps the composer disabled during active mutation requests, and preserves toast-based mutation errors.
 - `useTask` remains the sole server-authoritative SSE/replay snapshot. Successful mutations either refresh that snapshot or reconcile server-derived task/conversation/library caches; no second browser-owned transcript store was introduced. `npm run lint`, `npm run test` (50 files / 247 tests), and `npm run build` pass.
 
+## 2026-07-17 — browser-found desktop grid overflow
+
+- Browser QA at a 1,280×900 viewport found that Sonner's notification region was being rendered inside `.app-shell` as an extra CSS-grid child. That pushed the main shell onto a second row, compressed the task view to the first grid track, and produced a 9px horizontal overflow despite the mobile layout appearing healthy.
+- Moved `<Toaster>` outside the application grid and pinned `.main-shell` to the second grid column. Rechecked the current Vite app at 1,280×900 and 390×844: both report no horizontal overflow; the 390px task flow completed an explicit simulation chat (`task_81887ee319804a`) with the conversation surface visible. The protected Claude/LiteLLM browser acceptance remains open because no relay credentials were present in this local session.
+
 ## 2026-07-17 — handover evidence reconciliation
 
 - Reconciled the phase checklist against the current implementation and regression evidence: P1-01 backend-offline recovery, P1-08 permanent simulation disclosure, and P2-07 durable guidance queueing are complete and now marked as such in `TODO.md`.
