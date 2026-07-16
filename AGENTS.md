@@ -33,6 +33,10 @@ The release-critical dependency order is `ONE-216` conversation persistence → 
 
 Read `docs/LINEAR-BOARD.md` before changing issue state or scope. The API credential is read only into a shell variable from `../handover/onecomputer-handover-secrets-lean/mac/linear-api-key.txt`; never print, commit, paste, or place it in a URL. Keep one major epic In Progress and attach exact commit/test/provider evidence in issue comments after material slices.
 
+Use the repository-local helper for subsequent Linear operations: `npm run linear -- help`. It supports `project`, paginated `issues`, `issue ONE-223`, `comment ONE-223 --body "..."` (or `--file PATH`), `state ONE-223 --name "In Progress"`, and `create-issue`. Mutations require `--confirm` and support `--dry-run`. It defaults to the canonical ONEVibe project and resolves credentials from `LINEAR_API_KEY`, then `LINEAR_API_KEY_FILE`, then the documented handover file. Never add a token as a CLI argument, print it, put it in a URL, or create a `.env` file. Prefer `--json` for machine-readable read output; mutation commands return only safe IDs and state results.
+
+The helper intentionally does not expose arbitrary GraphQL. Add a narrowly named command plus tests when a new recurring operation is needed, and keep the GraphQL selection/mutation in `scripts/linear-cli.ts` reviewed alongside the board documentation. Before a state mutation, inspect the issue and verify the target state name belongs to its team. Comments must include the commit, verification command, evidence boundary, and remaining limitations; never paste secrets or raw provider payloads.
+
 ## Durable engineering memory
 
 Documentation is part of every material slice. Update `docs/IMPLEMENTATION-LOG.md` for shipped behavior and `docs/LIVE-E2E-ENGINEERING-LOG.md` for live observations, failed experiments, provider/runtime IDs that are safe to retain, fixes, and remaining gates. Architecture or credential decisions receive a dedicated document/ADR; do not leave them only in chat or Linear comments. Keep secrets, account IDs, raw provider bodies, auth headers, and credential values out of all docs.

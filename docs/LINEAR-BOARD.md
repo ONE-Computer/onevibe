@@ -42,6 +42,22 @@ Neither platform enhancement blocks the immediate POC. The POC may use the curre
 
 Read the credential at `../handover/onecomputer-handover-secrets-lean/mac/linear-api-key.txt` only into `LINEAR_API_KEY` for the duration of a command. Send GraphQL requests to `https://api.linear.app/graphql` with the key in the `Authorization` header. Never print the key, use `set -x`, include it in a URL or issue, write it into `.env`, or commit it.
 
+## Repository-local helper
+
+Use the checked-in CLI instead of hand-written GraphQL snippets:
+
+```bash
+npm run linear -- help
+npm run linear -- issues
+npm run linear -- issue ONE-223 --json
+npm run linear -- comment ONE-223 --file /tmp/evidence.md --confirm
+npm run linear -- state ONE-223 --name "In Progress" --confirm
+npm run linear -- state ONE-223 --name "Done" --dry-run
+npm run linear -- create-issue --title "New work" --description-file /tmp/issue.md --confirm
+```
+
+The helper lives at `scripts/linear-cli.ts` and uses the canonical project/team IDs by default. Issue listing follows Relay cursors until complete and supports `--state`/`--priority` filters. Credential precedence is `LINEAR_API_KEY`, `LINEAR_API_KEY_FILE`, then the handover key file relative to the repository. It never accepts a credential flag, prints an authorization header, or supports arbitrary GraphQL. Read commands are safe to repeat; mutations require explicit `--confirm` or can be inspected with `--dry-run`. Add new board workflows as typed commands with focused tests rather than copying curl payloads into agent instructions.
+
 ## Hygiene
 
 - Keep one canonical ticket per deliverable and preserve old history with a successor comment before closing a superseded issue.
