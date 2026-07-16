@@ -593,3 +593,8 @@ button{transition:background .15s ease, color .15s ease, border-color .15s ease,
   .home-hero-heading{margin-bottom:22px}
   .home-hero-heading h1{font-size:clamp(32px,4vw,44px)!important}
 }
+
+/* Phase 10 hotfix — the model-selector <button> loses its text color in
+   some load paths (button + text-node inheritance quirk). Force it. */
+button.model-selector{color:var(--text-primary)!important;background:transparent}
+button.model-selector *{color:inherit}
