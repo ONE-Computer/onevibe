@@ -1,5 +1,6 @@
 export * from './contracts.js'
 export * from './database.js'
+export * from './driver-config.js'
 export * from './errors.js'
 export * from './legacy-importer.js'
 export * from './migrations.js'

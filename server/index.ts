@@ -28,6 +28,7 @@ import { writeDocumentReviewArtifacts } from './mode-artifacts.js'
 import { isInternalWorkspacePath } from './artifact-path.js'
 import { serveStatic } from './static-files.js'
 import { AuthService } from './auth.js'
+import { resolvePersistenceConfig } from './persistence/driver-config.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -45,6 +46,7 @@ const ONECOMPUTER_VISUAL_RUNTIME = process.env.ONECOMPUTER_VISUAL_RUNTIME !== 'f
 const ONECOMPUTER_BROWSER_AUTOMATION = process.env.ONECOMPUTER_BROWSER_AUTOMATION === 'true'
 const WALLET_TOKEN = process.env.ONEVIBE_WALLET_TOKEN
 const TURN_TIMEOUT_MS = resolveTurnTimeoutMs()
+const persistenceConfig = resolvePersistenceConfig()
 // Only this readiness boolean is sent to the browser. Credential material
 // remains server-only and is never copied into task evidence.
 const claudeProvider = claudeProviderConfig()
@@ -368,7 +370,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     return json(response, 200, {
       modelBoundary: { name: 'LiteLLM', configured: claudeConfigured, directFirstPartyAllowed: false, detail: claudeConfigured ? 'Model traffic is configured to traverse the server-controlled LiteLLM relay.' : 'Configure the server-controlled LiteLLM relay; direct first-party model credentials are not accepted.' },
       auth: { enabled: Boolean(authService?.isEnabled), sessionScoped: Boolean(actorUserId), productionReady: false, detail: authService?.isEnabled ? 'Local user scope is active; Postgres/org/production acceptance remains open.' : 'Authentication is disabled in local mode.' },
-      persistence: { active: 'sqlite', postgresContract: true, runtimeSwitchReady: false, detail: 'The running TaskStore is local SQLite; the reviewed Drizzle/Postgres contract is not the active runtime driver.' },
+      persistence: persistenceConfig,
       runtime: { providers: readiness.providers, defaultProvider: readiness.defaultProvider },
       sandbox: { configured: oneComputerConfigured, ...(reachable !== undefined ? { reachable } : {}), boundary: oneComputerConfigured ? 'development ONEComputer adapter' : 'host-process local runtime', detail: oneComputerConfigured ? (reachable ? 'ONEComputer health probe is reachable; production attestation remains open.' : 'ONEComputer is configured but the health probe is unreachable.') : 'No isolated sandbox is configured.' },
       mcp: { configuredCount: store.listMcpConfigs(actorUserId).length, secretValuesAccepted: false, detail: 'MCP declarations are server-owned and secret-free; secret brokering and external-server health remain open.' },
