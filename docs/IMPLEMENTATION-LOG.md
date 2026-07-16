@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-16 — unified tool narrative and mode-aware Computer inspector
+
+- Removed tool-call rows from the assistant-ui working summary when the same `(runId, toolUseId)` is already rendered as a native assistant-ui tool part and a durable Computer-rail card. The assistant message now carries the operational/control summary; the detailed command/result appears once in the tool card and once in the side evidence inspector.
+- General tasks with a real CLI command now open the Computer inspector on the latest command/result by default. Website/document/slide tasks retain deliverable-first behavior, while manifest and validation receipts are excluded from the default selection.
+- Browser verification on `task_f8d51a10de4f4d`: the selected rail card is `CLI command · Bash`, showing `$ wc -c NOTES.md` and `333 NOTES.md`; the assistant working summary fell from 14 to 11 steps and no longer repeats Bash.
+- Focused verification: 29 ComputerTimeline/assistant-projection tests passed and lint is green. Full repository gate and the live Claude acceptance rerun remain required before this slice is considered release-ready.
+
 ## 2026-07-16 — browser truthfulness pass for internal skill evidence
 
 - Browser QA caught a gap that API-only acceptance could not: selected `.claude/skills/*/SKILL.md` runtime guides appeared in a normal chat's workspace count as if they were portable user artifacts, and provider `thinking tokens` telemetry appeared as repeated user-facing trace steps.

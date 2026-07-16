@@ -53,8 +53,10 @@ describe('assistant tool projection', () => {
       event(4, 'run_completed', { executionRoute: 'claude_agent_sdk' }, 'Done.'),
     ]
     const [projected] = projectAssistantToolCalls([message], events)
-    expect(projected?.trace).toHaveLength(3)
-    expect(projected?.trace?.find((item) => item.kind === 'tool')).toMatchObject({ label: 'Bash', status: 'completed' })
+    expect(projected?.trace).toHaveLength(2)
+    expect(projected?.trace?.find((item) => item.kind === 'tool')).toBeUndefined()
+    expect(projected?.toolParts).toHaveLength(1)
+    expect(projected?.toolParts?.[0]).toMatchObject({ toolName: 'Bash', isError: false })
     expect(JSON.stringify(projected?.trace)).not.toContain('secret')
   })
 

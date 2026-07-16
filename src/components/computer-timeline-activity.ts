@@ -188,12 +188,21 @@ export const artifactRailItems = (items: ComputerItem[]) => {
   return items.filter((item) => !folded.has(item.id)).map((item) => ({ ...item, relatedEventIds: related.get(item.id) }))
 }
 
-/** A settled task opens on its delivered visual output, not its final receipt. */
-export const defaultComputerItem = (items: ComputerItem[], settled: boolean) => {
+const isControlArtifact = (item: ComputerItem) => /(?:^|\/)(?:artifact-manifest|validation-report|sandbox-build-report)\.json$/i.test(item.detail ?? '')
+
+/** A settled task opens on the most useful evidence for its mode, not a control receipt. */
+export const defaultComputerItem = (items: ComputerItem[], settled: boolean, mode?: TaskSnapshot['mode']) => {
   if (!items.length) return undefined
   if (!settled) return items.at(-1)
-  return [...items].reverse().find((item) => item.kind === 'screenshot' || item.kind === 'preview' || item.kind === 'slide')
-    ?? [...items].reverse().find((item) => item.kind === 'terminal')
+  const reverse = [...items].reverse()
+  // For a general task the terminal command/result is the primary proof of
+  // execution. Website/document/slide modes still open on their deliverable.
+  if (mode === 'general') return reverse.find((item) => item.kind === 'terminal' && Boolean(commandFor(item.payload?.input)))
+    ?? reverse.find((item) => ['screenshot', 'preview', 'slide'].includes(item.kind) && !isControlArtifact(item))
+    ?? reverse.find((item) => item.kind === 'terminal')
+  return reverse.find((item) => (item.kind === 'screenshot' || item.kind === 'preview' || item.kind === 'slide') && !isControlArtifact(item))
+    ?? reverse.find((item) => item.kind === 'terminal')
+    ?? reverse.find((item) => !isControlArtifact(item))
     ?? items.at(-1)
 }
 

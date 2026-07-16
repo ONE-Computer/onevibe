@@ -129,12 +129,14 @@ describe('Computer timeline terminal inspection', () => {
   })
 
   it('opens settled work on its latest visual deliverable while active work follows the newest event', () => {
-    const terminal: ComputerItem = { id: 'terminal', kind: 'terminal', title: 'Write source', createdAt: '2026-07-16T00:00:01.000Z' }
+    const terminal: ComputerItem = { id: 'terminal', kind: 'terminal', title: 'Write source', createdAt: '2026-07-16T00:00:01.000Z', payload: { input: { command: 'wc -c NOTES.md' } } }
     const preview: ComputerItem = { id: 'preview', kind: 'preview', title: 'Interactive preview', createdAt: '2026-07-16T00:00:02.000Z' }
     const control: ComputerItem = { id: 'control', kind: 'approval', title: 'Approval pending', createdAt: '2026-07-16T00:00:03.000Z' }
     expect(defaultComputerItem([terminal, preview, control], true)?.id).toBe('preview')
     expect(defaultComputerItem([terminal, control], true)?.id).toBe('terminal')
     expect(defaultComputerItem([terminal, preview, control], false)?.id).toBe('control')
+    expect(defaultComputerItem([terminal, preview], true, 'general')?.id).toBe('terminal')
+    expect(defaultComputerItem([{ ...preview, detail: 'artifact-manifest.json' }, terminal], true, 'website')?.id).toBe('terminal')
   })
 
   it('windows a long rail while retaining an overscan buffer for smooth scrolling', () => {

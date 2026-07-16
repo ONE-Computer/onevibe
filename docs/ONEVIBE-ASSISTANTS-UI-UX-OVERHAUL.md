@@ -6,7 +6,7 @@ Design constraint: **sans-serif typography only**
 
 ## Implementation update — 2026-07-16
 
-The first execution-narrative slice is now in place: the assistant-ui projection receives real running state, renders a compact operational trace from durable events, removes the duplicate raw runtime checkpoint list from the default conversation, and opens tool-backed tasks directly in the Computer inspector. The trace is deliberately evidence-oriented rather than hidden chain-of-thought. The broader native composer, inspector, typography, and responsive visual-regression work remains on the roadmap below.
+The execution-narrative slice is now backed by real running state: the assistant-ui projection renders durable user/assistant turns, native tool parts, a compact operational summary, and task-bound artifact cards; tool-backed tasks open directly in the Computer inspector. A follow-up browser pass removed duplicate tool rows from the summary and made general tasks open on their latest CLI command/result, while keeping hidden chain-of-thought out of the product. The broader native composer, inspector, typography, and responsive visual-regression work remains open.
 
 ## North star
 
@@ -45,11 +45,11 @@ ONEVibe should reuse these primitives and patterns while retaining its own backe
 
 ### 1. The thread is assistant-ui-shaped, not assistant-ui-native
 
-`src/components/AssistantThread.tsx` uses `useExternalStoreRuntime` and a few primitives, but it manually owns most thread behavior. It hardcodes `isRunning: false`, uses a custom virtualizer, custom message cards, custom tool cards, custom attachment state, and a separate composer footer. The result is a visually coherent demo but not a complete runtime-driven chat experience.
+`src/components/AssistantThread.tsx` now uses `useExternalStoreRuntime`, durable task status, native tool parts, and a measured virtualized turn list, but it still manually owns the message visuals, attachment state, and composer footer. The result is a real runtime-driven projection, but not yet a complete assistant-ui-native conversation shell.
 
-### 2. The conversation is split across competing narratives
+### 2. The conversation and inspector still need a single contextual narrative
 
-The task page separately renders `AssistantThread`, `TaskTimeline`, and `Workspace`. The same work is therefore described as assistant messages, runtime checkpoints, plan rows, and Computer rail entries. The user has to reconcile several timelines instead of following one conversation with expandable evidence.
+The assistant thread now removes duplicate raw tool rows, and the Computer rail owns detailed command/result evidence. The task page still has separate conversation, plan, and inspector surfaces; the next step is contextual selection and typed inline links so the user can follow one narrative without manually reconciling panels.
 
 ### 3. The home composer is too dense and exposes implementation details too early
 

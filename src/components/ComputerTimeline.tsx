@@ -44,7 +44,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   const lastItemId = items.at(-1)?.id
   const selected = Math.max(0, items.findIndex((item) => item.id === selectedId))
   const settled = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled'
-  const defaultItem = useMemo(() => defaultComputerItem(items, settled), [items, settled])
+  const defaultItem = useMemo(() => defaultComputerItem(items, settled, task.mode), [items, settled, task.mode])
   const replayFrames = useMemo(() => filterItemsByRun(railItems, runFilter).filter((item) => item.kind === 'screenshot' && !item.live), [railItems, runFilter])
   const visibleRange = virtualRailRange(items.length, railScrollTop, railViewportHeight, RAIL_ROW_HEIGHT)
   const comparison = useMemo(() => comparisonRunId && runFilter !== 'all' && comparisonRunId !== runFilter ? { baseline: summarizeRunEvidence(railItems, comparisonRunId), candidate: summarizeRunEvidence(railItems, runFilter), artifacts: compareRunArtifacts(railItems, comparisonRunId, runFilter) } : undefined, [comparisonRunId, railItems, runFilter])

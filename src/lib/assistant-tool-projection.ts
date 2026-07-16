@@ -38,24 +38,18 @@ export const projectAssistantToolCalls = (messages: ChatMessage[], events: Runti
   const artifactsByTurn = new Map<string, Map<string, AssistantArtifact>>()
   const tracesByTurn = new Map<string, AssistantTraceItem[]>()
   const byInvocation = new Map<string, AssistantToolPart>()
-  const traceByInvocation = new Map<string, AssistantTraceItem>()
   const traceByKey = new Map<string, AssistantTraceItem>()
   for (const event of events) {
     if (event.runId) {
       const traces = tracesByTurn.get(event.runId) ?? []
       const toolUseId = stringValue(event.payload.toolUseId)
       if (event.type === 'tool_call_started' && toolUseId) {
-        const trace: AssistantTraceItem = { id: `${event.id}:trace`, label: event.label ?? 'Tool call', detail: safeTraceDetail(event.content), status: 'running', createdAt: event.createdAt, kind: 'tool' }
-        traces.push(trace)
-        traceByInvocation.set(`${event.runId}:${toolUseId}`, trace)
+        // Tool calls have their own assistant-ui part and the Computer rail
+        // card. Keeping them out of the summary prevents the same command
+        // from appearing three times in one turn.
       } else if (event.type === 'tool_call_completed' && toolUseId) {
-        const trace = traceByInvocation.get(`${event.runId}:${toolUseId}`)
-        if (trace) {
-          trace.status = event.payload.isError === true ? 'failed' : 'completed'
-          trace.detail = safeTraceDetail(event.content) ?? trace.detail
-        } else {
-          traces.push({ id: `${event.id}:trace`, label: event.label ?? 'Tool result', detail: safeTraceDetail(event.content), status: event.payload.isError === true ? 'failed' : 'completed', createdAt: event.createdAt, kind: 'tool' })
-        }
+        // The paired tool result is folded into the tool part below and the
+        // immutable Computer rail. Do not duplicate it in the summary.
       } else if (event.type === 'run_started' || event.type === 'run_completed' || event.type === 'run_failed' || event.type === 'run_cancelled') {
         const key = `${event.runId}:run`
         const existing = traceByKey.get(key)
