@@ -15,6 +15,12 @@
 - A worker was assigned the bounded generated-Website build proof. It may add only a dedicated E2E script and minimal package wiring; it may not change shared runtime contracts, Linear, or security boundaries. The main agent will review its diff and rerun the full gate.
 - A separate platform observation remains deferred: the ONEComputer adapter can still over-report completion when provider-side artifact validation fails. This is a real production-provider risk, but it is not allowed to expand the local-first ONEVibe POC scope before the local creation and conversation gates are stronger.
 
+## 2026-07-16 — bounded generated Website build proof
+
+- Accepted the worker's isolated `scripts/website-build-e2e.ts` slice and added `npm run e2e:website-build` plus harness typecheck wiring. It creates a temporary demo Website task, extracts only the portable app files, verifies the static report/HTML/React entry/build-script contracts, and optionally performs a bounded temporary `npm install` when explicitly requested with `--install`.
+- The proof fails closed when required generated packages are missing: the current run passed all static checks but returned build `unavailable` for `@tailwindcss/vite` and `tailwindcss` without attempting external installation. This is useful negative evidence, not a generated-project build pass.
+- No browser automation, external provider, Linear call, secret, or deployment claim is part of this script. The Website gate remains open until an explicitly authorized dependency-install/build run produces `dist/index.html`, followed by browser/a11y evidence from the generated output.
+
 ## 2026-07-16 — product-lead queue and delegation cadence
 
 - Reframed the next phase as five bounded workstreams: a local API golden flow, document round-trip, quoted-CSV/data lineage, website build/review, and browser golden-flow coverage.
