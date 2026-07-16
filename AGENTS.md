@@ -45,6 +45,8 @@ Use `assistant-ui` as the preferred foundation for ONEVibe conversation threads,
 
 Read `docs/ASSISTANT-UI-ARCHITECTURE.md` before changing the conversation surface. Use `useExternalStoreRuntime`: SQLite/API/SSE own history and run state, while assistant-ui only projects messages and submits continuations. Do not add a browser-owned queue, optimistic durable transcript, or duplicate transcript in `TaskTimeline`. Provider state belongs in the task/evidence surfaces, and approvals remain outside the chat framework.
 
+Conversation navigation must use the cursor-paginated `/api/conversations` contract. Keep full-text search server-side so unloaded history remains discoverable. Client summary reordering is allowed only from a newer authoritative task snapshot; never infer a durable message from composer state.
+
 ## Sandbox artifact dependencies
 
 Artifact tooling required by an acceptance gate must be image/bootstrap managed and verified before the runtime reports ready. Never make a live agent install packages through the development proxy. Keep Claude's `--tools` availability mode-specific and use `--allowedTools` only as the separate approval layer; adding an approval allowlist does not remove a tool. Slide mode may receive a narrowly documented shell capability to invoke preinstalled renderers, while ordinary conversation modes must not.

@@ -1,4 +1,4 @@
-import type { ChatMessage, LibraryItem, Project, ProjectFileVersion, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { ChatMessage, ConversationSummary, LibraryItem, Project, ProjectFileVersion, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 const parse = async <T>(response: Response): Promise<T> => {
   const body = await response.json() as T & { error?: string }
@@ -7,6 +7,12 @@ const parse = async <T>(response: Response): Promise<T> => {
 }
 
 export const listTasks = async () => parse<{ tasks: Task[] }>(await fetch('/api/tasks'))
+export const listConversations = async (cursor?: string, limit = 50, query?: string) => {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (cursor) params.set('cursor', cursor)
+  if (query) params.set('q', query)
+  return parse<{ conversations: ConversationSummary[]; nextCursor?: string }>(await fetch(`/api/conversations?${params}`))
+}
 export const getRuntimeReadiness = async () => parse<RuntimeReadiness>(await fetch('/api/runtime'))
 export const listLibrary = async () => parse<{ items: LibraryItem[] }>(await fetch('/api/library'))
 

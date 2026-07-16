@@ -7,6 +7,19 @@ export type RunStatus =
   | 'failed'
   | 'cancelled'
 
+export type ConversationSummary = {
+  id: string
+  title: string
+  status: RunStatus
+  provider: Task['provider']
+  mode: TaskMode
+  projectId: string
+  messageCount: number
+  lastMessage?: { role: ChatMessage['role']; preview: string; status: ChatMessage['status']; createdAt: string }
+  createdAt: string
+  updatedAt: string
+}
+
 export type EventLane = 'transcript' | 'activity' | 'control' | 'artifact' | 'approval'
 export type PresentationPanel = 'terminal' | 'screenshot' | 'preview' | 'file' | 'diff' | 'slide' | 'approval'
 export type PresentationDescriptor = { panel: PresentationPanel; uri?: string; artifactPath?: string }

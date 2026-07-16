@@ -34,6 +34,19 @@ export type WorkspaceVersion = { id: string; taskId: string; label: string; crea
 export type WorkspaceVersionComparison = { version: WorkspaceVersion; comparedAt: string; summary: { added: number; changed: number; removed: number }; changes: Array<{ path: string; status: 'added' | 'changed' | 'removed'; beforeSize?: number; afterSize?: number; beforeHash?: string; afterHash?: string }>; truncated: boolean }
 export type ChatMessage = { id: string; taskId: string; turnId: string; role: 'user' | 'assistant' | 'system'; content: string; status: 'streaming' | 'completed' | 'failed' | 'cancelled'; provider?: Task['provider']; createdAt: string; updatedAt: string }
 
+export type ConversationSummary = {
+  id: string
+  title: string
+  status: RunStatus
+  provider: Task['provider']
+  mode: TaskMode
+  projectId: string
+  messageCount: number
+  lastMessage?: { role: ChatMessage['role']; preview: string; status: ChatMessage['status']; createdAt: string }
+  createdAt: string
+  updatedAt: string
+}
+
 export type Task = {
   id: string
   title: string

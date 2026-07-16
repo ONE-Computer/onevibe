@@ -4,7 +4,7 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promi
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
-import type { ChatMessage, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
+import type { ChatMessage, ConversationSummary, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, type MessageRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type UnitOfWork } from './persistence/index.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
@@ -197,6 +197,45 @@ export class TaskStore {
 
   listTasks() {
     return [...this.tasks.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  listConversations(options: { cursor?: string; limit?: number; projectId?: string; query?: string } = {}) {
+    const limit = options.limit ?? 50
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new RangeError('Conversation page limit must be between 1 and 100')
+    let after: { updatedAt: string; id: string } | undefined
+    if (options.cursor) {
+      try {
+        const value = JSON.parse(Buffer.from(options.cursor, 'base64url').toString('utf8')) as Partial<{ v: number; updatedAt: string; id: string }>
+        if (value.v !== 1 || typeof value.updatedAt !== 'string' || !Number.isFinite(Date.parse(value.updatedAt)) || typeof value.id !== 'string' || !value.id) throw new Error('invalid')
+        after = { updatedAt: value.updatedAt, id: value.id }
+      } catch {
+        throw new RangeError('Conversation cursor is invalid')
+      }
+    }
+    const query = options.query?.trim().toLocaleLowerCase()
+    if (query && (query.length < 2 || query.length > 200)) throw new RangeError('Conversation search must be between 2 and 200 characters')
+    const summaries = [...this.tasks.values()].filter((task) => {
+      if (options.projectId && task.projectId !== options.projectId) return false
+      if (!query) return true
+      return task.title.toLocaleLowerCase().includes(query) || (this.messages.get(task.id) ?? []).some((message) => message.content.toLocaleLowerCase().includes(query))
+    }).map((task): ConversationSummary => {
+      const messages = (this.messages.get(task.id) ?? []).filter((message) => message.role !== 'system')
+      const last = messages.at(-1)
+      const updatedAt = last && last.updatedAt > task.updatedAt ? last.updatedAt : task.updatedAt
+      return {
+        id: task.id, title: task.title, status: task.status, provider: task.provider, mode: task.mode, projectId: task.projectId,
+        messageCount: messages.length,
+        ...(last ? { lastMessage: { role: last.role, preview: last.content.replace(/\s+/g, ' ').trim().slice(0, 180) || (last.status === 'cancelled' ? 'Run cancelled before a response.' : last.status === 'failed' ? 'Run failed before a response.' : 'Response pending…'), status: last.status, createdAt: last.createdAt } } : {}),
+        createdAt: task.createdAt, updatedAt,
+      }
+    }).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id))
+      .filter((item) => !after || item.updatedAt < after.updatedAt || (item.updatedAt === after.updatedAt && item.id < after.id))
+    const page = summaries.slice(0, limit)
+    const tail = page.at(-1)
+    return {
+      conversations: page,
+      ...(summaries.length > page.length && tail ? { nextCursor: Buffer.from(JSON.stringify({ v: 1, updatedAt: tail.updatedAt, id: tail.id })).toString('base64url') } : {}),
+    }
   }
 
   findActiveRuntimeLease(conversationId: string) {

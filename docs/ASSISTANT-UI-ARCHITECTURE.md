@@ -19,6 +19,12 @@ Assistant-ui owns transcript rendering, accessible message semantics, and the co
 
 The adapter preserves durable message ID, role, content, creation time, task ID, turn ID, and provider metadata. Only assistant messages receive assistant-ui completion status; assigning status to user messages is invalid in assistant-ui and fails rendering.
 
+## Conversation history
+
+`GET /api/conversations` is the sidebar history contract. It merges persisted task metadata with the SQLite-backed message stream and returns stable, reverse-chronological summaries containing message count, last-message preview/status, provider, mode, project, and timestamps. Pages use an opaque cursor bound to the final `(updatedAt, id)` ordering pair; malformed or out-of-range requests fail closed with HTTP 400. Full-text sidebar search executes on the server so conversations outside the currently loaded page remain discoverable.
+
+The browser may optimistically reorder a summary only from a newer authoritative `TaskSnapshot` received through the existing task API/SSE path. Reload always reconstructs the list from the server. Loading older pages deduplicates by conversation ID, and URL navigation remains the durable selection mechanism so browser back/forward restores the selected conversation.
+
 ## Failure and migration rules
 
 - Never introduce browser-local conversation arrays as a fallback.
@@ -29,4 +35,4 @@ The adapter preserves durable message ID, role, content, creation time, task ID,
 
 ## Verification
 
-The first integration gate covers conversion unit tests, the full repository check, and browser inspection in light and dark themes. Later gates should exercise persisted thread navigation, reconnect during streaming, queued guidance, error/cancellation rendering, mobile layout, and attachment/tool-part contracts.
+The first integration gate covers conversion unit tests, cursor/search/restart history tests, the full repository check, and browser inspection in light and dark themes. Later gates should exercise reconnect during streaming, queued guidance, error/cancellation rendering, mobile layout, and attachment/tool-part contracts.

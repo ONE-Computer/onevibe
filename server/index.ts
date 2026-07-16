@@ -222,6 +222,12 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   }
   if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, runtimeReadiness({ claudeConfigured, claudeTransport: claudeProvider.transport, remoteConfigured: Boolean(REMOTE_RUNTIME_URL), oneComputerConfigured, oneComputerReachable: await oneComputerReachability() }))
 
+  if (request.method === 'GET' && url.pathname === '/api/conversations') {
+    await store.reconcileExpiredApprovals()
+    const limit = url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined
+    return json(response, 200, store.listConversations({ cursor: url.searchParams.get('cursor') ?? undefined, limit, projectId: url.searchParams.get('projectId') ?? undefined, query: url.searchParams.get('q') ?? undefined }))
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
     await store.reconcileExpiredApprovals()
     return json(response, 200, { tasks: store.listTasks() })
@@ -624,7 +630,7 @@ setInterval(() => { void runDueSchedules().catch((error: unknown) => console.err
 createServer((request, response) => {
   route(request, response).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)
-    const status = error instanceof z.ZodError ? 400
+    const status = error instanceof z.ZodError || error instanceof RangeError ? 400
       : message === 'Wallet authorization failed' ? 401
         : /^(?:Task|Approval|Share|Input request) not found/.test(message) ? 404
           : /(?:not pending|has expired|no longer active)/.test(message) ? 409

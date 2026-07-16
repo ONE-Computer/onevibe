@@ -109,3 +109,4 @@
 - Removed transcript events from `TaskTimeline`, leaving that surface focused on plan, sandbox, tool, evidence, and artifact operations.
 - Preserved ONEComputer light/dark styling and the bespoke evidence/artifact rail.
 - Added conversion tests and browser-checked the persisted transcript/composer. The assistant-ui bundle is split from the initial application chunk.
+- Replaced the sidebar's all-task approximation with cursor-paginated `/api/conversations` summaries derived from persisted task metadata and SQLite messages. History now includes truthful last-message status/preview and count, server-side full-text search across unloaded pages, incremental older-page loading, SSE-driven summary reordering, and reload-safe URL selection.
