@@ -22,6 +22,8 @@ The handover adds [ONE-245](https://linear.app/onecomputer/issue/ONE-245/secp0-e
 
 The first handover Phase 2 engineering ticket is [ONE-246](https://linear.app/onecomputer/issue/ONE-246/bep1-implement-provider-neutral-runtimeadapter-lifecycle-contract). It tracks the provider-neutral lifecycle contract implemented in commits `dfb6b89` and the follow-up canonical test migration, with runtime registry extraction as the next boundary.
 
+The runtime registry work is tracked in [ONE-247](https://linear.app/onecomputer/issue/ONE-247/bep1-build-runtimeregistry-and-capability-based-routing). Commit `fe34066` centralizes current adapter factories, capability-based mode suggestions, effective defaults, and generic provider availability checks; startup health, fallback consent, and additional harnesses remain open.
+
 The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critical path:
 
 1. `ONE-216` — transactional conversation, turn, and message service.
@@ -38,7 +40,7 @@ The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critica
 
 ## Status snapshot — 2026-07-16 (local ONEVibe parity pivot; ONE-245 enforcement slice)
 
-The board contains 32 scoped issues: 4 Done, 14 In Progress, and 14 Backlog. That is **13% strict ticket completion** (4/32), or **34% weighted delivery progress** when an In Progress ticket counts as half (4 + 14×0.5 = 11/32, rounded). ONE-233 through ONE-235 are now Done from real local Claude/LiteLLM evidence; ONE-236 and ONE-237 remain release blockers under ONE-230. ONE-245 is In Progress: the Claude SDK path now fails closed without LiteLLM, while Codex/AgentCore enforcement remains open. ONE-246 is In Progress with the provider-neutral lifecycle base and persisted event-stream bridge implemented. The assistants-ui UX program is ONE-238 through ONE-244: it is a P0/P1 overhaul of the conversation architecture, composer, execution narrative, artifact inspector, navigation, skills surfaces, and sans-serif design system. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
+The board contains 33 scoped issues: 4 Done, 15 In Progress, and 14 Backlog. That is **12% strict ticket completion** (4/33), or **35% weighted delivery progress** when an In Progress ticket counts as half (4 + 15×0.5 = 11.5/33, rounded). ONE-233 through ONE-235 are now Done from real local Claude/LiteLLM evidence; ONE-236 and ONE-237 remain release blockers under ONE-230. ONE-245 is In Progress: the Claude SDK path now fails closed without LiteLLM, while Codex/AgentCore enforcement remains open. ONE-246 has the provider-neutral lifecycle base and persisted event-stream bridge implemented; ONE-247 has the current registry/routing slice implemented. The assistants-ui UX program is ONE-238 through ONE-244: it is a P0/P1 overhaul of the conversation architecture, composer, execution narrative, artifact inspector, navigation, skills surfaces, and sans-serif design system. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
 
 ### Current phase — ONEVibe local reliability and Manus parity
 
