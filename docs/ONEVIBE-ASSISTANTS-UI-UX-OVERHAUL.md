@@ -186,6 +186,62 @@ Implemented in the local ONEVibe app:
 
 Verification: `npm run check` passed with 37 test files / 207 tests, production build, and E2E harness typecheck. Browser verification used persisted task `task_f8d51a10de4f4d`; the completed trace is collapsed by default, the real artifact cards remain visible, and the Computer handoff toggles the two surfaces without changing backend state. The live Claude gate later passed chat SSE, restart recovery, Markdown plus Bash evidence, and failure/retry recovery; the limitation remains host-process local proof only.
 
+## 2026-07-16 — third pass: light-mode Claude calibration (Phases 11–15)
+
+User feedback on the dark aesthetic-reset pass: prefers a light
+palette; motion "too cheesy"; wants Claude-style restraint. This
+pass resets the visual language accordingly. Each phase is one
+commit against `main` with `npm run lint` + `npm run test` (207/207)
+green. Acceptance evidence in
+`docs/evidence/2026-07-16-ux-overhaul-v3-light/`.
+
+### Phase 11 — light-mode default + Anthropic-warm palette
+
+Default theme flips from dark → light (dark remains toggle-available).
+New Anthropic-warm paper palette: cream canvas (#faf9f5), warm
+off-black text (#2b2b28), single restrained terracotta accent
+(#c96442). Every decorative animation from Phases 6–10 is neutralized
+(ambient drift, brand heartbeat, running-dot pulse, composer focus
+glow, task-row translateX, starter-prompt lift, home-hero card lift,
+new-task emerald glow). Motion collapses to functional feedback
+only — no sizzle.
+
+### Phase 12 — Claude-style welcome + composer
+
+HomeHero collapses to a single greeting line ("Good evening,
+Terence.") at 500-weight 24–30px, followed by the composer, followed
+by three ghost suggestion chips. No Recent card grid, no
+From-your-library strip, no live activity line. Composer: 14px
+radius, quiet 1px border, no focus glow, 15px static placeholder
+("How can I help you today?"), no rotating placeholder, no keyboard
+hint row. Send button flattens to a 32px 8px-radius dark ink pill.
+
+### Phase 13 — sidebar restraint
+
+Conversation rows drop the per-row mode icons and the tabular-time
+column in light mode; render as plain 13px 400-weight titles that
+darken to 500-weight on the selected row. Status dots hidden.
+Preview line hidden. "New task" reverts to a plain 38px paper ghost
+row with an outlined ⌘K kbd. Nav-item active state drops the
+terracotta accent bar for a neutral surface fill. Project-knowledge
+card retires its accent-tinted border and chip fills for plain text
++ outlined buttons. Trust chip in the topbar becomes icon-plus-muted
+label.
+
+### Phase 14 — typography + spacing calibration
+
+Greeting dialed to clamp(24, 2.6vw, 30) at 500 weight. View h1s
+land on 28px 500-weight -0.02em. View eyebrows drop the uppercase
+letter-tracking treatment. Library / Skills / Computers / Schedule
+cards flatten to white panels with a single 1px paper border, no
+shadow. Card CTAs render as paper ghost buttons.
+
+### Phase 15 — acceptance sweep
+
+Full desktop (1440x900) + mobile (390x844) matrix for welcome,
+skills, library, computers, schedules stored in the v3-light
+evidence folder. Docs updated with the calibration rationale.
+
 ## 2026-07-16 — second five-phase pass: aesthetic reset
 
 The first same-day pass closed the mechanical P0/P1 items. This

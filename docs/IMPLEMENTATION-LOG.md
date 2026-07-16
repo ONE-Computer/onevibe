@@ -1,5 +1,31 @@
 # Implementation log
 
+## 2026-07-16 — light-mode Claude calibration (Phases 11–15)
+
+User feedback ("prefer a light color; motion too cheesy; want
+Claude UX") triggered a third five-phase pass. Each phase is one
+commit on `main` with `npm run lint` + `npm run test` (207/207)
+green. Full acceptance screenshots in
+`docs/evidence/2026-07-16-ux-overhaul-v3-light/`.
+
+- **Phase 11 — light-mode default:** default theme flips light;
+  Anthropic-warm paper palette (#faf9f5 canvas, #2b2b28 text, #c96442
+  restrained terracotta); every decorative animation neutralized.
+- **Phase 12 — Claude-style home + composer:** HomeHero collapses to
+  a single greeting line; composer swaps rotating placeholder for a
+  static "How can I help you today?"; keyboard hint row removed;
+  three ghost suggestion chips; recent/library home strips retired.
+- **Phase 13 — sidebar restraint:** rows drop mode icons and time
+  column; status dots hidden; preview line hidden; new-task pill
+  becomes a plain ghost row; nav-item active bar retired for a
+  neutral surface fill.
+- **Phase 14 — typography + spacing:** greeting clamp(24–30) 500wt;
+  view h1s 28px 500wt; view eyebrows lose uppercase-tracking;
+  library/skills/computers/schedules cards flatten to white panels
+  with hairline borders.
+- **Phase 15 — acceptance sweep:** full desktop + mobile screenshot
+  matrix; docs updated.
+
 ## 2026-07-16 — aesthetic-reset pass (Phases 6-10)
 
 A second five-phase pass rebuilt the visual layer on top of the
