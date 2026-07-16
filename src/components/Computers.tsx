@@ -1,8 +1,10 @@
 import { Activity, ExternalLink, Eye, MonitorCog, ShieldCheck, TerminalSquare } from 'lucide-react'
 import { motion } from 'framer-motion'
-import type { Task } from '../types'
+import { useState } from 'react'
+import { testRuntime } from '../lib/api'
+import type { RuntimeHealth, RuntimeReadiness, Task } from '../types'
 
-type Props = { tasks: Task[]; onOpenTask: (taskId: string) => void }
+type Props = { tasks: Task[]; onOpenTask: (taskId: string) => void; runtime?: RuntimeReadiness }
 
 const boundaryLabel = (task: Task) => task.securityContext?.executionBoundary === 'onecomputer_sandbox'
   ? 'ONEComputer sandbox'
@@ -16,10 +18,24 @@ const lifecycleLabel = (task: Task) => task.securityContext?.destroyedAt
     ? task.securityContext.sandboxState.replaceAll('_', ' ')
     : task.status.replaceAll('_', ' ')
 
-export const Computers = ({ tasks, onOpenTask }: Props) => {
+export const Computers = ({ tasks, onOpenTask, runtime }: Props) => {
+  const [health, setHealth] = useState<Record<string, RuntimeHealth>>({})
+  const [testing, setTesting] = useState<string | null>(null)
   const computers = tasks.filter((task) => task.securityContext).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const runHealthCheck = async (provider: Task['provider']) => {
+    setTesting(provider)
+    try {
+      const result = await testRuntime(provider)
+      setHealth((current) => ({ ...current, [provider]: result.health }))
+    } catch {
+      setHealth((current) => ({ ...current, [provider]: { status: 'offline', detail: 'Health request failed at the ONEVibe API.' } }))
+    } finally {
+      setTesting(null)
+    }
+  }
   return <section className="computers-view">
     <header><div><span className="task-kicker">Runtimes</span><h1>Computers</h1><p>Task-derived inventory of the runtimes ONEVibe has observed. This view is read-only: it does not provision, restart, terminate, or otherwise control an infrastructure provider.</p></div><MonitorCog size={28} /></header>
+    {runtime && <section className="runtime-health-panel" aria-label="Runtime health"><header><div><span>Runtime registry</span><strong>Connectivity checks</strong></div><small>Server-side probes only · no model prompt is sent</small></header><div className="runtime-health-grid">{runtime.providers.map((provider) => { const result = health[provider.id]; return <article key={provider.id}><div><span className={`runtime-health-dot ${result?.status ?? (provider.available ? 'unknown' : 'not_configured')}`} /><strong>{provider.label}</strong></div><small>{result?.detail ?? provider.detail}</small>{result?.latencyMs !== undefined && <time>{result.latencyMs} ms</time>}<button type="button" disabled={testing === provider.id} onClick={() => void runHealthCheck(provider.id)}>{testing === provider.id ? 'Testing…' : result ? 'Test again' : 'Test runtime'}</button></article> })}</div></section>}
     {!computers.length ? <div className="computers-empty"><MonitorCog size={22} /><strong>No governed runtimes observed</strong><span>Start a task to record its execution boundary, lifecycle evidence, and visual-runtime readiness here.</span></div> : <div className="computers-grid">{computers.map((task) => {
       const context = task.securityContext!
       return <motion.article layout key={task.id}>

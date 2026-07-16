@@ -57,7 +57,12 @@
 
 - Added provider-owned runtime health probes to the registry boundary and `POST /api/runtime/test/:provider`. Claude probes only the configured LiteLLM `/health` endpoint, ONEComputer uses its authenticated health route, and the demo runtime reports its explicit simulation boundary; unsupported probes return `unknown` rather than claiming connectivity.
 - Health responses are bounded to status, latency, and generic detail. Endpoint URLs, credentials, provider response bodies, and control-plane payloads never enter the browser response.
-- Full `npm run check` passes with 41 test files and 219 tests, lint, production build, and E2E harness typecheck. The rich settings dashboard and user-consent fallback remain open P3 work.
+- Full `npm run check` passes with 41 test files and 219 tests, lint, production build, and E2E harness typecheck. The Computers → Runtimes health dashboard is now wired; user-consent fallback remains open P3 work.
+
+## 2026-07-16 — Phase 3 runtime health dashboard
+
+- Added a read-only Computers → Runtimes registry panel. Each provider exposes its current availability, generic detail, and an explicit server-side Test action; the UI never receives endpoint URLs, credentials, raw provider bodies, or sandbox claims.
+- Added responsive health-card styling for desktop/mobile and preserved the observation-only boundary: testing a runtime cannot provision, restart, terminate, or approve infrastructure.
 
 ## 2026-07-16 — Phase 2 Codex-compatible LiteLLM adapter
 
