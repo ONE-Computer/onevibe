@@ -38,13 +38,13 @@ export type ArtifactManifest = {
 const manifestExcludedPath = (relativePath: string) => {
   const normalized = path.posix.normalize(relativePath)
   if (!normalized || normalized === '.' || normalized === '..' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) return true
-  if (normalized === ARTIFACT_MANIFEST_PATH) return true
+  if (normalized === ARTIFACT_MANIFEST_PATH || normalized === 'validation-report.json' || normalized === 'sandbox-build-report.json') return true
   const segments = normalized.split('/')
   if (segments.some((segment) => segment.startsWith('.') || segment === 'inputs' || segment === 'evidence' || segment === 'runtime' || segment === 'node_modules')) return true
   return false
 }
 
-const writeArtifactManifest = async (task: Task, store: TaskStore, outputPaths: string[]) => {
+export const writeArtifactManifest = async (task: Task, store: TaskStore, outputPaths: string[]) => {
   const outputs: ArtifactManifestOutput[] = []
   for (const outputPath of [...new Set(outputPaths)].sort((left, right) => left.localeCompare(right))) {
     const normalized = path.posix.normalize(outputPath)
@@ -65,7 +65,11 @@ const writeArtifactManifest = async (task: Task, store: TaskStore, outputPaths: 
     generatedAt: task.createdAt,
     outputs,
   }
-  await store.writeWorkspaceFile(task.id, ARTIFACT_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`)
+  const serialized = `${JSON.stringify(manifest, null, 2)}\n`
+  try {
+    if (await store.readWorkspaceFile(task.id, ARTIFACT_MANIFEST_PATH) === serialized) return [...outputPaths, ARTIFACT_MANIFEST_PATH]
+  } catch { /* The first projection creates the manifest. */ }
+  await store.writeWorkspaceFile(task.id, ARTIFACT_MANIFEST_PATH, serialized)
   return [...outputPaths, ARTIFACT_MANIFEST_PATH]
 }
 

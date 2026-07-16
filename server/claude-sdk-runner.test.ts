@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -79,6 +80,19 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(events.some((event) => event.label === 'Claude SDK workspace recorded' && event.payload.fileCount === 2)).toBe(true)
     expect(events.some((event) => event.label === 'Claude SDK artifact' && event.content === 'README.md')).toBe(true)
     expect(events.some((event) => event.label === 'Claude SDK artifact' && event.content?.startsWith('.claude/'))).toBe(false)
+    const manifest = JSON.parse(await store.readWorkspaceFile(task.id, 'artifact-manifest.json')) as { outputs: Array<{ path: string; size: number; sha256: string }> }
+    expect(manifest.outputs.map((output) => output.path)).toEqual(['index.html', 'README.md'])
+    expect(manifest.outputs.some((output) => output.path.startsWith('.claude/'))).toBe(false)
+    for (const output of manifest.outputs) {
+      const bytes = await store.readWorkspaceBytes(task.id, output.path)
+      expect(output.size).toBe(bytes.byteLength)
+      expect(output.sha256).toBe(createHash('sha256').update(bytes).digest('hex'))
+    }
+    expect(events.filter((event) => event.label === 'Claude SDK artifact manifest')).toHaveLength(1)
+    expect(events.find((event) => event.label === 'Claude SDK artifact manifest')?.payload).toMatchObject({
+      executionRoute: 'claude_agent_sdk', kind: 'artifact_manifest', portable: true,
+      uri: `/api/tasks/${task.id}/file?path=artifact-manifest.json&download=1`,
+    })
     expect(events.some((event) => event.label === 'Static artifact contract needs review')).toBe(true)
     expect(await store.readWorkspaceFile(task.id, 'validation-report.json')).toContain('Static contract validation only')
     expect(events.at(-1)?.type).toBe('run_failed')
@@ -88,6 +102,29 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-test')
     expect(store.getTask(task.id).plan.map((step) => step.status)).toEqual(['completed', 'completed', 'completed', 'blocked', 'pending'])
     expect(store.verifyChain(task.id)).toBe(true)
+  })
+
+  it('projects one idempotent manifest event across repeated native turns', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-claude-manifest-repeat-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { ClaudeSdkRuntimeAdapter } = await import('./claude-sdk-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Build a governed website', 'claude_sdk')
+    const adapter = new ClaudeSdkRuntimeAdapter()
+
+    await store.beginTurn(task.id, task.prompt, task.provider)
+    await adapter.run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'test answer' })
+    const firstManifest = await store.readWorkspaceFile(task.id, 'artifact-manifest.json')
+
+    await store.beginTurn(task.id, 'Keep the same governed website', task.provider)
+    await adapter.run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Keep the same governed website', continuation: true, requestUserInput: async () => 'test answer' })
+
+    expect(await store.readWorkspaceFile(task.id, 'artifact-manifest.json')).toBe(firstManifest)
+    const events = store.listEvents(task.id)
+    expect(events.filter((event) => event.label === 'Claude SDK artifact manifest')).toHaveLength(1)
+    expect(events.filter((event) => event.label === 'Claude SDK artifact')).toHaveLength(2)
   })
 
   it('fails closed when the SDK stream reaches EOF before a terminal result', async () => {
