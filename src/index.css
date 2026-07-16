@@ -493,3 +493,103 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .task-row-body small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;color:var(--text-faint)}
 .task-row-time{font-size:10px;color:var(--text-faint);font-variant-numeric:tabular-nums;flex-shrink:0;padding-left:4px}
 .task-row.selected .task-row-time{color:var(--accent)}
+
+/* ================================================================
+   PHASE 10 — POLISH & MOTION (final push)
+   ================================================================ */
+
+/* Topbar workspace switcher: real visibility */
+.model-selector{color:var(--text-primary)!important;font-size:13px;font-weight:600;padding:6px 12px;border-radius:9px;border:1px solid transparent}
+.model-selector:hover{background:var(--surface-hover);border-color:var(--border-default)}
+.model-selector svg:first-child{color:var(--accent)}
+.model-selector svg:last-child{color:var(--text-faint)}
+
+/* Global focus ring — sharper, not thicker */
+:focus-visible{outline:2px solid var(--accent)!important;outline-offset:2px!important;border-radius:6px}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent)!important;outline-offset:2px!important}
+
+/* Global button transitions */
+button{transition:background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease, box-shadow .15s ease}
+
+/* Nav-section labels — no more uppercase-tracking bureaucratic feel */
+.nav-section-label{text-transform:none!important;letter-spacing:0!important;font-size:10.5px;font-weight:500;color:var(--text-faint);opacity:.9}
+
+/* All uppercase eyebrows on view kickers — softer treatment */
+.dashboard-pane>header span,
+.handoff-pane>header span,
+.assets-pane>header span,
+.task-settings-pane>header span,
+.task-settings-pane>header em,
+.database-pane>header span,
+.deck-review-header span,
+.deck-slide>span,
+.deck-rail-heading,
+.evidence-verdict span,
+.evidence-stats span,
+.dashboard-grid span,
+.speaker-notes header span,
+.task-kicker,
+.template-gallery>span,
+.selected-skills span,
+.reference-chips>span,
+.task-configuration span,
+.starter-prompts button,
+.approval-kicker,
+.pending-badge,
+.status-badge,
+.connection,
+.computer-run-marker,
+.computer-history-heading{
+  text-transform:none!important;letter-spacing:0!important;
+}
+
+/* Home-view eyebrows in Skills/Library/Computers views */
+.dashboard-pane>header span,.dashboard-pane>header em,
+.handoff-pane>header span,.assets-pane>header span,
+.task-settings-pane>header span,.task-settings-pane>header em{font-size:11px;color:var(--text-faint)}
+
+/* Sidebar new-task button: elevated, real destination */
+.new-task{
+  height:42px!important;padding:0 14px!important;
+  background:linear-gradient(135deg, color-mix(in srgb,var(--accent) 88%,transparent), var(--accent-strong))!important;
+  color:var(--accent-ink)!important;border:0!important;
+  font-weight:600;box-shadow:0 6px 18px -4px var(--accent-glow);
+}
+.new-task kbd{
+  margin-left:auto;padding:2px 6px;border-radius:5px;
+  background:rgba(0,0,0,.16);color:rgba(0,0,0,.65)!important;
+  font-family:inherit;font-size:10.5px;font-weight:600;
+}
+.new-task:hover{transform:translateY(-1px);box-shadow:0 10px 24px -4px var(--accent-glow)}
+.new-task:active{transform:translateY(0)}
+
+/* History search — slightly taller, calmer border */
+.history-search{height:36px!important;font-size:12px}
+.history-search input{font-size:12px}
+.history-search:focus-within{border-color:var(--accent-border)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+
+/* Nav items */
+.nav-item{height:36px!important;font-size:13px;padding:0 10px!important}
+.nav-item svg{color:var(--text-muted);transition:color .15s ease}
+.nav-item:hover svg,.nav-item.active svg{color:var(--accent)}
+
+/* Project row */
+.project-row{height:36px!important;font-size:13px;padding:0 10px!important}
+.project-row.selected{color:var(--accent)!important}
+
+/* User row footer */
+.user-row{padding:10px 8px}
+.avatar{background:linear-gradient(135deg, var(--accent-soft), var(--surface-hover));border:1px solid var(--accent-border)}
+.user-row strong{font-size:12px}
+.user-row span{font-size:10.5px}
+
+/* Starter prompt chips: bolder, feel like a promise */
+.starter-prompts{gap:8px}
+.starter-prompts button{font-size:12.5px!important;padding:10px 16px!important;font-weight:500}
+
+/* Reduce home padding on shorter screens so everything fits */
+@media(max-height:820px){
+  .home-view{padding:32px 24px 24px}
+  .home-hero-heading{margin-bottom:22px}
+  .home-hero-heading h1{font-size:clamp(32px,4vw,44px)!important}
+}

@@ -1,5 +1,35 @@
 # Implementation log
 
+## 2026-07-16 — aesthetic-reset pass (Phases 6-10)
+
+A second five-phase pass rebuilt the visual layer on top of the
+earlier polish pass. Each phase is one commit against `main` with
+`npm run lint` + `npm run test` (207/207) green. Full acceptance
+screenshots in `docs/evidence/2026-07-16-ux-overhaul-v2/`.
+
+- **Phase 6 — aesthetic reset:** default theme flipped from system →
+  dark; new dark palette (charcoal canvas, warmer emerald primary,
+  amber second accent for governance/approval states); ambient
+  drifting glow behind composer; 3.6s brand-mark heartbeat as the
+  signature motion moment; gradient-fill Inter 900 hero (still
+  sans-serif); mode/provider pickers rendered as real pill buttons.
+- **Phase 7 — living-workspace home:** corporate "What will you build
+  safely?" replaced with a time-of-day greeting, a live activity
+  line, a Recent-conversations strip, and a From-your-library strip
+  showing the newest artifacts. New `src/components/HomeHero.tsx`.
+- **Phase 8 — composer as hero:** rotating placeholder cycles 6
+  concrete task examples every 4.2s; global ⌘K focus hook; keyboard
+  hint row (⌘K/↵/⇧↵); Attach and Reference promoted to labeled 32px
+  pill buttons; redundant "governed" pill removed.
+- **Phase 9 — sidebar personality:** conversations group under
+  Today / Yesterday / This week / Older; mode icon per row; compact
+  relative time in a tabular-nums right column; two-line title +
+  preview.
+- **Phase 10 — polish sweep:** unified button transitions, sharpened
+  focus rings, new-task pill now a real emerald CTA with ⌘K badge,
+  simplified eyebrow copy across Skills/Library/Computers/Schedules,
+  Schedules empty state made directive.
+
 ## 2026-07-16 — five-phase assistants-ui polish overhaul
 
 Executed the outstanding P0/P1 items in

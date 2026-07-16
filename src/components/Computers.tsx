@@ -19,7 +19,7 @@ const lifecycleLabel = (task: Task) => task.securityContext?.destroyedAt
 export const Computers = ({ tasks, onOpenTask }: Props) => {
   const computers = tasks.filter((task) => task.securityContext).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   return <section className="computers-view">
-    <header><div><span className="task-kicker">Runtime observation</span><h1>Computers</h1><p>Task-derived inventory of the runtimes ONEVibe has observed. This view is read-only: it does not provision, restart, terminate, or otherwise control an infrastructure provider.</p></div><MonitorCog size={28} /></header>
+    <header><div><span className="task-kicker">Runtimes</span><h1>Computers</h1><p>Task-derived inventory of the runtimes ONEVibe has observed. This view is read-only: it does not provision, restart, terminate, or otherwise control an infrastructure provider.</p></div><MonitorCog size={28} /></header>
     {!computers.length ? <div className="computers-empty"><MonitorCog size={22} /><strong>No governed runtimes observed</strong><span>Start a task to record its execution boundary, lifecycle evidence, and visual-runtime readiness here.</span></div> : <div className="computers-grid">{computers.map((task) => {
       const context = task.securityContext!
       return <motion.article layout key={task.id}>

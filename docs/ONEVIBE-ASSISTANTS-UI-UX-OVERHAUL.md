@@ -186,6 +186,90 @@ Implemented in the local ONEVibe app:
 
 Verification: `npm run check` passed with 37 test files / 207 tests, production build, and E2E harness typecheck. Browser verification used persisted task `task_f8d51a10de4f4d`; the completed trace is collapsed by default, the real artifact cards remain visible, and the Computer handoff toggles the two surfaces without changing backend state. The live Claude gate later passed chat SSE, restart recovery, Markdown plus Bash evidence, and failure/retry recovery; the limitation remains host-process local proof only.
 
+## 2026-07-16 — second five-phase pass: aesthetic reset
+
+The first same-day pass closed the mechanical P0/P1 items. This
+second pass tackles the actual look-and-feel critique: dark-first
+palette, a signature motion moment, a home view that teaches what the
+product does, a composer that reads as the hero object, a sidebar
+that survives real usage, and one more polish sweep. Each phase is
+one commit against `main` with `npm run lint` + `npm run test`
+(207/207) green. Acceptance evidence stored in
+`docs/evidence/2026-07-16-ux-overhaul-v2/`.
+
+### Phase 6 — aesthetic reset
+
+- Default theme flips from system → dark. Dark is the correct
+  register for a working agent surface; the emerald trust signal now
+  reads as a signal rather than a chrome accent.
+- New dark palette: charcoal canvas (#0a0c0b), warmer amber
+  `--gold #e6b46b` introduced as a real second accent used only for
+  governance waiting-states and approvals.
+- Ambient background: three radial glows behind the composer, with
+  one slow (32s) drift, killed under prefers-reduced-motion.
+- Brand-mark heartbeat: 3.6s pulse on the accent square — one
+  deliberate motion investment for product identity.
+- Hero: gradient-fill Inter 900 with tight tracking (still
+  sans-serif; no serif violation).
+- Composer, mode/provider pickers, nav-item active bar, task-row
+  hover translate — all wired for real feedback.
+
+### Phase 7 — living-workspace home
+
+Replaces "What will you build safely?" with content the user already
+has:
+- Time-of-day greeting ("Good morning / afternoon / evening / Working
+  late, Terence.") refreshed every 30s.
+- Live activity line: pulsing dot + "N tasks running · what's next?".
+- Recent strip: last 4 conversations for the active project with mode
+  icons and relative time.
+- From-your-library strip: 3 most recent artifacts across projects
+  with a warmer gradient background.
+- Two-column layout at ≥920px, stacked below.
+
+### Phase 8 — composer as hero
+
+- Rotating placeholder cycles 6 concrete task examples every 4.2s at
+  16px so a first-time user learns what ONEVibe does.
+- Global ⌘K/⌃K focus hook on the composer textarea.
+- Keyboard hint row below (⌘K to focus · ↵ to send · ⇧↵ for newline),
+  hidden on mobile.
+- Attach and Reference are now labeled 32px pill buttons instead of
+  anonymous icon-only buttons.
+- Removed the redundant "governed" pill from the composer footer.
+
+### Phase 9 — sidebar personality
+
+- Conversations group under "Today / Yesterday / This week / Older",
+  refreshed every 60s.
+- Every row shows a mode icon at the start (chat/website/slides/
+  document/research/data/design/app/game/agent fallback).
+- Every row shows a compact relative timestamp on the right with
+  tabular-nums for aligned scanning.
+- Row body promoted to two lines (title + preview) and the timestamp
+  turns accent-green on the selected row.
+
+### Phase 10 — polish sweep
+
+- Global focus rings sharpened, button transitions unified.
+- Sidebar new-task button is now a proper emerald pill with an inset
+  ⌘K badge and hover lift.
+- Nav-section labels drop the uppercase-tracking bureaucratic feel;
+  eyebrows across Skills/Library/Computers/Schedules likewise.
+- Eyebrow copy simplified: "Runtime observation" → "Runtimes",
+  "Explicit agent capability guides" → "Capability guides",
+  "Reusable governed outputs" → "Your artifacts", "Governed
+  automation" → "Automation".
+- Library card CTA "Open governed task" → "Open task" (the whole
+  library screen frames these as evidence-backed artifacts already).
+- Schedules empty state given a directive: "No scheduled work yet —
+  create one above to run a task on a repeating cadence."
+- Topbar workspace switcher becomes a real button so keyboard and
+  hover states are consistent with every other pill in the app.
+
+Follow-ups still open: active-task screenshot on a live provider run,
+exact-width visual-regression baseline harness in CI.
+
 ## 2026-07-16 — five-phase polish pass
 
 A second same-day pass closed the remaining P0/P1 items visible in the
