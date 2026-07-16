@@ -243,6 +243,12 @@
 - Reprioritized the local product sequence around **Skills Library → simple durable chat → document artifacts**. Website/App/Game generation is intentionally parked until the capability foundation is reliable.
 - Added `scripts/skills-e2e.ts` and `npm run e2e:skills`. The bounded harness rejects invalid skill IDs, persists the selected `document` and `security_review` packs, verifies deterministic SHA-256 manifests and immutable event hashes across API restart, materializes only selected `.claude/skills/*/SKILL.md` files, proves the skill selection does not change the security boundary or workspace policy, and checks the evidence chain.
 - The deterministic demo run passed with two selected packs, selected-only materialization, valid evidence after restart, no external writes, and no logged secrets. The fallback is explicitly not a Claude SDK or microVM claim; the provider-backed run remains the acceptance path for proving native Claude materialization.
+
+# 2026-07-16 — assistants-ui UX overhaul program
+
+- Cloned and studied `assistant-ui/assistant-ui` at `/Users/gini/Desktop/Project ONEComputer/reference/assistant-ui`, commit `f1dcd8b`. The relevant reference patterns are runtime-driven `ThreadPrimitive` layouts, empty/welcome/suggestion states, full composer/attachment primitives, message actions and branching, grouped reasoning/tool parts, typed tool fallbacks, generative UI, and measured virtualized threads.
+- Audited the current ONEVibe UX and recorded the gap in `docs/ONEVIBE-ASSISTANTS-UI-UX-OVERHAUL.md`: the current thread manually recreates assistant-ui behavior, hardcodes `isRunning: false`, splits the user experience across AssistantThread/TaskTimeline/Workspace, exposes too many controls in the home composer, and uses mono-like visible typography.
+- Created the assistants-ui UX Linear program: ONE-238 parent, P0 children ONE-239/240/241, and P1 children ONE-242/243/244. The program requires truthful chat/runtime state first, then composer/thread migration, progressive tool/evidence rendering, artifact inspector, navigation/skills, and a sans-serif visual regression system.
 - Relaxed the local Claude golden harness assertion to validate the durable contract (`follow-up … persisted`) instead of requiring one exact model-generated phrase. This keeps the test behavior-focused while retaining the follow-up, restart, SSE, search, and evidence checks.
 
 # 2026-07-16 — Truthfulness audit and backlog creation

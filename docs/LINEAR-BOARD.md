@@ -34,11 +34,11 @@ The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critica
 
 ## Status snapshot — 2026-07-16 (local ONEVibe parity pivot)
 
-The board contains 23 scoped issues: 1 Done, 8 In Progress, and 14 Backlog. That is **4% strict ticket completion** (1/23), or **22% weighted delivery progress** when an In Progress ticket counts as half (1 + 8×0.5 = 5/23, rounded). The new truthfulness tickets ONE-233 through ONE-237 are release blockers under ONE-230: they measure whether the browser selects a real provider, distinguishes chat from artifact work, reports provider success correctly, and proves the behavior through an acceptance matrix. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
+The board contains 30 scoped issues: 1 Done, 8 In Progress, and 21 Backlog. That is **3% strict ticket completion** (1/30), or **17% weighted delivery progress** when an In Progress ticket counts as half (1 + 8×0.5 = 5/30, rounded). The truthfulness tickets ONE-233 through ONE-237 are release blockers under ONE-230. The new assistants-ui UX program is ONE-238 through ONE-244: it is a P0/P1 overhaul of the conversation architecture, composer, execution narrative, artifact inspector, navigation, skills surfaces, and sans-serif design system. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
 
 ### Current phase — ONEVibe local reliability and Manus parity
 
-ONE-230 is the active P0. Its release gate now has a preceding truthfulness checkpoint: ONE-233 must stop silent demo defaults, ONE-234 must separate chat intent from artifact orchestration, and ONE-235 must stop artifact validation from failing successful chat. ONE-237 owns the release-blocking hello matrix. Only after those are green does the broader local gate cover durable history, reconnectable SSE, follow-up turns, cancellation/retry/error states, assistant-ui conversation rendering, plan/tool/activity evidence, screenshots/terminal cards, artifact rail, and responsive browser QA. PPTX/PDF generation remains part of the explicit artifact path. The UI must never imply that local mode is a production network-containment boundary.
+ONE-230 is the active P0. Its release gate now has a preceding truthfulness checkpoint: ONE-233 must stop silent demo defaults, ONE-234 must separate chat intent from artifact orchestration, and ONE-235 must stop artifact validation from failing successful chat. ONE-237 owns the release-blocking hello matrix. After truthfulness is green, ONE-238 is the major assistants-ui-native UX parent, with ONE-239 through ONE-241 as P0 conversation/runtime slices and ONE-242 through ONE-244 as P1 inspector, navigation/skills, and design-system slices. Only after those foundations are green does the broader local gate cover durable history, reconnectable SSE, follow-up turns, cancellation/retry/error states, assistant-ui conversation rendering, plan/tool/activity evidence, screenshots/terminal cards, artifact rail, and responsive browser QA. PPTX/PDF generation remains part of the explicit artifact path. The UI must never imply that local mode is a production network-containment boundary.
 
 ONE-223 and ONE-229 are the active UX workstream. ONE-216 through ONE-220 remain the backend foundation. ONE-221, ONE-225, and ONE-226 are deliberately back in Backlog: their Azure/provider recovery and attested microVM work will resume only after ONE-230 is green. ONE-215 is retained as a historical dependency epic and is back in Backlog. ONE-224, ONE-227, and ONE-228 remain deferred platform/security work.
 
@@ -57,6 +57,20 @@ The browser audit reproduced a plain greeting entering the deterministic demo ar
 - `ONE-235` — `[BUG][TRUTHFULNESS][P0]` Do not fail provider-backed chat on artifact validation.
 - `ONE-236` — `[BUG][TRUTHFULNESS][P1]` Make skill execution status truthful in demo mode.
 - `ONE-237` — `[TEST][TRUTHFULNESS][P1]` Add hello acceptance matrix across demo, Claude, SSE, and reload.
+
+### Assistants-ui UX overhaul
+
+The cloned `assistant-ui/assistant-ui` reference was studied at commit `f1dcd8b`. Its primitives and examples provide the target interaction architecture: runtime-driven streaming state, welcome/suggestions, composer attachment/dropzone controls, message actions, grouped reasoning/tools, typed tool fallbacks, generative UI, and virtualized threads. The detailed plan is [`docs/ONEVIBE-ASSISTANTS-UI-UX-OVERHAUL.md`](./ONEVIBE-ASSISTANTS-UI-UX-OVERHAUL.md).
+
+- `ONE-238` — `[UX][P0]` Major assistants-ui-native ONEVibe UX overhaul.
+- `ONE-239` — `[UX][P0]` Migrate the thread shell and runtime state to assistant-ui-native primitives.
+- `ONE-240` — `[UX][P0]` Rebuild the composer and zero-state with assistant-ui patterns.
+- `ONE-241` — `[UX][P0]` Unify conversation, reasoning, tools, and evidence into one thread narrative.
+- `ONE-242` — `[UX][P1]` Build the artifact and Computer inspector with generative UI.
+- `ONE-243` — `[UX][P1]` Rebuild thread list, skills command palette, and project context.
+- `ONE-244` — `[DESIGN][P1]` Enforce the sans-serif design system and visual regression.
+
+The UI program is blocked on the truthfulness P0s and must not be closed from screenshots alone. It requires real runtime state, durable history, artifact provenance, browser QA, and the sans-serif/static audit.
 
 ### Latest development-provider POC evidence
 
