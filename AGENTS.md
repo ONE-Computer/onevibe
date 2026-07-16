@@ -50,3 +50,5 @@ Artifact tooling required by an acceptance gate must be image/bootstrap managed 
 For legacy persistence migrations, assume identifiers were only unique inside one task directory. Derive globally unique durable IDs from conversation identity plus the original local ID, keep the transformation deterministic, and retain duplicate rejection inside a single conversation.
 
 For binary acceptance artifacts, prefer a versioned server-controlled renderer executed inside the sandbox. Let the agent author bounded structured content, but do not depend on it to install libraries, invent a renderer, or self-report binary validity. Record the renderer identity and verify signatures before extraction.
+
+Keep capability gates separable in live diagnostics. A backend/artifact proof may run with visual capture disabled when the provider route is unavailable, but it must be labeled partial and must not close the combined E2E ticket; preserve the exact provider failure and require a later run with visual evidence enabled.
