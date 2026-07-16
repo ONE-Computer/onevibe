@@ -825,3 +825,8 @@ baseline harness in CI.
 - Fixed the task skill schema to accept the repository’s stable built-in snake_case identifiers (`document`, `security_review`, and the other built-in packs) while preserving bounded marketplace IDs. The previous schema rejected valid built-in selections before execution.
 - Corrected `scripts/skills-e2e.ts` to distinguish truthful demo (`Skill packs recorded for simulation`, `not_executed_demo`) from provider (`Versioned skill packs selected`, `provider_turn_workspace`) evidence. The harness now inspects internal skill bytes only through a stopped local `TaskStore`; the public files route remains prohibited from exposing `.claude/skills`.
 - Passing evidence: `npm run e2e:skills` (deterministic local-demo materialization, immutable manifest across restart, permission invariant, selected-only files), `npm run e2e:skill-marketplace` (loopback catalog install/remove), and `npm run check` (51 files / 257 tests). No protected Claude/LiteLLM materialization claim is made without configured relay evidence.
+
+## 2026-07-17 — document and website local creation recheck
+
+- Re-ran `npm run e2e:document-roundtrip`: source Markdown, derived HTML/PDF, immutable restore, and evidence-chain verification all passed for an isolated task.
+- Re-ran `npm run e2e:website-build -- --install`: generated website source passed static contracts and a bounded temporary dependency install/build produced `dist/index.html`. Browser evidence, dependency provenance, and deployment safety remain intentionally unclaimed because no browser session is available in this environment.
