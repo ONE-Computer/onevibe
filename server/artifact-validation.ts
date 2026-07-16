@@ -102,6 +102,7 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
     const appIndex = await required(store, task.id, 'app/index.html', checks)
     const appSource = await required(store, task.id, 'app/src/App.tsx', checks)
     const appEntry = await required(store, task.id, 'app/src/main.tsx', checks)
+    await required(store, task.id, 'app/src/vite-env.d.ts', checks)
     await required(store, task.id, 'app/vite.config.ts', checks)
     await required(store, task.id, 'app/tsconfig.json', checks)
     await required(store, task.id, 'app/.gitignore', checks)

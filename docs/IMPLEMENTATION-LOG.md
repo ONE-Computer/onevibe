@@ -21,6 +21,9 @@
 - The proof fails closed when required generated packages are missing: the current run passed all static checks but returned build `unavailable` for `@tailwindcss/vite` and `tailwindcss` without attempting external installation. This is useful negative evidence, not a generated-project build pass.
 - No browser automation, external provider, Linear call, secret, or deployment claim is part of this script. The Website gate remains open until an explicitly authorized dependency-install/build run produces `dist/index.html`, followed by browser/a11y evidence from the generated output.
 
+- The authorized `npm run e2e:website-build -- --install` run initially exposed two real portability defects: the harness extracted an incomplete app file set, and the generated TypeScript project lacked Vite's CSS type declaration. The harness now extracts every portable `app/` file from the task snapshot, and Website/App/Game scaffolds include `app/src/vite-env.d.ts` with the validator/test contract updated accordingly.
+- The corrected run passed all static checks and compiled the generated project in a temporary directory, producing `dist/index.html` and Vite assets. This closes the generated source/build gate locally; generated-project browser/a11y evidence and deployment remain open.
+
 ## 2026-07-16 — product-lead queue and delegation cadence
 
 - Reframed the next phase as five bounded workstreams: a local API golden flow, document round-trip, quoted-CSV/data lineage, website build/review, and browser golden-flow coverage.

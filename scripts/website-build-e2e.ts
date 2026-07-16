@@ -29,7 +29,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const serverEntry = path.join(repoRoot, 'server', 'index.ts')
 const tsxEntry = path.join(repoRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs')
 
-type Task = { id: string; status: string }
+type Task = { id: string; status: string; files?: Array<{ path: string }> }
 type StaticCheck = { id: string; status: 'passed' | 'failed'; detail: string }
 type BuildResult = {
   status: 'passed' | 'unavailable' | 'failed' | 'not-run'
@@ -234,7 +234,12 @@ const main = async () => {
 
     const files = ['app/package.json', 'app/index.html', 'app/src/main.tsx', 'app/src/App.tsx', 'app/src/styles.css', 'validation-report.json']
     const contents = new Map<string, string>()
-    for (const filePath of files) {
+    const snapshot = await request<Task>(baseUrl, `/api/tasks/${encodeURIComponent(task.id)}`)
+    const portableAppFiles = (snapshot.files ?? [])
+      .map((file) => file.path)
+      .filter((filePath) => filePath.startsWith('app/') && !filePath.includes('/node_modules/'))
+    const extractionFiles = [...new Set([...files, ...portableAppFiles])]
+    for (const filePath of extractionFiles) {
       const response = await request<{ content: string }>(baseUrl, `/api/tasks/${encodeURIComponent(task.id)}/file?path=${encodeURIComponent(filePath)}`)
       contents.set(filePath, response.content)
       const destination = path.join(artifactDirectory, filePath)
