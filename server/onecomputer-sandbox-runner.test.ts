@@ -212,6 +212,30 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.listEvents(task.id).at(-1)?.type).toBe('run_completed')
   })
 
+  it('surfaces an ambiguous provider allocation as recoverable without exposing provider details', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-unknown-allocation-'))
+    roots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { OneComputerSandboxRuntimeAdapter } = await import('./onecomputer-sandbox-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Recover an ambiguous allocation', 'onecomputer', 'general')
+    await store.beginTurn(task.id, task.prompt, task.provider)
+    const client = {
+      createSandbox: vi.fn(async () => { throw new Error('ONEComputer POST /v1/sandboxes returned HTTP 504') }),
+    } as unknown as OneComputerClient
+    const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false })
+
+    await expect(adapter.run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })).rejects.toThrow('HTTP 504')
+
+    expect(store.getTask(task.id).securityContext).toMatchObject({
+      mode: 'onecomputer', executionBoundary: 'onecomputer_sandbox', sandboxState: 'unknown', gatewayEnforced: false,
+    })
+    expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer allocation outcome unknown' && event.payload.recovery === 'immutable_allocation_identity_required')).toBe(true)
+    expect(JSON.stringify(store.listEvents(task.id))).not.toContain('provider secret')
+    expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'unknown', lastError: { code: 'ALLOCATION_OUTCOME_UNKNOWN' } })
+  })
+
   it('retains the known conversation sandbox when cancellation occurs during provisioning', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-cancel-provisioning-'))
     roots.push(root)

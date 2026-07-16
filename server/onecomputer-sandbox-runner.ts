@@ -164,7 +164,37 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     await store.setPlanStep(task.id, 'scope', 'completed')
     await store.setPlanStep(task.id, 'workspace', 'running')
 
-    const acquired = await new RuntimeLeaseService(store, this.client).acquire(task.id, signal)
+    let acquired: Awaited<ReturnType<RuntimeLeaseService['acquire']>>
+    try {
+      acquired = await new RuntimeLeaseService(store, this.client).acquire(task.id, signal)
+    } catch (error) {
+      // Surface the durable lease state when the provider response is
+      // ambiguous. The browser must be able to explain that this turn is
+      // recoverable, while the server still refuses any blind duplicate
+      // allocation. Do not copy provider error bodies into the task record.
+      const unknownLease = store.findActiveRuntimeLease(task.id)
+      if (unknownLease?.status === 'unknown') {
+        const current = store.getTask(task.id)
+        await store.updateTask(task.id, {
+          securityContext: {
+            ...(current.securityContext ?? { mode: 'onecomputer', gatewayEnforced: this.options.gatewayEnforced }),
+            mode: 'onecomputer', provider: 'onecomputer', gatewayEnforced: this.options.gatewayEnforced,
+            executionBoundary: 'onecomputer_sandbox', sandboxState: 'unknown',
+          },
+        })
+        await store.appendEvent(task.id, {
+          type: 'activity_delta', lane: 'control', label: 'ONEComputer allocation outcome unknown',
+          content: 'The provider response was ambiguous. ONEVibe fenced the lease and will only recover it using the immutable allocation identity; it will not create a duplicate sandbox.',
+          payload: {
+            leaseId: unknownLease.id, leaseGeneration: unknownLease.generation,
+            allocationOperationId: unknownLease.allocationOperationId,
+            recovery: 'immutable_allocation_identity_required', lifecycle: 'unknown',
+            errorClass: error instanceof Error ? error.name : 'unknown_error',
+          },
+        })
+      }
+      throw error
+    }
     const sandbox = acquired.sandbox
     const resumableSessionId = continuation
       && task.securityContext?.runtimeSessionId
