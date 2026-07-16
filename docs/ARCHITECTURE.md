@@ -51,6 +51,12 @@ The local slice proves the UX and contract:
 
 It does not claim VM isolation, egress enforcement, real wallet signatures, or cloud runtime execution.
 
+## Container boundary
+
+`Dockerfile` and `docker-compose.yml` provide a local production-shaped image for the current API. The image builds the Vite SPA, runs the hand-rolled API as a non-root UID, exposes only port 4311, persists the current SQLite store on a named volume, and applies `read_only`, `no-new-privileges`, dropped Linux capabilities, and a bounded `/tmp` tmpfs in Compose. The image is not a sandbox for agent execution: provider tools remain governed by the selected `RuntimeAdapter`, and no container claim substitutes for ONEComputer microVM attestation or egress enforcement.
+
+The Compose path intentionally does not pretend to use Postgres yet. `DATABASE_URL`, `better-auth`, user scoping, and a Postgres service belong to the still-open Phase 4 persistence/auth slices. Until those contracts land, cloud promotion must treat the SQLite volume as a single-instance local deployment boundary rather than a multi-user production database.
+
 ## Implemented production adapters
 
 - `RemoteRuntimeAdapter` consumes the AgentCore/backend typed SSE contract. Its optional bearer token remains server-side.

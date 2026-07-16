@@ -1,0 +1,39 @@
+services:
+  onevibe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${ONEVIBE_PUBLISH_PORT:-4311}:4311"
+    environment:
+      NODE_ENV: production
+      ONEVIBE_API_HOST: 0.0.0.0
+      ONEVIBE_API_PORT: 4311
+      ONEVIBE_DATA_DIR: /var/lib/onevibe
+      ONEVIBE_LITELLM_URL: ${ONEVIBE_LITELLM_URL:-}
+      ONEVIBE_LITELLM_API_KEY: ${ONEVIBE_LITELLM_API_KEY:-}
+      ONEVIBE_LITELLM_MODEL: ${ONEVIBE_LITELLM_MODEL:-claude-sonnet-5}
+      ONEVIBE_DEFAULT_PROVIDER: ${ONEVIBE_DEFAULT_PROVIDER:-}
+      ONEVIBE_WALLET_TOKEN: ${ONEVIBE_WALLET_TOKEN:-}
+      ONEVIBE_RUNTIME_URL: ${ONEVIBE_RUNTIME_URL:-}
+      ONEVIBE_RUNTIME_BEARER_TOKEN: ${ONEVIBE_RUNTIME_BEARER_TOKEN:-}
+    volumes:
+      - onevibe-data:/var/lib/onevibe
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4311/api/runtime').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  onevibe-data:

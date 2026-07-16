@@ -42,15 +42,16 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
 | Tests | `server/*.test.ts`, `src/components/*.test.ts` | 225 tests passing |
+| Container | `Dockerfile`, `docker-compose.yml` | Local hardened image verified; SQLite volume only until Postgres/auth slices land |
 
 ### What is critically broken
 
 1. **No governed runtime configured** — the local fallback is explicitly labelled Simulation and makes no model call; when the protected LiteLLM route is configured, the registry selects a compatible governed runtime instead
-2. **Backend down = silent blank screen** — when `server/index.ts` isn't running, all API calls silently fail with no error message
-3. **SSE event drop** — `useTask.ts:52` drops events that arrive before the initial REST snapshot loads
-4. **No auth** — `"Terence"` is hardcoded in `Sidebar.tsx:174`; all tasks are global
-5. **No deploy path** — `server/index.ts` doesn't serve `dist/`; no Dockerfile; no cloud deploy config
-6. **50 UX dead-ends** — dead controls, swallowed errors, fake data in display — full list in `plan/00-gap-analysis.md`
+2. **No auth** — `"Terence"` is hardcoded in `Sidebar.tsx:174`; all tasks are global
+3. **No Postgres/multi-user persistence** — the current store is SQLite and intentionally local-first; Postgres/Drizzle and user scoping remain Phase 4 work
+4. **No managed deploy path** — a non-root Docker image and local Compose smoke path now exist, but Railway/Fly configuration, secrets, auth, and production operations remain open
+5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
+6. **Remaining UX dead-ends** — dead controls, swallowed errors, and extension gaps remain in `plan/00-gap-analysis.md`
 
 ### How to run it locally
 

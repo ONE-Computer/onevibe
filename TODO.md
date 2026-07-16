@@ -66,7 +66,7 @@ Reference: `plan/04-cloud-infrastructure.md`
 
 - [ ] **P4-01** Add auth — integrate `better-auth` with email OTP; protect all `/api/*` routes with session middleware; add login page; replace hardcoded `"Terence"` with real user identity
 - [ ] **P4-02** Migrate database — replace in-process SQLite with **PostgreSQL via Drizzle ORM**; add `userId` foreign key to tasks, projects, schedules; multi-user isolation
-- [ ] **P4-03** Containerise — `Dockerfile` (multi-stage build + runtime), `docker-compose.yml` (postgres + api), `.env.example` with all required vars documented
+- [ ] **P4-03** Containerise — current non-root multi-stage `Dockerfile`, hardened SQLite-volume `docker-compose.yml`, and `.env.example` are implemented; keep open until the P4-02 Postgres contract is wired into the image/Compose path rather than shipping an unused database service
 - [ ] **P4-04** Deploy to Railway or Fly.io — `railway.toml` or `fly.toml`; deploy instructions in `plan/04-cloud-infrastructure.md#deploy`
 - [ ] **P4-05** Add cloud sandbox — integrate **e2b.dev** (`@e2b/code-interpreter`) as the default `sandboxed` execution backend; surface sandbox preview URL in workspace iframe; `E2bRuntimeAdapter` wraps e2b and implements the full `RuntimeAdapter` interface
 - [ ] **P4-06** Add multi-tenancy scaffolding — `orgs` and `org_members` tables; tasks scoped to org when `orgId` set; sidebar project switcher drives real data isolation

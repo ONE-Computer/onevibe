@@ -11,6 +11,12 @@
 - Added assistant-ui inline editing for user messages. “Edit” is explicit and creates a new branch; the original conversation is never rewritten. Branch evidence records the source task/message and source evidence head, and cloned message/turn IDs are independent.
 - Added persistence/reload and mutable-workspace isolation coverage. This is local SQLite/host-workspace evidence only; cloud auth, multi-user authorization, and sandbox isolation remain open.
 
+## 2026-07-17 — hardened local container boundary
+
+- Added a multi-stage `Dockerfile` that builds the SPA and runs the API on Node 22 as non-root UID 10001. It keeps the server-side LiteLLM configuration boundary intact and includes the runtime source/assets needed by the current TypeScript API.
+- Added `docker-compose.yml` with a named SQLite data volume, API healthcheck, read-only root filesystem, no-new-privileges, dropped capabilities, and bounded `/tmp`. A Docker build and 22-second smoke run returned `/api/runtime` and `/` successfully; the container became healthy and ran as user `onevibe`.
+- This is a deployable local container shape, not completion of cloud Phase 4: Postgres/Drizzle, auth/session middleware, multi-user isolation, managed deployment, and sandbox attestation remain open. The Compose file intentionally does not advertise an unused Postgres service.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.
