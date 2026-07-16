@@ -54,7 +54,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 4. **No managed deploy path** — a non-root Docker image and local Compose smoke path now exist, but Railway/Fly configuration, secrets, auth, and production operations remain open
 5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
 6. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; active-task mutations use Query mutation lifecycle/pending state and reconcile server-derived caches without creating a second client authority
-7. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, production MCP secret/health controls, dependency advisory resolution, and browser evidence remain open in `TODO.md`
+7. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, production MCP secret brokering/external health attestation, dependency advisory resolution, and browser evidence remain open in `TODO.md`
 
 ### How to run it locally
 
@@ -207,7 +207,7 @@ Full task list: `TODO.md`. Summary:
 (See `plan/05-ui-overhaul.md` for details)
 
 ### Phase 6 — MCP + extensions
-**4 tasks. Target: users add MCP servers; verified skill marketplace installation works. The local MCP declaration and marketplace install/remove slices exist; authenticated ownership, secret brokering, and protected provider-backed marketplace materialization remain open.**
+**4 tasks. Target: users add MCP servers; verified skill marketplace installation works. The local MCP declaration, bounded health probe, and marketplace install/remove slices exist; authenticated ownership, secret brokering, external health attestation, and protected provider-backed marketplace materialization remain open.**
 (See `plan/06-mcp-extensions.md` for details)
 
 ---
