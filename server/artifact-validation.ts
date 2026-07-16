@@ -56,7 +56,7 @@ export const validateModeArtifacts = async (task: Task, store: TaskStore): Promi
   if (task.mode === 'document') {
     const document = await required(store, task.id, 'document.md', checks)
     const metadata = await required(store, task.id, 'document.json', checks)
-    check(checks, 'document:structure', Boolean(document?.includes('## Executive summary') && document.includes('## Provenance')), 'Document has summary and provenance sections')
+    check(checks, 'document:structure', Boolean(/^##\s+Executive summary\s*$/im.test(document ?? '') && /^##\s+Provenance\s*$/im.test(document ?? '')), 'Document has summary and provenance sections')
     try { JSON.parse(metadata ?? '') ; check(checks, 'document:metadata-json', true, 'Document metadata is valid JSON') } catch { check(checks, 'document:metadata-json', false, 'Document metadata is valid JSON') }
   }
   if (task.mode === 'research') {

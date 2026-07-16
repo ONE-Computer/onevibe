@@ -203,6 +203,24 @@ describe('mode artifacts', () => {
     expect((await validateModeArtifacts(data, store)).passed).toBe(true)
   })
 
+  it('accepts normal Markdown heading capitalization in document contracts', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-document-heading-case-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { validateModeArtifacts } = await import('./artifact-validation.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Validate heading semantics', 'demo', 'document')
+    await store.writeWorkspaceFile(task.id, 'index.html', '<html lang="en"><head><meta name="viewport"><title>Brief</title></head><body><h1>Brief</h1></body></html>')
+    await store.writeWorkspaceFile(task.id, 'document.md', '# Brief\n\n## Executive Summary\n\nA concise summary.\n\n## Provenance\n\nReviewed locally.\n')
+    await store.writeWorkspaceFile(task.id, 'document.json', '{"title":"Brief"}\n')
+
+    const validation = await validateModeArtifacts(task, store)
+
+    expect(validation.checks.find((check) => check.id === 'document:structure')?.status).toBe('passed')
+    expect(validation.passed).toBe(true)
+  })
+
   it('preserves declared research references as unverified provenance without fetching them', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-research-provenance-'))
     temporaryRoots.push(root)

@@ -45,7 +45,7 @@ const main = async () => {
   const created = await request<{ id: string }>('/api/tasks', {
     method: 'POST',
     body: JSON.stringify({
-      prompt: 'Create exactly one file named README.md with a title and one concise sentence stating that this is a governed Claude Agent SDK validation artifact. Do not access the network, credentials, or any path outside the current workspace.',
+      prompt: 'Create a governed document-mode validation artifact entirely inside the current workspace. Write document.md with a title, an Executive summary section, and a Provenance section; write valid document.json metadata; write a dependency-free index.html review page; and write README.md with one concise sentence stating this is a governed Claude Agent SDK validation artifact. Do not access the network, credentials, or any path outside the current workspace.',
       provider: 'claude_sdk', mode: 'document', projectId: 'project_onevibe', references: [], attachments: [], skills: ['document', 'security_review'],
     }),
   })

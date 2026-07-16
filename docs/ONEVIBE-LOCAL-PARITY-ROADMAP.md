@@ -74,6 +74,8 @@ Agents work in parallel only when write scopes are disjoint. The main agent revi
 
 The cancellation worker is complete in `2fe6a84`; its evidence is deliberately fail-closed because the current remote exec abstraction cannot guarantee that an already-accepted remote command is interrupted by client-side abort.
 
+The local Claude/LiteLLM creation gate is now green for the current contract: two durable turns, persisted session identity, valid evidence, and an eight-slide PPTX/PDF artifact run. The gate remains host-process/local-router evidence; it does not promote ONEComputer, microVM isolation, external wallet approval, or production egress claims.
+
 ## Delegated audit synthesis — 2026-07-16
 
 The audits confirm a local release **NO-GO** until the runtime closes these reliability gaps: cancellation/process quiescence, restart reconciliation, the SSE replay/subscription race, provider early-EOF handling, crash recovery between native events and transcript projection, and durable retry identity. These are now tracked in `ONE-231`.
