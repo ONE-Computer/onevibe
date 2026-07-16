@@ -139,6 +139,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     const configuredClaude = claudeProviderConfig()
     const sandboxBaseUrl = process.env.ONEVIBE_SANDBOX_LITELLM_URL?.trim().replace(/\/+$/, '')
       ?? configuredClaude.childEnv.ANTHROPIC_BASE_URL
+    const sandboxNoProxyHost = sandboxBaseUrl ? new URL(sandboxBaseUrl).hostname : undefined
     const sandboxAuthToken = process.env.ONEVIBE_SANDBOX_LITELLM_AUTH_TOKEN?.trim()
     const sandboxApiKey = sandboxAuthToken ? 'placeholder' : configuredClaude.childEnv.ANTHROPIC_API_KEY
     const claudeTransport = configuredClaude.configured ? configuredClaude.transport : 'sandbox_preconfigured'
@@ -299,6 +300,10 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'set -eu',
         'export PATH=/opt/node22/bin:/home/kasm-user/.npm-global/bin:$PATH',
         ...(sandboxBaseUrl ? [`export ANTHROPIC_BASE_URL=${shellQuote(sandboxBaseUrl)}`] : []),
+        ...(!this.options.gatewayEnforced && sandboxNoProxyHost ? [
+          `export NO_PROXY="\${NO_PROXY:+$NO_PROXY,}${sandboxNoProxyHost}"`,
+          `export no_proxy="\${no_proxy:+$no_proxy,}${sandboxNoProxyHost}"`,
+        ] : []),
         ...(sandboxApiKey ? [`export ANTHROPIC_API_KEY=${shellQuote(sandboxApiKey)}`] : []),
         ...(sandboxAuthToken ? [`export ANTHROPIC_AUTH_TOKEN=${shellQuote(sandboxAuthToken)}`] : []),
         'export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1',

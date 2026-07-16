@@ -114,6 +114,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(launchCommand.indexOf('claude --print')).toBeLessThan(launchCommand.indexOf('rm -f .onevibe-prompt'))
     expect(launchCommand.indexOf('rm -f .onevibe-prompt')).toBeLessThan(launchCommand.indexOf('printf %s "$onevibe_exit_code"'))
     expect(commands.some((command) => command.includes("export ANTHROPIC_BASE_URL='http://sandbox-reachable-litellm:4100'"))).toBe(true)
+    expect(commands.some((command) => command.includes('sandbox-reachable-litellm'))).toBe(true)
+    expect(commands.some((command) => command.includes('export NO_PROXY='))).toBe(false)
     expect(commands.some((command) => command.includes("export ANTHROPIC_API_KEY='placeholder'"))).toBe(true)
     expect(commands.some((command) => command.includes("export ANTHROPIC_AUTH_TOKEN='test-sandbox-bearer-token'"))).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.type === 'run_started' && event.payload.claudeTransport === 'litellm')).toBe(true)
@@ -181,6 +183,9 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
   })
 
   it('reuses the conversation-owned sandbox and Claude session for a continuation', async () => {
+    vi.stubEnv('ONEVIBE_LITELLM_URL', 'http://host-only-litellm:4100')
+    vi.stubEnv('ONEVIBE_SANDBOX_LITELLM_URL', 'https://sandbox-relay.example')
+    vi.stubEnv('ONEVIBE_LITELLM_API_KEY', 'test-routing-key')
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-onecomputer-retained-'))
     roots.push(root)
     const { TaskStore } = await import('./store.js')
@@ -211,6 +216,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.filter((command) => command.includes('claude --print'))).toHaveLength(2)
     expect(commands.filter((command) => command.includes('claude --print'))[0]).not.toContain('--resume')
     expect(commands.filter((command) => command.includes('claude --print'))[1]).toContain("--resume 'session-retained'")
+    expect(commands.some((command) => command.includes('export NO_PROXY=') && command.includes('sandbox-relay.example'))).toBe(true)
     expect(store.getTask(task.id).securityContext).toMatchObject({ runtimeSessionId: 'session-retained', runtimeSessionLeaseGeneration: 1 })
   })
 })
