@@ -56,3 +56,5 @@ Keep capability gates separable in live diagnostics. A backend/artifact proof ma
 Azure is a curated branch assembled from focused patches, not proof that every local ancestor exists remotely. Before diagnosing a missing deployed route as a build-cache issue, use `git merge-base --is-ancestor <commit> HEAD` on the Azure checkout. Promote the owning commit explicitly, run its focused tests, rebuild the Next bundle, restart the service, and prove the route with an authenticated create/use/delete probe.
 
 Do not run concurrent ffmpeg/X11 screenshot commands against one sandbox display. Serialize periodic and event-caused captures per task, preserve the causal event ID on queued captures, and drain the queue before emitting terminal run state.
+
+Under shell `pipefail`, do not discover X11 geometry with a consumer that exits before `xdpyinfo` finishes; the producer may receive SIGPIPE and turn a valid display into exit 141. Consume the full output, validate the resulting `WIDTHxHEIGHT`, then launch ffmpeg.
