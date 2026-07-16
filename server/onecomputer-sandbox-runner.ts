@@ -84,8 +84,9 @@ export const GOVERNED_BROWSER_TOOLS = [
   'mcp__playwright__browser_take_screenshot',
 ] as const
 
-export const governedClaudeTools = (browserAutomation: boolean) => [
+export const governedClaudeTools = (browserAutomation: boolean, shell = false) => [
   'Read', 'Write', 'Edit', 'Glob', 'Grep',
+  ...(shell ? ['Bash'] : []),
   ...(browserAutomation ? GOVERNED_BROWSER_TOOLS : []),
 ]
 
@@ -295,10 +296,11 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       ].join('\n\n')
       const encodedPrompt = Buffer.from(agentPrompt).toString('base64')
       const workspace = `/tmp/onevibe/${task.id}`
-      const allowedTools = governedClaudeTools(browserAutomationEnabled)
+      const allowedTools = governedClaudeTools(browserAutomationEnabled, task.mode === 'slides')
       const command = [
         'set -eu',
         'export PATH=/opt/node22/bin:/home/kasm-user/.npm-global/bin:$PATH',
+        'export NODE_PATH=/home/kasm-user/.npm-global/lib/node_modules',
         ...(sandboxBaseUrl ? [`export ANTHROPIC_BASE_URL=${shellQuote(sandboxBaseUrl)}`] : []),
         ...(!this.options.gatewayEnforced && sandboxNoProxyHost ? [
           `export NO_PROXY="\${NO_PROXY:+$NO_PROXY,}${sandboxNoProxyHost}"`,
@@ -317,7 +319,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'rm -f .onevibe-events.jsonl .onevibe-exitcode .onevibe-pid',
         '(',
         '  set +e',
-        `  claude --print --output-format stream-json --verbose --model ${shellQuote(configuredClaude.model)} --permission-mode bypassPermissions --setting-sources project --allowedTools ${shellQuote(allowedTools.join(','))}${resumableSessionId ? ` --resume ${shellQuote(resumableSessionId)}` : ''} < .onevibe-prompt > .onevibe-events.jsonl 2>&1`,
+        `  claude --print --output-format stream-json --verbose --model ${shellQuote(configuredClaude.model)} --permission-mode bypassPermissions --setting-sources project --tools ${shellQuote(allowedTools.join(','))} --allowedTools ${shellQuote(allowedTools.join(','))}${resumableSessionId ? ` --resume ${shellQuote(resumableSessionId)}` : ''} < .onevibe-prompt > .onevibe-events.jsonl 2>&1`,
         '  onevibe_exit_code="$?"',
         '  rm -f .onevibe-prompt',
         '  printf %s "$onevibe_exit_code" > .onevibe-exitcode',

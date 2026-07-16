@@ -46,3 +46,8 @@ The deck gate failed: the sandbox lacked `python-pptx`/PDF libraries, package in
 4. Validate real PPTX/PDF magic bytes, transcript restart, evidence chain, and explicit cleanup.
 5. Run credential/workspace/event/export residue scans.
 
+### Deterministic deck runtime follow-up
+
+The next POC slice bakes `pptxgenjs` and `pdf-lib` into the ONEComputer headless Claude bootstrap and verifies both modules before a sandbox may become ready. Slide jobs receive `NODE_PATH` for those managed modules and are instructed to produce a fixed six-file deliverable contract without installing packages at task time.
+
+Tool governance now distinguishes availability from approval. ONEVibe passes the same mode-specific list to Claude's `--tools` and `--allowedTools`: ordinary modes retain only path-confined file/search tools, while Slide mode additionally receives Bash solely to run the preinstalled renderer. This still requires a live negative test proving Bash is absent outside Slide mode and a real deck run proving the expected binary signatures.

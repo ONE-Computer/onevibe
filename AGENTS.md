@@ -42,3 +42,7 @@ For AWS/Bedrock runtime work, read `docs/AGENTCORE-AWS-RUNTIME.md` and the refer
 ## Frontend foundation
 
 Use `assistant-ui` as the preferred foundation for ONEVibe conversation threads, streaming messages, composer, history navigation, accessible message actions, and tool-state rendering. Preserve ONEComputer's bespoke dark/light visual system and custom evidence/artifact rail rather than forcing those surfaces into generic chat components. Any adoption must bind to the real server transcript/SSE contracts; demo arrays or browser-authoritative history are prohibited.
+
+## Sandbox artifact dependencies
+
+Artifact tooling required by an acceptance gate must be image/bootstrap managed and verified before the runtime reports ready. Never make a live agent install packages through the development proxy. Keep Claude's `--tools` availability mode-specific and use `--allowedTools` only as the separate approval layer; adding an approval allowlist does not remove a tool. Slide mode may receive a narrowly documented shell capability to invoke preinstalled renderers, while ordinary conversation modes must not.

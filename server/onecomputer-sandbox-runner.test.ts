@@ -14,6 +14,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
   it('only exposes browser MCP controls when the governed runtime explicitly enables them', async () => {
     const { GOVERNED_BROWSER_TOOLS, browserEvidenceFor, governedClaudeTools, isGovernedBrowserTool, isSandboxRuntimeReady } = await import('./onecomputer-sandbox-runner.js')
     expect(governedClaudeTools(false)).toEqual(['Read', 'Write', 'Edit', 'Glob', 'Grep'])
+    expect(governedClaudeTools(false, true)).toEqual(['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'])
     expect(governedClaudeTools(true)).toEqual(expect.arrayContaining([...GOVERNED_BROWSER_TOOLS]))
     expect(GOVERNED_BROWSER_TOOLS).toEqual(expect.arrayContaining(['mcp__playwright__browser_select_option', 'mcp__playwright__browser_wait_for']))
     expect(GOVERNED_BROWSER_TOOLS).not.toEqual(expect.arrayContaining(['mcp__playwright__browser_evaluate', 'mcp__playwright__browser_file_upload', 'mcp__playwright__browser_cookie_list', 'mcp__playwright__browser_route']))
@@ -109,6 +110,8 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(commands.some((command) => command.includes('claude --print'))).toBe(true)
     expect(commands.some((command) => command.includes('--output-format stream-json --verbose'))).toBe(true)
     expect(commands.some((command) => command.includes('export PATH=/opt/node22/bin:/home/kasm-user/.npm-global/bin:$PATH'))).toBe(true)
+    expect(commands.some((command) => command.includes('export NODE_PATH=/home/kasm-user/.npm-global/lib/node_modules'))).toBe(true)
+    expect(commands.some((command) => command.includes('--tools'))).toBe(true)
     const launchCommand = commands.find((command) => command.includes('claude --print'))!
     expect(launchCommand).toContain('< .onevibe-prompt > .onevibe-events.jsonl')
     expect(launchCommand.indexOf('claude --print')).toBeLessThan(launchCommand.indexOf('rm -f .onevibe-prompt'))
