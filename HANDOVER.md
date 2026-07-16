@@ -55,7 +55,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
 6. **Organization membership is not yet a data-plane grant** — local authenticated owners can create organizations and owners can add/remove members, but task/project/runtime access remains owner-scoped until the Postgres-backed organization policy and repository switch are accepted
 7. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; active-task mutations use Query mutation lifecycle/pending state and reconcile server-derived caches without creating a second client authority
-7. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, production MCP secret brokering/external health attestation, dependency advisory resolution, and browser evidence remain open in `TODO.md`
+7. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, production MCP secret brokering/external health attestation, and browser evidence remain open in `TODO.md`; the production dependency audit gate is now clean under the reviewed esbuild override
 
 ### How to run it locally
 

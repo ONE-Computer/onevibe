@@ -808,3 +808,9 @@ baseline harness in CI.
 - Moved local organization/member reads and mutations out of `TaskStore`'s direct SQLite SQL and into the shared persistence repository contract. `SqliteOrganizationRepository` now participates in the same `SqliteUnitOfWork` transaction boundary as conversations, messages, runtime events, MCP declarations, skills, idempotency, and leases.
 - Added repository-level coverage for organization/member ordering, lookup, membership listing, and removal. This is an adapter seam, not Postgres support: the active store remains SQLite and organization membership still does not grant task/project/runtime access.
 - Verification: focused repository tests and `npm run e2e:auth-owner` passed; the full release gate remains required before merge.
+
+## 2026-07-17 — production dependency audit gate cleared
+
+- Added a reviewed npm override that replaces the vulnerable nested `esbuild@0.18.20` pulled by `@esbuild-kit/core-utils` with patched `esbuild@0.25.12`. The override is intentionally narrow and is retained in the lockfile; it avoids the incompatible `npm audit fix --force` downgrade path for Better Auth/Drizzle Kit.
+- Added `npm audit --omit=dev --audit-level=moderate` to the required GitHub Actions verification job. `npm audit --omit=dev` now reports zero vulnerabilities, `npm ls` reports the overridden dependency as patched, and `npm run db:check` remains green.
+- This closes only the dependency advisory gate. It does not close Postgres runtime, production auth, deployment, sandbox attestation, or provider acceptance.

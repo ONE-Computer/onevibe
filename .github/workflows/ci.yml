@@ -26,6 +26,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Audit production dependency tree
+        run: npm audit --omit=dev --audit-level=moderate
       - run: npm run check
 
   container:

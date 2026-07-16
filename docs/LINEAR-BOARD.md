@@ -40,7 +40,7 @@ The focused accessibility cleanup is tracked in [ONE-256](https://linear.app/one
 
 The client error-surface slice is tracked in [ONE-257](https://linear.app/onecomputer/issue/ONE-257/uxp1-surface-async-failures-with-a-consistent-toast-contract). It is Done locally: Sonner is mounted once, recoverable async failures surface to users, page-local errors remain authoritative, and the duplicate schedule confirmation is removed.
 
-The dependency security gate is tracked in [ONE-258](https://linear.app/onecomputer/issue/ONE-258/secp1-resolve-dependency-audit-gate-before-production). It remains Backlog until the Better Auth → Drizzle Kit → esbuild advisory chain has a reviewed non-breaking resolution or explicit risk acceptance; `npm audit fix --force` is not an acceptable substitute.
+The dependency security gate is tracked in [ONE-258](https://linear.app/onecomputer/issue/ONE-258/secp1-resolve-dependency-audit-gate-before-production). Commit pending adds a narrow lockfile override for the vulnerable nested esbuild dependency, keeps Drizzle Kit/Better Auth versions unchanged, adds a CI production-tree audit, and passes `npm audit --omit=dev --audit-level=moderate` with zero findings plus `npm run db:check`. This closes the advisory gate without using `npm audit fix --force`; the override must be revalidated on dependency upgrades.
 
 The Zustand state migration is tracked in [ONE-259](https://linear.app/onecomputer/issue/ONE-259/uxp1-migrate-application-state-to-explicit-zustand-stores). It is Done: the three explicit UI/composer/session stores are implemented and tested, all ordinary server-backed collections are Query-owned, and active task snapshots remain deliberately on the SSE/useTask boundary.
 
