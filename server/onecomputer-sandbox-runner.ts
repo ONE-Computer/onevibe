@@ -8,7 +8,7 @@ import { sanitizeNativePayload } from './native-events.js'
 import { validateModeArtifacts } from './artifact-validation.js'
 import { skillPacksFor, skillPacksFromInstallations } from './skill-packs.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
-import { claudeProviderConfig } from './claude-provider-config.js'
+import { claudeProviderConfig, isLiteLlmRelayUrl } from './claude-provider-config.js'
 import { SANDBOX_SLIDE_RENDERER, sandboxSlideSeed } from './sandbox-slide-renderer.js'
 import { portableArtifactKind as portableArtifactPathKind } from './artifact-path.js'
 import { ONEVIBE_SANDBOX_AGENT_SDK_WORKER } from './onecomputer-agent-sdk-worker.js'
@@ -268,8 +268,9 @@ export class OneComputerSandboxRuntimeAdapter extends RuntimeAdapterBase {
   protected async execute({ task, store, signal, prompt, continuation }: LegacyRuntimeContext) {
     signal.throwIfAborted()
     const configuredClaude = claudeProviderConfig()
-    const sandboxBaseUrl = process.env.ONEVIBE_SANDBOX_LITELLM_URL?.trim().replace(/\/+$/, '')
-      ?? configuredClaude.childEnv.ANTHROPIC_BASE_URL
+    const sandboxRelayOverride = process.env.ONEVIBE_SANDBOX_LITELLM_URL?.trim()
+    if (sandboxRelayOverride && !isLiteLlmRelayUrl(sandboxRelayOverride)) throw new Error('ONEVIBE_SANDBOX_LITELLM_URL must point to a non-first-party LiteLLM relay')
+    const sandboxBaseUrl = sandboxRelayOverride?.replace(/\/+$/, '') ?? configuredClaude.childEnv.ANTHROPIC_BASE_URL
     const sandboxNoProxyHost = sandboxBaseUrl ? new URL(sandboxBaseUrl).hostname : undefined
     const sandboxAuthToken = process.env.ONEVIBE_SANDBOX_LITELLM_AUTH_TOKEN?.trim()
     const sandboxApiKey = sandboxAuthToken ? 'placeholder' : configuredClaude.childEnv.ANTHROPIC_API_KEY

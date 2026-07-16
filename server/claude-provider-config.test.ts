@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { claudeProviderConfig } from './claude-provider-config.js'
+import { claudeProviderConfig, isLiteLlmRelayUrl } from './claude-provider-config.js'
 
 describe('Claude provider configuration', () => {
   it('routes Claude through LiteLLM without changing the parent environment', () => {
@@ -27,5 +27,13 @@ describe('Claude provider configuration', () => {
 
   it('requires both LiteLLM endpoint and credential', () => {
     expect(claudeProviderConfig({ ONEVIBE_LITELLM_URL: 'http://127.0.0.1:4000' })).toMatchObject({ configured: false, transport: 'unconfigured' })
+  })
+
+  it('rejects a first-party Anthropic URL even when it is mislabeled as LiteLLM', () => {
+    const config = claudeProviderConfig({ ONEVIBE_LITELLM_URL: 'https://api.anthropic.com/v1', ONEVIBE_LITELLM_API_KEY: 'relay-looking-key' })
+    expect(config).toMatchObject({ configured: false, transport: 'unconfigured' })
+    expect(config.childEnv).not.toHaveProperty('ANTHROPIC_API_KEY')
+    expect(isLiteLlmRelayUrl('https://api.anthropic.com')).toBe(false)
+    expect(isLiteLlmRelayUrl('https://relay.internal.example/v1')).toBe(true)
   })
 })
