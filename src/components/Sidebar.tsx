@@ -158,7 +158,7 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
                 <span className={`task-status ${conversation.status}`} aria-hidden="true" />
                 <span className="task-row-icon" aria-hidden="true"><ModeIcon size={13} /></span>
                 <span className="task-row-body"><strong>{conversation.title}</strong>{conversation.lastMessage && <small>{conversation.lastMessage.role === 'user' ? 'You' : 'ONEVibe'} · {conversation.lastMessage.preview}</small>}</span>
-                <time className="task-row-time">{relativeShort(conversation.updatedAt, now)}</time>
+                <time className="task-row-time" dateTime={conversation.updatedAt}>{relativeShort(conversation.updatedAt, now)}</time>
               </motion.button>
             )
           })}
