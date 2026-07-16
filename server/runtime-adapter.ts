@@ -81,12 +81,7 @@ export interface RuntimeAdapter {
   getPreviewUrl?(): Promise<string | null>
 }
 
-/**
- * Lifecycle base for the current store-backed adapters. The legacy overload is
- * intentionally temporary and is not part of RuntimeAdapter; it keeps focused
- * adapter tests and downstream integrations source-compatible while the server
- * switches to the canonical `run(prompt, context, signal)` call.
- */
+/** Lifecycle base for the current store-backed adapters. */
 export abstract class RuntimeAdapterBase implements RuntimeAdapter {
   abstract readonly name: string
   abstract readonly providerId: Task['provider']
@@ -107,17 +102,13 @@ export abstract class RuntimeAdapterBase implements RuntimeAdapter {
 
   protected abstract execute(context: LegacyRuntimeContext): Promise<void>
 
-  run(prompt: string, context: RunContext, signal: AbortSignal): AsyncIterable<RuntimeEvent>
-  run(context: LegacyRuntimeContext): Promise<void>
-  run(promptOrContext: string | LegacyRuntimeContext, context?: RunContext, signal?: AbortSignal): AsyncIterable<RuntimeEvent> | Promise<void> {
-    if (typeof promptOrContext !== 'string') return this.execute(promptOrContext)
-    if (!context || !signal) throw new TypeError(`${this.name} runtime requires a run context and abort signal`)
+  run(prompt: string, context: RunContext, signal: AbortSignal): AsyncIterable<RuntimeEvent> {
     const controller = new AbortController()
     const abort = () => controller.abort()
     signal.addEventListener('abort', abort, { once: true })
     this.activeController = controller
     this.bindStore(context.store)
-    const legacyContext: LegacyRuntimeContext = { ...context, prompt: promptOrContext, signal: controller.signal }
+    const legacyContext: LegacyRuntimeContext = { ...context, prompt, signal: controller.signal }
     const events = streamPersistedRun(context.store, context.task.id, () => this.execute(legacyContext))
     return this.cleanupStream(events, signal, abort, controller)
   }

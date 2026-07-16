@@ -15,14 +15,12 @@ describe('DemoRuntimeAdapter', () => {
     temporaryRoots.push(root)
     const { TaskStore } = await import('./store.js')
     const { DemoRuntimeAdapter } = await import('./demo-runner.js')
+    const { consumeRuntime } = await import('./runtime-adapter-test-helpers.js')
     const store = new TaskStore(root)
     await store.initialize()
     const task = await store.createTask('Build a governed local artifact', 'demo')
 
-    await new DemoRuntimeAdapter().run({
-      task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false,
-      requestUserInput: async () => 'Local only',
-    })
+    await consumeRuntime(new DemoRuntimeAdapter(), task, store)
 
     const events = store.listEvents(task.id)
     for (const name of ['workspace.write', 'artifact.validate']) {

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { consumeRuntime } from './runtime-adapter-test-helpers.js'
 
 type QueryInput = {
   prompt: string
@@ -74,7 +75,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     const task = await store.createTask('Hello, how are you today?', 'claude_sdk', 'chat')
     await store.beginTurn(task.id, task.prompt, task.provider)
 
-    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'test answer' })
+    await consumeRuntime(new ClaudeSdkRuntimeAdapter(), task, store)
 
     const events = store.listEvents(task.id)
     expect(events.at(-1)?.type).toBe('run_completed')
@@ -98,7 +99,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     const task = await store.createTask('Build a governed website', 'claude_sdk')
     await store.beginTurn(task.id, task.prompt, task.provider)
 
-    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'test answer' })
+    await consumeRuntime(new ClaudeSdkRuntimeAdapter(), task, store)
 
     const events = store.listEvents(task.id)
     expect(permissionChecks).toEqual(['allow', 'deny', 'deny'])
@@ -143,11 +144,11 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     const adapter = new ClaudeSdkRuntimeAdapter()
 
     await store.beginTurn(task.id, task.prompt, task.provider)
-    await adapter.run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'test answer' })
+    await consumeRuntime(adapter, task, store)
     const firstManifest = await store.readWorkspaceFile(task.id, 'artifact-manifest.json')
 
     await store.beginTurn(task.id, 'Keep the same governed website', task.provider)
-    await adapter.run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Keep the same governed website', continuation: true, requestUserInput: async () => 'test answer' })
+    await consumeRuntime(adapter, store.getTask(task.id), store, 'Keep the same governed website', true)
 
     expect(await store.readWorkspaceFile(task.id, 'artifact-manifest.json')).toBe(firstManifest)
     const events = store.listEvents(task.id)
@@ -166,7 +167,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     const task = await store.createTask('Build a governed website', 'claude_sdk')
     await store.beginTurn(task.id, task.prompt, task.provider)
 
-    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'test answer' })
+    await consumeRuntime(new ClaudeSdkRuntimeAdapter(), task, store)
 
     const events = store.listEvents(task.id)
     const terminalEvent = events.at(-1)
@@ -190,7 +191,7 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     await store.updateTask(task.id, { securityContext: { mode: 'local_demo', gatewayEnforced: false, runtimeSessionId: 'session-existing' } })
     await store.beginTurn(task.id, 'Now add a pricing section', task.provider)
 
-    await new ClaudeSdkRuntimeAdapter().run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Now add a pricing section', continuation: true, requestUserInput: async () => 'test answer' })
+    await consumeRuntime(new ClaudeSdkRuntimeAdapter(), store.getTask(task.id), store, 'Now add a pricing section', true)
 
     expect(queryCalls[0]?.options.resume).toBe('session-existing')
     expect(queryCalls[0]?.prompt).toBe('Now add a pricing section')

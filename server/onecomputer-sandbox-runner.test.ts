@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { OneComputerClient } from './onecomputer-client.js'
+import { consumeRuntime, consumeStream, startRuntime } from './runtime-adapter-test-helpers.js'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -108,10 +109,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     } as unknown as OneComputerClient
     const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: true, retainSandbox: false, visualRuntime: true, browserAutomation: true, pollMilliseconds: 1, visualCheckpointMilliseconds: 100_000 })
 
-    await adapter.run({
-      task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false,
-      requestUserInput: async () => 'unused',
-    })
+    await consumeRuntime(adapter, task, store)
 
     expect(await store.readWorkspaceFile(task.id, 'index.html')).toContain('Sandbox output')
     expect(commands.join('\n')).not.toContain(task.prompt)
@@ -208,7 +206,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     } as unknown as OneComputerClient
     const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false, pollMilliseconds: 1 })
 
-    await adapter.run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+    await consumeRuntime(adapter, task, store)
 
     expect(client.getSandbox).toHaveBeenCalledTimes(2)
     expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer sandbox poll retry' && event.payload.retry === true)).toBe(true)
@@ -231,7 +229,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     } as unknown as OneComputerClient
     const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false })
 
-    await expect(adapter.run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })).rejects.toThrow('HTTP 504')
+    await expect(consumeRuntime(adapter, task, store)).rejects.toThrow('HTTP 504')
 
     expect(store.getTask(task.id).securityContext).toMatchObject({
       mode: 'onecomputer', executionBoundary: 'onecomputer_sandbox', sandboxState: 'unknown', gatewayEnforced: false,
@@ -260,12 +258,13 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     } as unknown as OneComputerClient
     const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: true, retainSandbox: false, visualRuntime: false, pollMilliseconds: 10_000 })
     const controller = new AbortController()
-    const run = adapter.run({ task, store, signal: controller.signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+    const run = await startRuntime(adapter, task, store, task.prompt, false, controller.signal)
+    const completion = consumeStream(run)
 
     await vi.waitFor(() => expect(store.getTask(task.id).securityContext).toMatchObject({ sandboxId: 'sandbox-provisioning', sandboxState: 'provisioning', executionBoundary: 'onecomputer_sandbox' }))
     controller.abort()
 
-    await expect(run).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(completion).rejects.toMatchObject({ name: 'AbortError' })
     expect(client.deleteSandbox).not.toHaveBeenCalled()
     expect(store.getTask(task.id).securityContext).toMatchObject({ sandboxId: 'sandbox-provisioning', sandboxState: 'provisioning' })
     expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-provisioning' })
@@ -297,11 +296,12 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     } as unknown as OneComputerClient
     const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false, pollMilliseconds: 1, agentQuiescenceTimeoutMilliseconds: 100 })
     const controller = new AbortController()
-    const run = adapter.run({ task, store, signal: controller.signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+    const run = await startRuntime(adapter, task, store, task.prompt, false, controller.signal)
+    const completion = consumeStream(run)
 
     await vi.waitFor(() => expect(commands.some((command) => command.includes('/opt/node22/bin/node .onevibe-agent-sdk.mjs'))).toBe(true))
     controller.abort()
-    await expect(run).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(completion).rejects.toMatchObject({ name: 'AbortError' })
 
     const cleanupCommand = commands.find((command) => command.includes('kill -TERM'))
     expect(cleanupCommand).toContain("agent_pid='4242'")
@@ -336,12 +336,13 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     } as unknown as OneComputerClient
     const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false, pollMilliseconds: 1, agentQuiescenceTimeoutMilliseconds: 20 })
     const controller = new AbortController()
-    const run = adapter.run({ task, store, signal: controller.signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+    const run = await startRuntime(adapter, task, store, task.prompt, false, controller.signal)
+    const completion = consumeStream(run)
 
     await vi.waitFor(() => expect(commands.some((command) => command.includes('/opt/node22/bin/node .onevibe-agent-sdk.mjs'))).toBe(true))
     controller.abort()
     const startedAt = Date.now()
-    await expect(run).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(completion).rejects.toMatchObject({ name: 'AbortError' })
     expect(Date.now() - startedAt).toBeLessThan(200)
     expect(commands.some((command) => command.includes('kill -TERM "$agent_pid"'))).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer agent quiescence not verified' && event.payload.cancellation === 'fail_closed' && typeof event.payload.limitation === 'string')).toBe(true)
@@ -373,9 +374,9 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
       getVisualScreenshot: vi.fn(),
     } as unknown as OneComputerClient
     const adapter = new OneComputerSandboxRuntimeAdapter(client, { gatewayEnforced: false, retainSandbox: true, visualRuntime: false, pollMilliseconds: 1 })
-    await adapter.run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'unused' })
+    await consumeRuntime(adapter, task, store)
     await store.beginTurn(task.id, 'Continue with a revision', task.provider)
-    await adapter.run({ task: store.getTask(task.id), store, signal: new AbortController().signal, prompt: 'Continue with a revision', continuation: true, requestUserInput: async () => 'unused' })
+    await consumeRuntime(adapter, store.getTask(task.id), store, 'Continue with a revision', true)
     expect(client.createSandbox).toHaveBeenCalledTimes(1)
     expect(client.getSandbox).toHaveBeenCalled()
     expect(client.deleteSandbox).not.toHaveBeenCalled()

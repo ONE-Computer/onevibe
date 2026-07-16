@@ -20,7 +20,7 @@ The current release gate is [ONE-230](https://linear.app/onecomputer/issue/ONE-2
 
 The handover adds [ONE-245](https://linear.app/onecomputer/issue/ONE-245/secp0-enforce-litellm-only-model-routing-for-every-harness) as a security release gate: every harness must route model traffic through the server-controlled LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The current Claude SDK path now fails closed without the relay; Codex/AgentCore remain open until their adapters use the same boundary.
 
-The first handover Phase 2 engineering ticket is [ONE-246](https://linear.app/onecomputer/issue/ONE-246/bep1-implement-provider-neutral-runtimeadapter-lifecycle-contract). It tracks the provider-neutral lifecycle contract now implemented in commit `dfb6b89`, including the remaining removal of the transitional legacy overload and the runtime registry boundary.
+The first handover Phase 2 engineering ticket is [ONE-246](https://linear.app/onecomputer/issue/ONE-246/bep1-implement-provider-neutral-runtimeadapter-lifecycle-contract). It tracks the provider-neutral lifecycle contract implemented in commits `dfb6b89` and the follow-up canonical test migration, with runtime registry extraction as the next boundary.
 
 The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critical path:
 
