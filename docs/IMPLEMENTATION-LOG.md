@@ -24,6 +24,7 @@
 - Extended `scripts/postgres-import.ts` to populate owner-bound conversations, set `task.conversation_id`, and write bounded `legacy_imports` receipts whose digest covers stable source identity/count metadata rather than copying raw task/provider content.
 - Added `npm run e2e:postgres-chat` and a CI PostgreSQL job step. Against disposable PostgreSQL 18, reviewed migrations applied, duplicate client requests replayed without a second user message, assistant/provider-message persistence and runtime-event replay passed, and a second owner was denied.
 - This is not a production switch: `TaskStore` remains SQLite-backed, the full repository surface is not yet async, and `DATABASE_URL` still fails closed. No model traffic is involved; the LiteLLM-only routing rule is unchanged.
+- The composed `PostgresStateCoordinator` now has a disposable restart proof (`npm run e2e:postgres-state`) covering metadata reload, durable user/assistant messages, runtime-event append, and turn completion across a coordinator restart. This is an integration seam, not the active driver: the running `TaskStore` remains SQLite-backed until its complete synchronous/async surface, transaction boundaries, idempotency, and runtime selection are migrated.
 
 ## 2026-07-17 — extend the Postgres target contract for durable identity and audit
 

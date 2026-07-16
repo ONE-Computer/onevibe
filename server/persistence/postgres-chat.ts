@@ -64,6 +64,18 @@ export type AppendAssistantMessageInput = {
   createdAt?: Date
 }
 
+export type AppendAssistantDeltaInput = {
+  conversationId: string
+  taskId: string
+  ownerUserId: string
+  messageId: string
+  expectedRevision: number
+  delta: string
+  status?: string
+}
+
+export type ReviseAssistantInput = AppendAssistantDeltaInput & { content: unknown; status: string }
+
 export type AppendRuntimeEventInput = {
   conversationId: string
   taskId: string
@@ -72,6 +84,9 @@ export type AppendRuntimeEventInput = {
   runId?: string
   type: string
   lane: string
+  status?: string
+  label?: string
+  content?: string
   payload: Record<string, unknown>
   previousHash: string
   eventHash: string
@@ -81,7 +96,7 @@ export type AppendRuntimeEventInput = {
 type ConversationRow = { id: string; owner_user_id: string; title: string | null; status: string; created_at: Date; updated_at: Date }
 type TurnRow = { id: string; task_id: string; client_request_id: string; ordinal: number; status: string }
 type MessageRow = { id: string; task_id: string; turn_id: string | null; sequence: number; role: string; content_json: unknown; provider_message_id: string | null; revision: number; status: string; created_at: Date }
-type RuntimeEventRow = { id: string; task_id: string; run_id: string | null; sequence: number; type: string; lane: string; payload_json: unknown; created_at: Date; previous_hash: string; event_hash: string }
+export type PostgresRuntimeEventRow = { id: string; task_id: string; run_id: string | null; sequence: number; type: string; lane: string; status: string | null; label: string | null; content: string | null; payload_json: unknown; created_at: Date; previous_hash: string; event_hash: string }
 
 const turnFromRow = (row: TurnRow, replayed: boolean): PostgresChatTurn => ({
   id: row.id,
@@ -222,6 +237,62 @@ export class PostgresChatRepository {
     })
   }
 
+  async appendAssistantDelta(input: AppendAssistantDeltaInput): Promise<PostgresChatMessage> {
+    return this.#sql.begin(async (tx) => {
+      await requireOwnerConversation(tx, input.conversationId, input.ownerUserId)
+      await requireOwnerTask(tx, input.taskId, input.conversationId, input.ownerUserId)
+      const rows = await tx<MessageRow[]>`
+        UPDATE message
+        SET content_json = CASE
+          WHEN jsonb_typeof(content_json) = 'object' THEN jsonb_set(content_json, '{text}', to_jsonb(COALESCE(content_json->>'text', '') || ${input.delta}))
+          ELSE jsonb_build_object('text', ${input.delta}::text)
+        END,
+            status = ${input.status ?? 'streaming'}, revision = revision + 1
+        WHERE id = ${input.messageId} AND task_id = ${input.taskId} AND role = 'assistant' AND revision = ${input.expectedRevision}
+        RETURNING id, task_id, turn_id, sequence, role, content_json, provider_message_id, revision, status, created_at
+      `
+      const row = rows[0]
+      if (!row) {
+        const existing = await tx<{ id: string }[]>`SELECT id FROM message WHERE id = ${input.messageId} AND task_id = ${input.taskId}`
+        if (!existing[0]) throw new RecordNotFoundError(`Message ${input.messageId} does not exist`)
+        throw new OptimisticConflictError(`Assistant message ${input.messageId} revision conflict`)
+      }
+      return messageFromRow(row)
+    })
+  }
+
+  async reviseAssistant(input: ReviseAssistantInput): Promise<PostgresChatMessage> {
+    return this.#sql.begin(async (tx) => {
+      await requireOwnerConversation(tx, input.conversationId, input.ownerUserId)
+      await requireOwnerTask(tx, input.taskId, input.conversationId, input.ownerUserId)
+      const rows = await tx<MessageRow[]>`
+        UPDATE message SET content_json = ${JSON.stringify(input.content)}::jsonb, status = ${input.status}, revision = revision + 1
+        WHERE id = ${input.messageId} AND task_id = ${input.taskId} AND role = 'assistant' AND revision = ${input.expectedRevision}
+        RETURNING id, task_id, turn_id, sequence, role, content_json, provider_message_id, revision, status, created_at
+      `
+      const row = rows[0]
+      if (!row) {
+        const existing = await tx<{ id: string }[]>`SELECT id FROM message WHERE id = ${input.messageId} AND task_id = ${input.taskId}`
+        if (!existing[0]) throw new RecordNotFoundError(`Message ${input.messageId} does not exist`)
+        throw new OptimisticConflictError(`Assistant message ${input.messageId} revision conflict`)
+      }
+      return messageFromRow(row)
+    })
+  }
+
+  async finishTurn(conversationId: string, taskId: string, ownerUserId: string, turnId: string, status: string, completedAt: Date, error?: unknown): Promise<void> {
+    await this.#sql.begin(async (tx) => {
+      await requireOwnerConversation(tx, conversationId, ownerUserId)
+      await requireOwnerTask(tx, taskId, conversationId, ownerUserId)
+      const result = await tx`
+        UPDATE turn SET status = ${status}, completed_at = ${completedAt}, error_json = ${error === undefined ? null : JSON.stringify(error)}::jsonb
+        WHERE id = ${turnId} AND task_id = ${taskId}
+      `
+      if (result.count !== 1) throw new RecordNotFoundError(`Turn ${turnId} does not exist`)
+      await tx`UPDATE message SET status = ${status} WHERE task_id = ${taskId} AND turn_id = ${turnId} AND role = 'assistant'`
+    })
+  }
+
   async listMessages(conversationId: string, ownerUserId: string): Promise<PostgresChatMessage[]> {
     const rows = await this.#sql<MessageRow[]>`
       SELECT m.id, m.task_id, m.turn_id, m.sequence, m.role, m.content_json, m.provider_message_id, m.revision, m.status, m.created_at
@@ -234,7 +305,7 @@ export class PostgresChatRepository {
     return rows.map(messageFromRow)
   }
 
-  async appendRuntimeEvent(input: AppendRuntimeEventInput): Promise<RuntimeEventRow> {
+  async appendRuntimeEvent(input: AppendRuntimeEventInput): Promise<PostgresRuntimeEventRow> {
     const now = input.createdAt ?? new Date()
     return this.#sql.begin(async (tx) => {
       await requireOwnerConversation(tx, input.conversationId, input.ownerUserId)
@@ -243,10 +314,10 @@ export class PostgresChatRepository {
         SELECT COALESCE(MAX(sequence) + 1, 0)::int AS next_sequence FROM runtime_event WHERE task_id = ${input.taskId}
       `
       const sequence = sequenceRows[0]?.next_sequence ?? 0
-      const rows = await tx<RuntimeEventRow[]>`
-        INSERT INTO runtime_event (id, task_id, run_id, sequence, type, lane, payload_json, created_at, previous_hash, event_hash)
-        VALUES (${input.eventId}, ${input.taskId}, ${input.runId ?? null}, ${sequence}, ${input.type}, ${input.lane}, ${JSON.stringify(input.payload)}::jsonb, ${now}, ${input.previousHash}, ${input.eventHash})
-        RETURNING id, task_id, run_id, sequence, type, lane, payload_json, created_at, previous_hash, event_hash
+      const rows = await tx<PostgresRuntimeEventRow[]>`
+        INSERT INTO runtime_event (id, task_id, run_id, sequence, type, lane, status, label, content, payload_json, created_at, previous_hash, event_hash)
+        VALUES (${input.eventId}, ${input.taskId}, ${input.runId ?? null}, ${sequence}, ${input.type}, ${input.lane}, ${input.status ?? null}, ${input.label ?? null}, ${input.content ?? null}, ${JSON.stringify(input.payload)}::jsonb, ${now}, ${input.previousHash}, ${input.eventHash})
+        RETURNING id, task_id, run_id, sequence, type, lane, status, label, content, payload_json, created_at, previous_hash, event_hash
       `
       const row = rows[0]
       if (!row) throw new OptimisticConflictError(`Runtime event ${input.eventId} was not appended`)
@@ -254,9 +325,9 @@ export class PostgresChatRepository {
     })
   }
 
-  async listRuntimeEvents(conversationId: string, ownerUserId: string, afterSequence = -1): Promise<RuntimeEventRow[]> {
-    const rows = await this.#sql<RuntimeEventRow[]>`
-      SELECT e.id, e.task_id, e.run_id, e.sequence, e.type, e.lane, e.payload_json, e.created_at, e.previous_hash, e.event_hash
+  async listRuntimeEvents(conversationId: string, ownerUserId: string, afterSequence = -1): Promise<PostgresRuntimeEventRow[]> {
+    const rows = await this.#sql<PostgresRuntimeEventRow[]>`
+      SELECT e.id, e.task_id, e.run_id, e.sequence, e.type, e.lane, e.status, e.label, e.content, e.payload_json, e.created_at, e.previous_hash, e.event_hash
       FROM runtime_event e
       INNER JOIN task t ON t.id = e.task_id
       INNER JOIN conversation c ON c.id = t.conversation_id
