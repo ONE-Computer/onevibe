@@ -8,6 +8,8 @@ Design constraint: **sans-serif typography only**
 
 The execution-narrative slice is now backed by real running state: the assistant-ui projection renders durable user/assistant turns, native tool parts, a compact operational summary, and task-bound artifact cards; tool-backed tasks open directly in the Computer inspector. A follow-up browser pass removed duplicate tool rows from the summary and made general tasks open on their latest CLI command/result, while keeping hidden chain-of-thought out of the product. The broader native composer, inspector, typography, and responsive visual-regression work remains open.
 
+The visible typography contract is now enforced at the product surface: body, controls, metadata, terminal/code previews, and timeline labels resolve to the same sans-serif stack. This closes the rendering-level font-family violation for the current shell; a complete responsive visual-regression suite is still required.
+
 ## North star
 
 ONEVibe should feel like a calm, premium agent workspace: one obvious place to talk, one durable conversation history, one clear execution narrative, and one contextual artifact/computer inspector. The interface should feel closer to a high-quality AI product than an operations console.

@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-16 — sans-serif evidence surface contract
+
+- Applied a late-bound sans-serif contract to the visible ONEVibe surface, including conversation metadata, terminal/code previews, rail labels, controls, and timeline surfaces. Evidence remains distinguishable through hierarchy, spacing, color, and panels rather than a mono font.
+- Browser verification on the real Bash task reports `Inter, ui-sans-serif, system-ui, sans-serif` for both body and terminal/code elements, with the CLI Bash card still selected by default.
+- Verification: `npm run check` passes with 37 test files / 207 tests, production build, and E2E harness typechecks. This is the visual-system slice for ONE-244; responsive desktop/mobile regression remains open.
+
 ## 2026-07-16 — unified tool narrative and mode-aware Computer inspector
 
 - Removed tool-call rows from the assistant-ui working summary when the same `(runId, toolUseId)` is already rendered as a native assistant-ui tool part and a durable Computer-rail card. The assistant message now carries the operational/control summary; the detailed command/result appears once in the tool card and once in the side evidence inspector.

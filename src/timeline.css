@@ -36,3 +36,4 @@
 .visual-capture-summary .activity-chevron {
   color: var(--warning, #f1b84b);
 }
+.timeline-header, .timeline-header *, .timeline-header *::before, .timeline-header *::after { font-family: Inter, ui-sans-serif, system-ui, sans-serif !important; }
