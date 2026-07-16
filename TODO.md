@@ -86,7 +86,7 @@ Reference: `plan/05-ui-overhaul.md`
 - [ ] **P5-07** Add library item delete — `DELETE /api/library/:taskId` + remove action
 - [x] **P5-08** Add history restore confirmation — confirm dialog, loading state, success/error status, and evidence-backed refresh
 - [x] **P5-09** Fix evidence log — latest-six view now has an explicit "Show all N events" toggle without discarding the durable event ledger
-- [ ] **P5-10** Fix status labels — `statusLabel(status)` canonical map; `providerLabel(id)` canonical map; replace all raw enum rendering
+- [x] **P5-10** Fix status labels — added canonical `statusLabel`/`tokenLabel` helpers and replaced raw run, mode, execution-boundary, and activity enum rendering in the primary task/computer surfaces
 - [ ] **P5-11** Fix accessibility — `<time dateTime>` everywhere, `readableBytes` helper consistently, `alt` text on images, `<time>` null-guard in `index.html`
 - [ ] **P5-12** Fix working trace — chevron on `<details>`, open by default when running, 240-char truncation replaced with expand link
 - [x] **P5-13** Finish composer UX — disable the fifth skill toggle with an explanatory tooltip; the duplicate typing indicator and `waiting_for_user_input` running-state defect are closed under P2-09

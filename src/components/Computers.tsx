@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { testRuntime } from '../lib/api'
 import type { RuntimeHealth, RuntimeReadiness, Task } from '../types'
+import { statusLabel } from '../lib/runtime-labels'
 
 type Props = { tasks: Task[]; onOpenTask: (taskId: string) => void; runtime?: RuntimeReadiness }
 
@@ -16,7 +17,7 @@ const lifecycleLabel = (task: Task) => task.securityContext?.destroyedAt
   ? 'Destroyed'
   : task.securityContext?.sandboxState
     ? task.securityContext.sandboxState.replaceAll('_', ' ')
-    : task.status.replaceAll('_', ' ')
+    : statusLabel(task.status)
 
 export const Computers = ({ tasks, onOpenTask, runtime }: Props) => {
   const [health, setHealth] = useState<Record<string, RuntimeHealth>>({})

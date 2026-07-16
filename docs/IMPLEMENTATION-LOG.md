@@ -38,6 +38,11 @@
 - Completed P5-08: workspace history restore now requires explicit confirmation, shows a disabled in-flight state, refreshes authoritative files after the server restore, and exposes success/error status without pretending a browser-only mutation occurred.
 - Completed P5-09: the evidence rail keeps a concise latest-six default but now offers an explicit all-events toggle with durable sequence/hash identifiers, so older evidence is not hidden behind an irreversible slice.
 
+## 2026-07-17 — canonical UI status language
+
+- Completed P5-10 in the primary task and runtime surfaces. `statusLabel`, `providerLabel`, and `tokenLabel` now own user-facing run/provider/mode/boundary labels instead of raw underscore-enum strings leaking into badges, dashboards, activity summaries, or runtime inventory.
+- Verification: lint and production build pass; the next full gate will include this presentation-only slice.
+
 ## 2026-07-16 — runtime routing browser acceptance
 
 - Browser-checked the local Vite app at `http://127.0.0.1:5173/` after the RuntimeRegistry/routing pass. The home composer truthfully reports that no governed runtime is configured and labels the active path `Simulation only · no model call`.
