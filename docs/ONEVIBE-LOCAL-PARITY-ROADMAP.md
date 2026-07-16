@@ -86,7 +86,7 @@ The cancellation worker is complete in `2fe6a84`; its evidence is deliberately f
 
 The local Claude/LiteLLM creation gate is now green for the current contract: two durable turns, persisted session identity, valid evidence, and an eight-slide PPTX/PDF artifact run. The gate remains host-process/local-router evidence; it does not promote ONEComputer, microVM isolation, external wallet approval, or production egress claims.
 
-Creation outputs now have a deterministic provenance manifest for local deterministic mode writers and successful native Claude turns. The manifest is intentionally metadata-only; ONEComputer provider extraction still needs an explicit projection before this becomes a universal artifact contract.
+Creation outputs now have a deterministic provenance manifest for local deterministic mode writers, successful native Claude turns, and the ONEComputer extraction path. The manifest is intentionally metadata-only and hashes actual extracted bytes; runtime validation/build reports remain separate evidence artifacts.
 
 The default local LiteLLM slide gate is now green for the current route: task `task_e1a9c636a57a45` passed with the encoded 12-turn/$2 policy, eight-slide PPTX/PDF outputs, seven hashed manifest outputs, and valid evidence. The coordinator retains its 15-minute turn deadline and bounded cleanup grace; future model/gateway changes must rerun this gate.
 

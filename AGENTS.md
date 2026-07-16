@@ -81,6 +81,8 @@ For legacy persistence migrations, assume identifiers were only unique inside on
 
 For binary acceptance artifacts, prefer a versioned server-controlled renderer executed inside the sandbox. Let the agent author bounded structured content, but do not depend on it to install libraries, invent a renderer, or self-report binary validity. Record the renderer identity and verify signatures before extraction.
 
+Creation-mode writers and native/provider extraction must emit the common `artifact-manifest.json` contract from actual portable bytes. The manifest may contain only version, task/mode metadata, safe output paths, byte sizes, SHA-256 hashes, and artifact kinds; exclude inputs, evidence, dotfiles, runtime reports, and file contents. Normalize deterministic renderer metadata before hashing, and keep validation/build reports as separate evidence rather than portable output.
+
 Keep capability gates separable in live diagnostics. A backend/artifact proof may run with visual capture disabled when the provider route is unavailable, but it must be labeled partial and must not close the combined E2E ticket; preserve the exact provider failure and require a later run with visual evidence enabled.
 
 Azure is a curated branch assembled from focused patches, not proof that every local ancestor exists remotely. Before diagnosing a missing deployed route as a build-cache issue, use `git merge-base --is-ancestor <commit> HEAD` on the Azure checkout. Promote the owning commit explicitly, run its focused tests, rebuild the Next bundle, restart the service, and prove the route with an authenticated create/use/delete probe.
