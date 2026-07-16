@@ -102,3 +102,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
         run: npm run e2e:postgres-chat
+      - name: Prove Better Auth OTP and sessions on Postgres
+        env:
+          DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
+        run: npm run e2e:auth-postgres

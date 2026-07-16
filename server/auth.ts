@@ -3,8 +3,14 @@ import type Database from 'better-sqlite3'
 import { betterAuth } from 'better-auth'
 import { fromNodeHeaders, toNodeHandler } from 'better-auth/node'
 import { emailOTP } from 'better-auth/plugins'
+import { drizzleAdapter } from '@better-auth/drizzle-adapter'
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import * as PostgresSchema from './db/schema.js'
 
 const enabled = process.env.ONEVIBE_AUTH_ENABLED === 'true'
+
+export type AuthDatabase = Database.Database | PostgresJsDatabase<typeof PostgresSchema>
+export type AuthDatabaseDriver = 'sqlite' | 'postgres'
 
 const trustedOrigins = () => (process.env.ONEVIBE_TRUSTED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',').map((origin) => origin.trim()).filter(Boolean)
@@ -12,7 +18,7 @@ const trustedOrigins = () => (process.env.ONEVIBE_TRUSTED_ORIGINS ?? 'http://loc
 export class AuthService {
   private auth?: ReturnType<typeof betterAuth<any>>
 
-  constructor(private readonly database: Database.Database) {}
+  constructor(private readonly database: AuthDatabase, private readonly driver: AuthDatabaseDriver = 'sqlite') {}
 
   get isEnabled() { return enabled }
 
@@ -22,8 +28,11 @@ export class AuthService {
     if (!secret || secret.length < 32) throw new Error('ONEVIBE_AUTH_ENABLED=true requires BETTER_AUTH_SECRET with at least 32 characters')
     const webhook = process.env.ONEVIBE_AUTH_OTP_WEBHOOK_URL?.trim()
     if (!webhook) throw new Error('ONEVIBE_AUTH_ENABLED=true requires ONEVIBE_AUTH_OTP_WEBHOOK_URL; OTPs must use a real email delivery path')
+    const authDatabase = this.driver === 'postgres'
+      ? drizzleAdapter(this.database, { provider: 'pg', schema: PostgresSchema.authTables, camelCase: true, transaction: true })
+      : this.database
     this.auth = betterAuth({
-      database: this.database,
+      database: authDatabase,
       secret,
       baseURL: process.env.BETTER_AUTH_URL?.trim() || trustedOrigins()[0],
       trustedOrigins: trustedOrigins(),
@@ -44,8 +53,14 @@ export class AuthService {
     })
     const auth = this.auth
     if (!auth) throw new Error('Better Auth failed to initialize')
-    const context = await auth.$context
-    await context.runMigrations()
+    // Better Auth's automatic migration helper is Kysely-only. The Postgres
+    // path is governed by the reviewed Drizzle migration ledger, so running
+    // the helper here would mis-detect the adapter as SQLite and either fail
+    // startup or create an unreviewed schema.
+    if (this.driver === 'sqlite') {
+      const context = await auth.$context
+      await context.runMigrations()
+    }
   }
 
   async handle(request: IncomingMessage, response: ServerResponse) {

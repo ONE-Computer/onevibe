@@ -8,6 +8,12 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 - `npm run e2e:postgres-chat` exercised the isolated async repository: owner-bound conversation/task creation, client-request replay without a duplicate user message, assistant persistence with a provider message ID, one durable runtime event, and owner B denial. The run reported two messages, one runtime event, and `ownerIsolation=true` without retaining credentials or model payloads.
 - The application still fails closed when `DATABASE_URL` would select Postgres. This is a repository vertical proof, not a claim that the live TaskStore, production migration procedure, microVM boundary, OpenVTC/VTI approval, or model provider path has switched.
 
+## 2026-07-17 — disposable Postgres Better Auth proof
+
+- The first run exposed that Better Auth's automatic migration helper supports only its Kysely path and misidentified the Drizzle adapter as SQLite. The Postgres auth path now skips that helper; the reviewed Drizzle migration ledger is authoritative.
+- `npm run e2e:auth-postgres` then passed against PostgreSQL 18: two loopback-delivered OTPs created two distinct users and two durable sessions through `@better-auth/drizzle-adapter`. No secret or OTP value was retained in output.
+- Boundary: the running API/TaskStore still uses SQLite and does not yet select this Postgres auth database. Production email delivery, org-backed authorization, provider routing, and sandbox/OpenVTC evidence remain separate gates.
+
 ## 2026-07-17 — protected LiteLLM provider gate and SDK workspace-path compatibility
 
 - The host-only LiteLLM relay advertised the configured `claude-sonnet-5` alias and received the Claude-compatible `/v1/messages` traffic. No direct first-party Anthropic endpoint or credential was used.

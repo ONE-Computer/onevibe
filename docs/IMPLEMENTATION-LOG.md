@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — prove Better Auth OTP and sessions on Drizzle/Postgres
+
+- Extended `server/auth.ts` with a Postgres mode using `@better-auth/drizzle-adapter` and the reviewed `authTables`; SQLite retains its existing Better Auth migration path. Postgres deliberately skips Better Auth's Kysely-only automatic migration helper so the Drizzle migration ledger remains authoritative.
+- Added `scripts/postgres-auth-e2e.ts` / `npm run e2e:auth-postgres`. Against disposable PostgreSQL 18, two users requested and verified hashed email OTPs through a loopback delivery webhook, received distinct session cookies, and remained present as two Postgres users/two sessions.
+- This proves the auth adapter contract only. The running server still constructs `AuthService` from the SQLite-backed TaskStore and `DATABASE_URL` remains fail-closed until the full Postgres TaskStore/runtime switch and org-backed route authorization land. No model traffic is involved; LiteLLM-only routing is unchanged.
+
 ## 2026-07-17 — prove the first async Postgres chat vertical slice
 
 - Added `server/persistence/postgres-chat.ts` as an isolated repository boundary. It creates owner-bound conversations/tasks, locks the owner conversation and task rows during turn/message/event writes, makes client-request turn creation idempotent, persists provider message IDs, and exposes owner-filtered transcript/runtime-event reads.
