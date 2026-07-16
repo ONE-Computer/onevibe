@@ -1,161 +1,146 @@
-# Gap Analysis: ONEVibe vs OpenWork
+# Gap Analysis — ONEVibe vs the market
 
-> Prepared 2026-07-16. Source: deep subagent audit of `/tmp/openwork` + full ONEVibe source audit.
-
----
-
-## What OpenWork Is
-
-OpenWork is a local-first AI workspace desktop app (Electron 35) that:
-1. Spawns `@opencode-ai/sdk` as a real agent subprocess (the engine owns LLM calls, tool execution, session state)
-2. Runs agent tasks inside Daytona cloud VMs or Docker containers — **real sandboxes, real file systems**
-3. Manages MCP servers in SQLite at runtime; injects them into the agent engine per-session
-4. Has a full enterprise control plane ("Den"): better-auth (OTP + OAuth + SCIM + SSO), MySQL (PlanetScale), inference proxy, usage metering, Stripe billing, multi-tenancy
-5. Exports a marketplace of skills (markdown SKILL.md files from GitHub), two-tool MCP facade, blueprint sessions, fork/revert/edit-message
-
-## What ONEVibe Is Today
-
-ONEVibe is a React SPA (`src/`) backed by a hand-rolled Node.js HTTP server (`server/index.ts`, 745 lines). The server:
-- Runs on port 4311; Vite proxies `/api/*` to it
-- Has real adapter classes: `ClaudeSdkRuntimeAdapter`, `OneComputerSandboxRuntimeAdapter`, `DemoRuntimeAdapter`
-- Persists tasks to SQLite via `server/store.ts` + `server/persistence/`
-- Streams events via SSE
-
-**The server is real. The adapters are real. The problem is integration, deployment, and UX.**
+> Prepared 2026-07-16, sharpened 2026-07-16.
+> Source: deep audit of `different-ai/openwork`, full ONEVibe source audit, user brief.
 
 ---
 
-## The 10 Root Causes
+## The ONEVibe thesis (sharpened)
+
+ONEVibe is **not** a UI wrapper around a single agent harness. That is what OpenWork built, and it is a strategic trap: you become a distribution channel for one SDK, and you are at the mercy of that SDK's roadmap.
+
+The correct framing:
+
+> **ONEVibe is the meta-layer above harnesses.** The harness — Claude Agent SDK, OpenAI Codex, AWS Bedrock AgentCore, OpenCode, or any future runtime — is a pluggable implementation detail. ONEVibe provides everything else: task lifecycle, conversation history, artifact storage, workspace files, approval governance, MCP routing, team management, billing, and a professional UI that works regardless of which harness is underneath.
+
+The architecture that makes this possible already exists in the codebase: **`server/runtime-adapter.ts`**. The `RuntimeAdapter` interface is the correct abstraction. The problem today is that this abstraction is not enforced strongly enough, not enough adapters are implemented, and no harness capability metadata flows to the UI.
+
+---
+
+## What each competitor chose — and why it limits them
+
+| Product | Harness bet | Limitation |
+|---|---|---|
+| OpenWork | Locked to `@opencode-ai/sdk` subprocess | When OpenCode stagnates or breaks, OpenWork breaks. Users cannot switch. |
+| Claude.ai Projects | Locked to Anthropic's internal runtime | No multi-model, no custom tools, no self-host |
+| Cursor / Windsurf | Locked to their own agent loop | Can't delegate to Claude Agent SDK, Codex, or other runtimes |
+| AgentCore (AWS) | Locked to Bedrock | AWS dependency; no local, no other clouds |
+| **ONEVibe** | **Provider-neutral. Any `RuntimeAdapter` implementation** | **Users pick the best harness. We provide the workspace.** |
+
+---
+
+## The `RuntimeAdapter` contract — the foundation to build on
+
+`server/runtime-adapter.ts` defines the interface every harness must implement. **This is the most important file in the codebase.** Everything else in the plan flows from keeping it clean.
+
+Current adapters (already implemented):
+- `ClaudeSdkRuntimeAdapter` — wraps `@anthropic-ai/claude-agent-sdk`
+- `OneComputerSandboxRuntimeAdapter` — wraps ONEComputer cloud sandbox
+- `DemoRuntimeAdapter` — fake scripted responses
+- `RemoteRuntimeAdapter` — delegates to a remote ONEVibe server
+
+Adapters to add (Phase 2):
+- `CodexRuntimeAdapter` — wraps OpenAI Codex API
+- `AgentCoreRuntimeAdapter` — wraps AWS Bedrock AgentCore
+- `E2bRuntimeAdapter` — wraps e2b.dev cloud sandbox (Phase 4)
+
+The contract must be strengthened before new adapters are added. See `plan/02-runtime-abstraction.md`.
+
+---
+
+## What ONEVibe owns that harnesses do not
+
+This is the moat. These are things ONEVibe builds once and every harness benefits from:
+
+| Layer | What ONEVibe provides | What the harness provides |
+|---|---|---|
+| Task lifecycle | Created → running → paused → completed → failed; retry; cancel | Execute one turn |
+| Conversation | Full message history, pagination, search, fork, branch | Generate one response |
+| Workspace | Per-task file system, version history, diff viewer, artifact panel | Write files (if supported) |
+| Evidence | Append-only event log, hash chain, integrity verification | Nothing |
+| Approvals | Wallet-gated approval flow for sensitive actions | Nothing |
+| MCP routing | Add MCP servers once; available to every harness that supports tool use | Varies |
+| Skills | Markdown skill packs injected as system prompt; harness-agnostic | Nothing |
+| Scheduling | Cron-based task automation; runs on any configured harness | Nothing |
+| Auth + multi-tenancy | Users, orgs, projects, data isolation | Nothing |
+| UI | Conversation pane, workspace panel, library, computers view | Nothing |
+
+---
+
+## Current root causes (10)
 
 ### 1. Default provider is `demo`
-`server/index.ts` and `PromptComposer.tsx` both default to `'demo'`. `DemoRuntimeAdapter` makes zero model calls. Every new user gets a fake scripted response. **Fix: default to `claude_sdk` when `ANTHROPIC_API_KEY` is set.**
+`DemoRuntimeAdapter` makes zero model calls. Every new user gets fake scripted responses.
+**Fix (P1-04)**: Auto-select the best available runtime from `/api/runtime`; show onboarding wall when none configured.
 
 ### 2. Backend down = silent white screen
-When `server/index.ts` isn't running, Vite's dev server returns `index.html` for all `/api/*` requests. `api.ts:32` calls `response.json()` on HTML → `SyntaxError` → error swallowed → blank app. No banner, no explanation. **Fix: detect backend down, show persistent error.**
+HTML 404 → `JSON.parse` → `SyntaxError` → swallowed → blank app.
+**Fix (P1-01)**: Detect backend down; show persistent banner.
 
-### 3. SSE event drop bug (`useTask.ts`)
-Events arriving before the initial REST `getTask()` snapshot completes are added to `seen` but `setSnapshot` is a no-op because `current` is `null`. Those events are **permanently lost**. Early streaming content vanishes. **Fix: buffer pre-snapshot events; replay after snapshot.**
+### 3. SSE event drop before snapshot loads
+Events arriving before `getTask()` resolves are permanently lost.
+**Fix (P1-02)**: Buffer pre-snapshot events; replay after snapshot.
 
-### 4. SSE reconnection hammers a dead server
-`stream.onerror` fires → sets error → no retry limit → browser hammers indefinitely. **Fix: exponential backoff with cap.**
+### 4. SSE reconnection hammers dead server
+No backoff, no cap, no user notification.
+**Fix (P1-03)**: Exponential backoff with cap and manual retry.
 
-### 5. No auth, no user identity
-No user concept. Sidebar hardcodes `"Terence"` and `TT`. All tasks belong to everyone. No deploy path supports multi-user. **Fix: better-auth with email OTP.**
+### 5. `RuntimeAdapter` abstraction leaks
+Harness-specific concepts (Claude SDK tool names, ONEComputer sandbox IDs) bleed into `src/types.ts` and UI components. Adding a new harness requires touching the UI.
+**Fix (P2-01, P2-04)**: Harden the interface; add capability declaration; UI adapts from capabilities not provider ID.
 
-### 6. No real sandbox
-`ClaudeSdkRuntimeAdapter` calls the Anthropic SDK but there is no process isolation, no per-task working directory, no file system visible from the workspace panel. Tools run in the server process. **Fix: e2b.dev sandbox per task.**
+### 6. Only two real harnesses; no Codex, no AgentCore
+Users are effectively limited to Claude SDK and ONEComputer. The multi-harness promise is not delivered.
+**Fix (P2-02, P2-03)**: Codex adapter, AgentCore adapter.
 
-### 7. No deploy path
-`server/index.ts` does not serve `dist/`. No Dockerfile. No `docker-compose.yml`. No `.env.example`. No Railway/Fly config. The app cannot run in production. **Fix: containerise + deploy.**
+### 7. No auth, no user identity
+`"Terence"` is hardcoded. All tasks are global. No multi-user.
+**Fix (P4-01)**: better-auth with email OTP.
 
-### 8. No PostgreSQL / cloud DB
-SQLite in `server/persistence/` is a local file. No multi-user, no cloud. **Fix: Drizzle + Postgres.**
+### 8. No deploy path
+`server/index.ts` does not serve `dist/`. No Dockerfile.
+**Fix (P4-03, P4-04)**: Containerise, deploy.
 
-### 9. 50 UX dead-ends
-Documented in detail below. Dead controls, hardcoded strings, swallowed errors, missing empty states, broken status labels. See `TODO.md` Phase 4.
+### 9. No real per-task sandbox
+Tools run in the server process. No isolation. No per-task file system.
+**Fix (P2-05, P4-05)**: Per-task working directory; e2b sandbox.
 
-### 10. No MCP
-No ability to extend the agent with external tools. No marketplace. **Fix: Phase 5.**
-
----
-
-## Full 50-Issue Audit
-
-Issues ranked by severity. `file:line` references are approximate — read actual files.
-
-### Critical (app non-functional)
-
-| # | File | Issue |
-|---|---|---|
-| 1 | `src/lib/api.ts:32` | Backend down → HTML body → `JSON.parse` throws → silent blank app |
-| 2 | `index.html:24` | `document.querySelector('meta[name="theme-color"]').content` crashes if meta missing |
-| 3 | `src/hooks/useTask.ts:52` | SSE events before snapshot drop permanently (null `current` guard) |
-| 4 | `src/hooks/useTask.ts:32` | SSE reconnection: no backoff, no cap, hammers dead server indefinitely |
-| 5 | `src/hooks/useTask.ts:42` | Race: `onopen` + initial `scheduler.run()` fire concurrently → stale snapshot clobber |
-| 6 | `src/App.tsx:48` | Default provider `'demo'` → zero model calls → user gets fake data |
-| 7 | `server/index.ts` | Does not serve `dist/` — app cannot be deployed standalone |
-| 8 | `src/lib/api.ts:32` | All errors thrown as plain `Error(string)` — no `status` code — callers cannot classify |
-
-### High (major UX dead-ends)
-
-| # | File | Issue |
-|---|---|---|
-| 9 | `src/components/Sidebar.tsx:174` | `"Terence"` + `TT` + `"Local workspace"` hardcoded |
-| 10 | `src/components/Sidebar.tsx:137` | Skills pill badge is hardcoded `8` |
-| 11 | `src/components/Sidebar.tsx:146` | `<Settings2>` icon — no handler, no role, looks interactive |
-| 12 | `src/components/Sidebar.tsx:174` | Footer `<Settings2>` — same |
-| 13 | `src/components/Schedules.tsx` | No delete action on schedule rows |
-| 14 | `src/components/Library.tsx` | No delete/archive on library items |
-| 15 | `src/components/Workspace.tsx:256` | History restore fires immediately, no confirm, no loading state |
-| 16 | `src/components/Sidebar.tsx` | Project file remove fires immediately, no confirm |
-| 17 | `src/components/Workspace.tsx:225` | Completed task with no `previewPath` → "Building workspace" spinner forever |
-| 18 | `src/components/AssistantThread.tsx:57` | Working trace: no expand affordance, no chevron |
-| 19 | `src/App.tsx` | `task.inputRequest` disables send button with zero explanation |
-| 20 | `src/components/Workspace.tsx:263` | "Integrity failure" — no remediation copy, total dead end |
-
-### High (fake / misleading data)
-
-| # | File | Issue |
-|---|---|---|
-| 21 | `src/components/Workspace.tsx:216` | `local.onevibe.dev` hardcoded in workspace meta |
-| 22 | `src/components/Workspace.tsx:265` | Evidence log shows only last 6 events (`slice(-6)`), no "view all" |
-| 23 | `src/components/Workspace.tsx:279` | Project shown as raw UUID, not name |
-| 24 | `src/components/AssistantThread.tsx:196` | "Durably queued" copy shown for `demo` provider — false claim |
-| 25 | `src/components/Workspace.tsx:226` | `speakerNotes` regex silently returns nothing on non-standard headings |
-| 26 | `src/components/Workspace.tsx:229` | `brand-mark.svg` always renders — broken image if file doesn't exist |
-| 27 | `src/App.tsx:232` | Notifications shown as fake notification objects from `task.flatMap()` with no backend push |
-
-### Medium (missing functionality)
-
-| # | File | Issue |
-|---|---|---|
-| 28 | `src/components/` (all) | No toast/notification system — all async failures silently swallowed |
-| 29 | `src/components/Sidebar.tsx` | `searchChat` exists in `api.ts:153` but no search UI |
-| 30 | `src/components/Workspace.tsx:230` | Data tab: 500-row cap, case-sensitive filter, no export |
-| 31 | `src/components/Workspace.tsx:218` | File timestamps: `toLocaleTimeString()` drops date |
-| 32 | `src/components/Workspace.tsx:239` | Code tab: no empty state when `files` is empty |
-| 33 | `src/components/Workspace.tsx:217` | `save()` has no try/catch, no loading state, no error display |
-| 34 | `src/components/Workspace.tsx:234` | Visual/X11 poll runs unconditionally — no `visibilitychange` pause |
-| 35 | `src/components/Workspace.tsx:231` | Asset `alt={file.path}` — raw path is not accessible alt text |
-| 36 | `src/components/SkillsLibrary.tsx` | 5th skill click silently does nothing — no disabled state, no tooltip |
-| 37 | `src/components/Schedules.tsx` | `onToggle`/`onRunNow`: no loading state, rapid clicks queue duplicates |
-| 38 | `src/components/Schedules.tsx` | Project create form: no `isSubmitting` guard |
-| 39 | `src/components/Sidebar.tsx:96` | File > 256KB silently dropped — no user feedback |
-| 40 | `src/components/Sidebar.tsx:107` | Search: query 1-char leaves stale `searchResults` |
-
-### Medium (interaction quality)
-
-| # | File | Issue |
-|---|---|---|
-| 41 | `src/components/AssistantThread.tsx:37` | `isRunning` true during `waiting_for_user_input` → "Writing…" header wrong |
-| 42 | `src/components/AssistantThread.tsx:72` | Duplicate typing indicator rendered during streaming |
-| 43 | `src/components/Workspace.tsx:219` | Plan progress shows `0 / 0` with no empty-state message |
-| 44 | `src/components/Workspace.tsx:279` | Tags: `maxLength={264}` unrelated to 8-tag limit; no success confirm |
-| 45 | `src/components/Sidebar.tsx:164` | `role === 'user' ? 'You' : 'ONEVibe'` — hardcoded product name as sender |
-
-### Medium (terminology)
-
-| # | File | Issue |
-|---|---|---|
-| 46 | `src/components/Schedules.tsx` | `'demo'` → `'Safe demo'` vs Sidebar `'Simulation · no model call'` — same provider, two names |
-| 47 | `src/components/` (all) | `task.status.replaceAll('_', ' ')` — raw machine state shown to users |
-| 48 | `src/components/AssistantThread.tsx:57` | Trace detail truncated at 240 chars, no "show more" |
-
-### Lower (accessibility / polish)
-
-| # | File | Issue |
-|---|---|---|
-| 49 | multiple | `<time>` elements lack `dateTime` attribute throughout |
-| 50 | `src/components/AssistantThread.tsx:32` | File sizes: `Math.ceil(size/1024) KB` even for sub-1KB files; `readableBytes` helper exists but not used consistently |
+### 10. 50 UX dead-ends
+Dead controls, hardcoded strings, swallowed errors.
+**Fix (Phase 5)**: See full audit table.
 
 ---
 
-## OpenWork Key Files to Study Before Each Phase
+## Full 50-issue audit
 
-| Phase | Files to read in `/tmp/openwork` |
+See original table in git history (2026-07-16 first version). Unchanged. Issues #1–8 are critical; #9–20 are high; #21–40 are medium; #41–50 are lower.
+
+---
+
+## OpenWork study notes — what to copy, what to avoid
+
+### Copy
+- `session-sync.ts` — per-frame delta coalescing pattern
+- `skill-hub.ts` — GitHub-backed skill catalog with TTL cache
+- `mcp.ts` — runtime SQLite config (not on-disk JSON)
+- `auth.ts` — better-auth plugin configuration
+- `den-db/schema/` — Drizzle schema patterns for workers, sandboxes
+- Two-tool MCP facade (`search_capabilities` + `execute_capability`) — brilliant context-window optimization
+
+### Do not copy
+- **Single-engine architecture**: OpenWork spawns `@opencode-ai/sdk` as a subprocess and talks to nothing else. We do not do this.
+- **Electron-first design**: OpenWork's UI assumes a local desktop context. We are cloud-native from day one.
+- **`OPENCODE_CONFIG` injection**: Tight coupling between MCP config and one specific engine's startup flags. Our approach: `RuntimeAdapter` receives an `mcpConfigs` array at task init; each adapter handles injection in its own way.
+
+---
+
+## Files to study per phase
+
+| Phase | Files in `/tmp/openwork` |
 |---|---|
-| P1 Foundation | `apps/app/src/sync/session-sync.ts`, `apps/server/src/server.ts` |
-| P2 Agent | `apps/server/src/opencode-plugins/`, `apps/app/src/sync/transcript-reconcile.ts`, `apps/app/src/components/chat/composer/composer.tsx` |
-| P3 Cloud | `ee/apps/den-api/src/auth.ts`, `ee/packages/den-db/src/schema/`, `ee/apps/den-worker-proxy/src/app.ts` |
-| P4 UI | `apps/app/src/stores/`, `apps/app/src/components/session/`, `apps/app/src/components/artifact/` |
-| P5 MCP | `apps/server/src/mcp.ts`, `apps/server/src/skill-hub.ts`, `ee/apps/den-api/src/mcp/agent.ts` |
+| P1 Foundation | `apps/app/src/sync/session-sync.ts` (reconnect + backoff), `apps/server/src/server.ts` |
+| P2 Runtime | `apps/server/src/` adapter pattern, `apps/server/src/opencode-plugins/` (steering injection) |
+| P3 Routing | `apps/server/src/mcp.ts`, `ee/apps/den-api/src/mcp/agent.ts` |
+| P4 Cloud | `ee/apps/den-api/src/auth.ts`, `ee/packages/den-db/src/schema/`, `.devcontainer/docker-compose.yml` |
+| P5 UI | `apps/app/src/stores/`, `apps/app/src/components/session/`, `apps/app/src/sync/transcript-reconcile.ts` |
+| P6 MCP | `apps/server/src/skill-hub.ts`, `ee/apps/den-api/src/mcp/search.ts` |
