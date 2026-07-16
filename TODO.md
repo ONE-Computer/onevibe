@@ -8,7 +8,7 @@
 >
 > **Current state**: The local-first foundation is substantially implemented: backend-offline recovery, truthful simulation labelling, durable SSE replay/reconnect, LiteLLM-only routing, provider-neutral runtime lifecycle, runtime health/routing, task workspaces, durable guidance queueing, and assistant-ui conversation rendering are in place. Remaining release blockers are conversation branching, auth/persistence/deployment, sandboxed execution, MCP/skills integration, and the remaining professional-UI dead ends. See `HANDOVER.md` and `plan/00-gap-analysis.md`.
 >
-> **Release gate**: `npm run check` must stay green (oxlint + 229 vitest tests + tsc build + e2e harness typecheck) after every task.
+> **Release gate**: `npm run check` must stay green (oxlint + 234 vitest tests + tsc build + e2e harness typecheck) after every task.
 
 > **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The Claude SDK configuration now fails closed unless the server-controlled relay is configured; Codex/AgentCore remain blocked until their adapters also use the same boundary.
 

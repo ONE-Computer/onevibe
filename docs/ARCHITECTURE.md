@@ -63,6 +63,8 @@ The proposed auth/database contract is recorded in [`AUTH-POSTGRES-ADR.md`](AUTH
 
 `GET /api/diagnostics` is an authenticated, bounded status contract for the Computers view. It reports whether the server-controlled LiteLLM boundary is configured, whether the current request is session-scoped, which local persistence driver is active, provider readiness, the configured sandbox boundary, and the count of secret-free MCP declarations. It never returns credentials, prompts, raw provider payloads, or production attestation claims. The Postgres contract and cloud/microVM boundaries remain explicit follow-up work until their runtime proofs exist.
 
+Skill selection is also provider-owned: Claude-backed adapters materialize the selected, hashed packs in the task workspace; the deterministic demo records selection as `not_executed_demo` and never writes skill files. The UI and event ledger must not collapse these states into a generic "skill applied" label.
+
 ## Implemented production adapters
 
 - `RemoteRuntimeAdapter` consumes the AgentCore/backend typed SSE contract. Its optional bearer token remains server-side.
