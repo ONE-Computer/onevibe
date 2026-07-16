@@ -138,7 +138,8 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
     const configuredClaude = claudeProviderConfig()
     const sandboxBaseUrl = process.env.ONEVIBE_SANDBOX_LITELLM_URL?.trim().replace(/\/+$/, '')
       ?? configuredClaude.childEnv.ANTHROPIC_BASE_URL
-    const sandboxApiKey = configuredClaude.childEnv.ANTHROPIC_API_KEY
+    const sandboxAuthToken = process.env.ONEVIBE_SANDBOX_LITELLM_AUTH_TOKEN?.trim()
+    const sandboxApiKey = sandboxAuthToken ? 'placeholder' : configuredClaude.childEnv.ANTHROPIC_API_KEY
     const claudeTransport = configuredClaude.configured ? configuredClaude.transport : 'sandbox_preconfigured'
     await store.updateTask(task.id, { status: 'running' })
     await store.appendEvent(task.id, {
@@ -292,6 +293,7 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
         'set -eu',
         ...(sandboxBaseUrl ? [`export ANTHROPIC_BASE_URL=${shellQuote(sandboxBaseUrl)}`] : []),
         ...(sandboxApiKey ? [`export ANTHROPIC_API_KEY=${shellQuote(sandboxApiKey)}`] : []),
+        ...(sandboxAuthToken ? [`export ANTHROPIC_AUTH_TOKEN=${shellQuote(sandboxAuthToken)}`] : []),
         'export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1',
         `mkdir -p ${shellQuote(workspace)}`,
         `cd ${shellQuote(workspace)}`,

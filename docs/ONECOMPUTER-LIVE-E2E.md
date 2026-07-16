@@ -15,6 +15,7 @@ ONECOMPUTER_PROJECT_ID=... # mandatory with an oc_org_ organization key
 ONECOMPUTER_GATEWAY_ENFORCED=true # only after independent egress attestation
 ONEVIBE_LITELLM_URL=https://litellm.internal.example # server route
 ONEVIBE_SANDBOX_LITELLM_URL=https://litellm.sandbox.internal.example # sandbox-reachable route, when different
+ONEVIBE_SANDBOX_LITELLM_AUTH_TOKEN=... # optional bearer-token override for the sandbox route
 ONEVIBE_LITELLM_API_KEY=... # server-only; never returned to the browser or evidence
 ONEVIBE_LITELLM_MODEL=claude-sonnet-5
 ```
