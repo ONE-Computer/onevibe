@@ -12,7 +12,7 @@ afterEach(async () => {
 
 describe('OneComputerSandboxRuntimeAdapter', () => {
   it('only exposes browser MCP controls when the governed runtime explicitly enables them', async () => {
-    const { GOVERNED_BROWSER_TOOLS, browserEvidenceFor, governedClaudeTools, isGovernedBrowserTool } = await import('./onecomputer-sandbox-runner.js')
+    const { GOVERNED_BROWSER_TOOLS, browserEvidenceFor, governedClaudeTools, isGovernedBrowserTool, isSandboxRuntimeReady } = await import('./onecomputer-sandbox-runner.js')
     expect(governedClaudeTools(false)).toEqual(['Read', 'Write', 'Edit', 'Glob', 'Grep'])
     expect(governedClaudeTools(true)).toEqual(expect.arrayContaining([...GOVERNED_BROWSER_TOOLS]))
     expect(GOVERNED_BROWSER_TOOLS).toEqual(expect.arrayContaining(['mcp__playwright__browser_select_option', 'mcp__playwright__browser_wait_for']))
@@ -21,6 +21,9 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(isGovernedBrowserTool('mcp__playwright__browser_evaluate')).toBe(false)
     expect(browserEvidenceFor('mcp__playwright__browser_navigate', { url: 'https://user:password@example.com/path?token=hidden#fragment' })).toEqual({ tool: 'browser_navigate', url: 'https://example.com/path' })
     expect(browserEvidenceFor('mcp__playwright__browser_navigate', { url: 'file:///tmp/onevibe/task/index.html' })).toEqual({ tool: 'browser_navigate', url: 'file://sandbox-local/index.html' })
+    expect(isSandboxRuntimeReady({ state: 'started', bootstrapped: false })).toBe(false)
+    expect(isSandboxRuntimeReady({ state: 'started', bootstrapped: true })).toBe(true)
+    expect(isSandboxRuntimeReady({ state: 'started' })).toBe(true)
   })
 
   it('builds generated projects only in the sandbox and disables install lifecycle scripts', async () => {

@@ -90,6 +90,7 @@ export const governedClaudeTools = (browserAutomation: boolean) => [
 ]
 
 export const isGovernedBrowserTool = (name: string) => (GOVERNED_BROWSER_TOOLS as readonly string[]).includes(name)
+export const isSandboxRuntimeReady = (sandbox: { state?: string; bootstrapped?: boolean }) => sandbox.state === 'started' && sandbox.bootstrapped !== false
 
 export const sandboxBuildValidationCommand = (workspace: string) => [
   'set +e',
@@ -212,12 +213,17 @@ export class OneComputerSandboxRuntimeAdapter implements RuntimeAdapter {
       }
       let live = sandbox
       const deadline = Date.now() + 4 * 60_000
-      while (live.state !== 'started') {
+      while (!isSandboxRuntimeReady(live)) {
         if (live.state === 'error' || Date.now() >= deadline) throw new Error(`ONEComputer sandbox failed to start (state=${live.state ?? 'unknown'})`)
         await wait(this.options.pollMilliseconds ?? 2_000, signal)
         live = await this.client.getSandbox(sandbox.id, signal)
         await recordSandboxState(live)
       }
+      await store.appendEvent(task.id, {
+        type: 'activity_delta', lane: 'control', label: 'ONEComputer agent runtime bootstrapped',
+        content: 'The provider reported the retained sandbox ready for Claude execution.',
+        payload: { sandboxId: sandbox.id, state: live.state, bootstrapped: live.bootstrapped ?? 'legacy_unspecified', desktopReady: live.desktopReady },
+      })
       await store.updateTask(task.id, {
         securityContext: {
           mode: 'onecomputer', sandboxId: sandbox.id, provider: sandbox.provider,

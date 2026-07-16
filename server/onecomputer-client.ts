@@ -3,6 +3,8 @@ export type OneComputerSandbox = {
   name?: string
   state?: string
   provider?: string
+  bootstrapped?: boolean
+  desktopReady?: boolean
 }
 
 export type OneComputerClientOptions = {
