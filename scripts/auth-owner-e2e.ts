@@ -156,6 +156,11 @@ const main = async () => {
     const mcpHealth = await request<{ id: string; status: string }>(baseUrl, `/api/mcp/${mcpA.body.id}/health`, {}, ownerA.cookie)
     assert.equal(mcpHealth.response.status, 200)
     assert.equal(mcpHealth.body.status, 'offline')
+    const diagnosticsA = await request<{ mcp: { configuredCount: number; healthyCount: number; checks: Array<{ name: string; status: string }> } }>(baseUrl, '/api/diagnostics', {}, ownerA.cookie)
+    assert.equal(diagnosticsA.response.status, 200)
+    assert.equal(diagnosticsA.body.mcp.configuredCount, 1)
+    assert.equal(diagnosticsA.body.mcp.healthyCount, 0)
+    assert.deepEqual(diagnosticsA.body.mcp.checks.map((check) => ({ name: check.name, status: check.status })), [{ name: 'Owner A MCP', status: 'offline' }])
     const created = await request<{ id: string }>(baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ prompt: 'Say hello briefly.', provider: 'demo', mode: 'chat', projectId: projectA.body.id, references: [], attachments: [], skills: [] }) }, ownerA.cookie)
     assert.equal(created.response.status, 201, JSON.stringify(created.body))
 

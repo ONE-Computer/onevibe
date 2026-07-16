@@ -13,6 +13,11 @@
 - This closes the local MCP health visibility slice only. Production secret brokering, external-server attestation, rate limiting, and protected provider materialization remain open.
 - Fresh temporary API verification also covered `POST /api/mcp` followed by `GET /api/mcp/:id/health`: an unavailable fixture returned a bounded `offline` response without process output or credentials.
 
+## 2026-07-17 — include MCP health in authenticated diagnostics
+
+- `/api/diagnostics` now probes only the current owner's MCP declarations and returns bounded per-server health/tool-catalog metadata plus healthy/configured counts. Computers displays the aggregate state while the per-server Test action remains available for detail.
+- The authenticated owner harness verifies that an unavailable owner-scoped server is reported as `0/1` healthy and that the result does not include process output. Production secret brokering, external-server attestation, rate limiting, and protected provider materialization remain open.
+
 ## 2026-07-17 — validate legacy import relationships before Postgres writes
 
 - Moved Postgres legacy-import relationship validation into `server/persistence/import-validation.ts` so it can be tested without importing or executing the CLI entrypoint.
