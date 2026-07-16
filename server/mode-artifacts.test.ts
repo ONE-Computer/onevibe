@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -6,6 +7,26 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { PDFDocument } from 'pdf-lib'
 
 const temporaryRoots: string[] = []
+
+const expectManifest = async (store: { readWorkspaceFile: (taskId: string, filePath: string) => Promise<string>; readWorkspaceBytes: (taskId: string, filePath: string) => Promise<Uint8Array> }, task: { id: string; mode: string; createdAt: string }, secret: string, expectedPaths: readonly string[]) => {
+  const raw = await store.readWorkspaceFile(task.id, 'artifact-manifest.json')
+  const manifest = JSON.parse(raw) as { version: number; taskId: string; mode: string; generatedAt: string; outputs: Array<{ path: string; size: number; sha256: string; kind: string }> }
+
+  expect(manifest).toMatchObject({ version: 1, taskId: task.id, mode: task.mode, generatedAt: task.createdAt })
+  expect(manifest.outputs.map((output) => output.path)).toEqual(expectedPaths.slice().sort((left, right) => left.localeCompare(right)))
+  expect(raw).not.toContain(secret)
+  expect(raw).not.toContain('Executive briefing')
+  expect(raw).not.toContain('This portable document')
+  expect(raw).not.toContain('workspace progression')
+  expect(manifest.outputs.every((output) => !/(^|\/)(?:inputs|evidence|runtime)(?:\/|$)/.test(output.path) && !/(^|\/)[.]/.test(output.path))).toBe(true)
+
+  for (const output of manifest.outputs) {
+    const bytes = await store.readWorkspaceBytes(task.id, output.path)
+    expect(output.size).toBe(bytes.byteLength)
+    expect(output.sha256).toBe(createHash('sha256').update(bytes).digest('hex'))
+    expect(output.kind).toEqual(expect.any(String))
+  }
+}
 
 afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
@@ -36,6 +57,24 @@ describe('mode artifacts', () => {
     expect(JSON.stringify(outline)).toContain('Brief senior management on ONEVibe')
     expect(await store.readWorkspaceFile(task.id, 'index.html')).toContain('id="next"')
     expect((await validateModeArtifacts(task, store)).checks.find((check) => check.id === 'slides:pdf')?.status).toBe('passed')
+  })
+
+  it('emits a deterministic, secret-free slide artifact manifest', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-slide-manifest-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Brief senior management; secret=never-show', 'demo', 'slides')
+
+    const files = await writeModeArtifacts(task, store)
+    const firstManifest = await store.readWorkspaceFile(task.id, 'artifact-manifest.json')
+    expect(files).toContain('artifact-manifest.json')
+    await expectManifest(store, task, 'never-show', ['index.html', 'outline.json', 'speaker-notes.md', 'deck.pptx', 'deck.pdf'])
+
+    await writeModeArtifacts(task, store)
+    expect(await store.readWorkspaceFile(task.id, 'artifact-manifest.json')).toBe(firstManifest)
   })
 
   it('generates a portable React and TypeScript scaffold for app modes', async () => {
@@ -201,6 +240,30 @@ describe('mode artifacts', () => {
     expect(await store.readWorkspaceFile(data.id, 'data.csv')).toContain('Stage,Workspaces')
     expect((await validateModeArtifacts(document, store)).passed).toBe(true)
     expect((await validateModeArtifacts(data, store)).passed).toBe(true)
+  })
+
+  it('emits deterministic, secret-free document and data artifact manifests', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-creation-manifests-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { writeModeArtifacts } = await import('./mode-artifacts.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const document = await store.createTask('Draft a document; secret=doc-never-show', 'demo', 'document')
+    const data = await store.createTask('Explain data; secret=data-never-show', 'demo', 'data')
+
+    for (const [task, secret, expectedPaths] of [
+      [document, 'doc-never-show', ['index.html', 'document.md', 'document.json']],
+      [data, 'data-never-show', ['index.html', 'data.csv', 'analysis.json']],
+    ] as const) {
+      const files = await writeModeArtifacts(task, store)
+      const firstManifest = await store.readWorkspaceFile(task.id, 'artifact-manifest.json')
+      expect(files).toContain('artifact-manifest.json')
+      await expectManifest(store, task, secret, expectedPaths)
+
+      await writeModeArtifacts(task, store)
+      expect(await store.readWorkspaceFile(task.id, 'artifact-manifest.json')).toBe(firstManifest)
+    }
   })
 
   it('accepts normal Markdown heading capitalization in document contracts', async () => {

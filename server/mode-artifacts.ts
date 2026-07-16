@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto'
+import path from 'node:path'
 import PptxGenJS from 'pptxgenjs'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { portableArtifactKind } from './artifact-path.js'
 import type { TaskStore } from './store.js'
 import type { Task } from './types.js'
 
@@ -19,6 +22,52 @@ const declaredReference = (value: string) => {
 }
 
 const shell = (title: string, body: string, script = '') => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>:root{font-family:Inter,system-ui;background:#090b0a;color:#f3f6f4}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 75% 10%,#143523,transparent 35%),#090b0a}main{width:min(1060px,92vw);margin:auto;padding:56px 0}.eyebrow{font:11px ui-monospace;color:#42db82;letter-spacing:.14em;text-transform:uppercase}h1{font-size:clamp(42px,7vw,82px);line-height:.94;letter-spacing:-.06em;margin:20px 0}p{color:#9aa59e;line-height:1.65}.card{border:1px solid #29332d;background:#101411;border-radius:14px;padding:22px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:30px}button{border:1px solid #375241;background:#15251b;color:#a5e3bd;border-radius:8px;padding:9px 12px;cursor:pointer}</style></head><body><main>${body}</main>${script ? `<script>${script}</script>` : ''}</body></html>`
+
+const ARTIFACT_MANIFEST_PATH = 'artifact-manifest.json'
+const ARTIFACT_MANIFEST_VERSION = 1
+
+export type ArtifactManifestOutput = { path: string; size: number; sha256: string; kind: string }
+export type ArtifactManifest = {
+  version: number
+  taskId: string
+  mode: Task['mode']
+  generatedAt: string
+  outputs: ArtifactManifestOutput[]
+}
+
+const manifestExcludedPath = (relativePath: string) => {
+  const normalized = path.posix.normalize(relativePath)
+  if (!normalized || normalized === '.' || normalized === '..' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) return true
+  if (normalized === ARTIFACT_MANIFEST_PATH) return true
+  const segments = normalized.split('/')
+  if (segments.some((segment) => segment.startsWith('.') || segment === 'inputs' || segment === 'evidence' || segment === 'runtime' || segment === 'node_modules')) return true
+  return false
+}
+
+const writeArtifactManifest = async (task: Task, store: TaskStore, outputPaths: string[]) => {
+  const outputs: ArtifactManifestOutput[] = []
+  for (const outputPath of [...new Set(outputPaths)].sort((left, right) => left.localeCompare(right))) {
+    const normalized = path.posix.normalize(outputPath)
+    if (manifestExcludedPath(normalized)) continue
+    const bytes = await store.readWorkspaceBytes(task.id, normalized)
+    outputs.push({
+      path: normalized,
+      size: bytes.byteLength,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      kind: portableArtifactKind(normalized) ?? 'source_file',
+    })
+  }
+  const manifest: ArtifactManifest = {
+    version: ARTIFACT_MANIFEST_VERSION,
+    taskId: task.id,
+    mode: task.mode,
+    // Task creation time is stable across deterministic rewrites and contains no prompt or file content.
+    generatedAt: task.createdAt,
+    outputs,
+  }
+  await store.writeWorkspaceFile(task.id, ARTIFACT_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`)
+  return [...outputPaths, ARTIFACT_MANIFEST_PATH]
+}
 
 const slideOutlineFor = (task: Task): Array<[string, string]> => {
   const brief = task.prompt.replace(/\s+/g, ' ').trim()
@@ -109,7 +158,7 @@ export const writeStructuredSlides = async (task: Task, store: TaskStore, outlin
   await store.writeWorkspaceFile(task.id, 'speaker-notes.md', slides.map(([title, summary], index) => `## ${index + 1}. ${title}\n\n${summary}\n`).join('\n'))
   const cards = slides.map(([title, summary], index) => `<article class="card slide" data-slide="${index}"><div class="eyebrow">Slide ${index + 1} / ${slides.length}</div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(summary)}</p></article>`).join('')
   await store.writeWorkspaceFile(task.id, 'index.html', shell('ONEVibe deck', `<div id="deck">${cards}</div><p><button id="previous">Previous</button> <button id="next">Next</button></p>`, `const slides=[...document.querySelectorAll('.slide')];let active=0;function show(){slides.forEach((s,i)=>s.hidden=i!==active)};previous.onclick=()=>{active=(active-1+slides.length)%slides.length;show()};next.onclick=()=>{active=(active+1)%slides.length;show()};show()`))
-  return ['index.html', 'outline.json', 'speaker-notes.md', 'deck.pptx', 'deck.pdf']
+  return writeArtifactManifest(task, store, ['index.html', 'outline.json', 'speaker-notes.md', 'deck.pptx', 'deck.pdf'])
 }
 
 const writeSlides = (task: Task, store: TaskStore) => writeStructuredSlides(task, store, slideOutlineFor(task).map(([title, summary]) => ({ title, summary })))
@@ -186,7 +235,8 @@ export default function App(){const [role,setRole]=useState(initialRole);const c
         ? shell(task.title, `<div class="eyebrow">Generated website preview</div><h1>${escapeHtml(task.title)}</h1><p>${escapeHtml(task.prompt)}</p><div class="grid"><article class="card"><strong>Clear operating boundary</strong><p>Workspaces, policy, and evidence are visible by design.</p></article><article class="card"><strong>Reviewable delivery</strong><p>Portable source is available beside this preview.</p></article><article class="card"><strong>Human decision point</strong><p>Consequential actions remain outside the browser.</p></article></div>`)
         : undefined
   if (preview) await store.writeWorkspaceFile(task.id, 'index.html', preview)
-  return Object.keys(files)
+  const outputPaths = Object.keys(files)
+  return writeArtifactManifest(task, store, preview ? [...outputPaths, 'index.html'] : outputPaths)
 }
 
 export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
@@ -196,14 +246,14 @@ export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
     await store.writeWorkspaceFile(task.id, 'document.md', document)
     await store.writeWorkspaceFile(task.id, 'document.json', `${JSON.stringify({ title: task.title, format: 'markdown', generatedBy: 'onevibe', requiresReview: true }, null, 2)}\n`)
     await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, `<div class="eyebrow">Governed document</div><h1>${escapeHtml(task.title)}</h1><div class="card"><strong>Executive summary</strong><p>${escapeHtml(task.prompt)}</p></div><div class="grid"><article class="card"><strong>Portable</strong><p>Markdown source is ready for review, editing, and export.</p></article><article class="card"><strong>Accountable</strong><p>External distribution remains subject to the configured approval policy.</p></article></div>`))
-    return ['index.html', 'document.md', 'document.json']
+    return writeArtifactManifest(task, store, ['index.html', 'document.md', 'document.json'])
   }
   if (task.mode === 'research') {
     const sources = task.references.map(declaredReference)
     await store.writeWorkspaceFile(task.id, 'report.md', `# ${task.title}\n\n## Research question\n\n${task.prompt}\n\n## Findings\n\nThis local demo establishes the evidence-oriented artifact contract. Native Claude mode performs the substantive research.\n\n## Declared sources\n\n${sources.length ? sources.map((source) => `- ${source.url} — user-supplied, unverified, and not fetched by this runtime.`).join('\n') : 'No references were supplied.'}\n\n## Limitations\n\nNo external sources were accessed by the deterministic demo runtime. A declared reference is provenance for user intent, not a verified citation or evidence of retrieval.\n`)
     await store.writeWorkspaceFile(task.id, 'sources.json', `${JSON.stringify(sources, null, 2)}\n`)
     await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, `<div class="eyebrow">Evidence-backed research</div><h1>${escapeHtml(task.title)}</h1><div class="grid"><article class="card"><strong>Question</strong><p>${escapeHtml(task.prompt)}</p></article><article class="card"><strong>Declared references</strong><p>${sources.length} user-supplied reference${sources.length === 1 ? '' : 's'} recorded. No external sources were fetched in demo mode.</p></article><article class="card"><strong>Boundary</strong><p>Declared references are unverified context, not citations or evidence of retrieval.</p></article></div>`))
-    return ['index.html', 'report.md', 'sources.json']
+    return writeArtifactManifest(task, store, ['index.html', 'report.md', 'sources.json'])
   }
   if (task.mode === 'data') {
     const rows = [['Stage', 'Workspaces'], ['Requested', '120'], ['Policy checked', '112'], ['Sandbox ready', '97'], ['Delivered', '84']]
@@ -213,7 +263,7 @@ export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
     await store.writeWorkspaceFile(task.id, 'data.csv', csv)
     await store.writeWorkspaceFile(task.id, 'analysis.json', `${JSON.stringify({ metric: 'workspace progression', data, limitation: 'Deterministic sample data; connect an approved source for real analysis.' }, null, 2)}\n`)
     await store.writeWorkspaceFile(task.id, 'index.html', shell(task.title, `<style>.chart{margin-top:34px;padding:25px;border:1px solid #29332d;background:#101411}.chart h2{margin:0 0 22px;font-size:18px}.bar{display:grid;grid-template-columns:110px minmax(30px,1fr) 35px;gap:12px;align-items:center;margin:13px 0;color:#aeb8b1;font-size:13px}.bar i{height:11px;background:linear-gradient(90deg,#36dc7d,#91edb6);border-radius:99px}.bar b{color:#eaf2ec}.note{font-size:13px}</style><div class="eyebrow">Evidence-aware data story</div><h1>${escapeHtml(task.title)}</h1><p>${escapeHtml(task.prompt)}</p><section class="chart"><h2>Workspace progression</h2>${bars}</section><p class="note">Sample data only. The data.csv and analysis.json files make assumptions inspectable before any decision is made.</p>`))
-    return ['index.html', 'data.csv', 'analysis.json']
+    return writeArtifactManifest(task, store, ['index.html', 'data.csv', 'analysis.json'])
   }
   if (task.mode === 'design') {
     const monogram = (task.title.match(/[A-Za-z0-9]/)?.[0] ?? 'O').toUpperCase()
@@ -226,7 +276,7 @@ export const writeModeArtifacts = async (task: Task, store: TaskStore) => {
     await store.writeWorkspaceFile(task.id, 'design-directions.json', `${JSON.stringify({ title: task.title, selectionMethod: 'deterministic starter heuristic', philosophy: { name: 'Secure Signal', description: 'Evidence-forward enterprise interfaces: calm infrastructure, decisive status, and human approval at consequential boundaries.' }, directions }, null, 2)}\n`)
     await store.writeWorkspaceFile(task.id, 'design-tokens.json', `${JSON.stringify({ color: { background: { hex: '#090b0a', oklch: 'oklch(0.16 0.01 145)' }, verified: { hex: '#38dc7d', oklch: 'oklch(0.77 0.17 151)' }, pending: { hex: '#f1b84b', oklch: 'oklch(0.81 0.14 80)' } }, radius: { panel: 14 }, motion: { standard: 180 } }, null, 2)}\n`)
     await store.writeWorkspaceFile(task.id, 'brand-mark.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Generated brand mark"><rect width="512" height="512" rx="112" fill="#090b0a"/><rect x="72" y="72" width="368" height="368" rx="80" fill="#111a14" stroke="#38dc7d" stroke-width="12"/><path d="M156 160v192l100-96 100 96V160l-100 96z" fill="#38dc7d"/><circle cx="256" cy="256" r="48" fill="#090b0a"/><text x="256" y="278" text-anchor="middle" fill="#e9f3ec" font-family="Arial, sans-serif" font-size="56" font-weight="700">${monogram}</text></svg>\n`)
-    return ['ideas.md', 'design-directions.json', 'design-tokens.json', 'brand-mark.svg']
+    return writeArtifactManifest(task, store, ['ideas.md', 'design-directions.json', 'design-tokens.json', 'brand-mark.svg'])
   }
   if (task.mode === 'website' || task.mode === 'app' || task.mode === 'game') return writeScaffold(task, store)
   return []
