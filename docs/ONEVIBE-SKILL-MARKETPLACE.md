@@ -23,4 +23,4 @@ POST   /api/skills/install       { "skillId": "meeting-brief" }
 DELETE /api/skills/:skillId
 ```
 
-The local acceptance proof is `npm run e2e:skill-marketplace`. It uses a loopback GitHub-shaped catalog fixture to prove install, digest verification, task selection, truthful demo evidence, and removal. It does not claim external GitHub availability or provider execution.
+The local acceptance proof is `npm run e2e:skill-marketplace`. It uses a loopback GitHub-shaped catalog fixture to prove install, digest verification, task selection, truthful demo evidence, and removal. `npm run e2e:skill-marketplace-github` verifies the pushed default catalog and every pinned content digest through GitHub's raw-content host without credentials. Neither harness claims protected Claude/LiteLLM provider execution; that remains a separate gate.

@@ -843,6 +843,11 @@ baseline harness in CI.
 - Added a GitHub Actions `postgres-schema` job that starts PostgreSQL 18, runs `npm run db:migrate`, and validates the reviewed migration manifest with `npm run db:check`.
 - Boundary: this proves schema/migration compatibility only. The API still fails closed when `DATABASE_URL` would select Postgres because the TaskStore repository/runtime adapter, production import, and application idempotency switch remain open.
 
+## 2026-07-17 — live GitHub skill catalog acceptance harness
+
+- Added `npm run e2e:skill-marketplace-github`, which fetches the pushed default catalog from `raw.githubusercontent.com`, downloads every pinned `SKILL.md`, rechecks the SHA-256 digest and frontmatter contract, and reports only IDs, versions, byte counts, and digests.
+- Live evidence: the ONE-Computer/onevibe `main` catalog currently contains one `meeting-brief` entry and its content digest verifies. The loopback install/remove harness also passes. This is GitHub availability/provenance evidence only; protected Claude/LiteLLM materialization and production authorization remain open.
+
 ## 2026-07-17 — Postgres import organization/member staging and LiteLLM handover policy
 
 - Extended the owner-required Postgres import seam to stage local organizations and organization members before owner-scoped application rows. The importer now verifies every referenced organization member already exists in Better Auth's Postgres `user` table and preserves the import's single-owner guard; it does not grant organization members access to tasks until the Postgres repository and authorization switch is implemented.
