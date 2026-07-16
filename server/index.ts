@@ -7,7 +7,7 @@ import { ClaudeSdkRuntimeAdapter } from './claude-sdk-runner.js'
 import { OneComputerClient } from './onecomputer-client.js'
 import { OneComputerSandboxRuntimeAdapter } from './onecomputer-sandbox-runner.js'
 import { RuntimeLeaseService } from './runtime-lease-service.js'
-import { skillPackManifestFor } from './skill-packs.js'
+import { skillPackCatalog, skillPackManifestFor } from './skill-packs.js'
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
@@ -85,6 +85,7 @@ const referenceUrl = z.string().url().max(2_048).refine((value) => {
 const taskAttachment = z.object({ name: z.string().min(1).max(160), mimeType: z.string().max(160).default('application/octet-stream'), dataBase64: z.string().min(1).max(350_000) })
 const projectAttachment = z.object({ name: z.string().min(1).max(160), mimeType: z.string().max(160).default('application/octet-stream'), dataBase64: z.string().min(1).max(350_000) })
 const taskSkill = z.enum(['research', 'web_build', 'slides', 'data_analysis', 'document', 'product_design', 'security_review', 'browser_testing'])
+const skillCatalog = () => skillPackCatalog()
 const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'onecomputer', 'remote']).default('demo'),
@@ -287,6 +288,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     await store.reconcileExpiredApprovals()
     return json(response, 200, { tasks: store.listTasks() })
   }
+  if (request.method === 'GET' && url.pathname === '/api/skills') return json(response, 200, { skills: skillCatalog() })
   if (request.method === 'GET' && url.pathname === '/api/library') return json(response, 200, { items: await store.listLibrary() })
 
   if (request.method === 'GET' && url.pathname === '/api/projects') return json(response, 200, { projects: store.listProjects() })

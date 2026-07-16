@@ -2,12 +2,19 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { materializeTaskSkills, skillPackManifestFor } from './skill-packs.js'
+import { materializeTaskSkills, skillPackCatalog, skillPackManifestFor } from './skill-packs.js'
 
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))) })
 
 describe('versioned task skill packs', () => {
+  it('exposes a stable metadata-only catalog for the UI', () => {
+    const catalog = skillPackCatalog()
+    expect(catalog).toHaveLength(8)
+    expect(catalog.every((skill) => skill.version === 1 && skill.summary.length > 10 && /^[a-f0-9]{64}$/.test(skill.sha256))).toBe(true)
+    expect(catalog.some((skill) => skill.id === 'security_review' && skill.summary === 'Untrusted input and governed actions')).toBe(true)
+  })
+
   it('pins a stable manifest and materializes only selected packs into the task workspace', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-skills-'))
     roots.push(root)

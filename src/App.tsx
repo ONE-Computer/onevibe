@@ -12,7 +12,7 @@ import { Library } from './components/Library'
 import { Computers } from './components/Computers'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelQueuedGuidance, cancelTask, createProject, createSchedule, createTask, getRuntimeReadiness, listConversations, listLibrary, listProjects, listSchedules, listTasks, moveTaskToProject, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags } from './lib/api'
+import { addProjectFile, cancelQueuedGuidance, cancelTask, createProject, createSchedule, createTask, fallbackSkillCatalog, getRuntimeReadiness, listConversations, listLibrary, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
 import type { ConversationSummary, LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
@@ -24,6 +24,18 @@ const starterPrompts = [
 ]
 const AssistantThread = lazy(() => import('./components/AssistantThread').then((module) => ({ default: module.AssistantThread })))
 const canStopTask = (status: Task['status']) => status === 'running' || status === 'pending' || status === 'waiting_for_user_input' || status === 'waiting_for_approval'
+const selectedSkillsStorageKey = 'onevibe.selected-skill-ids'
+const readPersistedSkills = (): unknown => {
+  try {
+    const raw = window.localStorage.getItem(selectedSkillsStorageKey)
+    return raw ? JSON.parse(raw) as unknown : []
+  } catch {
+    return []
+  }
+}
+const persistSelectedSkills = (skills: TaskSkill[]) => {
+  try { window.localStorage.setItem(selectedSkillsStorageKey, JSON.stringify(skills)) } catch { /* Storage is optional. */ }
+}
 type AppView = 'agent' | 'schedules' | 'skills' | 'library' | 'computers'
 const viewFromLocation = (): AppView => {
   const value = new URLSearchParams(window.location.search).get('view')
@@ -42,7 +54,8 @@ export default function App() {
   const [runtime, setRuntime] = useState<RuntimeReadiness>()
   const [activeProjectId, setActiveProjectId] = useState('project_onevibe')
   const [view, setView] = useState<AppView>(viewFromLocation)
-  const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>([])
+  const [skillCatalog, setSkillCatalog] = useState<SkillOption[]>(fallbackSkillCatalog)
+  const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>(() => normalizeSelectedSkillIds(readPersistedSkills()))
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia('(max-width: 960px)').matches)
@@ -75,6 +88,17 @@ export default function App() {
   useEffect(() => { void refreshTasks() }, [refreshTasks])
   useEffect(() => { void refreshConversations() }, [refreshConversations])
   useEffect(() => { void listLibrary().then(({ items }) => setLibrary(items)) }, [])
+  useEffect(() => {
+    let mounted = true
+    void listSkills().then(({ skills }) => {
+      if (!mounted || !skills.length) return
+      const catalog = skills.map(({ id, title, summary }) => ({ id, title, summary }))
+      setSkillCatalog(catalog)
+      setSelectedSkills((current) => normalizeSelectedSkillIds(current, catalog))
+    }).catch(() => undefined)
+    return () => { mounted = false }
+  }, [])
+  useEffect(() => { persistSelectedSkills(selectedSkills) }, [selectedSkills])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)) }, [])
   useEffect(() => { void getRuntimeReadiness().then(setRuntime).catch(() => undefined) }, [])
   useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }) }, [activeProjectId])
@@ -118,7 +142,7 @@ export default function App() {
     window.history.pushState({}, '', `/?view=${nextView}`)
     if (window.matchMedia('(max-width: 960px)').matches) setSidebarOpen(false)
   }
-  const toggleSkill = (skill: TaskSkill) => setSelectedSkills((current) => current.includes(skill) ? current.filter((item) => item !== skill) : current.length >= 4 ? current : [...current, skill])
+  const toggleSkill = (skill: TaskSkill) => setSelectedSkills((current) => normalizeSelectedSkillIds(current.includes(skill) ? current.filter((item) => item !== skill) : current.length >= 4 ? current : [...current, skill], skillCatalog))
 
   const addProject = async (name: string, context: string) => {
     const project = await createProject(name, context)
@@ -213,7 +237,7 @@ export default function App() {
         </header>
 
         <AnimatePresence mode="wait">
-          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} runtime={runtime} /></motion.section> : !activeTaskId ? (
+          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} runtime={runtime} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="ambient-grid" />
               <div className="home-content">

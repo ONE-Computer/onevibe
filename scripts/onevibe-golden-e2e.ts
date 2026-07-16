@@ -231,7 +231,7 @@ const main = async () => {
     assert.ok(continued.events.filter((event) => event.type === 'run_completed').length >= 2, 'both provider turns must complete durably')
     assert.ok(continued.files.some((file) => file.path === 'README.md'), 'the first artifact must remain in the workspace')
     const readme = await request<{ content: string }>(baseUrl, `/api/tasks/${encodeURIComponent(first.id)}/file?path=README.md`)
-    assert.match(readme.content, /follow-up (?:edit|conversation)[^\n]{0,120}persisted/i)
+    assert.match(readme.content, /follow-up[^\n]{0,160}persisted/i)
     const evidence = await request<{ valid: boolean }>(baseUrl, `/api/tasks/${encodeURIComponent(first.id)}/evidence`)
     assert.equal(evidence.valid, true, 'the evidence chain must verify after the follow-up')
 

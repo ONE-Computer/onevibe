@@ -1,5 +1,33 @@
 import type { ChatMessage, ConversationSummary, LibraryItem, Project, ProjectFileVersion, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
+export type SkillCatalogEntry = { id: TaskSkill; version: number; title: string; summary: string; sha256: string }
+export type SkillOption = Pick<SkillCatalogEntry, 'id' | 'title' | 'summary'>
+
+export const fallbackSkillCatalog: SkillOption[] = [
+  { id: 'research', title: 'Research', summary: 'Evidence, uncertainty, and source discipline' },
+  { id: 'web_build', title: 'Web build', summary: 'Responsive, accessible product surfaces' },
+  { id: 'slides', title: 'Slides', summary: 'Narrative decks and speaker notes' },
+  { id: 'data_analysis', title: 'Data analysis', summary: 'Decision story with stated limits' },
+  { id: 'document', title: 'Document', summary: 'Portable briefs and structured writing' },
+  { id: 'product_design', title: 'Product design', summary: 'Interaction hierarchy and clear states' },
+  { id: 'security_review', title: 'Security review', summary: 'Untrusted input and governed actions' },
+  { id: 'browser_testing', title: 'Browser testing', summary: 'Rendered-flow validation guidance' },
+]
+
+export const normalizeSelectedSkillIds = (value: unknown, catalog: readonly SkillOption[] = fallbackSkillCatalog): TaskSkill[] => {
+  if (!Array.isArray(value)) return []
+  const validIds = new Set(catalog.map((skill) => skill.id))
+  const selected: TaskSkill[] = []
+  for (const candidate of value) {
+    if (typeof candidate !== 'string' || !validIds.has(candidate as TaskSkill)) continue
+    const skill = candidate as TaskSkill
+    if (selected.includes(skill)) continue
+    selected.push(skill)
+    if (selected.length === 4) break
+  }
+  return selected
+}
+
 const parse = async <T>(response: Response): Promise<T> => {
   const body = await response.json() as T & { error?: string }
   if (!response.ok) throw new Error(body.error ?? `Request failed with HTTP ${response.status}`)
@@ -15,6 +43,7 @@ export const listConversations = async (cursor?: string, limit = 50, query?: str
 }
 export const getRuntimeReadiness = async () => parse<RuntimeReadiness>(await fetch('/api/runtime'))
 export const listLibrary = async () => parse<{ items: LibraryItem[] }>(await fetch('/api/library'))
+export const listSkills = async () => parse<{ skills: SkillCatalogEntry[] }>(await fetch('/api/skills'))
 
 export const createTask = async (prompt: string, provider: Task['provider'], mode: TaskMode, projectId = 'project_onevibe', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = []) =>
   parse<Task>(await fetch('/api/tasks', {

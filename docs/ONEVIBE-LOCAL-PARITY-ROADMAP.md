@@ -4,7 +4,9 @@ Updated: 2026-07-16
 
 ## Current release posture — 2026-07-16
 
-The local backend and conversation gate is green. Website parity is in progress: the generated scaffold now has a validated portable HTML shell and the ONEVibe task screen has been browser-reviewed at desktop and 390×844 mobile widths, but the generated project itself has not yet been dependency-installed, built, or browser-tested. Keep Website/App/Game creation at **P1 / partial** until that evidence exists.
+The local backend and conversation gate is green. The immediate release slice is now **Skills Library → simple durable chat → document artifacts**. Website/App/Game generation is deliberately parked at **P2 / deferred** until this foundation is reliable. The generated website scaffold has a bounded local build proof, but it is not on the current critical path.
+
+Skills are a first-class capability contract, not decorative prompt labels: the server owns the catalog and pinned SHA-256 manifests, selections persist with the task, only selected packs materialize into the task workspace, and selection does not widen tools or policy permissions. The demo harness proves this contract; the provider-backed harness is the remaining Claude-specific acceptance gate for this release slice.
 
 The next delegated reviews are read-only and non-authoritative: one agent is auditing backend P0/P1 risks, one is auditing Manus/OpenWebUI interaction parity, and one is auditing roadmap/Linear hygiene. The main agent retains ownership of shared contracts, integration, full checks, Linear updates, and release claims.
 
@@ -18,7 +20,7 @@ The current local release remains green for the tested single-process path, but 
 - Generated projects: validation remains static. The generated app is not yet dependency-installed, built, or browser-tested, and interpolated task text must be treated as a source-escaping boundary.
 - Manus-style review: the Computer rail needs typed previews and grouped deliverables, task checkpoints need deep links into the selected evidence event, browser actions need immutable screenshot-or-miss records, and variable-height card virtualization needs scale/accessibility tests.
 
-These findings are tracked as implementation inputs, not release failures for the already-passed local gate. The local execution order is: generated Website build proof → browser golden-flow automation → artifact-rail previews/deep links → cancellation/CAS hardening → multi-worker SSE/replay semantics. The bounded `e2e:website-build -- --install` harness now proves the source/static contract and compiles a generated project to `dist/index.html` in a temporary directory; generated-project browser/a11y evidence remains open. ONEComputer provider completion semantics remain a separate deferred production gate.
+These findings are tracked as implementation inputs, not release failures for the already-passed local gate. The local execution order is: Skills Library authority/materialization → simple chat/restart/SSE proof → document artifact round-trip → browser golden-flow automation → broader creation parity. The bounded `e2e:website-build -- --install` harness proves the source/static contract and compiles a generated project to `dist/index.html` in a temporary directory; generated-project browser/a11y evidence remains open and is intentionally deferred. ONEComputer provider completion semantics remain a separate deferred production gate.
 
 ## Operating decision
 
@@ -93,12 +95,12 @@ Agents work in parallel only when write scopes are disjoint. The main agent revi
 
 ## Immediate sequence
 
-1. Finish the local Claude/LiteLLM reliability matrix and restart/reconnect proof, including the HTTP retry idempotency path.
-2. Make the default task screen conversation-first with a durable activity/artifact rail.
-3. Browser-check the inline plan/execution composition at desktop and 390px mobile widths, then add golden flows for new task → streaming → artifact → follow-up → reload → search. The first desktop/mobile inspection is complete; the golden-flow automation remains open.
-4. Run creation golden tasks for document, slides, data, and website modes.
+1. Finish the Skills Library authoritative catalog and reload persistence, then prove selected-pack materialization through Claude/LiteLLM.
+2. Finish the local Claude/LiteLLM simple-chat gate: streaming, durable follow-up, restart recovery, SSE replay, and server-side search.
+3. Complete document artifacts: source Markdown, derived preview/PDF, edit, restore, and provenance.
+4. Browser-check the skills → chat → artifact path at desktop and 390px mobile widths.
 5. Recalculate the parity ledger from observed behavior, not scaffolding presence.
-6. Only after Gates 0–2 pass, resume ONEComputer/OpenVTC work.
+6. Resume slides/data/website/app/game generation only after the foundation gates pass; resume ONEComputer/OpenVTC later.
 
 The cancellation worker is complete in `2fe6a84`; its evidence is deliberately fail-closed because the current remote exec abstraction cannot guarantee that an already-accepted remote command is interrupted by client-side abort.
 
