@@ -15,6 +15,17 @@ export type OneComputerSandboxAllocation = {
   allocationIdempotencyKey: string
 }
 
+export type OneComputerAllocationOperation = {
+  operationId: string
+  idempotencyKey: string
+  status: 'pending' | 'completed' | 'unknown'
+  sandboxId?: string
+  provider?: string
+  errorCode?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export type OneComputerClientOptions = {
   baseUrl: string
   serviceToken: string
@@ -44,16 +55,20 @@ export class OneComputerClient {
     this.fetcher = options.fetcher ?? fetch
   }
 
-  async createSandbox(name: string, allocation?: OneComputerSandboxAllocation, signal?: AbortSignal): Promise<OneComputerSandbox> {
-    return this.request<OneComputerSandbox>('/v1/sandboxes', {
+  async createSandbox(name: string, allocationOrSignal?: OneComputerSandboxAllocation | AbortSignal, signal?: AbortSignal): Promise<OneComputerSandbox> {
+    const allocation = allocationOrSignal instanceof AbortSignal ? undefined : allocationOrSignal
+    const requestSignal = allocationOrSignal instanceof AbortSignal ? allocationOrSignal : signal
+    const result = await this.request<OneComputerSandbox | OneComputerAllocationOperation>('/v1/sandboxes', {
       method: 'POST',
       body: JSON.stringify({ name }),
       headers: allocation ? {
         'Idempotency-Key': allocation.allocationIdempotencyKey,
         'X-Allocation-Operation-Id': allocation.allocationOperationId,
       } : undefined,
-      signal,
+      signal: requestSignal,
     })
+    if ('id' in result && typeof result.id === 'string') return result as OneComputerSandbox
+    return this.waitForSandboxOperation(result as OneComputerAllocationOperation, requestSignal)
   }
 
   async health(signal?: AbortSignal): Promise<{ status?: string; version?: string }> {
@@ -75,6 +90,25 @@ export class OneComputerClient {
 
   async listSandboxes(signal?: AbortSignal): Promise<OneComputerSandbox[]> {
     return this.request<OneComputerSandbox[]>('/v1/sandboxes', { signal })
+  }
+
+  async getSandboxOperation(id: string, signal?: AbortSignal): Promise<OneComputerAllocationOperation> {
+    return this.request<OneComputerAllocationOperation>(`/v1/sandbox-operations/${encodeURIComponent(id)}`, { signal })
+  }
+
+  private async waitForSandboxOperation(operation: OneComputerAllocationOperation, signal?: AbortSignal): Promise<OneComputerSandbox> {
+    const deadline = Date.now() + SANDBOX_STATUS_POLL_TIMEOUT_MS
+    let current = operation
+    while (Date.now() < deadline) {
+      if (current.status === 'completed' && current.sandboxId) return this.getSandbox(current.sandboxId, signal)
+      if (current.status === 'unknown') throw new Error(`ONEComputer allocation operation ${current.operationId} has an unknown outcome`)
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(resolve, 250)
+        signal?.addEventListener('abort', () => { clearTimeout(timeout); reject(signal.reason) }, { once: true })
+      })
+      current = await this.getSandboxOperation(current.operationId, signal)
+    }
+    throw new Error(`ONEComputer allocation operation ${current.operationId} did not complete within ${SANDBOX_STATUS_POLL_TIMEOUT_MS}ms`)
   }
 
   async triggerGovernedAction(id: string): Promise<{ approvalId: string; status: string }> {

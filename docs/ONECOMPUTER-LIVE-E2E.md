@@ -20,7 +20,7 @@ ONEVIBE_LITELLM_API_KEY=... # server-only; never returned to the browser or evid
 ONEVIBE_LITELLM_MODEL=claude-sonnet-5
 ```
 
-The API must provide authenticated `POST/GET/DELETE /v1/sandboxes`, `POST /exec`, and the headless visual runtime endpoints. Browser clients must never receive this key, the project header, X11, CDP, or VNC access.
+The API must provide authenticated `POST/GET/DELETE /v1/sandboxes`, `GET /v1/sandbox-operations/:operationId`, `POST /exec`, and the headless visual runtime endpoints. Sandbox creation accepts the durable `Idempotency-Key` and `X-Allocation-Operation-Id` headers and returns those identities in sandbox metadata. Browser clients must never receive this key, the project header, X11, CDP, or VNC access.
 
 For the POC, ONEVibe injects the configured LiteLLM route, model alias, and credential into the sandbox Claude process environment and records only the safe transport/model labels. The credential is not written into the workspace, prompt, Claude journal projection, task state, or browser payload. The ONEComputer control plane necessarily receives the exec request in the current API; production requires a short-lived in-sandbox credential broker or provider-native secret injection so a static gateway key is not present in command transport or provider request logs.
 
@@ -70,7 +70,7 @@ The attempt also found that the client propagated the provider's HTML error body
 
 ### Consumer-side recovery contract — 2026-07-16
 
-ONEVibe now sends the durable lease's `Idempotency-Key` and `X-Allocation-Operation-Id` on sandbox creation and exposes an authenticated `GET /v1/sandboxes` client path for reconciliation. If creation times out, the lease remains `unknown`; a later acquire/list operation adopts a sandbox only when the provider returns the exact allocation key or operation ID in its typed metadata. Matching by generated sandbox name is deliberately forbidden, and no blind retry is made. This closes the consumer-side safety seam but does not claim provider support: the ONEComputer API must persist the key/operation before dispatch, replay the same request, and return those labels in list/get responses before automatic recovery can pass production acceptance.
+ONEVibe now sends the durable lease's `Idempotency-Key` and `X-Allocation-Operation-Id` on sandbox creation, follows a pending `GET /v1/sandbox-operations/:operationId` receipt, and exposes an authenticated `GET /v1/sandboxes` client path for reconciliation. If creation times out, the lease remains `unknown`; a later acquire/list operation adopts a sandbox only when the provider returns the exact allocation key or operation ID in its typed metadata. Matching by generated sandbox name is deliberately forbidden, and no blind retry is made. The provider-side receipt/replay contract is implemented in the local ONEComputer lifecycle branch, but it still requires promotion and live Azure evidence before automatic recovery can pass production acceptance.
 
 This is an integration blocker, not a reason to weaken the ONEVibe boundary:
 

@@ -25,6 +25,23 @@ describe('OneComputerClient', () => {
     }))
   })
 
+  it('follows a provider allocation receipt when a replay is still pending', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ operationId: 'allocate-1', idempotencyKey: 'key-1', status: 'pending' }), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ operationId: 'allocate-1', idempotencyKey: 'key-1', status: 'completed', sandboxId: 'sandbox-1' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'sandbox-1', state: 'provisioning' }), { status: 200 }))
+    const client = new OneComputerClient({ baseUrl: 'https://onecomputer.example', serviceToken: 'server-only', fetcher })
+
+    await expect(client.createSandbox('onevibe-test', {
+      allocationOperationId: 'allocate-1', allocationIdempotencyKey: 'key-1',
+    })).resolves.toMatchObject({ id: 'sandbox-1' })
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      'https://onecomputer.example/v1/sandboxes',
+      'https://onecomputer.example/v1/sandbox-operations/allocate-1',
+      'https://onecomputer.example/v1/sandboxes/sandbox-1',
+    ])
+  })
+
   it('has no portal approval decision method', () => {
     const client = new OneComputerClient({ baseUrl: 'https://onecomputer.example', serviceToken: 'server-only' })
     expect('decideApproval' in client).toBe(false)
