@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-16 — product-lead queue and delegation cadence
+
+- Reframed the next phase as five bounded workstreams: a local API golden flow, document round-trip, quoted-CSV/data lineage, website build/review, and browser golden-flow coverage.
+- The P0 next slice is the local golden flow: create task → real Claude/LiteLLM streaming → durable artifact → follow-up → restart/reload → server-side search/open. It will be assigned to a worker with ownership limited to its script/package entry point and focused documentation/tests.
+- Earlier delegated reliability findings are now implemented and covered by the local check; their original NO-GO wording is retained only as historical regression context. The current default local slide gate and rendered browser QA are green.
+- Worker protocol remains strict: one disjoint write scope, explicit acceptance evidence, no shared-contract changes without main-agent review, no secrets, and no Linear Done transitions by sub-agents.
+- The agent pool is currently saturated by earlier threads, so redundant delegation was refused; completed worker reports were recovered and incorporated into the roadmap. The next worker will be spawned only when capacity is available.
+
 ## 2026-07-16 — local-first Manus parity pivot and activity rail
 
 - Re-scoped the active release gate to ONE-230: local ONEVibe reliability and Manus parity. Azure, ONEComputer, OpenVTC/VTI, and attested microVM work remain tracked but are explicitly deferred until the local gate is green.

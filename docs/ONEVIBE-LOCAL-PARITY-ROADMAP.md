@@ -98,13 +98,29 @@ The same task passed rendered browser QA at desktop and 390px mobile widths, inc
 
 ## Delegated audit synthesis — 2026-07-16
 
-The audits confirm a local release **NO-GO** until the runtime closes these reliability gaps: cancellation/process quiescence, restart reconciliation, the SSE replay/subscription race, provider early-EOF handling, crash recovery between native events and transcript projection, and durable retry identity. These are now tracked in `ONE-231`.
+The original audits identified a local release **NO-GO** until the runtime closed these reliability gaps: cancellation/process quiescence, restart reconciliation, the SSE replay/subscription race, provider early-EOF handling, crash recovery between native events and transcript projection, and durable retry identity. Those reliability slices are now implemented and covered by the current local check; the historical findings remain useful regression criteria in `ONE-231`, but should not be read as the current release status.
 
 The largest Manus interaction gap is composition: ONEVibe has a strong Computer rail and durable assistant-ui primitives, but the plan, execution narrative, tool trace, and evidence rail are split across separate surfaces. The default task view must make the evidence surface visible beside the conversation and move the relevant execution blocks into the chronological conversation model.
 
 The largest creation gaps are rendered slide-page parity, speaker-note round-trip, a common artifact manifest, source-derived document preview/PDF, quoted-CSV parsing and lineage, and real local website build/browser review. These are tracked in `ONE-232`; they stay local-first and do not require ONEComputer/Azure/OpenVTC.
 
 The audits were read-only and independently checked the repository, stored Manus evidence, and existing tests. Their findings are inputs to engineering work, not completion evidence.
+
+## Product-lead execution queue — 2026-07-16
+
+The next phase is deliberately split into small, independently reviewable slices. The main agent owns sequencing, shared contracts, integration, Linear, and release evidence. A delegated worker may only take a slice with a disjoint write scope; read-only explorers return findings and acceptance tests without changing product contracts.
+
+| Priority | Slice | Proposed owner | Write scope | Exit evidence |
+|---|---|---|---|---|
+| P0 | Local golden flow: create task → stream → terminal artifact → follow-up → reload → server-side search/open | next backend worker | `scripts/onevibe-golden-e2e.ts`, `package.json`, one focused doc section | clean temporary-data run, two durable turns, suffix-safe SSE/reload proof, unique task identity, searchable transcript |
+| P1 | Document round-trip: source Markdown → preview/PDF → edit → restore | creation worker | document writer/preview module and focused tests only | source-derived preview hash changes, PDF exists, restore returns prior source/preview |
+| P1 | Data story parser/lineage: quoted CSV → table/filter/chart metadata | data worker | data parser/writer and focused tests only | quoted fields preserved, malformed input fails clearly, one parsed dataset feeds all views |
+| P1 | Website review: local build + desktop/390px preview + validation evidence | web-output worker | website mode writer/validation tests only | build failure is terminal, successful build has preview and responsive/a11y evidence |
+| P2 | Conversation golden browser flow and visual regression capture | UI worker | browser QA harness/docs or isolated UI test files | no overflow at 390px, history reload/search, follow-up, activity/artifact rail review |
+
+Delegation is capacity-aware: the current worker pool is saturated by earlier completed/lingering threads, so no redundant agents are spawned. Once a slot is available, the P0 golden-flow slice is the first implementation assignment. This is an execution constraint, not a product blocker; the main agent can continue documentation, integration review, and release-gate work while workers run.
+
+Each slice must report: issue identifier, exact files touched, tests run, evidence IDs/paths safe to retain, security limits, and remaining uncertainty. No slice may mark a Linear issue Done or claim Manus parity from a fixture, cosmetic mock, or generated scaffold alone.
 
 ## Metrics for the local POC
 
