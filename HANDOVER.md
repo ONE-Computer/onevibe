@@ -5,6 +5,8 @@
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
+> **Routing clarification**: ONEVibe must route **all** model traffic through the server-controlled LiteLLM gateway for data sovereignty, centralized policy, cost control, and model optimization. This includes every Claude/Anthropic-compatible SDK call, Codex-compatible route, AgentCore integration, local test harness, and future provider adapter. Do not call a first-party Anthropic endpoint directly or add a direct Anthropic credential as a fallback; if LiteLLM is unavailable, fail closed and surface an unavailable state.
+
 ---
 
 ## 1. What ONEVibe is (the sharpened thesis)
