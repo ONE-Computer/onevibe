@@ -34,13 +34,13 @@ The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critica
 
 ## Status snapshot — 2026-07-16 (local ONEVibe parity pivot)
 
-The board contains 16 scoped issues: 1 Done, 7 In Progress, and 8 Backlog. That is **6% strict ticket completion** (1/16), or **28% weighted delivery progress** when an In Progress ticket counts as half (1 + 7×0.5 = 4.5/16, rounded). The new ONE-230 release gate is intentionally conservative: it measures the local product path, not the deferred platform path. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
+The board contains 18 scoped issues: 1 Done, 7 In Progress, and 10 Backlog. That is **6% strict ticket completion** (1/18), or **25% weighted delivery progress** when an In Progress ticket counts as half (1 + 7×0.5 = 4.5/18, rounded). The new ONE-230 release gate is intentionally conservative: it measures the local product path, not the deferred platform path. ONE-231 is the active fail-closed runtime child workstream; ONE-232 is the queued creation-parity child workstream. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
 
 ### Current phase — ONEVibe local reliability and Manus parity
 
 ONE-230 is the active P0. Its release gate is a real local Claude/LiteLLM E2E run with durable history, reconnectable SSE, follow-up turns, cancellation/retry/error states, assistant-ui conversation rendering, plan/tool/activity evidence, screenshots/terminal cards, artifact rail, and responsive browser QA. PPTX/PDF generation remains part of the local creation path. The UI must never imply that local mode is a production network-containment boundary.
 
-ONE-223 and ONE-229 are the active UX workstream. ONE-216 through ONE-220 remain the backend foundation. ONE-221, ONE-225, and ONE-226 are deliberately back in Backlog: their Azure/provider recovery and attested microVM work will resume only after ONE-230 is green. ONE-224, ONE-227, and ONE-228 remain deferred platform/security work.
+ONE-223 and ONE-229 are the active UX workstream. ONE-216 through ONE-220 remain the backend foundation. ONE-221, ONE-225, and ONE-226 are deliberately back in Backlog: their Azure/provider recovery and attested microVM work will resume only after ONE-230 is green. ONE-215 is retained as a historical dependency epic and is back in Backlog. ONE-224, ONE-227, and ONE-228 remain deferred platform/security work.
 
 ONEComputer is not being deleted or bypassed; it is being treated as the later enforcement plane. The current goal is to make the product contract, local runtime, event model, artifact model, and Manus-style interaction reliable enough that platform integration has a stable consumer.
 
