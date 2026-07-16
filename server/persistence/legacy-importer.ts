@@ -56,6 +56,8 @@ const optionalString = (value: unknown, field: string): string | undefined => {
 const parseJson = (source: string, filename: string): unknown => {
   try { return JSON.parse(source) as unknown } catch { throw new LegacyImportValidationError(`${filename} is not valid JSON`) }
 }
+const migratedMessageId = (conversationId: string, legacyId: string): string => `legacy_message_${createHash('sha256')
+  .update(conversationId).update('\0').update(legacyId).digest('hex').slice(0, 32)}`
 
 interface ValidatedLegacy {
   conversation: ConversationRecord
@@ -82,7 +84,7 @@ function validateLegacy(taskValue: unknown, messagesValue: unknown): ValidatedLe
       throw new LegacyImportValidationError(`messages[${sequence}].status is unsupported`)
     }
     return {
-      id: requiredString(value.id, `messages[${sequence}].id`),
+      id: migratedMessageId(id, requiredString(value.id, `messages[${sequence}].id`)),
       conversationId: id,
       turnId: null,
       sequence,

@@ -72,6 +72,20 @@ describe('LegacyJsonImporter', () => {
     } finally { database.close() }
   })
 
+  it('namespaces repeated legacy message ids by conversation while retaining duplicate detection within one conversation', async () => {
+    const { root, database, unitOfWork } = setup()
+    try {
+      const shared = [{ id: 'user-0', role: 'user', content: 'Shared legacy identifier', createdAt: now }]
+      writeTask(root, 'task-1', { messages: shared })
+      writeTask(root, 'task-2', { messages: shared })
+      const report = await new LegacyJsonImporter({ legacyRoot: root, unitOfWork }).importAll()
+      expect(report.imported.map((item) => item.sourceId)).toEqual(['task-1', 'task-2'])
+      expect(report.quarantined).toEqual([])
+      const ids = database.prepare('SELECT id FROM messages ORDER BY conversation_id').pluck().all()
+      expect(new Set(ids).size).toBe(2)
+    } finally { database.close() }
+  })
+
   it('quarantines malformed JSON with an explicit report and continues importing valid siblings', async () => {
     const { root, database, unitOfWork } = setup()
     try {
