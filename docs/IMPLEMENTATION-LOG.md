@@ -22,6 +22,7 @@
 - Successful native Claude document turns run the same source-derived projection before static validation. Editing `document.md` through the server-owned file route regenerates the preview, PDF, and manifest; version restore rehydrates the derived review outputs as well.
 - Document validation now requires a parseable non-empty PDF. Focused mode-artifact/Claude tests passed (17 tests); full `npm run check` remains green with 35 test files / 198 tests.
 - Remaining limitation: this proves the local source/projection contract; native document live-provider evidence and richer layout/Markdown semantics remain open.
+- Added `npm run e2e:document-roundtrip` for the HTTP-level proof. Task `task_9c72a7cd51ee4f` passed source edit, derived preview/PDF change, immutable pre-edit restore, exact source/preview/PDF restoration, PDF content type, and evidence-chain verification.
 
 ## 2026-07-16 — local-first Manus parity pivot and activity rail
 

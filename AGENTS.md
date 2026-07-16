@@ -57,6 +57,8 @@ For local Claude E2E, use the protected host-only LiteLLM relay configuration do
 
 Run `npm run e2e:golden` for the local release flow: it starts its own temporary API/data root, proves real Claude/LiteLLM streaming, follow-up persistence, SSE suffix replay, API restart recovery, server-side search, and distinct task identity. The raw `LITELLM_MODEL` in the handover environment may not be a valid ONEVibe router alias; set an explicit compatible alias (currently `claude-sonnet-5` for the documented local route) and record that alias in evidence. The harness proves `executionBoundary=host_process` only; it must not be used to claim ONEComputer, microVM, OpenVTC, or production egress enforcement.
 
+Run `npm run e2e:document-roundtrip` for the deterministic document contract: it starts a temporary API, creates a demo document, edits `document.md` through the HTTP route, verifies the derived HTML/PDF change, restores the pre-edit immutable version, and verifies source/preview/PDF hashes plus evidence-chain validity.
+
 ## Frontend foundation
 
 Use `assistant-ui` as the preferred foundation for ONEVibe conversation threads, streaming messages, composer, history navigation, accessible message actions, and tool-state rendering. Preserve ONEComputer's bespoke dark/light visual system and custom evidence/artifact rail rather than forcing those surfaces into generic chat components. Any adoption must bind to the real server transcript/SSE contracts; demo arrays or browser-authoritative history are prohibited.

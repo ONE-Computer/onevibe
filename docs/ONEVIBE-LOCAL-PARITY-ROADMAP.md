@@ -122,7 +122,7 @@ Delegation is capacity-aware: the current worker pool is saturated by earlier co
 
 Each slice must report: issue identifier, exact files touched, tests run, evidence IDs/paths safe to retain, security limits, and remaining uncertainty. No slice may mark a Linear issue Done or claim Manus parity from a fixture, cosmetic mock, or generated scaffold alone.
 
-The document slice is now implemented locally: deterministic and native Claude document tasks derive `index.html` and `document.pdf` from `document.md`, and the server regenerates those outputs after guarded source edits and version restores. Focused mode/validation tests and the full local check pass. The remaining acceptance work is an HTTP-level round-trip proof and native-provider live evidence, not a claim that all document authoring features are complete.
+The document slice is now implemented locally: deterministic and native Claude document tasks derive `index.html` and `document.pdf` from `document.md`, and the server regenerates those outputs after guarded source edits and version restores. Focused mode/validation tests, the HTTP round-trip (`task_9c72a7cd51ee4f`), and the full local check pass. Native-provider live document evidence and richer layout/Markdown semantics remain open; this is not a claim that all document authoring features are complete.
 
 ## Metrics for the local POC
 
