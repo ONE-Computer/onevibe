@@ -13,7 +13,7 @@ import { Computers } from './components/Computers'
 import { HomeHero } from './components/HomeHero'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
-import { addProjectFile, cancelQueuedGuidance, cancelTask, createProject, createSchedule, createTask, fallbackSkillCatalog, getRuntimeReadiness, listConversations, listLibrary, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
+import { addProjectFile, cancelQueuedGuidance, cancelTask, createProject, createSchedule, createTask, fallbackSkillCatalog, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
 import type { ConversationSummary, LibraryItem, Project, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
@@ -59,6 +59,8 @@ export default function App() {
   const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>(() => normalizeSelectedSkillIds(readPersistedSkills()))
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
   const [creating, setCreating] = useState(false)
+  const [backendOffline, setBackendOffline] = useState(false)
+  const [retryingBackend, setRetryingBackend] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const taskRoute = /^\/tasks\/[^/]+$/.test(window.location.pathname)
     return !window.matchMedia('(max-width: 1250px)').matches || !taskRoute
@@ -105,7 +107,18 @@ export default function App() {
   }, [])
   useEffect(() => { persistSelectedSkills(selectedSkills) }, [selectedSkills])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)) }, [])
-  useEffect(() => { void getRuntimeReadiness().then(setRuntime).catch(() => undefined) }, [])
+  const loadRuntimeReadiness = useCallback(async () => {
+    try {
+      const next = await getRuntimeReadiness()
+      setRuntime(next)
+      setBackendOffline(false)
+      return next
+    } catch (reason) {
+      if (isBackendOfflineError(reason)) setBackendOffline(true)
+      throw reason
+    }
+  }, [])
+  useEffect(() => { void loadRuntimeReadiness().catch(() => undefined) }, [loadRuntimeReadiness])
   useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }) }, [activeProjectId])
   useEffect(() => {
     const onPopState = () => {
@@ -229,6 +242,16 @@ export default function App() {
       setCreating(false)
     }
   }
+  const retryBackend = async () => {
+    setRetryingBackend(true)
+    try {
+      await loadRuntimeReadiness()
+    } catch {
+      // The banner remains visible and gives the operator another explicit retry.
+    } finally {
+      setRetryingBackend(false)
+    }
+  }
   const notifications = tasks.flatMap((task) => {
     const items: Array<{ id: string; task: Task; label: string; detail: string; tone: 'approval' | 'queue' | 'failure' }> = []
     if (task.approval?.state === 'pending') items.push({ id: `${task.id}:approval`, task, label: 'Wallet approval needed', detail: task.approval.action.replaceAll('_', ' '), tone: 'approval' })
@@ -241,6 +264,7 @@ export default function App() {
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
       <AnimatePresence>{sidebarOpen && <><motion.button key="sidebar-backdrop" className="sidebar-backdrop" aria-label="Close sidebar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)} /><motion.div key="sidebar-panel" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} conversations={conversations} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onClose={() => setSidebarOpen(false)} onSelectTask={(taskId) => navigateToTask(taskId)} hasMoreConversations={Boolean(conversationCursor)} loadingMoreConversations={loadingConversationPage} onLoadMoreConversations={loadMoreConversations} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onRemoveProjectFile={detachProjectFile} onUpdateProjectFile={editProjectFile} onRestoreProjectFile={restoreProjectFile} onUpdateProjectContext={updateProject} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} /></motion.div></>}</AnimatePresence>
       <main className="main-shell">
+        {backendOffline && <div className="backend-offline-banner" role="alert"><div><TriangleAlert size={15} /><span><strong>Backend offline</strong><small>Run <code>npm run dev</code> in the ONEVibe project root to connect the workspace.</small></span></div><button type="button" onClick={() => void retryBackend()} disabled={retryingBackend}>{retryingBackend ? 'Checking…' : 'Retry'}</button></div>}
         <header className="topbar">
           <div className="topbar-left"><button className="icon-button" type="button" aria-label={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'} onClick={() => setSidebarOpen((value) => !value)}>{sidebarOpen ? <PanelLeftClose size={17} /> : <Menu size={17} />}</button><button type="button" className="model-selector"><Sparkles size={14} /> ONEVibe 0.1 <ChevronDown size={13} /></button></div>
           <div className="topbar-right"><span className="trust-chip" title="OpenVTC protected · External approvals enabled"><ShieldCheck size={13} /> OpenVTC</span><span className={`connection ${connected ? 'online' : ''}`}><i />{connected ? 'Live' : 'Local'}</span><ThemeToggle /><div className="notification-wrap"><button className="icon-button" type="button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}><Bell size={16} />{notifications.length > 0 && <i className="notification-count">{notifications.length}</i>}</button>{notificationsOpen && <motion.div className="notification-panel" initial={{ opacity: 0, y: -5, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}><header><strong>Activity</strong><span>{notifications.length ? `${notifications.length} needs attention` : 'All clear'}</span></header>{notifications.length ? notifications.map((item) => <button key={item.id} className={item.tone} onClick={() => { setNotificationsOpen(false); navigateToTask(item.task.id) }}><span>{item.tone === 'failure' ? <TriangleAlert size={14} /> : item.tone === 'approval' ? <ShieldCheck size={14} /> : <Sparkles size={14} />}</span><div><strong>{item.label}</strong><small>{item.task.title} · {item.detail}</small></div></button>) : <p>No approvals, queued guidance, or failed tasks.</p>}</motion.div>}</div><button className="share-button" disabled={!snapshot} onClick={() => { if (!snapshot) return; if (snapshot.share) window.open(`/share/${snapshot.share.id}`, '_blank'); else void requestShare(snapshot.id) }}><Share2 size={14} /> {snapshot?.share ? 'Open share' : snapshot?.approval?.action === 'share_artifact' && snapshot.approval.state === 'pending' ? 'Approval pending' : 'Share'}</button><a className="github-button" href="https://github.com/one-computer" target="_blank" rel="noreferrer"><CodeXml size={15} /> GitHub</a></div>

@@ -18,6 +18,8 @@ Linear also serves as the management and architecture review hub:
 
 The current release gate is [ONE-230](https://linear.app/onecomputer/issue/ONE-230/p0-local-onevibe-reliability-and-manus-parity-release-gate). ONEVibe is now explicitly local-first: the product must be a reliable Manus-style workspace powered by the local Claude Agent SDK/LiteLLM path before platform integration work resumes.
 
+The handover adds [ONE-245](https://linear.app/onecomputer/issue/ONE-245/secp0-enforce-litellm-only-model-routing-for-every-harness) as a security release gate: every harness must route model traffic through the server-controlled LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback; legacy direct configuration must be removed or fail closed.
+
 The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critical path:
 
 1. `ONE-216` — transactional conversation, turn, and message service.
@@ -32,9 +34,9 @@ The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critica
 10. `ONE-225` — make ONEComputer allocation idempotent and provider operations recoverable; blocks safe lease creation.
 11. `ONE-226` — integrate and attest a real microVM boundary without host Docker-socket exposure; blocks the final production gate.
 
-## Status snapshot — 2026-07-16 (local ONEVibe parity pivot)
+## Status snapshot — 2026-07-16 (local ONEVibe parity pivot; ONE-245 added)
 
-The board contains 30 scoped issues: 4 Done, 12 In Progress, and 14 Backlog. That is **13% strict ticket completion** (4/30), or **33% weighted delivery progress** when an In Progress ticket counts as half (4 + 12×0.5 = 10/30, rounded). ONE-233 through ONE-235 are now Done from real local Claude/LiteLLM evidence; ONE-236 and ONE-237 remain release blockers under ONE-230. The assistants-ui UX program is ONE-238 through ONE-244: it is a P0/P1 overhaul of the conversation architecture, composer, execution narrative, artifact inspector, navigation, skills surfaces, and sans-serif design system. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
+The board contains 31 scoped issues: 4 Done, 12 In Progress, and 15 Backlog. That is **13% strict ticket completion** (4/31), or **32% weighted delivery progress** when an In Progress ticket counts as half (4 + 12×0.5 = 10/31, rounded). ONE-233 through ONE-235 are now Done from real local Claude/LiteLLM evidence; ONE-236 and ONE-237 remain release blockers under ONE-230. ONE-245 is the new LiteLLM-only routing security gate. The assistants-ui UX program is ONE-238 through ONE-244: it is a P0/P1 overhaul of the conversation architecture, composer, execution narrative, artifact inspector, navigation, skills surfaces, and sans-serif design system. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
 
 ### Current phase — ONEVibe local reliability and Manus parity
 

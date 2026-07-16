@@ -14,6 +14,30 @@ export const fallbackSkillCatalog: SkillOption[] = [
   { id: 'browser_testing', title: 'Browser testing', summary: 'Rendered-flow validation guidance' },
 ]
 
+export class ApiError extends Error {
+  readonly status: number
+  readonly code: string
+
+  constructor(
+    message: string,
+    status: number,
+    code: string,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+
+  get isBackendOffline() {
+    return this.code === 'backend_offline'
+  }
+}
+
+export const isBackendOfflineError = (error: unknown) =>
+  (error instanceof ApiError && error.isBackendOffline) ||
+  (error instanceof TypeError && /fetch|network|failed to fetch/i.test(error.message))
+
 export const normalizeSelectedSkillIds = (value: unknown, catalog: readonly SkillOption[] = fallbackSkillCatalog): TaskSkill[] => {
   if (!Array.isArray(value)) return []
   const validIds = new Set(catalog.map((skill) => skill.id))
@@ -29,8 +53,12 @@ export const normalizeSelectedSkillIds = (value: unknown, catalog: readonly Skil
 }
 
 const parse = async <T>(response: Response): Promise<T> => {
-  const body = await response.json() as T & { error?: string }
-  if (!response.ok) throw new Error(body.error ?? `Request failed with HTTP ${response.status}`)
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) {
+    throw new ApiError('Backend offline or not reachable', response.status || 503, 'backend_offline')
+  }
+  const body = await response.json() as T & { error?: string; code?: string }
+  if (!response.ok) throw new ApiError(body.error ?? `Request failed with HTTP ${response.status}`, response.status, body.code ?? 'http_error')
   return body
 }
 

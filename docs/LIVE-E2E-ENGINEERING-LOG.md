@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-16 — handover baseline and failure-path slice
+
+- The current checkout is `699fe22` with the handover roadmap as the governing plan. Baseline `npm run check` passed with 37 test files and 207 tests before the slice.
+- The first foundation patch now proves typed handling for an HTML SPA fallback and structured JSON HTTP error responses. The post-change gate passes with 38 test files and 209 tests, lint, build, and E2E harness typecheck.
+- A dedicated browser tab could not connect to the isolated Vite QA port in this environment (`ERR_CONNECTION_REFUSED`); browser acceptance remains open and is not claimed from the unit/build gate.
+- Model-routing policy is explicit: every model request must use the protected LiteLLM route. Direct first-party Anthropic access is not an accepted release path. No secret or provider payload was recorded.
+
 ## 2026-07-16 — browser caught internal skill files and thinking telemetry leakage
 
 - A browser reload of real chat task `task_4e120a8439f240` exposed two presentation defects: internal `.claude/skills` guides inflated the portable-artifact count to 2, and five `Claude SDK · thinking tokens` records appeared in both the assistant trace and Activity rail.

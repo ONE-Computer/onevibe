@@ -1,5 +1,17 @@
 # Implementation log
 
+## 2026-07-16 — handover Phase 1: backend-offline boundary
+
+- Re-read `HANDOVER.md`, `TODO.md`, the phase plans, the local parity roadmap, and the current Linear project before changing code. The active sequence is now the handover's Phase 1 foundation; platform promotion remains deferred.
+- Added a typed `ApiError` boundary in `src/lib/api.ts`. HTML SPA fallbacks and non-JSON responses no longer surface as an unhandled JSON parse failure; structured JSON HTTP errors retain status and error code.
+- Added a persistent, retryable backend-offline banner to `App.tsx`. The banner is driven by the runtime readiness request and also recognizes network-level fetch failures; readiness recovery removes it.
+- Added focused API error tests. Full `npm run check` passes with 38 test files and 209 tests, lint, production build, and E2E harness typecheck.
+- This slice is local browser/API failure-path work only. It does not claim auth, multi-user isolation, microVM enforcement, OpenVTC approvals, or production deployment.
+
+## 2026-07-16 — mandatory LiteLLM routing policy
+
+- Updated `HANDOVER.md`, `AGENTS.md`, and `TODO.md`: all model traffic must traverse the server-controlled LiteLLM relay for data sovereignty, routing, cost, and optimization. Direct first-party Anthropic traffic is prohibited and any legacy fallback remains a hardening gap.
+
 ## 2026-07-16 — light-mode Claude calibration (Phases 11–15)
 
 User feedback ("prefer a light color; motion too cheesy; want

@@ -10,6 +10,8 @@
 >
 > **Release gate**: `npm run check` must stay green (oxlint + 207 vitest tests + tsc build + e2e harness typecheck) after every task.
 
+> **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. Any legacy direct-Anthropic configuration is an explicit hardening gap.
+
 ---
 
 ## Phase 1 — Stop the bleeding: make the app actually work

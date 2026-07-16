@@ -1,7 +1,7 @@
 # ONEVibe — Agent Handover Document
 
 > **Date**: 2026-07-16
-> **Status**: Roadmap written, cosmetic UX complete, functional work not yet started.
+> **Status**: Roadmap written, cosmetic UX inherited, Phase 1 foundation work in progress. P1-01/P1-07 have an implementation slice; browser acceptance remains open.
 > **For**: The next agent (or human) picking this up cold.
 > **Read this entire document before touching any code.**
 
@@ -16,6 +16,10 @@ Users pick which harness runs their task — Claude Agent SDK, OpenAI Codex, AWS
 **ONEVibe is not a wrapper around a single SDK.** This is the most important architectural principle. OpenWork (the closest open-source equivalent, `github.com/different-ai/openwork`) locked onto `@opencode-ai/sdk` as its sole engine. When that engine stagnates or a better one ships, OpenWork is stuck. We do not make that mistake.
 
 **Harnesses will always improve. Our users must be free to use the best one at any time.**
+
+### Mandatory model-routing policy
+
+Every model request in every environment must traverse the server-controlled **LiteLLM** boundary. This is a deliberate data-sovereignty, routing, cost, and optimization decision. The Claude Agent SDK may remain the selected harness, but it must receive a LiteLLM-compatible `ANTHROPIC_BASE_URL`, server-injected relay credential, and explicit router model alias. Direct first-party Anthropic API traffic is not an accepted fallback or release path. Any legacy direct-Anthropic branch in the codebase is a hardening gap and must be removed or fail closed before a provider path is called production-ready.
 
 The abstraction that enforces this: `server/runtime-adapter.ts` — the `RuntimeAdapter` interface. Every harness is an implementation. This file is the most important file in the codebase. Strengthen it; never work around it.
 
@@ -52,12 +56,14 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 
 ```bash
 # Requires Node 22+, npm
-cp .env.example .env       # fill in ANTHROPIC_API_KEY at minimum
+cp .env.example .env       # configure the protected LiteLLM relay
 npm install
 npm run dev                # starts BOTH server (port 4311) AND Vite (port 5173)
 ```
 
 Vite proxies `/api/*` to `http://127.0.0.1:4311`. If only `npm run dev:web` is run (not `npm run dev`), every API call silently fails.
+
+Do not configure a direct Anthropic API key as a substitute for the relay. Local provider proof must use the protected host-only LiteLLM environment documented in `AGENTS.md` and the handover files outside this repository.
 
 ### Release gate — must stay green after every change
 
@@ -235,8 +241,13 @@ Full task list: `TODO.md`. Summary:
 ## 7. Environment variables
 
 ```bash
-# Required for Claude SDK (most important)
-ANTHROPIC_API_KEY=sk-ant-...
+# Required: all model traffic goes through this server-controlled relay.
+ONEVIBE_LITELLM_URL=http://127.0.0.1:4100
+ONEVIBE_LITELLM_API_KEY=
+ONEVIBE_LITELLM_MODEL=claude-sonnet-5
+
+# ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY are derived for the child SDK
+# process from the relay configuration; do not use a direct first-party key.
 
 # Required for ONEComputer sandbox
 ONECOMPUTER_API_URL=https://...
