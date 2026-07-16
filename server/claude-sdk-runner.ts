@@ -193,10 +193,11 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
       }
 
       if (message.type === 'result') {
-        const success = message.subtype === 'success' && !message.is_error
+        const content = 'result' in message && typeof message.result === 'string' ? message.result : undefined
+        const success = message.subtype === 'success' && !message.is_error && content !== undefined
         terminal = {
           success,
-          content: 'result' in message && typeof message.result === 'string' ? message.result : undefined,
+          content,
         }
       } else if (!projections.length) {
         projections.push({
@@ -240,7 +241,8 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
         payload: { executionRoute: 'claude_agent_sdk', kind: 'website', uri: `/api/tasks/${task.id}/preview`, version: 1 },
       })
     }
-    const success = terminal?.success ?? true
+    const success = terminal?.success === true
+    const failureReason = terminal ? 'provider_result_failure' : 'missing_terminal_result'
     if (success) {
       await beginBuild()
       await store.setPlanStep(task.id, 'build', 'completed')
@@ -257,11 +259,11 @@ export class ClaudeSdkRuntimeAdapter implements RuntimeAdapter {
     }
     await store.appendEvent(task.id, {
       type: success ? 'run_completed' : 'run_failed', lane: 'control', status: success ? 'completed' : 'failed',
-      label: terminal ? (success ? 'Claude Agent SDK completed' : 'Claude Agent SDK failed') : 'Claude Agent SDK stream closed',
+      label: terminal ? (success ? 'Claude Agent SDK completed' : 'Claude Agent SDK failed') : 'Claude Agent SDK stream closed before terminal result',
       content: terminal?.content ?? (terminal ? undefined : 'The SDK stream ended without an explicit result message.'),
       payload: terminal
         ? { executionRoute: 'claude_agent_sdk', nativeType: 'result', nativeEventId: terminalNativeEventId }
-        : { executionRoute: 'claude_agent_sdk' },
+        : { executionRoute: 'claude_agent_sdk', failureReason },
     })
     await store.updateTask(task.id, { status: success ? 'completed' : 'failed' })
   }

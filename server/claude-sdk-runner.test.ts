@@ -14,6 +14,7 @@ type QueryInput = {
 
 const permissionChecks: string[] = []
 const queryCalls: QueryInput[] = []
+let queryMode: 'success' | 'early-eof' = 'success'
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   createSdkMcpServer: (options: unknown) => ({ type: 'sdk', name: 'onevibe', instance: options }),
@@ -36,9 +37,11 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
       type: 'assistant', session_id: 'session-test', parent_tool_use_id: null,
       message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Write', input: { file_path: 'index.html' } }] },
     }
-    yield {
-      type: 'result', subtype: 'success', session_id: 'session-test', is_error: false,
-      result: 'Created a local preview.', access_token: 'must-not-leak',
+    if (queryMode === 'success') {
+      yield {
+        type: 'result', subtype: 'success', session_id: 'session-test', is_error: false,
+        result: 'Created a local preview.', access_token: 'must-not-leak',
+      }
     }
   },
 }))
@@ -51,11 +54,12 @@ afterEach(async () => {
   vi.unstubAllEnvs()
   permissionChecks.splice(0)
   queryCalls.splice(0)
+  queryMode = 'success'
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
 describe('ClaudeSdkRuntimeAdapter', () => {
-  it('preserves native events, confines tools, and emits the terminal event last', async () => {
+  it('requires an explicit result for success while preserving native events and tool confinement', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-claude-sdk-'))
     temporaryRoots.push(root)
     const { TaskStore } = await import('./store.js')
@@ -82,6 +86,30 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(store.getTask(task.id).securityContext?.runtimeSessionId).toBe('session-test')
     expect(store.getTask(task.id).plan.map((step) => step.status)).toEqual(['completed', 'completed', 'completed', 'completed', 'completed'])
     expect(store.verifyChain(task.id)).toBe(true)
+  })
+
+  it('fails closed when the SDK stream reaches EOF before a terminal result', async () => {
+    queryMode = 'early-eof'
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-claude-early-eof-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { ClaudeSdkRuntimeAdapter } = await import('./claude-sdk-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Build a governed website', 'claude_sdk')
+    await store.beginTurn(task.id, task.prompt, task.provider)
+
+    await new ClaudeSdkRuntimeAdapter().run({ task, store, signal: new AbortController().signal, prompt: task.prompt, continuation: false, requestUserInput: async () => 'test answer' })
+
+    const events = store.listEvents(task.id)
+    const terminalEvent = events.at(-1)
+    expect(terminalEvent?.type).toBe('run_failed')
+    expect(terminalEvent?.label).toBe('Claude Agent SDK stream closed before terminal result')
+    expect(terminalEvent?.content).toBe('The SDK stream ended without an explicit result message.')
+    expect(terminalEvent?.payload).toEqual(expect.objectContaining({ executionRoute: 'claude_agent_sdk', failureReason: 'missing_terminal_result' }))
+    expect(events.some((event) => event.type === 'run_completed')).toBe(false)
+    expect(store.getTask(task.id).status).toBe('failed')
+    expect(JSON.stringify(events)).not.toContain('must-not-leak')
   })
 
   it('resumes the retained Claude session for a follow-up turn', async () => {

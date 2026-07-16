@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { encodeRuntimeEventFrame, eventsAfterLastEventId } from './task-event-stream.js'
+import { describe, expect, it, vi } from 'vitest'
+import { encodeRuntimeEventFrame, eventsAfterLastEventId, openReplayLiveHandoff } from './task-event-stream.js'
 import type { RuntimeEvent } from './types.js'
 
 const event = (sequence: number): RuntimeEvent => ({
@@ -13,6 +13,48 @@ describe('task event stream replay', () => {
 
   it('replays only events after the browser Last-Event-ID', () => {
     expect(eventsAfterLastEventId([event(0), event(1), event(2)], 'task_a', 'task_a:event:1').map((item) => item.sequence)).toEqual([2])
+  })
+
+  it('does not lose an event appended while replay is being read', () => {
+    const delivered: number[] = []
+    let liveListener: ((item: RuntimeEvent) => void) | undefined
+    const unsubscribe = vi.fn()
+
+    const close = openReplayLiveHandoff({
+      replay: () => {
+        liveListener?.(event(2))
+        return [event(0), event(1)]
+      },
+      subscribe: (listener) => {
+        liveListener = listener
+        return unsubscribe
+      },
+      send: (item) => delivered.push(item.sequence),
+    })
+
+    expect(delivered).toEqual([0, 1, 2])
+    close()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('keeps replay/live delivery ordered and duplicate-free at the handoff', () => {
+    const delivered: number[] = []
+    let liveListener: ((item: RuntimeEvent) => void) | undefined
+
+    openReplayLiveHandoff({
+      replay: () => {
+        liveListener?.(event(1))
+        liveListener?.(event(2))
+        return [event(0), event(1)]
+      },
+      subscribe: (listener) => {
+        liveListener = listener
+        return () => undefined
+      },
+      send: (item) => delivered.push(item.sequence),
+    })
+
+    expect(delivered).toEqual([0, 1, 2])
   })
 
   it('rejects malformed and cross-task replay cursors', () => {
