@@ -638,3 +638,9 @@ baseline harness in CI.
 
 - Added `scripts/postgres-import.ts` and `npm run db:import`. It reads the durable local store, requires explicit ownership for ownerless legacy records, refuses mixed owners in the first migration, requires the Better Auth user to already exist in Postgres, and imports projects, tasks, schedules, MCP declarations, turns/messages, runtime/native events, and workspace-version metadata inside one Drizzle transaction.
 - `npm run db:import -- --dry-run` was exercised against a fresh temporary data root and produced an owner/count manifest without connecting to a database. The live write path remains intentionally unclaimed until a real Postgres restart/idempotency proof is run.
+
+# 2026-07-17 — disposable Postgres migration proof
+
+- Started a disposable PostgreSQL 18 container on a non-default local port, applied both Drizzle migrations with `npm run db:migrate`, inserted a pre-existing Better Auth import owner, and imported a temporary local workspace through `npm run db:import`.
+- The transactional import reported 2 projects, 1 task, 2 messages, and 2 runtime events. A direct Postgres query confirmed those row counts, then the container was restarted and the same counts were confirmed after reconnect.
+- This proves the DDL and import seam against a real database, not the application runtime switch. The container was stopped after the proof; no existing workspace container was modified.

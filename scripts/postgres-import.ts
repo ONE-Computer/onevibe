@@ -63,21 +63,21 @@ const run = async () => {
     const existingUser = await db.select({ id: schema.user.id }).from(schema.user).where(eq(schema.user.id, ownerUserId)).limit(1)
     if (!existingUser.length) throw new Error(`Postgres user ${ownerUserId} does not exist; create the Better Auth user first`)
     await db.transaction(async (tx) => {
-      await tx.insert(schema.project).values(projectRows.map(({ project, ownerUserId: owner }) => ({
+      if (projectRows.length) await tx.insert(schema.project).values(projectRows.map(({ project, ownerUserId: owner }) => ({
         id: project.id, ownerUserId: owner, name: project.name, context: project.context, filesJson: project.files, createdAt: new Date(project.createdAt), updatedAt: new Date(project.updatedAt),
       }))).onConflictDoNothing()
-      await tx.insert(schema.task).values(taskRows.map(({ task, ownerUserId: owner }) => ({
+      if (taskRows.length) await tx.insert(schema.task).values(taskRows.map(({ task, ownerUserId: owner }) => ({
         id: task.id, ownerUserId: owner, projectId: task.projectId, title: task.title, prompt: task.prompt, provider: task.provider, mode: task.mode, status: task.status,
         skillsJson: task.skills, tagsJson: task.tags, queuedGuidanceJson: task.queuedGuidance, referencesJson: task.references, attachmentsJson: task.attachments, planJson: task.plan,
         securityContextJson: task.securityContext ?? null, approvalJson: task.approval ?? null, inputRequestJson: task.inputRequest ?? null, shareJson: task.share ?? null,
         previewPath: task.previewPath ?? null, libraryHiddenAt: date(task.libraryHiddenAt), activeRunId: task.activeRunId ?? null, scheduleId: task.scheduleId ?? null,
         createdAt: new Date(task.createdAt), updatedAt: new Date(task.updatedAt),
       }))).onConflictDoNothing()
-      await tx.insert(schema.schedule).values(scheduleRows.map(({ schedule, ownerUserId: owner }) => ({
+      if (scheduleRows.length) await tx.insert(schema.schedule).values(scheduleRows.map(({ schedule, ownerUserId: owner }) => ({
         id: schedule.id, ownerUserId: owner, projectId: schedule.projectId, name: schedule.name, prompt: schedule.prompt, provider: schedule.provider, mode: schedule.mode,
         intervalMinutes: schedule.intervalMinutes, enabled: schedule.enabled, nextRunAt: new Date(schedule.nextRunAt), lastRunAt: date(schedule.lastRunAt), createdAt: new Date(schedule.createdAt), updatedAt: new Date(schedule.updatedAt),
       }))).onConflictDoNothing()
-      await tx.insert(schema.runtimeMcpConfig).values(mcpRows.map(({ config, ownerUserId: owner }) => ({
+      if (mcpRows.length) await tx.insert(schema.runtimeMcpConfig).values(mcpRows.map(({ config, ownerUserId: owner }) => ({
         id: config.id, ownerUserId: owner, name: config.name, command: config.command, argsJson: config.args, createdAt: new Date(config.createdAt), updatedAt: new Date(config.updatedAt),
       }))).onConflictDoNothing()
 
