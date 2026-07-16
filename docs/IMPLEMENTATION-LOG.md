@@ -62,6 +62,7 @@
 
 - Completed P5-07 locally: `DELETE /api/library/:taskId` hides a completed artifact from the Library view, records an evidence event, and preserves the originating task, workspace, conversation, and evidence chain. The UI requires explicit confirmation and explains that removal is non-destructive.
 - Focused store suite passes with 41 tests; lint and production build pass. The next full gate will reconcile the repository total.
+- Full `npm run check` passes with 43 test files and 227 tests, lint, production build, and E2E harness typecheck.
 
 ## 2026-07-16 — runtime routing browser acceptance
 
