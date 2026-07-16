@@ -4,6 +4,10 @@ import { McpCapabilityFacade } from './mcp-facade.js'
 const fixtureServer = `
 process.stdin.setEncoding('utf8')
 let buffer = ''
+const writeResponse = (response, framed) => {
+  const body = JSON.stringify(response)
+  process.stdout.write(framed ? 'Content-Length: ' + Buffer.byteLength(body) + '\\r\\n\\r\\n' + body : body + '\\n')
+}
 process.stdin.on('data', (chunk) => {
   buffer += chunk
   let newline
@@ -21,10 +25,10 @@ process.stdin.on('data', (chunk) => {
     } else if (request.method === 'tools/call') {
       result = { content: [{ type: 'text', text: 'fixture executed' }], isError: false }
     } else {
-      process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: request.id, error: { message: 'unknown method' } }) + '\\n')
+      writeResponse({ jsonrpc: '2.0', id: request.id, error: { message: 'unknown method' } }, false)
       continue
     }
-    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: request.id, result }) + '\\n')
+    writeResponse({ jsonrpc: '2.0', id: request.id, result }, request.method === 'tools/list')
   }
 })
 `

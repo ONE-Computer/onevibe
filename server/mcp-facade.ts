@@ -53,7 +53,11 @@ export class McpStdioClient {
     while (this.buffer.length) {
       const separator = this.buffer.indexOf('\r\n\r\n')
       const newline = this.buffer.indexOf('\n')
-      if (separator >= 0 && (newline < 0 || separator < newline)) {
+      // MCP stdio servers commonly use newline-delimited JSON, while some
+      // compatible implementations still emit Content-Length frames. A
+      // header separator is authoritative; checking it only against the
+      // first newline would misclassify every valid framed response.
+      if (separator >= 0) {
         const header = this.buffer.subarray(0, separator).toString('utf8')
         const match = header.match(/content-length:\s*(\d+)/i)
         if (!match) { this.buffer = this.buffer.subarray(separator + 4); continue }

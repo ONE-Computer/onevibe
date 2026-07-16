@@ -10,6 +10,7 @@
 ## 2026-07-17 — opt-in MCP capability facade
 
 - Added `server/mcp-facade.ts`: a server-owned, bounded stdio JSON-RPC client that lists configured MCP tools, token-scores capability searches, and executes only an exact capability ID returned by the same catalog. It uses `shell: false`, a secret-free child environment, 5-second request deadlines, bounded frames/results, and explicit cleanup.
+- Hardened mixed MCP stdio framing: the client now recognizes `Content-Length` headers before newline parsing, and the fixture test exercises both framed tool discovery and newline-delimited initialization/execution responses.
 - Integrated the facade into non-chat Claude Agent SDK tasks behind `ONEVIBE_MCP_FACADE_ENABLED=true`. When enabled, raw configured MCP servers are not exposed to the SDK; only `search_capabilities` and `execute_capability` are registered. It does not grant approval authority or bypass LiteLLM.
 - Added a deterministic child-process fixture test covering search, exact-ID execution, unknown-capability rejection, and abort handling. `npm run lint`, `npm run test` (50 files / 247 tests), `npm run build`, `npm run db:check`, and `npm run check:e2e-harness` pass. Production MCP health, secret brokering, authenticated ownership, and protected provider acceptance remain open.
 
