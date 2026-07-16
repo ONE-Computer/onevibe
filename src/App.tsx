@@ -10,6 +10,7 @@ import { Schedules } from './components/Schedules'
 import { SkillsLibrary } from './components/SkillsLibrary'
 import { Library } from './components/Library'
 import { Computers } from './components/Computers'
+import { HomeHero } from './components/HomeHero'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
 import { addProjectFile, cancelQueuedGuidance, cancelTask, createProject, createSchedule, createTask, fallbackSkillCatalog, getRuntimeReadiness, listConversations, listLibrary, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
@@ -248,10 +249,8 @@ export default function App() {
         <AnimatePresence mode="wait">
           {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} runtime={runtime} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
-              <div className="ambient-grid" />
               <div className="home-content">
-                <h1>What will you<br /><span>build safely?</span></h1>
-                <p>A capable cloud agent, with your data, tools, and approvals under your control.</p>
+                <HomeHero conversations={conversations} library={library} activeProjectId={activeProjectId} onOpenTask={(taskId) => navigateToTask(taskId)} />
                 <PromptComposer busy={creating} skills={selectedSkills} runtime={runtime} onSubmit={startTask} />
                 <div className="starter-prompts">{starterPrompts.map((prompt) => <button key={prompt} onClick={() => void startTask(prompt)}>{prompt}<span>↗</span></button>)}</div>
               </div>
