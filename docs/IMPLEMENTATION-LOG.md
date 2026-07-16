@@ -6,12 +6,18 @@
 - The importer now rejects a task or schedule whose project reference is missing or whose owner differs from the referenced project owner before opening a Postgres transaction. This closes a concrete cross-owner foreign-key association risk in the legacy path; it does not replace database constraints or complete the Postgres repository/runtime switch.
 - Added regression coverage for valid same-owner relationships and missing/cross-owner task/schedule references. `npm run db:import -- --dry-run` remains owner-gated, and the release gate now type-checks the importer with the server's `skipLibCheck` policy.
 
+## 2026-07-17 — expand authenticated owner-scope HTTP proof
+
+- Fixed the server error mapper so cross-owner project, project-file, schedule, and other resource misses return `404` instead of leaking as generic `500` responses. The ownership check still happens before the resource operation; the status correction makes the boundary truthful and avoids revealing whether another user's record exists.
+- Extended `scripts/auth-owner-e2e.ts` to cover two-user inventory isolation and cross-user project update/file read, schedule deletion, MCP deletion, task read/movement/tag mutation. The real Better Auth email-OTP flow still uses only a loopback delivery fixture in this local proof.
+- `npm run e2e:auth-owner`, `npm run lint`, `npm run check:e2e-harness`, and the full `npm run check` pass. Production email, organization membership, Postgres ownership, and exhaustive route coverage remain open.
+
 ## 2026-07-17 — handover consistency audit and LiteLLM policy reaffirmation
 
 - Re-read `HANDOVER.md`, `TODO.md`, the local parity roadmap, the phase plans, and the live ONEVibe Linear project. The handover now reflects the current 915-line API server, the 1,427-line SQLite TaskStore, the completed Zustand boundary, ordinary-collection TanStack Query migration, and the intentionally open active-task/SSE mutation boundary.
 - Clarified the handover policy: LiteLLM is the only permitted model-routing boundary for every agentic turn. Direct first-party Anthropic traffic is prohibited as a fallback, development shortcut, test fixture, emergency path, or release path; an unavailable relay must fail closed.
 - Reaffirmed the non-negotiable routing rule: every model request must cross the server-controlled LiteLLM boundary for data-sovereignty, routing, cost, and optimization. No direct first-party Anthropic endpoint, key, or fallback is permitted; the Claude SDK receives only derived LiteLLM-compatible configuration.
-- Reconciled the board snapshot at 50 scoped issues: 10 Done, 26 In Progress, and 14 Backlog. ONE-260 is now Done for the local Query mutation boundary; Postgres remains a target contract/import proof rather than the running application driver.
+- Reconciled the board snapshot at 46 scoped issues: 10 Done, 26 In Progress, and 10 Backlog. ONE-260 is now Done for the local Query mutation boundary; Postgres remains a target contract/import proof rather than the running application driver.
 
 ## 2026-07-17 — opt-in MCP capability facade
 

@@ -69,7 +69,7 @@ Reference: `plan/04-cloud-infrastructure.md`
 - [ ] **P4-03** Containerise — current non-root multi-stage `Dockerfile`, hardened SQLite-volume `docker-compose.yml`, and `.env.example` are implemented; keep open until the P4-02 Postgres contract is wired into the image/Compose path rather than shipping an unused database service
 - [ ] **P4-04** Deploy to Railway or Fly.io — `railway.toml` or `fly.toml`; deploy instructions in `plan/04-cloud-infrastructure.md#deploy`
 - [ ] **P4-05** Add cloud sandbox — integrate **e2b.dev** (`@e2b/code-interpreter`) as the default `sandboxed` execution backend; surface sandbox preview URL in workspace iframe; `E2bRuntimeAdapter` wraps e2b and implements the full `RuntimeAdapter` interface
-- [ ] **P4-06** Add multi-tenancy scaffolding — local user ownership now scopes tasks, projects, schedules, conversations, MCP declarations, and task routes; store-level negative coverage now includes cross-user task/project movement and tag mutation; keep open until `orgs`/`org_members`, Postgres ownership, migration/import, and HTTP negative coverage for every route are complete
+- [ ] **P4-06** Add multi-tenancy scaffolding — local user ownership now scopes tasks, projects, schedules, conversations, MCP declarations, and task routes; the authenticated two-user HTTP harness now covers cross-user task/project/file/schedule/MCP reads and mutations; keep open until `orgs`/`org_members`, Postgres ownership, migration/import, and exhaustive HTTP negative coverage for every route are complete
 - [ ] **P4-07** Resolve dependency audit gate — `npm audit --omit=dev` reports five moderate Better Auth/Drizzle Kit/esbuild advisories; investigate a non-breaking upgrade or formally document risk acceptance before production deployment
 
 ---

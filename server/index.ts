@@ -905,7 +905,7 @@ createServer((request, response) => {
     const message = error instanceof Error ? error.message : String(error)
     const status = error instanceof z.ZodError || error instanceof RangeError ? 400
       : message === 'Wallet authorization failed' ? 401
-        : /^(?:Task|Approval|Share|Input request) not found/.test(message) ? 404
+          : /not found(?:$|\s)/.test(message) ? 404
           : /(?:not pending|has expired|no longer active)/.test(message) ? 409
             : 500
     json(response, status, { error: message })
