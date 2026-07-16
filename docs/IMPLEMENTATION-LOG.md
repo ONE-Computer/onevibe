@@ -671,3 +671,9 @@ baseline harness in CI.
 
 - `npm audit --omit=dev` reports five moderate advisories in the Better Auth → Drizzle Kit → esbuild chain. The suggested automated remediation is a breaking `drizzle-kit` downgrade, so it was not applied blindly.
 - Added P4-07 and a Security promotion gate requiring a reviewed non-breaking resolution or explicit risk acceptance before production deployment. The issue is bounded to the development-toolchain exposure and does not change the LiteLLM or runtime security boundary.
+
+# 2026-07-17 — Zustand state boundary
+
+- Added `useUiStore`, `useComposerStore`, and `useSessionStore` and migrated App navigation/inspector state, selected skill/running composer state, and auth session state onto them. Server-backed collections deliberately remain in the transitional App layer pending TanStack Query.
+- Added focused store tests. This is an in-progress P5-01 slice, not a claim that all App state or data fetching has migrated.
+- Focused verification: `npm run lint`, `npm run test` passed with 46 test files / 236 tests, and `npm run build` passed.

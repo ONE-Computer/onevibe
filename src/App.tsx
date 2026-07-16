@@ -17,8 +17,9 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
 import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
-import { getAuthSession, signOut as signOutAuth, type AuthSessionState } from './lib/auth'
+import { getAuthSession, signOut as signOutAuth } from './lib/auth'
 import { providerLabel, statusLabel } from './lib/runtime-labels'
+import { useComposerStore, useSessionStore, useUiStore, viewFromLocation, type AppView } from './lib/stores'
 import type { ConversationSummary, LibraryItem, Project, RuntimeMcpConfig, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
@@ -29,22 +30,8 @@ const starterPrompts = [
 ]
 const AssistantThread = lazy(() => import('./components/AssistantThread').then((module) => ({ default: module.AssistantThread })))
 const canStopTask = (status: Task['status']) => status === 'running' || status === 'pending' || status === 'waiting_for_user_input' || status === 'waiting_for_approval'
-const selectedSkillsStorageKey = 'onevibe.selected-skill-ids'
-const readPersistedSkills = (): unknown => {
-  try {
-    const raw = window.localStorage.getItem(selectedSkillsStorageKey)
-    return raw ? JSON.parse(raw) as unknown : []
-  } catch {
-    return []
-  }
-}
 const persistSelectedSkills = (skills: TaskSkill[]) => {
-  try { window.localStorage.setItem(selectedSkillsStorageKey, JSON.stringify(skills)) } catch { /* Storage is optional. */ }
-}
-type AppView = 'agent' | 'schedules' | 'skills' | 'library' | 'computers'
-const viewFromLocation = (): AppView => {
-  const value = new URLSearchParams(window.location.search).get('view')
-  return value === 'schedules' || value === 'skills' || value === 'library' || value === 'computers' ? value : 'agent'
+  try { window.localStorage.setItem('onevibe.selected-skill-ids', JSON.stringify(skills)) } catch { /* Storage is optional. */ }
 }
 const reportError = (reason: unknown, fallback: string) => {
   toast.error(reason instanceof Error ? reason.message : fallback)
@@ -61,27 +48,15 @@ export default function App() {
   const [library, setLibrary] = useState<LibraryItem[]>([])
   const [runtime, setRuntime] = useState<RuntimeReadiness>()
   const [mcpConfigs, setMcpConfigs] = useState<RuntimeMcpConfig[]>([])
-  const [activeProjectId, setActiveProjectId] = useState('project_onevibe')
-  const [view, setView] = useState<AppView>(viewFromLocation)
+  const { activeProjectId, setActiveProjectId, view, setView, activeTaskId, setActiveTaskId, sidebarOpen, setSidebarOpen, mobileInspectorOpen, setMobileInspectorOpen, notificationsOpen, setNotificationsOpen, backendOffline, setBackendOffline, retryingBackend, setRetryingBackend } = useUiStore()
   const [skillCatalog, setSkillCatalog] = useState<SkillOption[]>(fallbackSkillCatalog)
-  const [selectedSkills, setSelectedSkills] = useState<TaskSkill[]>(() => normalizeSelectedSkillIds(readPersistedSkills()))
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(() => window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null)
-  const [creating, setCreating] = useState(false)
-  const [backendOffline, setBackendOffline] = useState(false)
-  const [retryingBackend, setRetryingBackend] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    const taskRoute = /^\/tasks\/[^/]+$/.test(window.location.pathname)
-    return !window.matchMedia('(max-width: 1250px)').matches || !taskRoute
-  })
-  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [authState, setAuthState] = useState<AuthSessionState>()
-  const [authLoading, setAuthLoading] = useState(true)
+  const { selectedSkills, setSelectedSkills, creating, setCreating } = useComposerStore()
+  const { authState, setAuthState, authLoading, setAuthLoading } = useSessionStore()
   const { snapshot, connected, error, retry: retryConnection, refresh: refreshSnapshot } = useTask(activeTaskId)
 
   const refreshAuth = useCallback(async () => {
     try { setAuthState(await getAuthSession()) } catch { setAuthState({ enabled: false, session: null }) } finally { setAuthLoading(false) }
-  }, [])
+  }, [setAuthLoading, setAuthState])
 
   const refreshTasks = useCallback(async () => {
     const result = await listTasks()
@@ -119,7 +94,7 @@ export default function App() {
       setSelectedSkills((current) => normalizeSelectedSkillIds(current, catalog))
     }).catch((reason: unknown) => reportError(reason, 'Unable to load the skill catalog; local guides remain available.'))
     return () => { mounted = false }
-  }, [])
+  }, [setSelectedSkills])
   useEffect(() => { persistSelectedSkills(selectedSkills) }, [selectedSkills])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)).catch((reason: unknown) => reportError(reason, 'Unable to load schedules')) }, [])
   useEffect(() => { void listMcpConfigs().then(({ configs }) => setMcpConfigs(configs)).catch((reason: unknown) => reportError(reason, 'Unable to load MCP servers')) }, [])
@@ -133,9 +108,9 @@ export default function App() {
       if (isBackendOfflineError(reason)) setBackendOffline(true)
       throw reason
     }
-  }, [])
+  }, [setBackendOffline])
   useEffect(() => { void loadRuntimeReadiness().catch(() => undefined) }, [loadRuntimeReadiness])
-  useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }).catch((reason: unknown) => reportError(reason, 'Unable to load projects')) }, [activeProjectId])
+  useEffect(() => { void listProjects().then(({ projects }) => { setProjects(projects); if (!projects.some((project) => project.id === activeProjectId)) setActiveProjectId(projects[0]?.id ?? 'project_onevibe') }).catch((reason: unknown) => reportError(reason, 'Unable to load projects')) }, [activeProjectId, setActiveProjectId])
   useEffect(() => {
     const onPopState = () => {
       const nextTaskId = window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null
@@ -145,7 +120,7 @@ export default function App() {
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [])
+  }, [setActiveTaskId, setSidebarOpen, setView])
   useEffect(() => {
     if (!snapshot) return
     setTasks((current) => current.map((task) => task.id === snapshot.id ? snapshot : task))

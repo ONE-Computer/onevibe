@@ -8,7 +8,7 @@
 >
 > **Current state**: The local-first foundation is substantially implemented: backend-offline recovery, truthful simulation labelling, durable SSE replay/reconnect, LiteLLM-only routing, provider-neutral runtime lifecycle, runtime health/routing, task workspaces, durable guidance queueing, and assistant-ui conversation rendering are in place. Remaining release blockers are conversation branching, auth/persistence/deployment, sandboxed execution, MCP/skills integration, and the remaining professional-UI dead ends. See `HANDOVER.md` and `plan/00-gap-analysis.md`.
 >
-> **Release gate**: `npm run check` must stay green (oxlint + 234 vitest tests + tsc build + e2e harness typecheck) after every task.
+> **Release gate**: `npm run check` must stay green (oxlint + 236 vitest tests + tsc build + e2e harness typecheck) after every task.
 
 > **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The Claude SDK configuration now fails closed unless the server-controlled relay is configured; Codex/AgentCore remain blocked until their adapters also use the same boundary.
 
@@ -78,7 +78,7 @@ Reference: `plan/04-cloud-infrastructure.md`
 **Target: no hardcoded strings, no dead controls, no swallowed errors; state management is Zustand + TanStack Query.**
 Reference: `plan/05-ui-overhaul.md`
 
-- [ ] **P5-01** Migrate state management — replace 17 `useState` calls in `App.tsx` with Zustand stores: `useUiStore`, `useComposerStore`, `useSessionStore`
+- [ ] **P5-01** Migrate state management — dedicated `useUiStore`, `useComposerStore`, and `useSessionStore` now own navigation/inspector, composer, and auth state; server-backed collections remain local during the TanStack Query migration and this ticket stays open until that data ownership is completed.
 - [ ] **P5-02** Adopt TanStack Query — replace all `useCallback` + `useEffect` data fetching with `useQuery` / `useMutation`; proper loading / error / empty states everywhere
 - [x] **P5-03** Add toast system — Sonner is mounted globally; task/project/schedule/MCP/share/runtime failures now surface as user-visible notifications, and the duplicate schedule confirmation was removed. Deliberately remains a client error-surface slice, not a replacement for server evidence.
 - [x] **P5-04** Fix all dead controls — removed the two decorative Settings controls, made workspace refresh reload task files, and replaced the hardcoded skills count with the live catalog size
