@@ -111,6 +111,27 @@ export interface MessageRepository {
   reviseAssistant(id: string, expectedRevision: number, contentJson: string, status: MessageRecord['status']): MessageRecord
 }
 
+export interface RuntimeEventRecord {
+  id: string
+  conversationId: string
+  runId: string | null
+  sequence: number
+  type: string
+  lane: string
+  status: string | null
+  label: string | null
+  content: string | null
+  payloadJson: string
+  createdAt: string
+  previousHash: string
+  eventHash: string
+}
+
+export interface RuntimeEventRepository {
+  listByConversation(conversationId: string, afterSequence?: number, limit?: number): RuntimeEventRecord[]
+  append(record: RuntimeEventRecord): void
+}
+
 export interface IdempotencyRepository {
   claim(scope: string, key: string, requestHash: string, createdAt: string): boolean
   complete(scope: string, key: string, responseJson: string, completedAt: string): void
@@ -136,6 +157,7 @@ export interface Repositories {
   conversations: ConversationRepository
   turns: TurnRepository
   messages: MessageRepository
+  runtimeEvents: RuntimeEventRepository
   idempotency: IdempotencyRepository
   legacyImports: LegacyImportRepository
   runtimeLeases: RuntimeLeaseRepository

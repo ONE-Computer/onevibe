@@ -67,7 +67,7 @@ describe('runtime lease persistence', () => {
   it('applies the checksum-versioned v3 lease schema and indexes', () => {
     const { database } = setup()
     try {
-      expect(database.prepare('SELECT version FROM schema_migrations ORDER BY version').pluck().all()).toEqual([1, 2, 3])
+      expect(database.prepare('SELECT version FROM schema_migrations ORDER BY version').pluck().all()).toEqual([1, 2, 3, 4])
       expect(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'runtime_leases'").pluck().get()).toBe('runtime_leases')
       expect(database.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'runtime_leases_one_active_per_conversation_idx'").pluck().get())
         .toBe('runtime_leases_one_active_per_conversation_idx')
@@ -82,7 +82,7 @@ describe('runtime lease persistence', () => {
       runMigrations(database, migrations.slice(0, 2))
       expect(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'runtime_leases'").pluck().get()).toBeUndefined()
       runMigrations(database)
-      expect(database.prepare('SELECT version FROM schema_migrations ORDER BY version').pluck().all()).toEqual([1, 2, 3])
+      expect(database.prepare('SELECT version FROM schema_migrations ORDER BY version').pluck().all()).toEqual([1, 2, 3, 4])
     } finally { database.close() }
   })
 

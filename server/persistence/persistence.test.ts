@@ -49,13 +49,13 @@ describe('SQLite persistence foundation', () => {
       runMigrations(database)
       const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").pluck().all()
       expect(tables).toEqual(expect.arrayContaining([
-        'conversations', 'idempotency_keys', 'legacy_imports', 'messages', 'schema_migrations', 'turns',
+        'conversations', 'idempotency_keys', 'legacy_imports', 'messages', 'runtime_events', 'schema_migrations', 'turns',
       ]))
       expect(database.pragma('foreign_keys', { simple: true })).toBe(1)
       expect(database.pragma('journal_mode', { simple: true })).toBe('wal')
       expect(database.pragma('busy_timeout', { simple: true })).toBe(5_000)
       expect(database.pragma('synchronous', { simple: true })).toBe(2)
-      expect(database.prepare('SELECT version FROM schema_migrations').pluck().all()).toEqual([1, 2, 3])
+      expect(database.prepare('SELECT version FROM schema_migrations').pluck().all()).toEqual([1, 2, 3, 4])
     } finally {
       database.close()
     }
@@ -79,7 +79,7 @@ describe('SQLite persistence foundation', () => {
       runMigrations(database)
       const changedSql = `${migrations[0]!.sql}\n-- changed after release`
       const changed: Migration = { ...migrations[0]!, sql: changedSql, checksum: migrationChecksum(changedSql) }
-      expect(() => runMigrations(database, [changed, migrations[1]!, migrations[2]!])).toThrow(MigrationIntegrityError)
+      expect(() => runMigrations(database, [changed, migrations[1]!, migrations[2]!, migrations[3]!])).toThrow(MigrationIntegrityError)
     } finally {
       database.close()
     }
@@ -90,7 +90,7 @@ describe('SQLite persistence foundation', () => {
     try {
       runMigrations(database)
       database.prepare('INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)')
-        .run(4, 'future', 'a'.repeat(64), now)
+        .run(5, 'future', 'a'.repeat(64), now)
       expect(() => runMigrations(database)).toThrow(UnsupportedSchemaVersionError)
     } finally {
       database.close()

@@ -9,6 +9,8 @@ import type {
   MessagePage,
   MessageRecord,
   MessageRepository,
+  RuntimeEventRecord,
+  RuntimeEventRepository,
   Repositories,
   TurnRecord,
   TurnRepository,
@@ -22,6 +24,11 @@ type TurnRow = { id: string; conversation_id: string; client_request_id: string;
 type MessageRow = { id: string; conversation_id: string; turn_id: string | null; sequence: number; role: MessageRecord['role']; content_json: string; revision: number; status: MessageRecord['status']; created_at: string }
 type IdempotencyRow = { scope: string; key: string; request_hash: string; state: IdempotencyRecord['state']; response_json: string | null; created_at: string; completed_at: string | null }
 type LegacyImportRow = { source_kind: string; source_id: string; source_digest: string; conversation_id: string; result_json: string; imported_at: string }
+type RuntimeEventRow = {
+  id: string; conversation_id: string; run_id: string | null; sequence: number; type: string; lane: string;
+  status: string | null; label: string | null; content: string | null; payload_json: string; created_at: string;
+  previous_hash: string; event_hash: string;
+}
 
 const conversationFromRow = (row: ConversationRow): ConversationRecord => ({
   id: row.id, title: row.title, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at,
@@ -217,6 +224,65 @@ export class SqliteIdempotencyRepository implements IdempotencyRepository {
   }
 }
 
+const runtimeEventFromRow = (row: RuntimeEventRow): RuntimeEventRecord => ({
+  id: row.id,
+  conversationId: row.conversation_id,
+  runId: row.run_id,
+  sequence: row.sequence,
+  type: row.type,
+  lane: row.lane,
+  status: row.status,
+  label: row.label,
+  content: row.content,
+  payloadJson: row.payload_json,
+  createdAt: row.created_at,
+  previousHash: row.previous_hash,
+  eventHash: row.event_hash,
+})
+
+export class SqliteRuntimeEventRepository implements RuntimeEventRepository {
+  constructor(private readonly database: Database.Database) {}
+
+  listByConversation(conversationId: string, afterSequence = -1, limit = 10_000): RuntimeEventRecord[] {
+    if (!Number.isSafeInteger(afterSequence) || afterSequence < -1) throw new RangeError('Runtime event cursor is invalid')
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50_000) throw new RangeError('Runtime event limit is invalid')
+    return (this.database.prepare(`
+      SELECT * FROM runtime_events
+      WHERE conversation_id = ? AND sequence > ?
+      ORDER BY sequence ASC LIMIT ?
+    `).all(conversationId, afterSequence, limit) as RuntimeEventRow[]).map(runtimeEventFromRow)
+  }
+
+  append(record: RuntimeEventRecord): void {
+    if (!Number.isSafeInteger(record.sequence) || record.sequence < 0) throw new RangeError('Runtime event sequence is invalid')
+    try {
+      const parsed = JSON.parse(record.payloadJson) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new TypeError('Runtime event payload must be an object')
+    } catch (error) {
+      throw new TypeError(`Runtime event payload must be valid JSON: ${error instanceof Error ? error.message : 'invalid'}`)
+    }
+    try {
+      const result = this.database.prepare(`
+        INSERT INTO runtime_events(
+          id, conversation_id, run_id, sequence, type, lane, status, label, content, payload_json,
+          created_at, previous_hash, event_hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        record.id, record.conversationId, record.runId, record.sequence, record.type, record.lane,
+        record.status, record.label, record.content, record.payloadJson, record.createdAt,
+        record.previousHash, record.eventHash,
+      )
+      if (result.changes !== 1) throw new OptimisticConflictError(`Runtime event ${record.id} was not appended`)
+    } catch (error) {
+      if (error instanceof OptimisticConflictError) throw error
+      if ((error instanceof Error ? error.message : '').includes('UNIQUE constraint failed: runtime_events')) {
+        throw new OptimisticConflictError(`Runtime event ${record.id} conflicts with the current conversation sequence`)
+      }
+      throw error
+    }
+  }
+}
+
 export class SqliteLegacyImportRepository implements LegacyImportRepository {
   constructor(private readonly database: Database.Database) {}
 
@@ -246,6 +312,7 @@ export function createSqliteRepositories(database: Database.Database): Repositor
     conversations: new SqliteConversationRepository(database),
     turns: new SqliteTurnRepository(database),
     messages: new SqliteMessageRepository(database),
+    runtimeEvents: new SqliteRuntimeEventRepository(database),
     idempotency: new SqliteIdempotencyRepository(database),
     legacyImports: new SqliteLegacyImportRepository(database),
     runtimeLeases: new SqliteRuntimeLeaseRepository(database),

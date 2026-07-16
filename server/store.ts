@@ -5,7 +5,7 @@ import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, PresentationDescriptor, Project, RuntimeEvent, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
-import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, type MessageRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type UnitOfWork } from './persistence/index.js'
+import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type UnitOfWork } from './persistence/index.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
 
@@ -129,6 +129,7 @@ export class TaskStore {
       const stored = JSON.parse(await readFile(this.schedulesFile, 'utf8')) as TaskSchedule[]
       for (const schedule of stored) this.schedules.set(schedule.id, schedule)
     } catch { /* first local run */ }
+    await this.importLegacyEvents()
     const entries = await readdir(this.tasksRoot, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
@@ -142,13 +143,7 @@ export class TaskStore {
         task.projectId ??= 'project_onevibe'
         task.references ??= []
         task.attachments ??= []
-        const eventFile = path.join(this.tasksRoot, entry.name, 'events.json')
-        let storedEvents: RuntimeEvent[] = []
-        try {
-          storedEvents = JSON.parse(await readFile(eventFile, 'utf8')) as RuntimeEvent[]
-        } catch {
-          storedEvents = []
-        }
+        const storedEvents = this.readEventsFromDatabase(task.id)
         this.tasks.set(task.id, task)
         this.events.set(task.id, storedEvents)
         const storedMessages = this.readMessages(task)
@@ -587,28 +582,52 @@ export class TaskStore {
   }
 
   async appendEvent(taskId: string, input: EventInput) {
-    const existing = this.events.get(taskId) ?? []
     const runId = this.getTask(taskId).activeRunId
-    const previousHash = existing.at(-1)?.eventHash ?? 'GENESIS'
     const presentation = panelFor(input)
-    const unsigned = {
-      taskId,
-      ...(runId ? { runId } : {}),
-      sequence: existing.length,
-      type: input.type,
-      lane: input.lane,
-      status: input.status,
-      label: input.label,
-      content: input.content,
-      payload: { ...input.payload, ...(presentation ? { presentation } : {}) },
-      createdAt: new Date().toISOString(),
-      previousHash,
+    let event: RuntimeEvent | undefined
+    for (let attempt = 0; attempt < 4 && !event; attempt += 1) {
+      try {
+        event = this.requireUnitOfWork().run((repositories) => {
+          const existing = repositories.runtimeEvents.listByConversation(taskId)
+          const previousHash = existing.at(-1)?.eventHash ?? 'GENESIS'
+          const unsigned = {
+            taskId,
+            ...(runId ? { runId } : {}),
+            sequence: existing.length,
+            type: input.type,
+            lane: input.lane,
+            status: input.status,
+            label: input.label,
+            content: input.content,
+            payload: { ...input.payload, ...(presentation ? { presentation } : {}) },
+            createdAt: new Date().toISOString(),
+            previousHash,
+          }
+          const eventHash = createHash('sha256').update(JSON.stringify(unsigned)).digest('hex')
+          const record: RuntimeEventRecord = {
+            id: `${taskId}:event:${existing.length}`,
+            conversationId: taskId,
+            runId: runId ?? null,
+            sequence: existing.length,
+            type: input.type,
+            lane: input.lane,
+            status: input.status ?? null,
+            label: input.label ?? null,
+            content: input.content ?? null,
+            payloadJson: JSON.stringify(unsigned.payload),
+            createdAt: unsigned.createdAt,
+            previousHash,
+            eventHash,
+          }
+          repositories.runtimeEvents.append(record)
+          return this.runtimeEventFromRecord(record)
+        })
+      } catch (error) {
+        if (!(error instanceof OptimisticConflictError) || attempt === 3) throw error
+      }
     }
-    const eventHash = createHash('sha256').update(JSON.stringify(unsigned)).digest('hex')
-    const event: RuntimeEvent = { id: `${taskId}:event:${existing.length}`, ...unsigned, eventHash }
-    existing.push(event)
-    this.events.set(taskId, existing)
-    await writeJson(path.join(this.tasksRoot, taskId, 'events.json'), existing)
+    if (!event) throw new Error('Runtime event append did not produce an event')
+    this.events.set(taskId, this.readEventsFromDatabase(taskId))
     if (input.type === 'assistant_text_delta' && input.content) await this.appendAssistantDelta(taskId, input.content)
     if (input.type === 'run_completed') await this.finishTurn(taskId, 'completed')
     if (input.type === 'run_failed') await this.finishTurn(taskId, 'failed')
@@ -618,7 +637,7 @@ export class TaskStore {
   }
 
   listEvents(taskId: string) {
-    return this.events.get(taskId) ?? []
+    return this.readEventsFromDatabase(taskId)
   }
 
   async beginTurn(taskId: string, content: string, provider: Task['provider']) {
@@ -927,6 +946,29 @@ export class TaskStore {
     return this.unitOfWork
   }
 
+  private runtimeEventFromRecord(record: RuntimeEventRecord): RuntimeEvent {
+    const payload = JSON.parse(record.payloadJson) as Record<string, unknown>
+    return {
+      id: record.id,
+      taskId: record.conversationId,
+      ...(record.runId ? { runId: record.runId } : {}),
+      sequence: record.sequence,
+      type: record.type as RuntimeEvent['type'],
+      lane: record.lane as RuntimeEvent['lane'],
+      ...(record.status ? { status: record.status as RuntimeEvent['status'] } : {}),
+      ...(record.label ? { label: record.label } : {}),
+      ...(record.content ? { content: record.content } : {}),
+      payload,
+      createdAt: record.createdAt,
+      previousHash: record.previousHash,
+      eventHash: record.eventHash,
+    }
+  }
+
+  private readEventsFromDatabase(taskId: string): RuntimeEvent[] {
+    return this.requireUnitOfWork().run((repositories) => repositories.runtimeEvents.listByConversation(taskId).map((record) => this.runtimeEventFromRecord(record)))
+  }
+
   private toMessageRecord(message: ChatMessage, sequence: number): MessageRecord {
     return {
       id: message.id, conversationId: message.taskId, turnId: message.turnId, sequence, role: message.role,
@@ -973,6 +1015,59 @@ export class TaskStore {
     const fatal = report.quarantined.filter((item) => item.code === 'changed_source' || item.code === 'transaction_failed')
     if (fatal.length) throw new Error(`Legacy conversation import failed: ${fatal.map((item) => `${item.sourceId}: ${item.reason}`).join('; ')}`)
     unitOfWork.run((repositories) => repositories.idempotency.complete('migration', 'task-store-json-v1', JSON.stringify(report), new Date().toISOString()))
+  }
+
+  private async importLegacyEvents() {
+    const unitOfWork = this.requireUnitOfWork()
+    const key = 'task-store-events-v1'
+    if (unitOfWork.run((repositories) => repositories.idempotency.find('migration', key)?.state === 'completed')) return
+    const requestHash = createHash('sha256').update(key).digest('hex')
+    unitOfWork.run((repositories) => {
+      const state = repositories.idempotency.find('migration', key)
+      if (!state) repositories.idempotency.claim('migration', key, requestHash, new Date().toISOString())
+    })
+
+    const entries = await readdir(this.tasksRoot, { withFileTypes: true })
+    let imported = 0
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const taskId = entry.name
+      let legacyEvents: RuntimeEvent[]
+      try {
+        const parsed = JSON.parse(await readFile(path.join(this.tasksRoot, taskId, 'events.json'), 'utf8')) as unknown
+        if (!Array.isArray(parsed)) continue
+        legacyEvents = parsed as RuntimeEvent[]
+      } catch {
+        continue
+      }
+      if (!unitOfWork.run((repositories) => repositories.conversations.findById(taskId))) continue
+      const added = unitOfWork.run((repositories) => {
+        if (repositories.runtimeEvents.listByConversation(taskId).length > 0) return 0
+        for (const event of legacyEvents) {
+          if (!event || event.taskId !== taskId || !Number.isSafeInteger(event.sequence) || event.sequence < 0 || typeof event.payload !== 'object' || !event.payload) {
+            throw new Error(`Legacy runtime event ${taskId} is invalid`)
+          }
+          repositories.runtimeEvents.append({
+            id: event.id,
+            conversationId: taskId,
+            runId: event.runId ?? null,
+            sequence: event.sequence,
+            type: event.type,
+            lane: event.lane,
+            status: event.status ?? null,
+            label: event.label ?? null,
+            content: event.content ?? null,
+            payloadJson: JSON.stringify(event.payload),
+            createdAt: event.createdAt,
+            previousHash: event.previousHash,
+            eventHash: event.eventHash,
+          })
+        }
+        return legacyEvents.length
+      })
+      imported += added
+    }
+    unitOfWork.run((repositories) => repositories.idempotency.complete('migration', key, JSON.stringify({ imported }), new Date().toISOString()))
   }
 
   private messagesFromLegacyEvents(task: Task, events: RuntimeEvent[]) {

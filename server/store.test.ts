@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -66,6 +67,45 @@ describe('TaskStore', () => {
     expect(store.listEvents(task.id)).toHaveLength(2)
     expect(store.listEvents(task.id)[1]?.previousHash).toBe(store.listEvents(task.id)[0]?.eventHash)
     expect(store.verifyChain(task.id)).toBe(true)
+
+    const reopened = new TaskStore(root)
+    await reopened.initialize()
+    expect(reopened.listEvents(task.id)).toEqual(store.listEvents(task.id))
+    expect(reopened.verifyChain(task.id)).toBe(true)
+  })
+
+  it('serializes concurrent event appends through the durable sequence fence', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-concurrent-events-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Append concurrent evidence', 'demo')
+    await Promise.all(Array.from({ length: 24 }, (_, index) => store.appendEvent(task.id, {
+      type: 'activity_delta', lane: 'control', label: `Checkpoint ${index}`, payload: { index },
+    })))
+    expect(store.listEvents(task.id).map((event) => event.sequence)).toEqual(Array.from({ length: 24 }, (_, index) => index))
+    expect(store.verifyChain(task.id)).toBe(true)
+  })
+
+  it('imports legacy events once before treating SQLite as authoritative', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-legacy-events-'))
+    temporaryRoots.push(root)
+    const taskId = 'task_legacy_events'
+    const taskRoot = path.join(root, 'tasks', taskId)
+    await mkdir(taskRoot, { recursive: true })
+    const createdAt = '2026-07-16T00:00:00.000Z'
+    const unsigned = { taskId, sequence: 0, type: 'run_started', lane: 'control', payload: {}, createdAt, previousHash: 'GENESIS' }
+    const event = { id: `${taskId}:event:0`, ...unsigned, eventHash: createHash('sha256').update(JSON.stringify(unsigned)).digest('hex') }
+    await writeFile(path.join(taskRoot, 'task.json'), JSON.stringify({ id: taskId, title: 'Legacy event task', prompt: 'Legacy', provider: 'demo', createdAt, updatedAt: createdAt }))
+    await writeFile(path.join(taskRoot, 'messages.json'), JSON.stringify([{ id: 'message-legacy', role: 'user', content: 'Legacy', status: 'completed', createdAt }]))
+    await writeFile(path.join(taskRoot, 'events.json'), JSON.stringify([event]))
+
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    expect(store.listEvents(taskId)).toEqual([event])
+    expect(store.verifyChain(taskId)).toBe(true)
   })
 
   it('records durable plan-step timing and transition evidence', async () => {

@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ConversationRecord, MessageRecord, TurnRecord } from './contracts.js'
+import type { ConversationRecord, MessageRecord, RuntimeEventRecord, TurnRecord } from './contracts.js'
 import { openDatabase } from './database.js'
 import { IdempotencyConflictError, InvalidCursorError, OptimisticConflictError } from './errors.js'
 import { runMigrations } from './migrations.js'
@@ -23,6 +23,12 @@ const turn = (id = 'turn-1'): TurnRecord => ({
 const message = (sequence: number, overrides: Partial<MessageRecord> = {}): MessageRecord => ({
   id: `message-${sequence}`, conversationId: 'conversation-1', turnId: null, sequence, role: 'user',
   contentJson: JSON.stringify({ text: `message ${sequence}` }), revision: 0, status: 'completed', createdAt: t0, ...overrides,
+})
+const runtimeEvent = (sequence: number, overrides: Partial<RuntimeEventRecord> = {}): RuntimeEventRecord => ({
+  id: `conversation-1:event:${sequence}`, conversationId: 'conversation-1', runId: 'turn-1', sequence,
+  type: 'activity_delta', lane: 'control', status: null, label: `Event ${sequence}`, content: null,
+  payloadJson: JSON.stringify({ sequence }), createdAt: t0, previousHash: sequence === 0 ? 'GENESIS' : hash('a'),
+  eventHash: hash(String.fromCharCode(97 + sequence)), ...overrides,
 })
 
 function databaseAt(filename?: string): { database: Database.Database; filename: string } {
@@ -125,6 +131,19 @@ describe('SQLite repositories', () => {
       expect(third.items.map((item) => item.sequence)).toEqual([4])
       expect(third.nextCursor).toBeUndefined()
       expect(() => repositories.messages.pageByConversation('another', first.nextCursor, 2)).toThrow(InvalidCursorError)
+    } finally { database.close() }
+  })
+
+  it('appends and resumes the durable runtime event ledger by sequence', () => {
+    const { database } = databaseAt()
+    try {
+      const repositories = createSqliteRepositories(database)
+      repositories.conversations.insert(conversation())
+      repositories.runtimeEvents.append(runtimeEvent(0))
+      repositories.runtimeEvents.append(runtimeEvent(1, { previousHash: hash('a'), eventHash: hash('b') }))
+      expect(repositories.runtimeEvents.listByConversation('conversation-1').map((event) => event.sequence)).toEqual([0, 1])
+      expect(repositories.runtimeEvents.listByConversation('conversation-1', 0).map((event) => event.sequence)).toEqual([1])
+      expect(() => repositories.runtimeEvents.append(runtimeEvent(1, { id: 'duplicate' }))).toThrow(OptimisticConflictError)
     } finally { database.close() }
   })
 

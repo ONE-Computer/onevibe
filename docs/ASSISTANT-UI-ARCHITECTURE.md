@@ -4,7 +4,7 @@ ONEVibe uses `@assistant-ui/react` as a presentation and interaction layer over 
 
 ## Authority model
 
-- SQLite remains authoritative for conversations, turns, messages, run state, and evidence.
+- SQLite remains authoritative for conversations, turns, messages, run state, and evidence. Runtime events live in the versioned `runtime_events` ledger; per-task `events.json` files are legacy migration input only.
 - The ONEVibe API and SSE stream remain authoritative for writes and live updates.
 - `useExternalStoreRuntime` projects the server-owned `TaskSnapshot.messages` into assistant-ui.
 - Sending through the assistant-ui composer calls the existing task continuation endpoint. The browser does not append an optimistic durable message or own a queue.
@@ -27,7 +27,7 @@ The browser may optimistically reorder a summary only from a newer authoritative
 
 ## Stream continuity
 
-Each `runtime_event` SSE frame carries its durable event ID. On automatic EventSource reconnect, the browser sends `Last-Event-ID`; the server validates that the cursor belongs to the requested task and replays only events with a greater sequence. A malformed or cross-task cursor returns HTTP 400. Heartbeats keep intermediaries from silently expiring an otherwise idle stream, and the server advertises a bounded 1.5-second reconnect interval.
+Each `runtime_event` SSE frame carries its durable event ID. On automatic EventSource reconnect, the browser sends `Last-Event-ID`; the server validates that the cursor belongs to the requested task and replays only events with a greater sequence from the SQLite runtime-event ledger. A malformed or cross-task cursor returns HTTP 400. Heartbeats keep intermediaries from silently expiring an otherwise idle stream, and the server advertises a bounded 1.5-second reconnect interval.
 
 The client still deduplicates by event ID and reconciles with a full authoritative snapshot when a stream opens. Event-caused snapshot reads pass through a coalescing scheduler: overlapping requests produce at most one trailing reconciliation instead of racing one request per delta. Reconnection clears the warning only after the SSE connection opens; terminal history never masquerades as a broken live run.
 

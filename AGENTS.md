@@ -9,7 +9,7 @@ ONEVibe is an open-source, Manus-like agent workspace built as a thin product la
 3. Do not implement custom cryptography, wallet key storage, or DIDComm. Integrate vetted OpenVTC packages and services at explicit adapters.
 4. Demo mode must be labelled. A simulated event, fixture, or UI state is not security evidence.
 5. Preserve provider-native events, then normalize into one durable task timeline. Never add a second frontend-only event stream.
-6. Every state-changing operation must emit an append-only evidence event. Do not record secrets, tokens, prompt credentials, or raw sensitive payloads.
+6. Every state-changing operation must emit an append-only evidence event. Runtime events are authoritative in the versioned SQLite `runtime_events` ledger; `events.json` is legacy migration input only. Do not record secrets, tokens, prompt credentials, or raw sensitive payloads.
 7. Workspaces are path-confined and disposable. Runtime credentials are broker-custodied and never written into the agent filesystem.
 8. Network egress is default-deny in the target architecture; local demo mode must display that it is not a network containment boundary.
 9. Keep the project standalone. ONEComputer and AgentCore are accessed through versioned HTTP/event adapters, never absolute sibling imports.

@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-16 — SQLite runtime event ledger
+
+- Moved the authoritative append-only runtime event ledger from a rewritten per-task `events.json` file into a versioned SQLite `runtime_events` table (migration v4). Appends now allocate the per-conversation sequence and previous hash inside the existing immediate Unit-of-Work transaction, so concurrent tool/lifecycle producers cannot silently reuse a sequence or fork the evidence chain.
+- Added a bounded repository cursor, uniqueness fences for `(conversation, sequence)` and `(conversation, event_hash)`, JSON payload validation, and a restart-safe one-time importer for existing `events.json` records. The JSON file remains a legacy migration source only; new events are not written there.
+- Browser projections and task-bound SSE keep the same contract, but now read from SQLite-backed events after process restart. Verification: `npm run check` passed with 32 test files / 163 tests; a live local API proof created a demo task, streamed suffix-only frames after `Last-Event-ID`, restarted the API against the same data root, and returned the same valid 23-event evidence chain.
+
 ## 2026-07-15 — repository and vertical-slice architecture
 
 - Preserved the Manus product research in the separate `onevibe-manus-research` repository at commit `f9b0ab7`.
