@@ -78,7 +78,7 @@ Reference: `plan/04-cloud-infrastructure.md`
 **Target: no hardcoded strings, no dead controls, no swallowed errors; state management is Zustand + TanStack Query.**
 Reference: `plan/05-ui-overhaul.md`
 
-- [ ] **P5-01** Migrate state management — dedicated `useUiStore`, `useComposerStore`, and `useSessionStore` now own navigation/inspector, composer, and auth state; server-backed collections remain local during the TanStack Query migration and this ticket stays open until that data ownership is completed.
+- [x] **P5-01** Migrate state management — `useUiStore`, `useComposerStore`, and `useSessionStore` own navigation/inspector, composer, and auth state; all ordinary server-backed collections are now Query-owned. Active task snapshots remain intentionally isolated in `useTask` because they are durable SSE projections, not generic client state.
 - [ ] **P5-02** Adopt TanStack Query — QueryClient is mounted at the app root; Skills, runtime readiness, MCP declarations, Projects, Schedules, Library, paginated Conversations, and task inventory now use cached queries, with cache updates wired where supported. The active task/SSE snapshot boundary and remaining task mutations stay open until migrated without duplicating server authority.
 - [x] **P5-03** Add toast system — Sonner is mounted globally; task/project/schedule/MCP/share/runtime failures now surface as user-visible notifications, and the duplicate schedule confirmation was removed. Deliberately remains a client error-surface slice, not a replacement for server evidence.
 - [x] **P5-04** Fix all dead controls — removed the two decorative Settings controls, made workspace refresh reload task files, and replaced the hardcoded skills count with the live catalog size

@@ -675,7 +675,7 @@ baseline harness in CI.
 # 2026-07-17 — Zustand state boundary
 
 - Added `useUiStore`, `useComposerStore`, and `useSessionStore` and migrated App navigation/inspector state, selected skill/running composer state, and auth session state onto them. Server-backed collections deliberately remain in the transitional App layer pending TanStack Query.
-- Added focused store tests. This is an in-progress P5-01 slice, not a claim that all App state or data fetching has migrated.
+- Added focused store tests. P5-01 is complete for the App state boundary; P5-02 remains separate for query/mutation migration.
 - Focused verification: `npm run lint`, `npm run test` passed with 46 test files / 236 tests, and `npm run build` passed.
 
 # 2026-07-17 — TanStack Query foundation
