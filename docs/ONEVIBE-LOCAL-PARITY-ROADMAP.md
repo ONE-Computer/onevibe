@@ -92,6 +92,8 @@ The default local LiteLLM slide gate is now green for the current route: task `t
 
 The slide review surface now includes page-like responsive previews, notes, navigation, and thumbnails. Because the renderer prompt changed after the last passing live run, the next acceptance run must re-prove the default LiteLLM slide gate against this exact commit.
 
+That re-proof passed as `task_78b67b47a5f346`; the default local slide gate is green against the current renderer/prompt commit.
+
 ## Delegated audit synthesis — 2026-07-16
 
 The audits confirm a local release **NO-GO** until the runtime closes these reliability gaps: cancellation/process quiescence, restart reconciliation, the SSE replay/subscription race, provider early-EOF handling, crash recovery between native events and transcript projection, and durable retry identity. These are now tracked in `ONE-231`.
