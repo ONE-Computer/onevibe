@@ -802,3 +802,9 @@ baseline harness in CI.
 - Extended `scripts/auth-owner-e2e.ts` beyond the first owner-scope pass: a second authenticated user now receives empty conversation, Library, and server-side search results; every representative task subroute (messages, SSE events, files, versions, preview, evidence, and download) returns the same owner-scoped `404` boundary; org member administration remains `403` for non-owners and `409` for owner self-removal.
 - This closes a local HTTP negative-coverage slice for ONE-253 without implying that organization membership is yet a data-plane grant. The running store remains SQLite-backed and organization policy does not widen task/project/runtime access.
 - Verification: `npm run e2e:auth-owner` and `npm run check:e2e-harness` passed. Production email, Postgres repositories/runtime, org-backed authorization, provider acceptance, and sandbox isolation remain open.
+
+## 2026-07-17 — organization persistence repository boundary
+
+- Moved local organization/member reads and mutations out of `TaskStore`'s direct SQLite SQL and into the shared persistence repository contract. `SqliteOrganizationRepository` now participates in the same `SqliteUnitOfWork` transaction boundary as conversations, messages, runtime events, MCP declarations, skills, idempotency, and leases.
+- Added repository-level coverage for organization/member ordering, lookup, membership listing, and removal. This is an adapter seam, not Postgres support: the active store remains SQLite and organization membership still does not grant task/project/runtime access.
+- Verification: focused repository tests and `npm run e2e:auth-owner` passed; the full release gate remains required before merge.

@@ -109,6 +109,33 @@ export interface McpConfigAuditRecord {
   createdAt: string
 }
 
+export type OrganizationRole = 'owner' | 'member'
+
+export interface OrganizationRecord {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface OrganizationMemberRecord {
+  organizationId: string
+  userId: string
+  role: OrganizationRole
+  createdAt: string
+}
+
+export interface OrganizationRepository {
+  listForUser(userId: string): OrganizationRecord[]
+  findById(id: string): OrganizationRecord | undefined
+  listMembers(organizationId: string): OrganizationMemberRecord[]
+  findMember(organizationId: string, userId: string): OrganizationMemberRecord | undefined
+  userExists(userId: string): boolean
+  insertOrganization(record: OrganizationRecord): void
+  insertMember(record: OrganizationMemberRecord): void
+  deleteMember(organizationId: string, userId: string): boolean
+}
+
 export interface SkillInstallationRecord {
   id: string
   ownerUserId: string | null
@@ -251,6 +278,7 @@ export interface Repositories {
   legacyImports: LegacyImportRepository
   runtimeLeases: RuntimeLeaseRepository
   mcpConfigs: McpConfigRepository
+  organizations: OrganizationRepository
   skillInstallations: SkillInstallationRepository
 }
 

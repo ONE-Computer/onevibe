@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ConversationRecord, MessageRecord, NativeEventRecord, RuntimeEventRecord, TurnRecord } from './contracts.js'
+import type { ConversationRecord, MessageRecord, NativeEventRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeEventRecord, TurnRecord } from './contracts.js'
 import { openDatabase } from './database.js'
 import { IdempotencyConflictError, InvalidCursorError, OptimisticConflictError } from './errors.js'
 import { runMigrations } from './migrations.js'
@@ -90,6 +90,25 @@ describe('SQLite repositories', () => {
       })
       expect(createSqliteRepositories(database).turns.findById('turn-1')?.status).toBe('completed')
       expect(createSqliteRepositories(database).messages.listByConversation('conversation-1')).toHaveLength(2)
+    } finally { database.close() }
+  })
+
+  it('keeps organization membership behind the repository boundary', () => {
+    const { database } = databaseAt()
+    try {
+      const repositories = createSqliteRepositories(database)
+      const organization: OrganizationRecord = { id: 'org_test', name: 'Test org', createdAt: t0, updatedAt: t0 }
+      const owner: OrganizationMemberRecord = { organizationId: organization.id, userId: 'user-owner', role: 'owner', createdAt: t0 }
+      const member: OrganizationMemberRecord = { organizationId: organization.id, userId: 'user-member', role: 'member', createdAt: t1 }
+      repositories.organizations.insertOrganization(organization)
+      repositories.organizations.insertMember(owner)
+      repositories.organizations.insertMember(member)
+      expect(repositories.organizations.listForUser(owner.userId)).toEqual([organization])
+      expect(repositories.organizations.findById(organization.id)).toEqual(organization)
+      expect(repositories.organizations.findMember(organization.id, member.userId)).toEqual(member)
+      expect(repositories.organizations.listMembers(organization.id)).toEqual([owner, member])
+      expect(repositories.organizations.deleteMember(organization.id, member.userId)).toBe(true)
+      expect(repositories.organizations.findMember(organization.id, member.userId)).toBeUndefined()
     } finally { database.close() }
   })
 

@@ -15,6 +15,9 @@ import type {
   NativeEventProjectionRecord,
   NativeEventRecord,
   NativeEventRepository,
+  OrganizationMemberRecord,
+  OrganizationRecord,
+  OrganizationRepository,
   NativeProjectionOffset,
   RuntimeEventRecord,
   RuntimeEventRepository,
@@ -44,6 +47,8 @@ type NativeEventRow = {
 }
 type McpConfigRow = { id: string; owner_user_id: string | null; name: string; command: string; args_json: string; created_at: string; updated_at: string }
 type SkillInstallationRow = { id: string; owner_scope: string; owner_user_id: string | null; version: number; title: string; summary: string; sha256: string; content: string; content_url: string; source_url: string; created_at: string; updated_at: string }
+type OrganizationRow = { id: string; name: string; created_at: string; updated_at: string }
+type OrganizationMemberRow = { organization_id: string; user_id: string; role: 'owner' | 'member'; created_at: string }
 
 const conversationFromRow = (row: ConversationRow): ConversationRecord => ({
   id: row.id, title: row.title, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at,
@@ -55,6 +60,14 @@ const turnFromRow = (row: TurnRow): TurnRecord => ({
 const messageFromRow = (row: MessageRow): MessageRecord => ({
   id: row.id, conversationId: row.conversation_id, turnId: row.turn_id, sequence: row.sequence, role: row.role,
   contentJson: row.content_json, revision: row.revision, status: row.status, createdAt: row.created_at,
+})
+
+const organizationFromRow = (row: OrganizationRow): OrganizationRecord => ({
+  id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at,
+})
+
+const organizationMemberFromRow = (row: OrganizationMemberRow): OrganizationMemberRecord => ({
+  organizationId: row.organization_id, userId: row.user_id, role: row.role, createdAt: row.created_at,
 })
 
 export class SqliteConversationRepository implements ConversationRepository {
@@ -465,6 +478,59 @@ export class SqliteMcpConfigRepository implements McpConfigRepository {
   }
 }
 
+export class SqliteOrganizationRepository implements OrganizationRepository {
+  constructor(private readonly database: Database.Database) {}
+
+  listForUser(userId: string): OrganizationRecord[] {
+    const rows = this.database.prepare(`
+      SELECT o.id, o.name, o.created_at, o.updated_at
+      FROM organizations o INNER JOIN organization_members m ON m.organization_id = o.id
+      WHERE m.user_id = ? ORDER BY o.updated_at DESC, o.id ASC
+    `).all(userId) as OrganizationRow[]
+    return rows.map(organizationFromRow)
+  }
+
+  findById(id: string): OrganizationRecord | undefined {
+    const row = this.database.prepare('SELECT id, name, created_at, updated_at FROM organizations WHERE id = ?').get(id) as OrganizationRow | undefined
+    return row && organizationFromRow(row)
+  }
+
+  listMembers(organizationId: string): OrganizationMemberRecord[] {
+    const rows = this.database.prepare(`
+      SELECT organization_id, user_id, role, created_at
+      FROM organization_members WHERE organization_id = ?
+      ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, created_at ASC, user_id ASC
+    `).all(organizationId) as OrganizationMemberRow[]
+    return rows.map(organizationMemberFromRow)
+  }
+
+  findMember(organizationId: string, userId: string): OrganizationMemberRecord | undefined {
+    const row = this.database.prepare('SELECT organization_id, user_id, role, created_at FROM organization_members WHERE organization_id = ? AND user_id = ?')
+      .get(organizationId, userId) as OrganizationMemberRow | undefined
+    return row && organizationMemberFromRow(row)
+  }
+
+  userExists(userId: string): boolean {
+    const hasAuthUsers = this.database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'user'").pluck().get() === 1
+    return !hasAuthUsers || Boolean(this.database.prepare('SELECT 1 FROM user WHERE id = ?').pluck().get(userId))
+  }
+
+  insertOrganization(record: OrganizationRecord): void {
+    this.database.prepare('INSERT INTO organizations(id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run(record.id, record.name, record.createdAt, record.updatedAt)
+  }
+
+  insertMember(record: OrganizationMemberRecord): void {
+    this.database.prepare('INSERT INTO organization_members(organization_id, user_id, role, created_at) VALUES (?, ?, ?, ?)')
+      .run(record.organizationId, record.userId, record.role, record.createdAt)
+  }
+
+  deleteMember(organizationId: string, userId: string): boolean {
+    return this.database.prepare('DELETE FROM organization_members WHERE organization_id = ? AND user_id = ?')
+      .run(organizationId, userId).changes === 1
+  }
+}
+
 const skillInstallationFromRow = (row: SkillInstallationRow): SkillInstallationRecord => ({
   id: row.id, ownerUserId: row.owner_user_id, version: row.version, title: row.title, summary: row.summary,
   sha256: row.sha256, content: row.content, contentUrl: row.content_url, sourceUrl: row.source_url,
@@ -512,6 +578,7 @@ export function createSqliteRepositories(database: Database.Database): Repositor
     legacyImports: new SqliteLegacyImportRepository(database),
     runtimeLeases: new SqliteRuntimeLeaseRepository(database),
     mcpConfigs: new SqliteMcpConfigRepository(database),
+    organizations: new SqliteOrganizationRepository(database),
     skillInstallations: new SqliteSkillInstallationRepository(database),
   }
 }

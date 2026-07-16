@@ -4,9 +4,9 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promi
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
-import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, OrganizationRole, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
+import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
-import { LegacyJsonImporter, openDatabase, runInTransaction, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
+import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
 import { isInternalWorkspacePath } from './artifact-path.js'
 import type { McpConfig } from './runtime-adapter.js'
 
@@ -343,72 +343,54 @@ export class TaskStore {
   }
 
   listOrganizations(userId: string): Organization[] {
-    const rows = this.databaseHandle().prepare(`
-      SELECT o.id, o.name, o.created_at, o.updated_at
-      FROM organizations o INNER JOIN organization_members m ON m.organization_id = o.id
-      WHERE m.user_id = ? ORDER BY o.updated_at DESC, o.id ASC
-    `).all(userId) as Array<{ id: string; name: string; created_at: string; updated_at: string }>
-    return rows.map((row) => ({ id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at }))
+    return this.requireUnitOfWork().run((repositories) => repositories.organizations.listForUser(userId).map((row) => ({ id: row.id, name: row.name, createdAt: row.createdAt, updatedAt: row.updatedAt })))
   }
 
   createOrganization(name: string, ownerUserId: string): Organization {
     if (!ownerUserId) throw new Error('Organization owner is required')
     const now = new Date().toISOString()
     const organization = { id: `org_${randomUUID().replaceAll('-', '').slice(0, 16)}`, name, createdAt: now, updatedAt: now }
-    runInTransaction(this.databaseHandle(), () => {
-      this.databaseHandle().prepare('INSERT INTO organizations(id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
-        .run(organization.id, organization.name, organization.createdAt, organization.updatedAt)
-      this.databaseHandle().prepare('INSERT INTO organization_members(organization_id, user_id, role, created_at) VALUES (?, ?, ?, ?)')
-        .run(organization.id, ownerUserId, 'owner', now)
+    this.requireUnitOfWork().run((repositories) => {
+      repositories.organizations.insertOrganization(organization)
+      repositories.organizations.insertMember({ organizationId: organization.id, userId: ownerUserId, role: 'owner', createdAt: now })
     })
     return organization
   }
 
   listOrganizationMembers(organizationId: string, userId: string): OrganizationMember[] {
-    this.assertOrganizationMember(organizationId, userId)
-    const rows = this.databaseHandle().prepare(`
-      SELECT organization_id, user_id, role, created_at
-      FROM organization_members WHERE organization_id = ? ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, created_at ASC, user_id ASC
-    `).all(organizationId) as Array<{ organization_id: string; user_id: string; role: OrganizationRole; created_at: string }>
-    return rows.map((row) => ({ organizationId: row.organization_id, userId: row.user_id, role: row.role, createdAt: row.created_at }))
+    return this.requireUnitOfWork().run((repositories) => {
+      if (!repositories.organizations.findMember(organizationId, userId)) throw new Error('Organization not found')
+      return repositories.organizations.listMembers(organizationId).map((row) => ({ organizationId: row.organizationId, userId: row.userId, role: row.role, createdAt: row.createdAt }))
+    })
   }
 
   addOrganizationMember(organizationId: string, userId: string, actorUserId: string): OrganizationMember {
-    this.assertOrganizationOwner(organizationId, actorUserId)
     if (!userId) throw new Error('Organization member user is required')
-    const database = this.databaseHandle()
-    const hasAuthUsers = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'user'").pluck().get() === 1
-    if (hasAuthUsers && !database.prepare('SELECT 1 FROM user WHERE id = ?').pluck().get(userId)) throw new Error('User not found')
     const member = { organizationId, userId, role: 'member' as const, createdAt: new Date().toISOString() }
-    try {
-      database.prepare('INSERT INTO organization_members(organization_id, user_id, role, created_at) VALUES (?, ?, ?, ?)')
-        .run(member.organizationId, member.userId, member.role, member.createdAt)
-    } catch (error) {
-      if (error instanceof Error && /UNIQUE constraint failed: organization_members/.test(error.message)) throw new Error('Organization member already exists')
-      throw error
-    }
-    return member
+    return this.requireUnitOfWork().run((repositories) => {
+      const organization = repositories.organizations.findById(organizationId)
+      const actor = repositories.organizations.findMember(organizationId, actorUserId)
+      if (!organization) throw new Error('Organization not found')
+      if (actor?.role !== 'owner') throw new Error('Organization owner access required')
+      if (!repositories.organizations.userExists(userId)) throw new Error('User not found')
+      try { repositories.organizations.insertMember(member) } catch (error) {
+        if (error instanceof Error && /UNIQUE constraint failed: organization_members/.test(error.message)) throw new Error('Organization member already exists')
+        throw error
+      }
+      return member
+    })
   }
 
   removeOrganizationMember(organizationId: string, userId: string, actorUserId: string): { organizationId: string; userId: string; removed: true } {
-    this.assertOrganizationOwner(organizationId, actorUserId)
-    if (userId === actorUserId) throw new Error('Organization owner cannot remove themselves')
-    const result = this.databaseHandle().prepare('DELETE FROM organization_members WHERE organization_id = ? AND user_id = ?').run(organizationId, userId)
-    if (result.changes !== 1) throw new Error('Organization member not found')
-    return { organizationId, userId, removed: true }
-  }
-
-  private assertOrganizationMember(organizationId: string, userId: string) {
-    const row = this.databaseHandle().prepare('SELECT 1 FROM organization_members WHERE organization_id = ? AND user_id = ?').pluck().get(organizationId, userId)
-    if (!row) throw new Error('Organization not found')
-  }
-
-  private assertOrganizationOwner(organizationId: string, userId: string) {
-    const row = this.databaseHandle().prepare("SELECT 1 FROM organization_members WHERE organization_id = ? AND user_id = ? AND role = 'owner'").pluck().get(organizationId, userId)
-    if (!row) {
-      const exists = this.databaseHandle().prepare('SELECT 1 FROM organizations WHERE id = ?').pluck().get(organizationId)
-      throw new Error(exists ? 'Organization owner access required' : 'Organization not found')
-    }
+    return this.requireUnitOfWork().run((repositories) => {
+      const organization = repositories.organizations.findById(organizationId)
+      const actor = repositories.organizations.findMember(organizationId, actorUserId)
+      if (!organization) throw new Error('Organization not found')
+      if (actor?.role !== 'owner') throw new Error('Organization owner access required')
+      if (userId === actorUserId) throw new Error('Organization owner cannot remove themselves')
+      if (!repositories.organizations.deleteMember(organizationId, userId)) throw new Error('Organization member not found')
+      return { organizationId, userId, removed: true as const }
+    })
   }
 
   runtimeMcpConfigs(ownerUserId?: string): McpConfig[] {
