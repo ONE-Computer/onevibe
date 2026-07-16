@@ -1,6 +1,6 @@
 import { Bell, ChevronDown, CodeXml, Link2, Menu, Monitor, PanelLeftClose, Paperclip, RotateCcw, Share2, ShieldCheck, Sparkles, Square, TriangleAlert, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import { PromptComposer } from './components/PromptComposer'
@@ -47,7 +47,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [schedules, setSchedules] = useState<TaskSchedule[]>([])
   const [library, setLibrary] = useState<LibraryItem[]>([])
-  const [mcpConfigs, setMcpConfigs] = useState<RuntimeMcpConfig[]>([])
+  const queryClient = useQueryClient()
   const { activeProjectId, setActiveProjectId, view, setView, activeTaskId, setActiveTaskId, sidebarOpen, setSidebarOpen, mobileInspectorOpen, setMobileInspectorOpen, notificationsOpen, setNotificationsOpen, backendOffline, setBackendOffline, retryingBackend, setRetryingBackend } = useUiStore()
   const { selectedSkills, setSelectedSkills, creating, setCreating } = useComposerStore()
   const { authState, setAuthState, authLoading, setAuthLoading } = useSessionStore()
@@ -56,6 +56,8 @@ export default function App() {
   const skillCatalog = skillQuery.data?.skills.map(({ id, title, summary }) => ({ id, title, summary })) ?? fallbackSkillCatalog
   const runtimeQuery = useQuery({ queryKey: ['runtime'], queryFn: getRuntimeReadiness, staleTime: 15_000, retry: 1, refetchOnWindowFocus: false })
   const runtime = runtimeQuery.data
+  const mcpQuery = useQuery({ queryKey: ['mcp'], queryFn: listMcpConfigs, staleTime: 15_000 })
+  const mcpConfigs = mcpQuery.data?.configs ?? []
 
   const refreshAuth = useCallback(async () => {
     try { setAuthState(await getAuthSession()) } catch { setAuthState({ enabled: false, session: null }) } finally { setAuthLoading(false) }
@@ -97,7 +99,7 @@ export default function App() {
   useEffect(() => { if (skillQuery.error) reportError(skillQuery.error, 'Unable to load the skill catalog; local guides remain available.') }, [skillQuery.error])
   useEffect(() => { persistSelectedSkills(selectedSkills) }, [selectedSkills])
   useEffect(() => { void listSchedules().then(({ schedules }) => setSchedules(schedules)).catch((reason: unknown) => reportError(reason, 'Unable to load schedules')) }, [])
-  useEffect(() => { void listMcpConfigs().then(({ configs }) => setMcpConfigs(configs)).catch((reason: unknown) => reportError(reason, 'Unable to load MCP servers')) }, [])
+  useEffect(() => { if (mcpQuery.error) reportError(mcpQuery.error, 'Unable to load MCP servers') }, [mcpQuery.error])
   useEffect(() => {
     if (runtimeQuery.data) setBackendOffline(false)
     else if (runtimeQuery.error && isBackendOfflineError(runtimeQuery.error)) setBackendOffline(true)
@@ -229,14 +231,14 @@ export default function App() {
   const addMcpConfig = async (input: Pick<RuntimeMcpConfig, 'name' | 'command' | 'args'>) => {
     try {
       const config = await createMcpConfig(input)
-      setMcpConfigs((current) => [config, ...current])
+      queryClient.setQueryData<{ configs: RuntimeMcpConfig[] }>(['mcp'], (current) => ({ configs: [config, ...(current?.configs ?? [])] }))
     } catch (reason) { reportError(reason, 'Unable to add MCP server') }
   }
   const removeMcpConfig = async (config: RuntimeMcpConfig) => {
     if (!window.confirm(`Remove MCP server “${config.name}”? New turns will stop receiving it.`)) return
     try {
       await deleteMcpConfig(config.id)
-      setMcpConfigs((current) => current.filter((item) => item.id !== config.id))
+      queryClient.setQueryData<{ configs: RuntimeMcpConfig[] }>(['mcp'], (current) => ({ configs: (current?.configs ?? []).filter((item) => item.id !== config.id) }))
     } catch (reason) { reportError(reason, 'Unable to remove MCP server') }
   }
   const hideLibraryItem = async (task: Task) => {
