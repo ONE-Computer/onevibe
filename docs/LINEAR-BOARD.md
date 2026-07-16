@@ -34,7 +34,7 @@ The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critica
 
 ## Status snapshot — 2026-07-16 (local ONEVibe parity pivot)
 
-The board contains 18 scoped issues: 1 Done, 7 In Progress, and 10 Backlog. That is **6% strict ticket completion** (1/18), or **25% weighted delivery progress** when an In Progress ticket counts as half (1 + 7×0.5 = 4.5/18, rounded). The new ONE-230 release gate is intentionally conservative: it measures the local product path, not the deferred platform path. ONE-231 is the active fail-closed runtime child workstream; ONE-232 is the queued creation-parity child workstream. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
+The board contains 18 scoped issues: 1 Done, 8 In Progress, and 9 Backlog. That is **6% strict ticket completion** (1/18), or **28% weighted delivery progress** when an In Progress ticket counts as half (1 + 8×0.5 = 5/18, rounded). The new ONE-230 release gate is intentionally conservative: it measures the local product path, not the deferred platform path. ONE-231 is the active fail-closed runtime child workstream; ONE-232 is the queued creation-parity child workstream. The broader 102-row parity ledger remains 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
 
 ### Current phase — ONEVibe local reliability and Manus parity
 
