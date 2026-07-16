@@ -3,6 +3,7 @@
 ## 2026-07-17 — handover consistency audit and LiteLLM policy reaffirmation
 
 - Re-read `HANDOVER.md`, `TODO.md`, the local parity roadmap, the phase plans, and the live ONEVibe Linear project. The handover now reflects the current 884-line API server, the 1,403-line SQLite TaskStore, the completed Zustand boundary, ordinary-collection TanStack Query migration, and the intentionally open active-task/SSE mutation boundary.
+- Clarified the handover policy: LiteLLM is the only permitted model-routing boundary for every agentic turn. Direct first-party Anthropic traffic is prohibited as a fallback, development shortcut, test fixture, emergency path, or release path; an unavailable relay must fail closed.
 - Reaffirmed the non-negotiable routing rule: every model request must cross the server-controlled LiteLLM boundary for data-sovereignty, routing, cost, and optimization. No direct first-party Anthropic endpoint, key, or fallback is permitted; the Claude SDK receives only derived LiteLLM-compatible configuration.
 - Reconciled the board snapshot at 46 scoped issues: 9 Done, 26 In Progress, and 11 Backlog. No ticket was advanced from documentation alone. Postgres remains a target contract/import proof rather than the running application driver.
 
