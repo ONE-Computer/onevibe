@@ -11,6 +11,7 @@
 - Added `GET /api/mcp/:id/health`, scoped through the authenticated owner inventory, which starts the declared stdio server with the existing secret-free environment boundary, performs initialization and `tools/list`, and returns only `online`/`offline`, bounded latency, tool count, and generic failure detail.
 - Added a real Test action in Computers and regression coverage proving a healthy fixture catalog, an offline process, and cross-owner `404` isolation. The probe closes its child process and does not return stderr, tool results, environment values, or credentials.
 - This closes the local MCP health visibility slice only. Production secret brokering, external-server attestation, rate limiting, and protected provider materialization remain open.
+- Fresh temporary API verification also covered `POST /api/mcp` followed by `GET /api/mcp/:id/health`: an unavailable fixture returned a bounded `offline` response without process output or credentials.
 
 ## 2026-07-17 — validate legacy import relationships before Postgres writes
 
