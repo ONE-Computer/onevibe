@@ -41,8 +41,8 @@ Reference: `plan/02-runtime-abstraction.md`
 - [x] **P2-06** Implement delta coalescing — `useTask.ts` batches live SSE event state updates per animation frame while preserving every durable event ID/content for replay and evidence
 - [ ] **P2-07** Add draft queuing — when agent is `running`, composer accepts a draft and shows "Will send when ready"; drains automatically on idle
 - [ ] **P2-08** Add fork/edit-message — click any user message → edit → creates a new conversation branch via `POST /api/tasks/:id/fork`
-- [ ] **P2-09** Fix `waiting_for_user_input` UX — `isRunning` must be `false` in this state; show `UserInputCard` prominently above composer
-- [ ] **P2-10** Add proper permission approval panel — render `task.approval` as mid-conversation panel above composer, not buried in workspace sidebar
+- [x] **P2-09** Fix `waiting_for_user_input` UX — assistant-ui `isRunning` is false in this state, the composer is disabled with an explicit waiting label, and `UserInputCard` is rendered above it
+- [x] **P2-10** Add proper permission approval panel — `task.approval` is rendered by the task timeline above the assistant composer, while the separate wallet remains the decision authority
 
 ---
 
@@ -89,7 +89,7 @@ Reference: `plan/05-ui-overhaul.md`
 - [ ] **P5-10** Fix status labels — `statusLabel(status)` canonical map; `providerLabel(id)` canonical map; replace all raw enum rendering
 - [ ] **P5-11** Fix accessibility — `<time dateTime>` everywhere, `readableBytes` helper consistently, `alt` text on images, `<time>` null-guard in `index.html`
 - [ ] **P5-12** Fix working trace — chevron on `<details>`, open by default when running, 240-char truncation replaced with expand link
-- [ ] **P5-13** Fix composer UX — disable 5th skill toggle + tooltip; remove duplicate typing indicator; fix `isRunning` during `waiting_for_user_input`
+- [ ] **P5-13** Finish composer UX — disable 5th skill toggle + tooltip; remove duplicate typing indicator (the `waiting_for_user_input` running-state defect is closed under P2-09)
 
 ---
 

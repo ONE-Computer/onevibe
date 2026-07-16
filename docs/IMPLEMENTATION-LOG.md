@@ -74,6 +74,12 @@
 - `useTask.ts` now buffers live events into a frame-sized UI queue and applies one snapshot update per animation frame (with a 16 ms fallback where `requestAnimationFrame` is unavailable). The append-only event ledger, event IDs, replay cursor, and pre-snapshot buffer remain unchanged, so batching cannot erase evidence or create duplicate history.
 - Terminal status and reconnect handling remain immediate; only React presentation updates are batched. This closes P2-06 without changing server SSE semantics.
 
+## 2026-07-16 — Phase 2 waiting/input and approval presentation
+
+- Moved the durable task timeline before the assistant-ui composer so user-input and wallet-approval cards are actionable above the composer rather than below it.
+- Removed `waiting_for_user_input` from assistant-ui's `isRunning` state. The composer now says it is waiting for the user's answer, disables attachment/send controls while the request is pending, and preserves the external wallet as the approval authority.
+- Fixed a release-gate flake exposed by the full test run: PPTX normalization now sorts ZIP entries and pins container timestamps to the durable task creation time. Focused and full gates are green after the fix: 43 test files / 222 tests, lint, production build, and E2E harness typecheck.
+
 ## 2026-07-16 — Phase 2 Codex-compatible LiteLLM adapter
 
 - Added `server/codex-runner.ts` as a real OpenAI-compatible streaming adapter that calls only the configured LiteLLM `/v1/chat/completions` route. It normalizes streamed text and bounded workspace tool calls into the ONEVibe event ledger and confines reads/writes to the task workspace.

@@ -254,13 +254,19 @@ const writeSlidePdf = async (task: Task, store: TaskStore, slides: Array<[string
 const normalizePptxMetadata = (bytes: Uint8Array, task: Task) => {
   const normalizedDate = new Date(task.createdAt).toISOString().replace(/\.\d{3}Z$/, 'Z')
   const entries = unzipSync(bytes)
-  for (const [entryPath, entryBytes] of Object.entries(entries)) {
+  const normalizedEntries: Record<string, Uint8Array> = {}
+  for (const [entryPath, entryBytes] of Object.entries(entries).sort(([left], [right]) => left.localeCompare(right))) {
     if (!entryPath.endsWith('.xml')) continue
     const xml = strFromU8(entryBytes)
       .replace(/(<dcterms:(?:created|modified)[^>]*>)[^<]*(<\/dcterms:(?:created|modified)>)/g, `$1${normalizedDate}$2`)
-    entries[entryPath] = strToU8(xml)
+    normalizedEntries[entryPath] = strToU8(xml)
   }
-  return zipSync(entries, { level: 6 })
+  for (const [entryPath, entryBytes] of Object.entries(entries).sort(([left], [right]) => left.localeCompare(right))) {
+    if (!(entryPath in normalizedEntries)) normalizedEntries[entryPath] = entryBytes
+  }
+  // PPTX is a ZIP container. Normalize entry order and ZIP timestamps so that
+  // repeated generation produces the same digest in CI and artifact manifests.
+  return zipSync(normalizedEntries, { level: 6, mtime: normalizedDate })
 }
 
 export type StructuredSlide = { title: string; summary: string }
