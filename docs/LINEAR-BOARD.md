@@ -52,6 +52,8 @@ No mandatory Linear ticket is missing from the current POC chain. The previously
 
 The final authenticated run used a temporary ONEVibe data directory and `npm run e2e:onecomputer` with the VM-supported `claude-granola-5-2` alias. It passed with primary task `task_30236182861f43` / sandbox `onevibe-82861f43` and separate task `task_9e70682f63eb40` / sandbox `onevibe-2f63eb40`: same-conversation reuse, distinct-conversation isolation, `sdkRuntime=true`, `litellmRouted=true`, 4 live SSE frames, 31 suffix-only replay frames, 6 visual frames, valid evidence, and `released/released` cleanup. The sandbox produced a 105,984-byte PPTX (`PK`) and 5,461-byte PDF (`%PDF-`). An authenticated provider reconciliation afterward returned zero sandbox rows. `gatewayEnforced=false` remains explicit: this is a development Kasm POC, not production microVM or egress-attestation evidence.
 
+The current local-first evidence is separate from that platform record: `task_33c790f67d7345` passed the two-turn Claude/LiteLLM host-process proof with a persisted session and valid evidence; `task_bffd48feac3244` passed the eight-slide local creation proof with 106,857-byte PPTX, 7,463-byte PDF, and valid evidence; and `task_f6e383d5e0224f` passed the secret-free HTTP retry idempotency proof. These local gates advance ONE-230/231 but do not close Azure, microVM, OpenVTC, or external approval work.
+
 ## Product invariant
 
 The correctness-first model is **one durable conversation → one microVM lease**. Follow-up turns reuse the same lease, workspace, and Claude session; different conversations must never share a lease. Pooling, snapshots, and warm reuse are deferred until the real-provider E2E proves isolation, restart recovery, artifact extraction, cancellation, and teardown.

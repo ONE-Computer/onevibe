@@ -51,6 +51,16 @@ The main agent owns product sequencing, shared contracts, integration, security 
 | Creation parity | explorer/worker | golden tasks and artifact acceptance matrix | mode-artifacts/tests/docs only | Gate 0 |
 | Platform follow-up | parked | ONEComputer/OpenVTC/Azure hardening | separate repositories | Gate 3 |
 
+## Active delegation queue — 2026-07-16
+
+| Queue item | Owner | Scope | Acceptance | State |
+|---|---|---|---|---|
+| Local runtime reliability | Main agent + bounded backend workers | cancellation quiescence, restart reconciliation, SSE handoff, retry identity | focused tests plus local Claude/LiteLLM proof | Gate 0 slice green; platform limitations documented |
+| Conversation-first composition | Main agent + UI worker | inline server-derived plan and compact runtime checkpoints | lint/build, desktop and 390px browser review | implementation committed in `c34d6c6`; browser review next |
+| Creation parity | Main agent + next worker | rendered slide/document/data/website output and manifest provenance | mode-specific golden tasks, artifact validation, preview review | queued after browser review |
+
+Delegation rule: one worker owns one disjoint file boundary; workers do not change shared runtime contracts, approvals, Linear, or release status. The main agent reviews every diff, runs the full local gate, records evidence, and decides whether the corresponding Linear workstream advances.
+
 ## Delegation protocol
 
 Every delegated task must include:
