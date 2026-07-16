@@ -1,4 +1,5 @@
 export * from './contracts.js'
+export * from './atomic-file.js'
 export * from './database.js'
 export * from './driver-config.js'
 export * from './errors.js'

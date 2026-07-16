@@ -8,7 +8,7 @@
 >
 > **Current state**: The local-first foundation is substantially implemented: backend-offline recovery, truthful simulation labelling, durable SSE replay/reconnect, LiteLLM-only routing, provider-neutral runtime lifecycle, runtime health/routing, task workspaces, durable guidance queueing, assistant-ui conversation rendering, owner-scoped local auth, bounded MCP health/facade controls, and the initial skill marketplace boundary are in place. Remaining release blockers are live provider acceptance, Postgres/runtime deployment, sandbox attestation, production MCP secret brokering/external health attestation, document/provider/browser evidence, and the remaining professional-UI gates. See `HANDOVER.md` and `plan/00-gap-analysis.md`.
 >
-> **Release gate**: `npm run check` must stay green (oxlint + 257 vitest tests + tsc build + e2e harness typecheck) after every task.
+> **Release gate**: `npm run check` must stay green (oxlint + 259 vitest tests + tsc build + e2e harness typecheck) after every task.
 
 > **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The Claude SDK configuration now fails closed unless the server-controlled relay is configured; Codex/AgentCore remain blocked until their adapters also use the same boundary.
 
@@ -26,6 +26,7 @@ Reference: `plan/01-foundation.md`
 - [x] **P1-06** Fix `server/index.ts` static file serving — serve `dist/` for non-API routes so the app is self-deployable without a separate static host
 - [x] **P1-07** Add API error types — replace plain `Error(message)` in `src/lib/api.ts:32` with a typed `ApiError` class carrying `status: number` and `code: string`
 - [x] **P1-08** Fix demo-mode labelling — permanent "SIMULATION — no model call" banner in conversation pane when `provider === 'demo'`; current chip is invisible
+- [x] **P1-09** Make local metadata writes crash-safe — task/project/schedule/workspace-version JSON now uses same-directory temporary files, private permissions, flush-before-rename, and cleanup coverage; this protects the local fallback from truncated metadata after a process crash
 
 ---
 

@@ -43,7 +43,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 | SSE streaming | `server/task-event-stream.ts` | Real |
 | Approval service | `server/wallet-approval-service.ts` | Real — wallet-gated approvals |
 | UI — cosmetic | `src/index.css`, `src/components/*` | Done — Claude-calibrated light mode, Inter font, cream palette |
-| Tests | `server/*.test.ts`, `src/components/*.test.ts`, `scripts/*.test.ts` | 257 tests passing |
+| Tests | `server/*.test.ts`, `src/components/*.test.ts`, `scripts/*.test.ts` | 259 tests passing |
 | Container | `Dockerfile`, `docker-compose.yml` | Local hardened image verified; SQLite volume only until Postgres/auth slices land |
 
 ### What is critically broken
@@ -55,7 +55,8 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
 6. **Organization membership is not yet a data-plane grant** — local authenticated owners can create organizations and owners can add/remove members, but task/project/runtime access remains owner-scoped until the Postgres-backed organization policy and repository switch are accepted
 7. **The active task remains an intentional state boundary** — durable SSE replay and the active snapshot are still owned by `useTask`; active-task mutations use Query mutation lifecycle/pending state and reconcile server-derived caches without creating a second client authority
-7. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, production MCP secret brokering/external health attestation, and browser evidence remain open in `TODO.md`; the production dependency audit gate is now clean under the reviewed esbuild override
+7. **Local metadata writes are now crash-safe** — task/project/schedule/version JSON is written through same-directory temporary files and flush-before-rename; this does not replace the still-open Postgres/object-storage promotion path
+8. **Remaining extension/release gaps** — protected provider-backed marketplace materialization, production MCP secret brokering/external health attestation, and browser evidence remain open in `TODO.md`; the production dependency audit gate is now clean under the reviewed esbuild override
 
 ### How to run it locally
 
@@ -75,7 +76,7 @@ Do not configure a direct Anthropic API key as a substitute for the relay. Local
 ```bash
 npm run check
 # = oxlint src server scripts
-# + vitest run (257 tests at this handover update)
+# + vitest run (259 tests at this handover update)
 # + tsc -b
 # + tsc -p tsconfig.server.json
 # + vite build

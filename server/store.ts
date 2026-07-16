@@ -6,7 +6,7 @@ import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
-import { LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
+import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
 import { isInternalWorkspacePath } from './artifact-path.js'
 import type { McpConfig } from './runtime-adapter.js'
 
@@ -15,11 +15,6 @@ const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe
 const assertWithin = (root: string, candidate: string) => {
   const relative = path.relative(root, candidate)
   if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Path escapes configured workspace root')
-}
-
-const writeJson = async (filePath: string, value: unknown) => {
-  await mkdir(path.dirname(filePath), { recursive: true })
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
 const isEditableProjectFile = (file: { name: string; mimeType: string }) => /^(?:text\/|application\/(?:json|yaml|xml))/.test(file.mimeType) || /\.(?:md|txt|json|ya?ml|csv|xml)$/i.test(file.name)
@@ -1063,7 +1058,7 @@ export class TaskStore {
       id, taskId, label: label.slice(0, 120), createdAt: new Date().toISOString(), fileCount: files.length,
       evidenceHash: this.listEvents(taskId).at(-1)?.eventHash ?? 'GENESIS',
     }
-    await writeJson(path.join(root, 'version.json'), version)
+    await atomicWriteJson(path.join(root, 'version.json'), version)
     return version
   }
 
@@ -1241,11 +1236,11 @@ export class TaskStore {
   }
 
   private async persist(task: Task) {
-    await writeJson(path.join(this.tasksRoot, task.id, 'task.json'), task)
+    await atomicWriteJson(path.join(this.tasksRoot, task.id, 'task.json'), task)
   }
 
-  private async persistProjects() { await writeJson(this.projectsFile, this.listProjects()) }
-  private async persistSchedules() { await writeJson(this.schedulesFile, this.listSchedules()) }
+  private async persistProjects() { await atomicWriteJson(this.projectsFile, this.listProjects()) }
+  private async persistSchedules() { await atomicWriteJson(this.schedulesFile, this.listSchedules()) }
 
   private async appendAssistantDelta(taskId: string, content: string) {
     let turnId = this.activeTurns.get(taskId)
