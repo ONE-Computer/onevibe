@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises'
 import type { Task, RuntimeCapability, RuntimeEvent, RuntimeHealth, WorkspaceFile } from './types.js'
 import type { TaskStore } from './store.js'
 
@@ -93,6 +94,7 @@ export abstract class RuntimeAdapterBase implements RuntimeAdapter {
   private activeController?: AbortController
 
   async initialize(task: Task, workingDir: string, mcpConfigs: McpConfig[]) {
+    await mkdir(workingDir, { recursive: true })
     this.initializedTask = task
     this.initializedStore = undefined
     this.workingDir = workingDir

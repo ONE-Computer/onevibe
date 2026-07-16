@@ -64,6 +64,11 @@
 - Added a read-only Computers → Runtimes registry panel. Each provider exposes its current availability, generic detail, and an explicit server-side Test action; the UI never receives endpoint URLs, credentials, raw provider bodies, or sandbox claims.
 - Added responsive health-card styling for desktop/mobile and preserved the observation-only boundary: testing a runtime cannot provision, restart, terminate, or approve infrastructure.
 
+## 2026-07-16 — Phase 2 per-task workspace lifecycle
+
+- The canonical adapter initializer now creates the task-specific working directory before provider execution. Every current adapter receives the same path, and file/preview hooks plus the API file projection remain rooted there.
+- This closes the P2-05 workspace ownership contract without claiming cross-task isolation beyond the current host-process/development-provider boundaries; production microVM evidence remains separately tracked.
+
 ## 2026-07-16 — Phase 2 Codex-compatible LiteLLM adapter
 
 - Added `server/codex-runner.ts` as a real OpenAI-compatible streaming adapter that calls only the configured LiteLLM `/v1/chat/completions` route. It normalizes streamed text and bounded workspace tool calls into the ONEVibe event ledger and confines reads/writes to the task workspace.
