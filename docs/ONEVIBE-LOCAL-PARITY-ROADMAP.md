@@ -67,7 +67,7 @@ Agents work in parallel only when write scopes are disjoint. The main agent revi
 
 1. Finish the local Claude/LiteLLM reliability matrix and restart/reconnect proof, including the HTTP retry idempotency path.
 2. Make the default task screen conversation-first with a durable activity/artifact rail.
-3. Add browser golden flows for new task → streaming → artifact → follow-up → reload → search.
+3. Browser-check the inline plan/execution composition at desktop and 390px mobile widths, then add golden flows for new task → streaming → artifact → follow-up → reload → search.
 4. Run creation golden tasks for document, slides, data, and website modes.
 5. Recalculate the parity ledger from observed behavior, not scaffolding presence.
 6. Only after Gates 0–2 pass, resume ONEComputer/OpenVTC work.

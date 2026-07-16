@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { PromptComposer } from './components/PromptComposer'
 import { Sidebar } from './components/Sidebar'
-import { TaskPlan } from './components/TaskPlan'
 import { TaskTimeline } from './components/TaskTimeline'
 import { Workspace } from './components/Workspace'
 import { SharedArtifact } from './components/SharedArtifact'
@@ -238,7 +237,6 @@ export default function App() {
                     {error && <div className="stream-warning">{error}</div>}
                     <Suspense fallback={<div className="aui-thread-loading">Loading durable conversation…</div>}><AssistantThread task={snapshot} busy={creating || Boolean(snapshot.inputRequest)} onSubmit={continueTask} /></Suspense>
                     <TaskTimeline task={snapshot} events={snapshot.events} />
-                    <TaskPlan plan={snapshot.plan} />
                     {snapshot.queuedGuidance.length > 0 && <section className="guidance-queue"><header><div><ShieldCheck size={13} /><strong>Queued guidance</strong></div><span>Applies after this provider turn</span></header>{snapshot.queuedGuidance.map((guidance, index) => <article key={guidance.id}><div><span>Next {index + 1}</span><p>{guidance.prompt}</p></div><button type="button" onClick={() => void retractQueuedGuidance(snapshot.id, guidance.id)} aria-label={`Remove queued guidance ${index + 1}`} title="Remove before it reaches the provider"><X size={13} /></button></article>)}<footer>Removing a message keeps only cancellation metadata in the evidence ledger.</footer></section>}
                   </div>
                   <div className="workspace-pane"><Workspace task={snapshot} projects={projects} onMoveProject={moveTaskProject} onUpdateTags={setTaskTags} /></div>
