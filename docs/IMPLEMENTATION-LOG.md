@@ -7,6 +7,7 @@
 - Completed a clean local Claude Agent SDK + LiteLLM two-turn proof against a temporary data directory: the provider session was recorded, the follow-up conversation persisted, and the evidence chain verified.
 - Added `docs/ONEVIBE-LOCAL-PARITY-ROADMAP.md` and updated `AGENTS.md` with the product-lead/delegation model, disjoint write scopes, release gates, and local POC metrics.
 - Verification: `npm run check` passed with 33 test files / 174 tests, lint, production build, and E2E harness typecheck.
+- Four read-only sub-agent audits identified the next release blockers: local fail-closed runtime/retry behavior (`ONE-231`), and rendered creation/artifact parity (`ONE-232`). Their findings are recorded in `docs/ONEVIBE-LOCAL-PARITY-ROADMAP.md`; no sub-agent changed shared contracts or production files.
 
 ## 2026-07-16 — SQLite runtime event ledger
 

@@ -72,6 +72,16 @@ Agents work in parallel only when write scopes are disjoint. The main agent revi
 5. Recalculate the parity ledger from observed behavior, not scaffolding presence.
 6. Only after Gates 0–2 pass, resume ONEComputer/OpenVTC work.
 
+## Delegated audit synthesis — 2026-07-16
+
+The audits confirm a local release **NO-GO** until the runtime closes these reliability gaps: cancellation/process quiescence, restart reconciliation, the SSE replay/subscription race, provider early-EOF handling, crash recovery between native events and transcript projection, and durable retry identity. These are now tracked in `ONE-231`.
+
+The largest Manus interaction gap is composition: ONEVibe has a strong Computer rail and durable assistant-ui primitives, but the plan, execution narrative, tool trace, and evidence rail are split across separate surfaces. The default task view must make the evidence surface visible beside the conversation and move the relevant execution blocks into the chronological conversation model.
+
+The largest creation gaps are rendered slide-page parity, speaker-note round-trip, a common artifact manifest, source-derived document preview/PDF, quoted-CSV parsing and lineage, and real local website build/browser review. These are tracked in `ONE-232`; they stay local-first and do not require ONEComputer/Azure/OpenVTC.
+
+The audits were read-only and independently checked the repository, stored Manus evidence, and existing tests. Their findings are inputs to engineering work, not completion evidence.
+
 ## Metrics for the local POC
 
 - ≥95% of golden tasks complete without manual server intervention.
