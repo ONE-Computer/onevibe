@@ -86,6 +86,8 @@ The cancellation worker is complete in `2fe6a84`; its evidence is deliberately f
 
 The local Claude/LiteLLM creation gate is now green for the current contract: two durable turns, persisted session identity, valid evidence, and an eight-slide PPTX/PDF artifact run. The gate remains host-process/local-router evidence; it does not promote ONEComputer, microVM isolation, external wallet approval, or production egress claims.
 
+Creation outputs now have a deterministic provenance manifest for local deterministic mode writers. The manifest is intentionally metadata-only; native Claude and ONEComputer provider extraction still need an explicit manifest projection before this becomes a universal artifact contract.
+
 ## Delegated audit synthesis — 2026-07-16
 
 The audits confirm a local release **NO-GO** until the runtime closes these reliability gaps: cancellation/process quiescence, restart reconciliation, the SSE replay/subscription race, provider early-EOF handling, crash recovery between native events and transcript projection, and durable retry identity. These are now tracked in `ONE-231`.
