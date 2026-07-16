@@ -53,7 +53,7 @@ For AWS/Bedrock runtime work, read `docs/AGENTCORE-AWS-RUNTIME.md` and the refer
 
 For the primary ONEComputer agent path, read `docs/ONECOMPUTER-CLAUDE-AGENT-SDK.md`. The sandbox must run the pinned Claude Agent SDK worker directly through Node 22; `claude --print` is not an equivalent acceptance proof. The provider image must verify SDK module resolution before reporting bootstrap readiness. Keep native SDK messages inside the sandbox journal, project them into the durable ledger, and expose them to the browser only through task-bound SSE.
 
-For local Claude E2E, use the protected host-only LiteLLM relay configuration documented outside this repository; run against a temporary `ONEVIBE_DATA_DIR` and a separate API port. Record the exact model alias because a Claude-compatible Anthropic API response is not proof of an Anthropic or Bedrock model. Never copy router secrets into the repository, task workspace, browser state, or evidence. Treat `.claude/` and `.onevibe-*` as runtime internals, not deliverables.
+For local Claude E2E, use the protected host-only LiteLLM relay configuration documented outside this repository; run against a temporary `ONEVIBE_DATA_DIR` and a separate API port. Record the exact model alias because a Claude-compatible Anthropic API response is not proof of an Anthropic or Bedrock model. LiteLLM defaults are deliberately bounded to 12 turns / $2; override `ONEVIBE_CLAUDE_MAX_TURNS` and `ONEVIBE_CLAUDE_MAX_BUDGET_USD` only for a controlled experiment, and retain the server turn deadline. Never copy router secrets into the repository, task workspace, browser state, or evidence. Treat `.claude/` and `.onevibe-*` as runtime internals, not deliverables.
 
 ## Frontend foundation
 
