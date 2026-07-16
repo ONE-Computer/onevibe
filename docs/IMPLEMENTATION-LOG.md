@@ -702,3 +702,9 @@ baseline harness in CI.
 - Kept `useTask` as the only owner of the active append-only SSE/replay projection. This deliberately avoids copying a live event stream into generic Query data while removing direct App-level mutation calls from the active task surface.
 - Removed a duplicate global Sonner provider discovered during the handover audit; each async failure now has one notification surface.
 - Verification: `npm run check` passed with 46 test files / 236 tests, lint, production build, and E2E harness typecheck; `npm run db:check` passed. Commit: `26762c1`.
+
+# 2026-07-17 — fail-closed persistence driver selection
+
+- Added `resolvePersistenceConfig` before `TaskStore` startup. SQLite remains the only active application driver; explicit Postgres selection or any `DATABASE_URL` that would otherwise be ignored now refuses startup with a non-secret diagnostic.
+- Added focused coverage for default SQLite selection, explicit SQLite selection, invalid drivers, explicit Postgres selection, and mixed `DATABASE_URL`/SQLite configuration. This closes the silent-mixed-driver risk without pretending that the Postgres repository adapter exists.
+- Updated `.env.example`, the Phase 4 TODO, and diagnostics to make the active driver boundary explicit. `npm run check` passed with 47 test files / 240 tests, lint, production build, and E2E harness typecheck; `npm run db:check` passed. Commit: `d8e5994`.
