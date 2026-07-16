@@ -2,11 +2,11 @@
 
 ## Scope
 
-This is the controlled, opt-in proof for ONEVibe's `claude_sdk` provider. It creates one small document task followed by a persisted continuation against a real server-side Anthropic credential and may incur provider usage. It is never part of unit tests or the normal `npm run check` workflow.
+This is the controlled, opt-in proof for ONEVibe's `claude_sdk` provider. It creates one small document task followed by a persisted continuation through the server-controlled LiteLLM relay and may incur provider usage. It is never part of unit tests or the normal `npm run check` workflow.
 
 ## Preconditions
 
-Configure the ONEVibe API process with a server-only `ANTHROPIC_API_KEY`. The browser receives only Claude-provider readiness; it never receives the credential or task runtime state directory.
+Configure the ONEVibe API process with server-only `ONEVIBE_LITELLM_URL`, `ONEVIBE_LITELLM_API_KEY`, and an explicit `ONEVIBE_LITELLM_MODEL`. The browser receives only Claude-provider readiness; it never receives the relay credential, endpoint, or task runtime state directory. Direct first-party Anthropic credentials are not supported.
 
 Verify readiness before running:
 

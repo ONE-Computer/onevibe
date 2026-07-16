@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_ANTHROPIC_MAX_BUDGET_USD,
-  DEFAULT_ANTHROPIC_MAX_TURNS,
   DEFAULT_LITELLM_MAX_BUDGET_USD,
   DEFAULT_LITELLM_MAX_TURNS,
   resolveClaudeRunLimits,
@@ -12,8 +10,8 @@ describe('Claude run limits', () => {
     expect(resolveClaudeRunLimits('litellm', {})).toEqual({ maxTurns: DEFAULT_LITELLM_MAX_TURNS, maxBudgetUsd: DEFAULT_LITELLM_MAX_BUDGET_USD })
   })
 
-  it('preserves the larger direct Anthropic defaults', () => {
-    expect(resolveClaudeRunLimits('anthropic', {})).toEqual({ maxTurns: DEFAULT_ANTHROPIC_MAX_TURNS, maxBudgetUsd: DEFAULT_ANTHROPIC_MAX_BUDGET_USD })
+  it('uses the same bounded defaults for every accepted configuration state', () => {
+    expect(resolveClaudeRunLimits('unconfigured', {})).toEqual({ maxTurns: DEFAULT_LITELLM_MAX_TURNS, maxBudgetUsd: DEFAULT_LITELLM_MAX_BUDGET_USD })
   })
 
   it('accepts safe overrides and clamps oversized values', () => {

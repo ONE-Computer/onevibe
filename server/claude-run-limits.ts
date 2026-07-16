@@ -2,8 +2,6 @@ import type { ClaudeProviderConfig } from './claude-provider-config.js'
 
 export const DEFAULT_LITELLM_MAX_TURNS = 12
 export const DEFAULT_LITELLM_MAX_BUDGET_USD = 2
-export const DEFAULT_ANTHROPIC_MAX_TURNS = 24
-export const DEFAULT_ANTHROPIC_MAX_BUDGET_USD = 5
 const MAX_TURNS = 100
 const MAX_BUDGET_USD = 100
 
@@ -22,11 +20,9 @@ const positiveBudget = (value: string | undefined, fallback: number) => {
 }
 
 export const resolveClaudeRunLimits = (transport: ClaudeProviderConfig['transport'], env: NodeJS.ProcessEnv = process.env): ClaudeRunLimits => {
-  const defaults = transport === 'litellm'
-    ? { maxTurns: DEFAULT_LITELLM_MAX_TURNS, maxBudgetUsd: DEFAULT_LITELLM_MAX_BUDGET_USD }
-    : { maxTurns: DEFAULT_ANTHROPIC_MAX_TURNS, maxBudgetUsd: DEFAULT_ANTHROPIC_MAX_BUDGET_USD }
+  void transport
   return {
-    maxTurns: positiveInteger(env.ONEVIBE_CLAUDE_MAX_TURNS, defaults.maxTurns),
-    maxBudgetUsd: positiveBudget(env.ONEVIBE_CLAUDE_MAX_BUDGET_USD, defaults.maxBudgetUsd),
+    maxTurns: positiveInteger(env.ONEVIBE_CLAUDE_MAX_TURNS, DEFAULT_LITELLM_MAX_TURNS),
+    maxBudgetUsd: positiveBudget(env.ONEVIBE_CLAUDE_MAX_BUDGET_USD, DEFAULT_LITELLM_MAX_BUDGET_USD),
   }
 }

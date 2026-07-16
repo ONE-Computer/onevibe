@@ -128,7 +128,7 @@ const connect = useCallback((taskId: string) => {
 
 **File**: `src/App.tsx`, `src/components/PromptComposer.tsx`
 
-**Problem**: `provider` state initialises to `'demo'` regardless of what the runtime reports. Users who have `ANTHROPIC_API_KEY` set still see demo mode until they manually change the dropdown.
+**Problem**: `provider` state initialises to `'demo'` regardless of what the runtime reports. Users who have the protected LiteLLM relay configured still see demo mode until they manually change the dropdown.
 
 **Current code** (`PromptComposer.tsx:51-55`): already has a `useEffect` that sets `claude_sdk` when `runtime` arrives and `!providerTouched`. **The problem is that `runtime` takes a network round-trip to arrive**, so the initial render always shows `demo`.
 
@@ -143,8 +143,7 @@ Also: if `claude_sdk` is unavailable AND `onecomputer` is unavailable, show a ba
 ```tsx
 {runtime && !runtime.providers.some(p => p.available && p.id !== 'demo') && (
   <div className="setup-banner">
-    Set <code>ANTHROPIC_API_KEY</code> in your <code>.env</code> to use Claude.
-    <a href="https://console.anthropic.com" target="_blank">Get a key →</a>
+    Set <code>ONEVIBE_LITELLM_URL</code> and <code>ONEVIBE_LITELLM_API_KEY</code> in your <code>.env</code> to use Claude through LiteLLM.
   </div>
 )}
 ```
@@ -159,7 +158,7 @@ Create a pre-flight script that runs before the dev server:
 ```ts
 // scripts/dev-check.ts
 const missing: string[] = []
-if (!process.env.ANTHROPIC_API_KEY) missing.push('ANTHROPIC_API_KEY')
+if (!process.env.ONEVIBE_LITELLM_URL || !process.env.ONEVIBE_LITELLM_API_KEY) missing.push('ONEVIBE_LITELLM_URL + ONEVIBE_LITELLM_API_KEY')
 if (missing.length) {
   console.warn('\n⚠  Missing env vars:', missing.join(', '))
   console.warn('   Copy .env.example → .env and fill them in.')
@@ -175,8 +174,10 @@ Update `package.json` scripts:
 
 Also create `.env.example` if it doesn't exist:
 ```
-# Required for Claude SDK provider
-ANTHROPIC_API_KEY=
+# Required for Claude SDK provider; all model calls must traverse this relay
+ONEVIBE_LITELLM_URL=
+ONEVIBE_LITELLM_API_KEY=
+ONEVIBE_LITELLM_MODEL=claude-sonnet-5
 
 # Optional: ONEComputer sandbox
 ONECOMPUTER_API_URL=
@@ -296,8 +297,8 @@ After all P1 tasks:
 
 1. Kill `dev:api`, run only `dev:web` → backend-offline banner appears within 2 seconds
 2. Restart `dev:api` → click Retry → banner disappears
-3. Run `npm run dev` with `ANTHROPIC_API_KEY` unset → setup banner appears
-4. Run `npm run dev` with `ANTHROPIC_API_KEY` set → claude_sdk is default provider, no demo banner
+3. Run `npm run dev` without LiteLLM relay variables → setup banner appears
+4. Run `npm run dev` with the LiteLLM relay configured → claude_sdk is default provider, no demo banner
 5. Select demo mode manually → "Simulation only" banner appears in conversation
 6. Send a message in demo mode → scripted response arrives with demo banner still visible
 7. Switch to `claude_sdk`, send "What is 2+2?" → real Claude response streams in

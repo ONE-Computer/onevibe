@@ -1,11 +1,16 @@
 export type ClaudeProviderConfig = {
   configured: boolean
-  transport: 'anthropic' | 'litellm' | 'unconfigured'
+  transport: 'litellm' | 'unconfigured'
   model: string
   childEnv: NodeJS.ProcessEnv
 }
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '')
+
+const withoutUntrustedAnthropicRouting = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
+  const { ANTHROPIC_API_KEY: _apiKey, ANTHROPIC_AUTH_TOKEN: _authToken, ANTHROPIC_BASE_URL: _baseUrl, ...safeEnv } = env
+  return safeEnv
+}
 
 export const claudeProviderConfig = (env: NodeJS.ProcessEnv = process.env): ClaudeProviderConfig => {
   const model = env.ONEVIBE_LITELLM_MODEL ?? env.ONEVIBE_CLAUDE_MODEL ?? 'claude-sonnet-5'
@@ -18,18 +23,14 @@ export const claudeProviderConfig = (env: NodeJS.ProcessEnv = process.env): Clau
       transport: 'litellm',
       model,
       childEnv: {
-        ...env,
+        ...withoutUntrustedAnthropicRouting(env),
         ANTHROPIC_BASE_URL: trimTrailingSlash(litellmUrl),
         ANTHROPIC_API_KEY: litellmKey,
       },
     }
   }
 
-  if (env.ANTHROPIC_API_KEY) {
-    return { configured: true, transport: 'anthropic', model, childEnv: { ...env } }
-  }
-
-  return { configured: false, transport: 'unconfigured', model, childEnv: { ...env } }
+  return { configured: false, transport: 'unconfigured', model, childEnv: withoutUntrustedAnthropicRouting(env) }
 }
 
-export const claudeConfigurationMessage = 'Configure a server-only Anthropic credential or ONEVIBE_LITELLM_URL and ONEVIBE_LITELLM_API_KEY.'
+export const claudeConfigurationMessage = 'Configure the server-controlled ONEVIBE_LITELLM_URL and ONEVIBE_LITELLM_API_KEY relay credentials.'

@@ -178,7 +178,7 @@ Key rules:
 Runtimes
 
 Claude Agent SDK          ● Online    Last: 120ms    [Test]
-  Anthropic cloud · ANTHROPIC_API_KEY ✓
+  LiteLLM relay · server-controlled routing ✓
 
 OpenAI Codex              ● Online    Last: 95ms     [Test]
   OpenAI cloud · OPENAI_API_KEY ✓

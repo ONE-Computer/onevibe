@@ -202,8 +202,8 @@ type DiagnosticCheck = {
 }
 
 // Checks:
-1. api_key_configured   — ANTHROPIC_API_KEY set and non-empty
-2. claude_reachable     — GET https://api.anthropic.com/v1/models returns 200
+1. litellm_configured   — ONEVIBE_LITELLM_URL and ONEVIBE_LITELLM_API_KEY set and non-empty
+2. claude_reachable     — server-controlled LiteLLM health/model probe succeeds
 3. sandbox_configured   — e2b or ONEComputer API key set
 4. sandbox_reachable    — sandbox health endpoint returns 200
 5. mcp_count            — count of enabled MCP servers

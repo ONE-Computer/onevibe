@@ -28,7 +28,6 @@ const selectedSkills: TaskSkill[] = ['document', 'security_review']
 const startupTimeoutMs = 15_000
 const turnTimeoutMs = Math.max(30_000, Number(process.env.ONEVIBE_SKILLS_E2E_TIMEOUT_MS ?? 5 * 60_000))
 const providerEnvKeys = [
-  'ANTHROPIC_API_KEY',
   'ONEVIBE_LITELLM_URL',
   'ONEVIBE_LITELLM_API_KEY',
   'ONEVIBE_LITELLM_MODEL',

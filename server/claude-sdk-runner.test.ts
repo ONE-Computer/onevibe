@@ -49,7 +49,11 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 const temporaryRoots: string[] = []
 
-beforeEach(() => vi.stubEnv('ANTHROPIC_API_KEY', 'test-server-only-key'))
+beforeEach(() => {
+  vi.stubEnv('ONEVIBE_LITELLM_URL', 'http://127.0.0.1:4000')
+  vi.stubEnv('ONEVIBE_LITELLM_API_KEY', 'test-server-only-key')
+  vi.stubEnv('ONEVIBE_LITELLM_MODEL', 'claude-test')
+})
 
 afterEach(async () => {
   vi.unstubAllEnvs()

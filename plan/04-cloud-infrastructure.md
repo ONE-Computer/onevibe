@@ -187,7 +187,9 @@ services:
     build: .
     environment:
       DATABASE_URL: postgres://onevibe:localdev@postgres:5432/onevibe
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ONEVIBE_LITELLM_URL: ${ONEVIBE_LITELLM_URL}
+      ONEVIBE_LITELLM_API_KEY: ${ONEVIBE_LITELLM_API_KEY}
+      ONEVIBE_LITELLM_MODEL: ${ONEVIBE_LITELLM_MODEL}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-local-dev-change-me}
       ONEVIBE_TRUSTED_ORIGINS: http://localhost:5173,http://localhost:4311
     ports: ["4311:4311"]
@@ -199,8 +201,10 @@ volumes:
 
 **`.env.example`** (comprehensive):
 ```
-# Required for Claude SDK
-ANTHROPIC_API_KEY=sk-ant-...
+# Required for Claude SDK; route all model traffic through LiteLLM
+ONEVIBE_LITELLM_URL=http://litellm:4000
+ONEVIBE_LITELLM_API_KEY=relay-key
+ONEVIBE_LITELLM_MODEL=claude-sonnet-5
 
 # Required for auth
 BETTER_AUTH_SECRET=generate-with-openssl-rand-base64-32

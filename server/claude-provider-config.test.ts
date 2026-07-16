@@ -14,10 +14,15 @@ describe('Claude provider configuration', () => {
     expect(env).not.toHaveProperty('ANTHROPIC_API_KEY')
   })
 
-  it('supports direct Anthropic configuration as a fallback', () => {
-    expect(claudeProviderConfig({ ANTHROPIC_API_KEY: 'direct-key', ONEVIBE_CLAUDE_MODEL: 'claude-test' })).toMatchObject({
-      configured: true, transport: 'anthropic', model: 'claude-test',
+  it('fails closed when only direct Anthropic variables are present', () => {
+    const config = claudeProviderConfig({
+      ANTHROPIC_API_KEY: 'direct-key',
+      ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
+      ONEVIBE_CLAUDE_MODEL: 'claude-test',
     })
+    expect(config).toMatchObject({ configured: false, transport: 'unconfigured', model: 'claude-test' })
+    expect(config.childEnv).not.toHaveProperty('ANTHROPIC_API_KEY')
+    expect(config.childEnv).not.toHaveProperty('ANTHROPIC_BASE_URL')
   })
 
   it('requires both LiteLLM endpoint and credential', () => {

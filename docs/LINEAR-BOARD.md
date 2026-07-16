@@ -18,7 +18,7 @@ Linear also serves as the management and architecture review hub:
 
 The current release gate is [ONE-230](https://linear.app/onecomputer/issue/ONE-230/p0-local-onevibe-reliability-and-manus-parity-release-gate). ONEVibe is now explicitly local-first: the product must be a reliable Manus-style workspace powered by the local Claude Agent SDK/LiteLLM path before platform integration work resumes.
 
-The handover adds [ONE-245](https://linear.app/onecomputer/issue/ONE-245/secp0-enforce-litellm-only-model-routing-for-every-harness) as a security release gate: every harness must route model traffic through the server-controlled LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback; legacy direct configuration must be removed or fail closed.
+The handover adds [ONE-245](https://linear.app/onecomputer/issue/ONE-245/secp0-enforce-litellm-only-model-routing-for-every-harness) as a security release gate: every harness must route model traffic through the server-controlled LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The current Claude SDK path now fails closed without the relay; Codex/AgentCore remain open until their adapters use the same boundary.
 
 The deferred ONEComputer/OpenVTC work remains tracked, but is not on the critical path:
 

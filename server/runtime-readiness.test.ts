@@ -11,7 +11,7 @@ describe('runtime readiness', () => {
   })
 
   it('reports configured boundaries without credential material', () => {
-    const states = runtimeReadiness({ claudeConfigured: true, remoteConfigured: true, oneComputerConfigured: true }).providers
+    const states = runtimeReadiness({ claudeConfigured: true, claudeTransport: 'litellm', remoteConfigured: true, oneComputerConfigured: true }).providers
     expect(states.find((state) => state.id === 'claude_sdk')).toMatchObject({ available: true, boundary: 'Governed host workspace' })
     expect(states.find((state) => state.id === 'onecomputer')).toMatchObject({ available: true, boundary: 'Conversation development sandbox' })
     expect(states.find((state) => state.id === 'claude_sdk')?.capabilities).toEqual(expect.arrayContaining(['streaming', 'tool_use', 'file_system']))
