@@ -37,6 +37,8 @@ Use the repository-local helper for subsequent Linear operations: `npm run linea
 
 The helper intentionally does not expose arbitrary GraphQL. Add a narrowly named command plus tests when a new recurring operation is needed, and keep the GraphQL selection/mutation in `scripts/linear-cli.ts` reviewed alongside the board documentation. Before a state mutation, inspect the issue and verify the target state name belongs to its team. Comments must include the commit, verification command, evidence boundary, and remaining limitations; never paste secrets or raw provider payloads.
 
+Current helper scope is deliberately narrow: it supports canonical project/issue reads, paginated project issue listing, evidence comments, team-state transitions, and confirmed ticket creation. It does not yet provide general issue-field updates, standalone paginated comment listing, server-side issue filters, or mutation deduplication. Treat those as explicit follow-up work, not hidden capabilities; extend the typed command surface with focused transport/mutation tests before relying on them for backlog surgery.
+
 ## Durable engineering memory
 
 Documentation is part of every material slice. Update `docs/IMPLEMENTATION-LOG.md` for shipped behavior and `docs/LIVE-E2E-ENGINEERING-LOG.md` for live observations, failed experiments, provider/runtime IDs that are safe to retain, fixes, and remaining gates. Architecture or credential decisions receive a dedicated document/ADR; do not leave them only in chat or Linear comments. Keep secrets, account IDs, raw provider bodies, auth headers, and credential values out of all docs.

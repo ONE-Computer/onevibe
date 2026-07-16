@@ -58,6 +58,18 @@ npm run linear -- create-issue --title "New work" --description-file /tmp/issue.
 
 The helper lives at `scripts/linear-cli.ts` and uses the canonical project/team IDs by default. Issue listing follows Relay cursors until complete and supports `--state`/`--priority` filters. Credential precedence is `LINEAR_API_KEY`, `LINEAR_API_KEY_FILE`, then the handover key file relative to the repository. It never accepts a credential flag, prints an authorization header, or supports arbitrary GraphQL. Read commands are safe to repeat; mutations require explicit `--confirm` or can be inspected with `--dry-run`. Add new board workflows as typed commands with focused tests rather than copying curl payloads into agent instructions.
 
+### Helper scope and next hardening
+
+The current CLI is sufficient for evidence-driven delivery updates: project/issue reads, cursor-complete project issue listing, comments attached to an issue, named team-state transitions, and confirmed issue creation. It is not a full Linear client yet. The next safe extensions are:
+
+1. `issue update` with an allowlisted set of fields and team-state validation.
+2. Standalone cursor-paginated comment listing.
+3. GraphQL-side filters for larger projects rather than downloading all issues.
+4. Typed transport errors, strict environment-key validation, and read-only retry behavior.
+5. Explicit mutation ambiguity/deduplication policy before adding automatic retries.
+
+Do not invent these commands in agent prompts or fall back to ad hoc GraphQL. Until implemented and tested, use the existing narrow commands and record any manual limitation in the Linear comment.
+
 ## Hygiene
 
 - Keep one canonical ticket per deliverable and preserve old history with a successor comment before closing a superseded issue.
