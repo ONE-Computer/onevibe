@@ -14,7 +14,7 @@
       (() => {
         try {
           const saved = localStorage.getItem('onevibe-theme')
-          const preference = ['light', 'dark', 'system'].includes(saved) ? saved : 'system'
+          const preference = ['light', 'dark', 'system'].includes(saved) ? saved : 'dark'
           const theme = preference === 'system'
             ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : preference

@@ -197,3 +197,192 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .task-row strong{font-size:12px!important}
 .task-row small{font-size:10px!important}
 .nav-section-label{font-size:10.5px!important}
+
+/* ================================================================
+   PHASE 6 — AESTHETIC RESET
+   dark-first, one deliberate motion moment, one second accent
+   ================================================================ */
+
+/* Palette shift on dark: keep emerald as the trust signal, add a
+   warm sunlit amber as the second accent used only for governance
+   waiting-states and approvals. */
+:root{
+  --accent:#3adc86;
+  --accent-strong:#22c26f;
+  --accent-soft:rgba(58,220,134,.10);
+  --accent-border:rgba(58,220,134,.28);
+  --accent-glow:rgba(58,220,134,.36);
+  --accent-ink:#04120a;
+  --gold:#e6b46b;
+  --gold-soft:rgba(230,180,107,.10);
+  --gold-border:rgba(230,180,107,.32);
+  --surface-canvas:#0a0c0b;
+  --surface-sidebar:#0d0f0e;
+  --surface-panel:#111413;
+  --surface-raised:#161a18;
+  --surface-hover:#1c211e;
+  --surface-elevated:#1a1f1c;
+  --text-primary:#eef2ee;
+  --text-secondary:#b1bbb5;
+  --text-muted:#7c877f;
+  --text-faint:#5a655d;
+  --border-default:#242a26;
+  --border-subtle:#1a1e1c;
+  --border-strong:#3a443e;
+}
+
+/* Ambient background — one very-slow drifting radial glow behind the
+   composer. Static gradient fallback for reduced-motion users. */
+.home-view{
+  background:
+    radial-gradient(circle at 20% 30%, rgba(58,220,134,.08), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(230,180,107,.05), transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(58,220,134,.04), transparent 50%);
+}
+.home-view::before{
+  content:"";position:absolute;inset:-20% -10% -20% -10%;pointer-events:none;
+  background:radial-gradient(600px 400px at 50% 40%, rgba(58,220,134,.12), transparent 70%);
+  animation:ambient-drift 32s ease-in-out infinite alternate;
+  z-index:0;
+}
+@keyframes ambient-drift{
+  0%  {transform:translate3d(-6%, -4%, 0) scale(1);   opacity:.6;}
+  50% {transform:translate3d( 4%,  2%, 0) scale(1.08); opacity:1;}
+  100%{transform:translate3d( 6%, -3%, 0) scale(1.02); opacity:.7;}
+}
+.home-content{position:relative;z-index:1}
+
+/* Hero — commit to weight and tracking rather than a display face swap.
+   Inter 900 with tight tracking and controlled linear-gradient sheen. */
+.home-content h1{
+  font-weight:900;
+  letter-spacing:-.055em;
+  background:linear-gradient(180deg,var(--text-primary) 0%, color-mix(in srgb, var(--text-primary) 60%, var(--accent) 40%) 130%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.home-content h1 span{
+  color:transparent;
+  background:linear-gradient(120deg, var(--text-muted) 20%, color-mix(in srgb, var(--accent) 55%, transparent) 80%);
+  -webkit-background-clip:text;
+  background-clip:text;
+}
+
+/* Brand-mark heartbeat — the signature moment. The tiny green square
+   next to the wordmark pulses slowly. This is our one motion investment
+   for identity. */
+.brand-icon{position:relative}
+.brand-icon::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  box-shadow:0 0 0 0 var(--accent-glow);
+  animation:brand-heartbeat 3.6s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes brand-heartbeat{
+  0%,100%{box-shadow:0 0 0 0 var(--accent-glow); opacity:.9}
+  50%{box-shadow:0 0 0 6px transparent; opacity:1}
+}
+
+/* Composer — bigger, more presence, real focus glow */
+.composer{
+  border-radius:18px;
+  padding:18px 18px 14px;
+  box-shadow:0 24px 80px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.02);
+  transition:border-color .18s ease, box-shadow .24s ease, transform .24s ease;
+}
+.composer textarea{min-height:96px;font-size:15px;line-height:1.6}
+.composer textarea::placeholder{color:var(--text-muted);font-size:15px}
+.composer:focus-within{
+  border-color:var(--accent-border);
+  box-shadow:0 24px 80px rgba(0,0,0,.42),
+             0 0 0 1px var(--accent-border),
+             0 0 40px -6px var(--accent-glow),
+             inset 0 1px 0 rgba(255,255,255,.02);
+  transform:translateY(-1px);
+}
+.send-button{width:36px;height:36px;transition:transform .16s ease, box-shadow .16s ease}
+.send-button:not(:disabled):hover{transform:translateY(-1px) scale(1.04);box-shadow:0 12px 28px var(--accent-glow)}
+.send-button:not(:disabled):active{transform:translateY(0) scale(.96)}
+
+/* Starter prompts — quieter, more like real chips */
+.starter-prompts button{
+  padding:9px 14px;font-size:12px;border-radius:100px;
+  background:color-mix(in srgb, var(--surface-raised) 70%, transparent);
+  backdrop-filter:blur(8px);
+  transition:border-color .18s ease, transform .18s ease, background .18s ease;
+}
+.starter-prompts button:hover{transform:translateY(-1px);background:var(--surface-hover);border-color:var(--accent-border);color:var(--text-primary)}
+.starter-prompts button span{color:var(--accent);transition:transform .2s ease}
+.starter-prompts button:hover span{transform:translate(2px,-2px)}
+
+/* Trust chip — quieter, more editorial */
+.trust-chip{
+  border-color:transparent;background:transparent;color:var(--text-muted);
+  padding:5px 4px;font-size:11px;font-weight:500;
+}
+.trust-chip svg{color:var(--accent)}
+.trust-chip:hover{color:var(--text-primary)}
+
+/* Nav items — inner accent bar on active */
+.nav-item{position:relative;transition:background .15s ease, color .15s ease}
+.nav-item.active::before{
+  content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;
+  border-radius:2px;background:var(--accent);
+}
+.nav-item.active{background:color-mix(in srgb, var(--accent-soft) 140%, transparent);color:var(--text-primary)}
+
+/* Task row — hover translate + tight timestamp on right */
+.task-row{transition:background .14s ease, transform .14s ease}
+.task-row:hover{transform:translateX(2px)}
+
+/* Reduced motion — kill drift, heartbeat, hovers */
+@media(prefers-reduced-motion:reduce){
+  .home-view::before{animation:none;transform:none;opacity:.6}
+  .brand-icon::after{animation:none;box-shadow:none}
+  .composer:focus-within{transform:none}
+  .send-button:not(:disabled):hover{transform:none}
+  .task-row:hover{transform:none}
+  .starter-prompts button:hover{transform:none}
+  .starter-prompts button:hover span{transform:none}
+}
+
+/* Phase 6 fixes — mode/provider buttons need real chrome in dark */
+.mode-button{
+  display:inline-flex;align-items:center;gap:6px;
+  height:32px;padding:0 11px;
+  border:1px solid var(--border-default);border-radius:100px;
+  background:var(--surface-raised);color:var(--text-secondary);
+  font-size:12px;cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, color .15s ease;
+}
+.mode-button:hover{border-color:var(--border-strong);background:var(--surface-hover);color:var(--text-primary)}
+.mode-button svg{color:var(--accent)}
+.composer-left>button{
+  height:32px;padding:0 10px;
+  border:1px solid transparent;border-radius:100px;
+  transition:border-color .15s ease, background .15s ease;
+}
+.composer-left>button:hover{border-color:var(--border-default);background:var(--surface-hover)}
+
+/* Send button: bigger, sharper */
+.send-button{width:38px;height:38px;font-weight:600}
+.send-button svg{stroke-width:2.2}
+
+/* Force the responsive block above not to blow the hero back up on dark */
+.home-content h1{font-size:clamp(48px,6.2vw,72px)!important;margin:24px 0 18px!important}
+.home-content>p{font-size:17px;color:var(--text-secondary);max-width:620px}
+
+/* Sidebar depth: subtle top-gradient so the panel reads as a distinct surface */
+.sidebar{background:linear-gradient(180deg, var(--surface-sidebar) 0%, color-mix(in srgb, var(--surface-sidebar) 96%, var(--accent) 4%) 100%)}
+
+/* Topbar: subtle divider gradient — feels less bureaucratic */
+.topbar{border-bottom:1px solid transparent;background-image:linear-gradient(var(--overlay-topbar),var(--overlay-topbar)),linear-gradient(90deg, transparent, var(--border-default) 20%, var(--border-default) 80%, transparent);background-clip:padding-box, border-box;background-origin:border-box;border-bottom-color:transparent}
+
+/* Nav pill counter */
+.nav-pill{background:var(--surface-hover);color:var(--text-muted);font-weight:500}
+
+/* Phase 6 — topbar workspace switcher visibility on dark */
+.model-selector{color:var(--text-secondary);font-size:13px;font-weight:500;padding:6px 10px;border-radius:8px;transition:background .15s ease}
+.model-selector:hover{background:var(--surface-hover)}
+.model-selector svg:first-child{color:var(--accent)}
