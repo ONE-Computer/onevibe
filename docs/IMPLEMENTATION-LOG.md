@@ -666,3 +666,8 @@ baseline harness in CI.
 - Added Sonner as the global notification surface. App-level task creation, follow-up, branching, retry, sharing, project, schedule, Library, MCP, runtime, and catalog failures now produce actionable user-visible errors instead of disappearing into rejected promises or empty catches.
 - Removed a duplicate schedule confirmation that required two identical confirmations before deletion. The toast layer remains presentation-only and does not alter server-owned evidence or approval authority.
 - Verification: `npm run check` passed with 45 test files / 234 tests, lint, production build, E2E harness typecheck, and `npm run db:check`.
+
+# 2026-07-17 — dependency audit gate
+
+- `npm audit --omit=dev` reports five moderate advisories in the Better Auth → Drizzle Kit → esbuild chain. The suggested automated remediation is a breaking `drizzle-kit` downgrade, so it was not applied blindly.
+- Added P4-07 and a Security promotion gate requiring a reviewed non-breaking resolution or explicit risk acceptance before production deployment. The issue is bounded to the development-toolchain exposure and does not change the LiteLLM or runtime security boundary.

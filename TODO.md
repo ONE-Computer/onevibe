@@ -70,6 +70,7 @@ Reference: `plan/04-cloud-infrastructure.md`
 - [ ] **P4-04** Deploy to Railway or Fly.io — `railway.toml` or `fly.toml`; deploy instructions in `plan/04-cloud-infrastructure.md#deploy`
 - [ ] **P4-05** Add cloud sandbox — integrate **e2b.dev** (`@e2b/code-interpreter`) as the default `sandboxed` execution backend; surface sandbox preview URL in workspace iframe; `E2bRuntimeAdapter` wraps e2b and implements the full `RuntimeAdapter` interface
 - [ ] **P4-06** Add multi-tenancy scaffolding — local user ownership now scopes tasks, projects, schedules, conversations, MCP declarations, and task routes; keep open until `orgs`/`org_members`, Postgres ownership, migration/import, and cross-user negative coverage for every route are complete
+- [ ] **P4-07** Resolve dependency audit gate — `npm audit --omit=dev` reports five moderate Better Auth/Drizzle Kit/esbuild advisories; investigate a non-breaking upgrade or formally document risk acceptance before production deployment
 
 ---
 
