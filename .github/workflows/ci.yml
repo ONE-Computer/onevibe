@@ -66,3 +66,35 @@ jobs:
       - name: Remove container
         if: always()
         run: docker rm --force onevibe-ci || true
+
+  postgres-schema:
+    name: PostgreSQL migration smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: onevibe
+          POSTGRES_PASSWORD: onevibe-ci-password
+          POSTGRES_DB: onevibe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U onevibe -d onevibe"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply reviewed Drizzle migrations
+        env:
+          DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
+        run: npm run db:migrate
+      - name: Validate Drizzle migration manifest
+        run: npm run db:check

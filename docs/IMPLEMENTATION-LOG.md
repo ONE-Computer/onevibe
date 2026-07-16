@@ -836,3 +836,9 @@ baseline harness in CI.
 - Replaced direct JSON overwrites for task metadata, project/schedule indexes, and workspace-version metadata with same-directory temporary files, private `0600` creation, `fsync` before rename, and cleanup on all exit paths.
 - Added focused atomic-file tests for complete JSON replacement, temporary-file cleanup, and binary payload handling. This closes the local torn-write gap identified in the parity roadmap; it does not claim Postgres/object-storage durability or eliminate higher-level multi-file transaction windows.
 - Verification: focused atomic/store tests passed (45 tests) after correcting the Node file-open call; the full `npm run check` remains the merge gate.
+
+## 2026-07-17 — disposable PostgreSQL migration smoke gate
+
+- Applied all three reviewed Drizzle migrations to a disposable PostgreSQL 18 container and verified the migration ledger and expected application/auth table set before destroying the container. The migration emitted only PostgreSQL’s long-identifier truncation notice; it completed successfully.
+- Added a GitHub Actions `postgres-schema` job that starts PostgreSQL 18, runs `npm run db:migrate`, and validates the reviewed migration manifest with `npm run db:check`.
+- Boundary: this proves schema/migration compatibility only. The API still fails closed when `DATABASE_URL` would select Postgres because the TaskStore repository/runtime adapter, production import, and application idempotency switch remain open.
