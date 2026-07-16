@@ -11,6 +11,14 @@ export interface RuntimeLeaseStore {
 
 export type AcquiredRuntime = { lease: RuntimeLeaseRecord; sandbox: OneComputerSandbox; reused: boolean }
 
+const allocationMatches = (sandbox: OneComputerSandbox, lease: RuntimeLeaseRecord): boolean => {
+  const metadata = sandbox.metadata ?? {}
+  return sandbox.allocationOperationId === lease.allocationOperationId
+    || sandbox.allocationIdempotencyKey === lease.allocationIdempotencyKey
+    || metadata.allocationOperationId === lease.allocationOperationId
+    || metadata.allocationIdempotencyKey === lease.allocationIdempotencyKey
+}
+
 const fenceFor = (lease: RuntimeLeaseRecord): RuntimeLeaseFence => ({
   generation: lease.generation, status: lease.status, updatedAt: lease.updatedAt,
 })
@@ -30,6 +38,7 @@ export class RuntimeLeaseService {
   async acquire(conversationId: string, signal?: AbortSignal): Promise<AcquiredRuntime> {
     const active = this.store.findActiveRuntimeLease(conversationId)
     if (active) {
+      if (active.status === 'unknown') return this.reconcileUnknown(conversationId, signal)
       if (active.status !== 'ready' || !active.providerSandboxId) {
         throw new Error(`Conversation runtime lease requires reconciliation (status=${active.status})`)
       }
@@ -59,7 +68,10 @@ export class RuntimeLeaseService {
     this.store.insertRuntimeLease(allocating, generation - 1)
 
     try {
-      const sandbox = await this.client.createSandbox(`onevibe-${conversationId.slice(-8)}`, signal)
+      const sandbox = await this.client.createSandbox(`onevibe-${conversationId.slice(-8)}`, {
+        allocationOperationId: allocating.allocationOperationId,
+        allocationIdempotencyKey: allocating.allocationIdempotencyKey,
+      }, signal)
       const readyAt = this.timestampAfter(allocating.updatedAt)
       const ready: RuntimeLeaseRecord = {
         ...allocating,
@@ -81,6 +93,37 @@ export class RuntimeLeaseService {
       this.store.transitionRuntimeLease(allocating.id, fenceFor(allocating), unknown)
       throw error
     }
+  }
+
+  /**
+   * Recover an allocation whose create response was ambiguous. This is
+   * intentionally fail-closed: a sandbox name is not an ownership proof, so
+   * the provider must return an immutable allocation operation/key label.
+   */
+  async reconcileUnknown(conversationId: string, signal?: AbortSignal): Promise<AcquiredRuntime> {
+    const active = this.store.findActiveRuntimeLease(conversationId)
+    if (!active || active.status !== 'unknown') {
+      throw new Error(`Conversation runtime lease is not awaiting reconciliation (status=${active?.status ?? 'none'})`)
+    }
+    const candidates = (await this.client.listSandboxes(signal)).filter((sandbox) => allocationMatches(sandbox, active))
+    if (candidates.length === 0) {
+      throw new Error('Conversation runtime lease reconciliation found no provider sandbox with a matching allocation identity')
+    }
+    if (candidates.length > 1) {
+      throw new Error('Conversation runtime lease reconciliation found multiple provider sandboxes with the same allocation identity')
+    }
+    const sandbox = await this.client.getSandbox(candidates[0]!.id, signal)
+    const readyAt = this.timestampAfter(active.updatedAt)
+    const ready: RuntimeLeaseRecord = {
+      ...active,
+      providerSandboxId: sandbox.id,
+      status: 'ready',
+      updatedAt: readyAt,
+      readyAt,
+      lastError: null,
+    }
+    this.store.transitionRuntimeLease(active.id, fenceFor(active), ready)
+    return { lease: ready, sandbox, reused: true }
   }
 
   async release(conversationId: string): Promise<RuntimeLeaseRecord | undefined> {

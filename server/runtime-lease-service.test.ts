@@ -56,13 +56,52 @@ describe('RuntimeLeaseService', () => {
   it('fences an ambiguous create outcome and refuses a duplicate allocation', async () => {
     const { RuntimeLeaseService } = await import('./runtime-lease-service.js')
     const { store, task } = await setup()
-    const client = { createSandbox: vi.fn(async () => { throw new Error('provider timeout') }) } as unknown as OneComputerClient
+    const client = {
+      createSandbox: vi.fn(async () => { throw new Error('provider timeout') }),
+      listSandboxes: vi.fn(async () => []),
+    } as unknown as OneComputerClient
     const service = new RuntimeLeaseService(store, client)
 
     await expect(service.acquire(task.id)).rejects.toThrow('provider timeout')
-    await expect(service.acquire(task.id)).rejects.toThrow('requires reconciliation (status=unknown)')
+    await expect(service.acquire(task.id)).rejects.toThrow('found no provider sandbox with a matching allocation identity')
     expect(client.createSandbox).toHaveBeenCalledTimes(1)
     expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'unknown', lastError: { code: 'ALLOCATION_OUTCOME_UNKNOWN' } })
+  })
+
+  it('reconciles an ambiguous allocation only with a provider allocation identity', async () => {
+    const { RuntimeLeaseService } = await import('./runtime-lease-service.js')
+    const { store, task } = await setup()
+    const client = {
+      createSandbox: vi.fn(async () => { throw new Error('provider timeout') }),
+      listSandboxes: vi.fn(async () => [{ id: 'sandbox-recovered', allocationIdempotencyKey: 'placeholder' }]),
+      getSandbox: vi.fn(async () => ({ id: 'sandbox-recovered', state: 'started' })),
+    } as unknown as OneComputerClient
+    const service = new RuntimeLeaseService(store, client)
+
+    await expect(service.acquire(task.id)).rejects.toThrow('provider timeout')
+    const unknown = store.findActiveRuntimeLease(task.id)!
+    vi.mocked(client.listSandboxes).mockResolvedValue([{ id: 'sandbox-recovered', allocationIdempotencyKey: unknown.allocationIdempotencyKey }])
+
+    const recovered = await service.reconcileUnknown(task.id)
+
+    expect(recovered).toMatchObject({ reused: true, sandbox: { id: 'sandbox-recovered' }, lease: { status: 'ready', providerSandboxId: 'sandbox-recovered', lastError: null } })
+    expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-recovered' })
+    expect(client.createSandbox).toHaveBeenCalledTimes(1)
+    expect(client.getSandbox).toHaveBeenCalledWith('sandbox-recovered', undefined)
+  })
+
+  it('refuses to guess when a provider does not return allocation identity', async () => {
+    const { RuntimeLeaseService } = await import('./runtime-lease-service.js')
+    const { store, task } = await setup()
+    const client = {
+      createSandbox: vi.fn(async () => { throw new Error('provider timeout') }),
+      listSandboxes: vi.fn(async () => [{ id: 'sandbox-unlabeled', name: `onevibe-${task.id.slice(-8)}` }]),
+    } as unknown as OneComputerClient
+    const service = new RuntimeLeaseService(store, client)
+
+    await expect(service.acquire(task.id)).rejects.toThrow('provider timeout')
+    await expect(service.reconcileUnknown(task.id)).rejects.toThrow('found no provider sandbox with a matching allocation identity')
+    expect(client.createSandbox).toHaveBeenCalledTimes(1)
   })
 
   it('releases explicitly and permits a fenced next generation', async () => {

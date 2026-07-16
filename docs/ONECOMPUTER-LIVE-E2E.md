@@ -68,6 +68,10 @@ The attempt also found that the client propagated the provider's HTML error body
 
 ## Blocking gap: asynchronous provisioning lifecycle
 
+### Consumer-side recovery contract — 2026-07-16
+
+ONEVibe now sends the durable lease's `Idempotency-Key` and `X-Allocation-Operation-Id` on sandbox creation and exposes an authenticated `GET /v1/sandboxes` client path for reconciliation. If creation times out, the lease remains `unknown`; a later acquire/list operation adopts a sandbox only when the provider returns the exact allocation key or operation ID in its typed metadata. Matching by generated sandbox name is deliberately forbidden, and no blind retry is made. This closes the consumer-side safety seam but does not claim provider support: the ONEComputer API must persist the key/operation before dispatch, replay the same request, and return those labels in list/get responses before automatic recovery can pass production acceptance.
+
 This is an integration blocker, not a reason to weaken the ONEVibe boundary:
 
 1. **Provider API:** create/persist the sandbox identity before optional desktop/Claude bootstrap, then return a stable `provisioning` state immediately.

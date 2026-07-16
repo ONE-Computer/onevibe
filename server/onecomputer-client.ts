@@ -5,6 +5,14 @@ export type OneComputerSandbox = {
   provider?: string
   bootstrapped?: boolean
   desktopReady?: boolean
+  allocationOperationId?: string
+  allocationIdempotencyKey?: string
+  metadata?: Record<string, string>
+}
+
+export type OneComputerSandboxAllocation = {
+  allocationOperationId: string
+  allocationIdempotencyKey: string
 }
 
 export type OneComputerClientOptions = {
@@ -36,10 +44,14 @@ export class OneComputerClient {
     this.fetcher = options.fetcher ?? fetch
   }
 
-  async createSandbox(name: string, signal?: AbortSignal): Promise<OneComputerSandbox> {
+  async createSandbox(name: string, allocation?: OneComputerSandboxAllocation, signal?: AbortSignal): Promise<OneComputerSandbox> {
     return this.request<OneComputerSandbox>('/v1/sandboxes', {
       method: 'POST',
       body: JSON.stringify({ name }),
+      headers: allocation ? {
+        'Idempotency-Key': allocation.allocationIdempotencyKey,
+        'X-Allocation-Operation-Id': allocation.allocationOperationId,
+      } : undefined,
       signal,
     })
   }
@@ -59,6 +71,10 @@ export class OneComputerClient {
     return this.request<OneComputerSandbox>(`/v1/sandboxes/${encodeURIComponent(id)}`, {
       signal: signal ? AbortSignal.any([signal, pollTimeout]) : pollTimeout,
     })
+  }
+
+  async listSandboxes(signal?: AbortSignal): Promise<OneComputerSandbox[]> {
+    return this.request<OneComputerSandbox[]>('/v1/sandboxes', { signal })
   }
 
   async triggerGovernedAction(id: string): Promise<{ approvalId: string; status: string }> {

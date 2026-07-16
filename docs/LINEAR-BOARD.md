@@ -30,11 +30,19 @@ The current release gate is [ONE-215](https://linear.app/onecomputer/issue/ONE-2
 10. `ONE-225` — make ONEComputer allocation idempotent and provider operations recoverable; blocks safe lease creation.
 11. `ONE-226` — integrate and attest a real microVM boundary without host Docker-socket exposure; blocks the final production gate.
 
+## Status snapshot — 2026-07-16
+
+The board currently contains 15 scoped issues: 2 Done, 6 In Progress, and 7 Backlog. That is **13% strict ticket completion** (2/15), or **33% weighted delivery progress** when an In Progress ticket counts as half (2 + 6×0.5 = 5/15). The broader 102-row parity ledger is 42 Implemented, 56 Partial, and 4 Missing: **41% strict implementation** and **69% weighted implementation** (Implemented + half of Partial). These are different denominators: the first measures Linear deliverables; the second measures feature breadth.
+
+The backend is ahead of the board's raw status: ONE-216 through ONE-220 have substantial local slices, and ONE-220 is marked Done from real artifact evidence. ONE-221 remains intentionally open despite earlier partial live evidence because the single complete restart/failure-injection/two-conversation/teardown acceptance run is not yet green. ONE-225 is now actively being advanced: ONEVibe sends allocation idempotency metadata and can fail-closed reconcile by provider-returned allocation identity, but the provider still needs to persist/return an operation receipt and make the same key replayable. ONE-226 and ONE-227 remain genuine production gates.
+
+No mandatory Linear ticket is missing from the current POC chain. The apparent gaps are acceptance work inside existing tickets, not new epics: provider-side idempotent operation support belongs to ONE-225; the final real-provider scenario belongs to ONE-221; durable SSE/native projection remains in ONE-219; sandbox isolation and secret injection remain in ONE-226/ONE-227. Do not create duplicate tickets until the provider contract is promoted and the next E2E run identifies a distinct missing deliverable.
+
 ## Product invariant
 
 The correctness-first model is **one durable conversation → one microVM lease**. Follow-up turns reuse the same lease, workspace, and Claude session; different conversations must never share a lease. Pooling, snapshots, and warm reuse are deferred until the real-provider E2E proves isolation, restart recovery, artifact extraction, cancellation, and teardown.
 
-Current ONEComputer Kasm/Daytona adapters are development sandbox providers, not yet accepted microVM evidence. In particular, the Kasm implementation adds `NET_ADMIN` and mounts the host Docker socket. `ONE-226` owns the replacement/attestation gate. `ONE-225` owns the missing idempotent allocation-operation API required to recover safely when provider creation times out after remote acceptance.
+Current ONEComputer Kasm/Daytona adapters are development sandbox providers, not yet accepted microVM evidence. In particular, the Kasm implementation adds `NET_ADMIN` and mounts the host Docker socket. `ONE-226` owns the replacement/attestation gate. `ONE-225` owns the provider-side idempotent allocation-operation API required to recover safely when provider creation times out after remote acceptance; ONEVibe now has the consuming client seam and fail-closed reconciler, but that does not substitute for provider persistence.
 
 Neither platform enhancement blocks the immediate POC. The POC may use the current provider to prove one conversation reuses one development sandbox across turns, another conversation receives a different sandbox, Claude runs there through LiteLLM, history survives reload, and PPTX/PDF artifacts originate inside and extract from that sandbox. The evidence and UI must say `development sandbox`; production microVM/isolation claims remain blocked by `ONE-226`, and create-timeout ambiguity remains an explicit `ONE-225` limitation.
 
