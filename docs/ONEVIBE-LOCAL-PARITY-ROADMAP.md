@@ -112,7 +112,7 @@ The next phase is deliberately split into small, independently reviewable slices
 
 | Priority | Slice | Proposed owner | Write scope | Exit evidence |
 |---|---|---|---|---|
-| P0 | Local golden flow: create task → stream → terminal artifact → follow-up → reload → server-side search/open | next backend worker | `scripts/onevibe-golden-e2e.ts`, `package.json`, one focused doc section | clean temporary-data run, two durable turns, suffix-safe SSE/reload proof, unique task identity, searchable transcript |
+| P0 | Local golden flow: create task → stream → terminal artifact → follow-up → reload → server-side search/open | main agent (worker handoff remains possible) | `scripts/onevibe-golden-e2e.ts`, `package.json`, focused docs | passed with `task_b6b320da756747` + `task_e81422d4ca1541`: two durable turns, live/replay SSE, restart recovery, searchable transcript, distinct task identity |
 | P1 | Document round-trip: source Markdown → preview/PDF → edit → restore | creation worker | document writer/preview module and focused tests only | source-derived preview hash changes, PDF exists, restore returns prior source/preview |
 | P1 | Data story parser/lineage: quoted CSV → table/filter/chart metadata | data worker | data parser/writer and focused tests only | quoted fields preserved, malformed input fails clearly, one parsed dataset feeds all views |
 | P1 | Website review: local build + desktop/390px preview + validation evidence | web-output worker | website mode writer/validation tests only | build failure is terminal, successful build has preview and responsive/a11y evidence |

@@ -8,6 +8,14 @@
 - Worker protocol remains strict: one disjoint write scope, explicit acceptance evidence, no shared-contract changes without main-agent review, no secrets, and no Linear Done transitions by sub-agents.
 - The agent pool is currently saturated by earlier threads, so redundant delegation was refused; completed worker reports were recovered and incorporated into the roadmap. The next worker will be spawned only when capacity is available.
 
+## 2026-07-16 — local golden flow implemented and passed
+
+- Added `scripts/onevibe-golden-e2e.ts` and `npm run e2e:golden`. The harness starts a temporary isolated API/data root, passes only the server-side LiteLLM route configuration, and never prints credentials.
+- Passing run: primary task `task_b6b320da756747`, separate task `task_e81422d4ca1541`. The primary completed two Claude SDK/LiteLLM turns, emitted 5 live SSE frames and 75 suffix-only replay frames, retained a session identity, preserved `README.md`, verified the evidence chain, survived API restart, and was found through task/global/conversation search. The separate task received a distinct task identity and workspace contract.
+- The first attempt exposed a real environment mismatch: the handover file's raw model alias was rejected by the local router (`claude-sonnet-4-5`). The passing run explicitly used the documented compatible `claude-sonnet-5` alias. This is recorded as provider configuration evidence, not hidden in the harness.
+- Boundary: this is host-process local proof through the protected LiteLLM route. It makes no ONEComputer, microVM, OpenVTC, wallet, or production egress claim.
+- Verification: focused lint/typecheck passed; the full `npm run check` is the final integration gate for this commit.
+
 ## 2026-07-16 — local-first Manus parity pivot and activity rail
 
 - Re-scoped the active release gate to ONE-230: local ONEVibe reliability and Manus parity. Azure, ONEComputer, OpenVTC/VTI, and attested microVM work remain tracked but are explicitly deferred until the local gate is green.

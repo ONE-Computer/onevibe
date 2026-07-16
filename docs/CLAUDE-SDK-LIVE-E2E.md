@@ -75,3 +75,24 @@ This is a stronger local provider proof than the prior unit-only state, but it
 still uses the governed host workspace boundary (`executionBoundary=host_process`).
 It does not close the ONEComputer sandbox/microVM, gateway-attestation, or
 Azure promotion gates tracked by ONE-217, ONE-221, ONE-225, and ONE-226.
+
+## Local golden flow — 2026-07-16
+
+`npm run e2e:golden` now owns the repeatable local release flow. It starts a
+temporary API/data root, creates a real Claude/LiteLLM task, observes live SSE,
+continues the same conversation, verifies the artifact/evidence contract,
+replays SSE from `Last-Event-ID`, restarts the API, and proves task/global/
+conversation search after recovery. It also creates a separate demo task to
+verify distinct task/workspace identity without spending a second provider
+turn.
+
+The passing run used model alias `claude-sonnet-5` against the protected local
+router: primary task `task_b6b320da756747`, separate task
+`task_e81422d4ca1541`, 2 durable turns, 5 live frames, 75 suffix-only replay
+frames, session identity, valid evidence, restart recovery, and search recovery.
+The handover file's raw `LITELLM_MODEL` value (`claude-sonnet-4-5`) was rejected
+by the router and is not a valid alias for this gate; callers must set the
+compatible alias explicitly.
+
+This remains host-process evidence only. It does not prove ONEComputer,
+microVM, OpenVTC/VTI Wallet, gateway attestation, or production egress.

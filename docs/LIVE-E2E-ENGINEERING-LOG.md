@@ -198,3 +198,9 @@ The real-provider cancellation harness allocated sandbox `onevibe-32279349` for 
   deployment evidence: the Azure VM still needs an authorized Gitea promotion,
   temporary development-only test flags, a passing recovery harness, and
   explicit flag removal afterward.
+# 2026-07-16 — local golden flow
+
+- Added and ran `npm run e2e:golden` against an isolated temporary ONEVibe API/data root.
+- Passing result: primary `task_b6b320da756747` and separate `task_e81422d4ca1541`; Claude SDK routed through LiteLLM with explicit model alias `claude-sonnet-5`, two durable turns, 5 live SSE frames, 75 suffix-only replay frames, valid evidence, API restart recovery, and task/global/conversation search recovery.
+- The first configuration attempt used the handover file's raw `LITELLM_MODEL` (`claude-sonnet-4-5`) and failed with the router's model validation error. No credential values or raw provider bodies were retained.
+- Boundary: host-process local proof; no ONEComputer, microVM, OpenVTC/VTI Wallet, gateway-attestation, or production egress claim.
