@@ -807,6 +807,13 @@ export class TaskStore {
     })
   }
 
+  getRetry(taskId: string, idempotencyKey: string): { state: 'pending' | 'completed'; response?: Record<string, unknown> } | undefined {
+    this.getTask(taskId)
+    const record = this.requireUnitOfWork().run((repositories) => repositories.idempotency.find(`retry:${taskId}`, idempotencyKey))
+    if (!record) return undefined
+    return { state: record.state, ...(record.responseJson ? { response: JSON.parse(record.responseJson) as Record<string, unknown> } : {}) }
+  }
+
   async completeRetry(taskId: string, idempotencyKey: string, response: Record<string, unknown>) {
     const scope = `retry:${taskId}`
     this.requireUnitOfWork().run((repositories) => repositories.idempotency.complete(scope, idempotencyKey, JSON.stringify(response), new Date().toISOString()))

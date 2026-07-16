@@ -266,6 +266,7 @@ describe('TaskStore', () => {
 
     await expect(store.claimRetry(task.id, 'retry-key-1', 'Retry prompt')).resolves.toMatchObject({ claimed: true, state: 'pending' })
     await store.completeRetry(task.id, 'retry-key-1', { status: 'queued', taskId: task.id, retryKey: 'retry-key-1' })
+    expect(store.getRetry(task.id, 'retry-key-1')).toEqual({ state: 'completed', response: { status: 'queued', taskId: task.id, retryKey: 'retry-key-1' } })
     await expect(store.claimRetry(task.id, 'retry-key-1', 'Retry prompt')).resolves.toEqual({
       claimed: false, state: 'completed', response: { status: 'queued', taskId: task.id, retryKey: 'retry-key-1' },
     })
