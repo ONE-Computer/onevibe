@@ -47,7 +47,7 @@ The abstraction that enforces this: `server/runtime-adapter.ts` — the `Runtime
 ### What is critically broken
 
 1. **No governed runtime configured** — the local fallback is explicitly labelled Simulation and makes no model call; when the protected LiteLLM route is configured, the registry selects a compatible governed runtime instead
-2. **No auth** — `"Terence"` is hardcoded in `Sidebar.tsx:174`; all tasks are global
+2. **Auth is feature-gated** — Better Auth Email OTP, session middleware, login UI, and local user ownership are implemented, but production enablement remains blocked on Postgres/org scope and full route acceptance
 3. **No Postgres/multi-user persistence** — the current store is SQLite and intentionally local-first; Postgres/Drizzle and user scoping remain Phase 4 work
 4. **No managed deploy path** — a non-root Docker image and local Compose smoke path now exist, but Railway/Fly configuration, secrets, auth, and production operations remain open
 5. **No production sandbox attestation** — local host and development-provider paths must not be described as microVM isolation or default-deny egress
@@ -71,7 +71,7 @@ Do not configure a direct Anthropic API key as a substitute for the relay. Local
 ```bash
 npm run check
 # = oxlint src server scripts
-# + vitest run (227 tests at this handover update)
+# + vitest run (229 tests at this handover update)
 # + tsc -b
 # + tsc -p tsconfig.server.json
 # + vite build

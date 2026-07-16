@@ -7,8 +7,8 @@ export type PresentationDescriptor = { panel: PresentationPanel; uri?: string; a
 
 export type ProjectFile = { name: string; path: string; size: number; mimeType: string; createdAt: string }
 export type ProjectFileVersion = { id: string; path: string; createdAt: string; size: number; contentHash: string }
-export type Project = { id: string; name: string; context: string; files: ProjectFile[]; fileVersions?: Record<string, ProjectFileVersion[]>; createdAt: string; updatedAt: string }
-export type TaskSchedule = { id: string; name: string; prompt: string; provider: Task['provider']; mode: TaskMode; projectId: string; intervalMinutes: number; enabled: boolean; nextRunAt: string; lastRunAt?: string; createdAt: string; updatedAt: string }
+export type Project = { id: string; ownerUserId?: string; name: string; context: string; files: ProjectFile[]; fileVersions?: Record<string, ProjectFileVersion[]>; createdAt: string; updatedAt: string }
+export type TaskSchedule = { id: string; ownerUserId?: string; name: string; prompt: string; provider: Task['provider']; mode: TaskMode; projectId: string; intervalMinutes: number; enabled: boolean; nextRunAt: string; lastRunAt?: string; createdAt: string; updatedAt: string }
 export type EventLane = 'transcript' | 'activity' | 'control' | 'artifact' | 'approval'
 
 export type RuntimeEvent = {
@@ -52,6 +52,7 @@ export type ConversationSummary = {
 
 export type Task = {
   id: string
+  ownerUserId?: string
   title: string
   prompt: string
   provider: 'demo' | 'claude_sdk' | 'codex' | 'agentcore' | 'onecomputer' | 'remote'
@@ -103,4 +104,4 @@ export type RuntimeProviderState = { id: Task['provider']; label: string; bounda
 export type RuntimeSuggestion = { id: Task['provider']; score: number; available: boolean; compatible: boolean; reason: string; capabilities: RuntimeCapability[] }
 export type RuntimeReadiness = { providers: RuntimeProviderState[]; defaultProvider?: Task['provider']; suggestions?: Partial<Record<TaskMode, RuntimeSuggestion[]>> }
 export type RuntimeHealth = { status: 'online' | 'offline' | 'not_configured' | 'unknown'; latencyMs?: number; detail: string }
-export type RuntimeMcpConfig = { id: string; name: string; command: string; args: string[]; createdAt: string; updatedAt: string }
+export type RuntimeMcpConfig = { id: string; ownerUserId?: string; name: string; command: string; args: string[]; createdAt: string; updatedAt: string }

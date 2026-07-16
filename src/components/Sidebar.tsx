@@ -2,6 +2,7 @@ import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileText, FolderKanban, Game
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationSummary, Project, ProjectFileVersion, TaskMode } from '../types'
+import type { AuthUser } from '../lib/auth'
 import { getProjectFile, listConversations, listProjectFileVersions } from '../lib/api'
 import { providerLabel } from '../lib/runtime-labels'
 import { BrandMark } from './BrandMark'
@@ -30,6 +31,8 @@ type Props = {
   onOpenSchedules: () => void
   onOpenComputers: () => void
   skillCount: number
+  user?: AuthUser
+  onSignOut: () => Promise<void>
 }
 
 const conversationSourceLabel = (provider: ConversationSummary['provider']) => providerLabel(provider)
@@ -72,7 +75,7 @@ const bucketFor = (iso: string, now: number): 'Today' | 'Yesterday' | 'This week
   return 'Older'
 }
 
-export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, skillCount }: Props) => {
+export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, skillCount, user, onSignOut }: Props) => {
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
@@ -167,7 +170,7 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
       {!query && hasMoreConversations && <button type="button" className="load-more-conversations" disabled={loadingMoreConversations} onClick={() => void onLoadMoreConversations()}>{loadingMoreConversations ? 'Loading…' : 'Load older conversations'}</button>}
     </div>
     <div className="sidebar-footer">
-      <div className="user-row"><span className="avatar">TT</span><div><strong>Local operator</strong><span>Local workspace</span></div></div>
+      <div className="user-row"><span className="avatar">{(user?.name?.trim() || user?.email || 'LO').slice(0, 2).toUpperCase()}</span><div><strong>{user?.name?.trim() || user?.email || 'Local operator'}</strong><span>{user ? 'Authenticated workspace' : 'Local workspace'}</span></div>{user && <button type="button" className="sidebar-signout" onClick={() => void onSignOut()}>Sign out</button>}</div>
     </div>
   </aside>
   )

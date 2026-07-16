@@ -619,3 +619,11 @@ baseline harness in CI.
 - Email OTPs are stored hashed and are delivered only through the configured webhook. No development OTP logging or browser-returned OTP was added.
 - The protected data plane currently fails closed with `auth_ownership_not_ready` after session authentication because TaskStore owner/org scoping is not implemented. This is intentional: a login surface must not create the illusion of multi-user isolation over the current global local store.
 - Enabled-mode smoke: Better Auth schema startup succeeded; `/api/auth/session` returned `{enabled:true,session:null}`; `/api/tasks` returned HTTP 401 without a session. Unauthenticated local mode remains unchanged. This slice does not close P4-01/P4-02.
+
+# 2026-07-17 — authenticated local owner scope and login UX
+
+- Added server-derived `ownerUserId` to local task/project/schedule models and to MCP declarations (migration v7). Collection queries are owner-filtered; object access returns the same not-found shape for foreign IDs so identifiers are not disclosed.
+- Added owner propagation through task creation, fork/copy, scheduled runs, conversation search, Library, project knowledge/file revisions, schedules, MCP CRUD/injection, task SSE/routes, and wallet approval lookups. Legacy records without an owner remain inaccessible when auth is enabled.
+- Added the real Email OTP login page and session client. Authenticated users see their identity in the sidebar, can sign out, receive a private workspace bootstrap project, and do not see the prior hardcoded operator identity. Public share/readiness routes remain explicitly scoped exceptions.
+- Enabled-mode HTTP E2E with a test-only delivery webhook passed: owner A requested and verified OTP, created a task, owner B received a separate workspace and zero tasks, and owner B received HTTP 404 for owner A’s task. Unauthenticated `/api/tasks` returned 401; public `/api/runtime` remained available.
+- This closes a meaningful local P4-01/P4-06 slice but not the production phase: Better Auth/Postgres migration, org membership, legacy ownership import, production email delivery, and exhaustive route negative tests remain open. Model traffic remains LiteLLM-only.

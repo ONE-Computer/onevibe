@@ -206,12 +206,13 @@ export class TaskStore {
     await this.reconcileRestartedTasks()
   }
 
-  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = [], attachments: TaskAttachment[] = [], skills: TaskSkill[] = []): Promise<Task> {
-    if (!this.projects.has(projectId)) throw new Error('Project not found')
+  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = [], attachments: TaskAttachment[] = [], skills: TaskSkill[] = [], ownerUserId?: string): Promise<Task> {
+    this.getProject(projectId, ownerUserId)
     const now = new Date().toISOString()
     const id = `task_${randomUUID().replaceAll('-', '').slice(0, 14)}`
     const task: Task = {
       id,
+      ...(ownerUserId ? { ownerUserId } : {}),
       title: prompt.length > 56 ? `${prompt.slice(0, 53).trim()}…` : prompt,
       prompt,
       provider,
@@ -238,11 +239,11 @@ export class TaskStore {
     return task
   }
 
-  listTasks() {
-    return [...this.tasks.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  listTasks(ownerUserId?: string) {
+    return [...this.tasks.values()].filter((task) => ownerUserId === undefined || task.ownerUserId === ownerUserId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   }
 
-  listConversations(options: { cursor?: string; limit?: number; projectId?: string; query?: string } = {}) {
+  listConversations(options: { cursor?: string; limit?: number; projectId?: string; query?: string; ownerUserId?: string } = {}) {
     const limit = options.limit ?? 50
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new RangeError('Conversation page limit must be between 1 and 100')
     let after: { updatedAt: string; id: string } | undefined
@@ -258,6 +259,7 @@ export class TaskStore {
     const query = options.query?.trim().toLocaleLowerCase()
     if (query && (query.length < 2 || query.length > 200)) throw new RangeError('Conversation search must be between 2 and 200 characters')
     const summaries = [...this.tasks.values()].filter((task) => {
+      if (options.ownerUserId !== undefined && task.ownerUserId !== options.ownerUserId) return false
       if (options.projectId && task.projectId !== options.projectId) return false
       if (!query) return true
       return task.title.toLocaleLowerCase().includes(query) || (this.messages.get(task.id) ?? []).some((message) => message.content.toLocaleLowerCase().includes(query))
@@ -308,21 +310,22 @@ export class TaskStore {
     return this.database
   }
 
-  listMcpConfigs(): RuntimeMcpConfig[] {
-    return this.requireUnitOfWork().run((repositories) => repositories.mcpConfigs.list().map((record) => {
+  listMcpConfigs(ownerUserId?: string): RuntimeMcpConfig[] {
+    return this.requireUnitOfWork().run((repositories) => repositories.mcpConfigs.list(ownerUserId).map((record) => {
       let args: unknown
       try { args = JSON.parse(record.argsJson) } catch { args = [] }
       return {
         id: record.id, name: record.name, command: record.command,
+        ...(record.ownerUserId ? { ownerUserId: record.ownerUserId } : {}),
         args: Array.isArray(args) && args.every((arg) => typeof arg === 'string') ? args as string[] : [],
         createdAt: record.createdAt, updatedAt: record.updatedAt,
       }
     }))
   }
 
-  createMcpConfig(input: { name: string; command: string; args: string[] }): RuntimeMcpConfig {
+  createMcpConfig(input: { name: string; command: string; args: string[] }, ownerUserId?: string): RuntimeMcpConfig {
     const now = new Date().toISOString()
-    const record = { id: `mcp_${randomUUID().replaceAll('-', '').slice(0, 20)}`, name: input.name, command: input.command, argsJson: JSON.stringify(input.args), createdAt: now, updatedAt: now }
+    const record = { id: `mcp_${randomUUID().replaceAll('-', '').slice(0, 20)}`, ownerUserId: ownerUserId ?? null, name: input.name, command: input.command, argsJson: JSON.stringify(input.args), createdAt: now, updatedAt: now }
     this.requireUnitOfWork().run((repositories) => {
       repositories.mcpConfigs.insert(record)
       repositories.mcpConfigs.appendAudit({ id: `${record.id}:created`, configId: record.id, action: 'created', name: record.name, command: record.command, argsJson: record.argsJson, createdAt: now })
@@ -330,29 +333,29 @@ export class TaskStore {
     return { ...input, id: record.id, createdAt: now, updatedAt: now }
   }
 
-  deleteMcpConfig(id: string): boolean {
+  deleteMcpConfig(id: string, ownerUserId?: string): boolean {
     return this.requireUnitOfWork().run((repositories) => {
       const current = repositories.mcpConfigs.findById(id)
-      if (!current || !repositories.mcpConfigs.delete(id)) return false
+      if (!current || (ownerUserId !== undefined && current.ownerUserId !== ownerUserId) || !repositories.mcpConfigs.delete(id, ownerUserId)) return false
       repositories.mcpConfigs.appendAudit({ id: `${id}:deleted:${randomUUID()}`, configId: id, action: 'deleted', name: current.name, command: current.command, argsJson: current.argsJson, createdAt: new Date().toISOString() })
       return true
     })
   }
 
-  runtimeMcpConfigs(): McpConfig[] {
-    return this.listMcpConfigs().map((config) => ({ ...config, env: {} }))
+  runtimeMcpConfigs(ownerUserId?: string): McpConfig[] {
+    return this.listMcpConfigs(ownerUserId).map((config) => ({ ...config, env: {} }))
   }
 
-  async listLibrary() {
-    const completed = this.listTasks().filter((task) => task.status === 'completed' && !task.libraryHiddenAt)
+  async listLibrary(ownerUserId?: string) {
+    const completed = this.listTasks(ownerUserId).filter((task) => task.status === 'completed' && !task.libraryHiddenAt)
     return Promise.all(completed.map(async (task) => ({
       task,
       files: (await this.listWorkspaceFiles(task.id)).filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/') && !isInternalWorkspacePath(file.path)),
     })))
   }
 
-  async hideLibraryItem(taskId: string) {
-    const task = this.getTask(taskId)
+  async hideLibraryItem(taskId: string, ownerUserId?: string) {
+    const task = this.getTask(taskId, ownerUserId)
     if (task.status !== 'completed') throw new Error('Only completed tasks can be removed from the Library')
     if (task.libraryHiddenAt) return task
     const hiddenAt = new Date().toISOString()
@@ -365,32 +368,32 @@ export class TaskStore {
     return this.getTask(taskId)
   }
 
-  listProjects() { return [...this.projects.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }
+  listProjects(ownerUserId?: string) { return [...this.projects.values()].filter((project) => ownerUserId === undefined || project.ownerUserId === ownerUserId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }
 
-  getProject(id: string) {
+  getProject(id: string, ownerUserId?: string) {
     const project = this.projects.get(id)
-    if (!project) throw new Error('Project not found')
+    if (!project || (ownerUserId !== undefined && project.ownerUserId !== ownerUserId)) throw new Error('Project not found')
     return project
   }
 
-  async createProject(name: string, context = ''): Promise<Project> {
+  async createProject(name: string, context = '', ownerUserId?: string): Promise<Project> {
     const now = new Date().toISOString()
-    const project = { id: `project_${randomUUID().replaceAll('-', '').slice(0, 12)}`, name, context, files: [], createdAt: now, updatedAt: now }
+    const project = { id: `project_${randomUUID().replaceAll('-', '').slice(0, 12)}`, ...(ownerUserId ? { ownerUserId } : {}), name, context, files: [], createdAt: now, updatedAt: now }
     this.projects.set(project.id, project)
     await this.persistProjects()
     return project
   }
 
-  async updateProjectContext(projectId: string, context: string) {
-    const project = this.getProject(projectId)
+  async updateProjectContext(projectId: string, context: string, ownerUserId?: string) {
+    const project = this.getProject(projectId, ownerUserId)
     const updated = { ...project, context, updatedAt: new Date().toISOString() }
     this.projects.set(projectId, updated)
     await this.persistProjects()
     return updated
   }
 
-  async addProjectFile(projectId: string, input: { name: string; mimeType: string; bytes: Buffer }) {
-    const project = this.getProject(projectId)
+  async addProjectFile(projectId: string, input: { name: string; mimeType: string; bytes: Buffer }, ownerUserId?: string) {
+    const project = this.getProject(projectId, ownerUserId)
     if (project.files.length >= 12) throw new Error('A project can contain at most 12 knowledge files')
     const name = path.basename(input.name).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
     if (!name || name === '.' || name === '..') throw new Error('Invalid project file name')
@@ -408,8 +411,8 @@ export class TaskStore {
     return updated
   }
 
-  async removeProjectFile(projectId: string, filePath: string) {
-    const project = this.getProject(projectId)
+  async removeProjectFile(projectId: string, filePath: string, ownerUserId?: string) {
+    const project = this.getProject(projectId, ownerUserId)
     const file = project.files.find((candidate) => candidate.path === filePath)
     if (!file) throw new Error('Project knowledge file not found')
     const root = path.join(this.projectsRoot, projectId)
@@ -425,8 +428,8 @@ export class TaskStore {
     return updated
   }
 
-  async readProjectFile(projectId: string, filePath: string) {
-    const project = this.getProject(projectId)
+  async readProjectFile(projectId: string, filePath: string, ownerUserId?: string) {
+    const project = this.getProject(projectId, ownerUserId)
     const file = project.files.find((candidate) => candidate.path === filePath)
     if (!file) throw new Error('Project knowledge file not found')
     if (!isEditableProjectFile(file)) throw new Error('Only text-like project knowledge files can be edited')
@@ -437,10 +440,10 @@ export class TaskStore {
     return { path: file.path, content, contentHash: createHash('sha256').update(content).digest('hex') }
   }
 
-  async updateProjectFile(projectId: string, filePath: string, content: string, expectedHash: string) {
-    const current = await this.readProjectFile(projectId, filePath)
+  async updateProjectFile(projectId: string, filePath: string, content: string, expectedHash: string, ownerUserId?: string) {
+    const current = await this.readProjectFile(projectId, filePath, ownerUserId)
     if (current.contentHash !== expectedHash) throw new Error('Project knowledge changed; reload before saving')
-    const project = this.getProject(projectId)
+    const project = this.getProject(projectId, ownerUserId)
     const file = project.files.find((candidate) => candidate.path === filePath)
     if (!file) throw new Error('Project knowledge file not found')
     const root = path.join(this.projectsRoot, projectId)
@@ -463,27 +466,27 @@ export class TaskStore {
     return { project: updated, path: filePath, content, contentHash: createHash('sha256').update(content).digest('hex') }
   }
 
-  listProjectFileVersions(projectId: string, filePath: string) {
-    const project = this.getProject(projectId)
+  listProjectFileVersions(projectId: string, filePath: string, ownerUserId?: string) {
+    const project = this.getProject(projectId, ownerUserId)
     const file = project.files.find((candidate) => candidate.path === filePath)
     if (!file) throw new Error('Project knowledge file not found')
     if (!isEditableProjectFile(file)) throw new Error('Only text-like project knowledge files have revisions')
     return project.fileVersions?.[filePath] ?? []
   }
 
-  async restoreProjectFileVersion(projectId: string, filePath: string, versionId: string, expectedHash: string) {
-    const project = this.getProject(projectId)
-    const version = this.listProjectFileVersions(projectId, filePath).find((candidate) => candidate.id === versionId)
+  async restoreProjectFileVersion(projectId: string, filePath: string, versionId: string, expectedHash: string, ownerUserId?: string) {
+    const project = this.getProject(projectId, ownerUserId)
+    const version = this.listProjectFileVersions(projectId, filePath, ownerUserId).find((candidate) => candidate.id === versionId)
     if (!version) throw new Error('Project knowledge revision not found')
     const root = path.join(this.projectsRoot, project.id)
     const source = projectVersionPath(root, filePath, version.id)
     assertWithin(root, source)
     const content = await readFile(source, 'utf8')
-    return this.updateProjectFile(projectId, filePath, content, expectedHash)
+    return this.updateProjectFile(projectId, filePath, content, expectedHash, ownerUserId)
   }
 
-  async projectContextFiles(projectId: string) {
-    const project = this.getProject(projectId)
+  async projectContextFiles(projectId: string, ownerUserId?: string) {
+    const project = this.getProject(projectId, ownerUserId)
     const chunks: string[] = []
     let remaining = 12_000
     for (const file of project.files) {
@@ -499,36 +502,37 @@ export class TaskStore {
     return chunks
   }
 
-  listSchedules() { return [...this.schedules.values()].sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt)) }
+  listSchedules(ownerUserId?: string) { return [...this.schedules.values()].filter((schedule) => ownerUserId === undefined || schedule.ownerUserId === ownerUserId).sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt)) }
 
-  async createSchedule(input: Pick<TaskSchedule, 'name' | 'prompt' | 'provider' | 'mode' | 'projectId' | 'intervalMinutes'>): Promise<TaskSchedule> {
-    if (!this.projects.has(input.projectId)) throw new Error('Project not found')
+  async createSchedule(input: Pick<TaskSchedule, 'name' | 'prompt' | 'provider' | 'mode' | 'projectId' | 'intervalMinutes'>, ownerUserId?: string): Promise<TaskSchedule> {
+    this.getProject(input.projectId, ownerUserId)
     const now = new Date().toISOString()
-    const schedule: TaskSchedule = { id: `schedule_${randomUUID().replaceAll('-', '').slice(0, 12)}`, ...input, enabled: true, nextRunAt: new Date(Date.now() + input.intervalMinutes * 60_000).toISOString(), createdAt: now, updatedAt: now }
+    const schedule: TaskSchedule = { id: `schedule_${randomUUID().replaceAll('-', '').slice(0, 12)}`, ...(ownerUserId ? { ownerUserId } : {}), ...input, enabled: true, nextRunAt: new Date(Date.now() + input.intervalMinutes * 60_000).toISOString(), createdAt: now, updatedAt: now }
     this.schedules.set(schedule.id, schedule)
     await this.persistSchedules()
     return schedule
   }
 
-  async setScheduleEnabled(id: string, enabled: boolean) {
+  async setScheduleEnabled(id: string, enabled: boolean, ownerUserId?: string) {
     const current = this.schedules.get(id)
-    if (!current) throw new Error('Schedule not found')
+    if (!current || (ownerUserId !== undefined && current.ownerUserId !== ownerUserId)) throw new Error('Schedule not found')
     const updated = { ...current, enabled, updatedAt: new Date().toISOString(), ...(enabled && current.nextRunAt < new Date().toISOString() ? { nextRunAt: new Date().toISOString() } : {}) }
     this.schedules.set(id, updated)
     await this.persistSchedules()
     return updated
   }
 
-  async deleteSchedule(id: string) {
-    if (!this.schedules.has(id)) throw new Error('Schedule not found')
+  async deleteSchedule(id: string, ownerUserId?: string) {
+    const current = this.schedules.get(id)
+    if (!current || (ownerUserId !== undefined && current.ownerUserId !== ownerUserId)) throw new Error('Schedule not found')
     this.schedules.delete(id)
     await this.persistSchedules()
     return { id, deleted: true as const }
   }
 
-  async claimScheduleNow(id: string, now = new Date()) {
+  async claimScheduleNow(id: string, now = new Date(), ownerUserId?: string) {
     const schedule = this.schedules.get(id)
-    if (!schedule) throw new Error('Schedule not found')
+    if (!schedule || (ownerUserId !== undefined && schedule.ownerUserId !== ownerUserId)) throw new Error('Schedule not found')
     if (!schedule.enabled) throw new Error('Schedule is paused')
     const updated = { ...schedule, lastRunAt: now.toISOString(), nextRunAt: new Date(now.getTime() + schedule.intervalMinutes * 60_000).toISOString(), updatedAt: now.toISOString() }
     this.schedules.set(id, updated)
@@ -546,14 +550,18 @@ export class TaskStore {
     return due
   }
 
-  getTask(id: string) {
+  getTask(id: string, ownerUserId?: string) {
     const task = this.tasks.get(id)
-    if (!task) throw new Error('Task not found')
+    if (!task || (ownerUserId !== undefined && task.ownerUserId !== ownerUserId)) throw new Error('Task not found')
     return task
   }
 
-  findTaskByApproval(approvalId: string) {
-    const task = [...this.tasks.values()].find((candidate) => candidate.approval?.id === approvalId)
+  assertTaskOwner(id: string, ownerUserId: string) {
+    return this.getTask(id, ownerUserId)
+  }
+
+  findTaskByApproval(approvalId: string, ownerUserId?: string) {
+    const task = this.listTasks(ownerUserId).find((candidate) => candidate.approval?.id === approvalId)
     if (!task) throw new Error('Approval not found')
     return task
   }
@@ -564,9 +572,9 @@ export class TaskStore {
     return task
   }
 
-  async reconcileExpiredApprovals(now = Date.now()) {
+  async reconcileExpiredApprovals(ownerUserId?: string, now = Date.now()) {
     const expired: string[] = []
-    for (const candidate of this.listTasks()) {
+    for (const candidate of this.listTasks(ownerUserId)) {
       const approval = candidate.approval
       if (!approval || approval.state !== 'pending' || !Number.isFinite(Date.parse(approval.expiresAt)) || Date.parse(approval.expiresAt) > now) continue
       // Re-read after prior awaits so concurrent review requests cannot append
@@ -886,11 +894,11 @@ export class TaskStore {
     this.requireUnitOfWork().run((repositories) => repositories.idempotency.complete(scope, idempotencyKey, JSON.stringify(response), new Date().toISOString()))
   }
 
-  searchMessages(query: string, limit = 50) {
+  searchMessages(query: string, limit = 50, ownerUserId?: string) {
     const normalized = query.trim().toLocaleLowerCase()
     if (!normalized) return []
     const results: Array<{ task: Task; message: ChatMessage }> = []
-    for (const task of this.tasks.values()) {
+    for (const task of this.listTasks(ownerUserId)) {
       const messages = this.readMessages(task)
       for (const message of messages) if (message.content.toLocaleLowerCase().includes(normalized)) results.push({ task, message })
     }
@@ -1066,7 +1074,7 @@ export class TaskStore {
     if (boundary < 0) throw new Error('The selected message is not part of this conversation')
     if (sourceMessages[boundary]?.role !== 'user') throw new Error('Conversation branches must start from a user message')
 
-    const fork = await this.createTask(newPrompt, source.provider, source.mode, source.projectId, undefined, source.references, source.attachments, source.skills)
+    const fork = await this.createTask(newPrompt, source.provider, source.mode, source.projectId, undefined, source.references, source.attachments, source.skills, source.ownerUserId)
     const forkedAt = new Date().toISOString()
     await this.updateTask(fork.id, { parentTaskId: source.id, forkedFromMessageId: fromMessageId, forkedAt })
     await this.copyWorkspace(source.id, fork.id)

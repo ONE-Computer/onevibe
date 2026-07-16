@@ -12,6 +12,29 @@ afterEach(async () => {
 })
 
 describe('TaskStore', () => {
+  it('enforces owner scope for local tasks, projects, schedules, and MCP declarations', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-owner-scope-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const projectA = await store.createProject('A private workspace', '', 'user-a')
+    const projectB = await store.createProject('B private workspace', '', 'user-b')
+    const taskA = await store.createTask('A task', 'demo', 'chat', projectA.id, undefined, [], [], [], 'user-a')
+    const taskB = await store.createTask('B task', 'demo', 'chat', projectB.id, undefined, [], [], [], 'user-b')
+    await store.createSchedule({ name: 'A schedule', prompt: 'A prompt', provider: 'demo', mode: 'chat', projectId: projectA.id, intervalMinutes: 15 }, 'user-a')
+    store.createMcpConfig({ name: 'A tools', command: 'npx', args: [] }, 'user-a')
+    store.createMcpConfig({ name: 'B tools', command: 'npx', args: [] }, 'user-b')
+
+    expect(store.listTasks('user-a').map((task) => task.id)).toEqual([taskA.id])
+    expect(store.listProjects('user-a').map((project) => project.id)).toEqual([projectA.id])
+    expect(store.listSchedules('user-a')).toHaveLength(1)
+    expect(store.listMcpConfigs('user-a').map((config) => config.name)).toEqual(['A tools'])
+    expect(store.listConversations({ ownerUserId: 'user-a' }).conversations.map((conversation) => conversation.id)).toEqual([taskA.id])
+    expect(() => store.getTask(taskB.id, 'user-a')).toThrow('Task not found')
+    expect(() => store.getProject(projectB.id, 'user-a')).toThrow('Project not found')
+  })
+
   it('persists governed MCP declarations without accepting secret material', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-mcp-config-'))
     temporaryRoots.push(root)

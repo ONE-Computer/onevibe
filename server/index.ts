@@ -143,7 +143,7 @@ const createTaskInput = z.object({
   prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote']).optional(),
   mode: z.enum(['chat', 'general', 'website', 'slides', 'document', 'research', 'data', 'design', 'app', 'game']).default('chat'),
-  projectId: z.string().regex(/^project_[a-z0-9]+$/).default('project_onevibe'),
+  projectId: z.string().regex(/^project_[a-z0-9]+$/).optional(),
   references: z.array(referenceUrl).max(8).default([]),
   attachments: z.array(taskAttachment).max(4).default([]),
   skills: z.array(taskSkill).max(4).default([]),
@@ -248,7 +248,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       content: `${turnAttachments.length} file${turnAttachments.length === 1 ? '' : 's'} staged under inputs/ for this turn.`,
       payload: { kind: 'task_input', attachmentCount: turnAttachments.length, files: turnAttachments.map(({ name, path, size, mimeType }) => ({ name, path, size, mimeType })) },
     })
-    const mcpConfigs = adapter.capabilities.includes('tool_use') ? store.runtimeMcpConfigs() : []
+    const mcpConfigs = adapter.capabilities.includes('tool_use') ? store.runtimeMcpConfigs(task.ownerUserId) : []
     await adapter.initialize(store.getTask(task.id), store.workspacePath(task.id), mcpConfigs)
     activeAdapters.set(task.id, adapter)
     try {
@@ -359,13 +359,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       authEnabled: Boolean(authService?.isEnabled),
     })
   }
-  if (authService?.isEnabled) {
-    const session = await authService.getSession(request)
-    if (!session) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
-    // Ownership columns are not wired into TaskStore yet. Fail closed rather than
-    // allowing an authenticated session to access the shared local store.
-    return json(response, 503, { error: 'Authenticated data-plane ownership is not enabled yet', code: 'auth_ownership_not_ready' })
-  }
+  const publicReadOnly = url.pathname === '/api/runtime' || url.pathname === '/api/skills' || url.pathname.startsWith('/api/shares/')
+  const actorUserId = authService?.isEnabled && !publicReadOnly ? (await authService.getSession(request))?.user.id : undefined
+  if (authService?.isEnabled && !publicReadOnly && !actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
   if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, await runtimeSnapshot())
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'runtime' && segments[2] === 'test' && segments[3] && segments.length === 4) {
     const provider = runtimeProviderInput.parse(segments[3])
@@ -374,90 +370,97 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/conversations') {
-    await store.reconcileExpiredApprovals()
+    await store.reconcileExpiredApprovals(actorUserId)
     const limit = url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined
-    return json(response, 200, store.listConversations({ cursor: url.searchParams.get('cursor') ?? undefined, limit, projectId: url.searchParams.get('projectId') ?? undefined, query: url.searchParams.get('q') ?? undefined }))
+    return json(response, 200, store.listConversations({ cursor: url.searchParams.get('cursor') ?? undefined, limit, projectId: url.searchParams.get('projectId') ?? undefined, query: url.searchParams.get('q') ?? undefined, ownerUserId: actorUserId }))
   }
 
   if (request.method === 'GET' && url.pathname === '/api/tasks') {
-    await store.reconcileExpiredApprovals()
-    return json(response, 200, { tasks: store.listTasks() })
+    await store.reconcileExpiredApprovals(actorUserId)
+    return json(response, 200, { tasks: store.listTasks(actorUserId) })
   }
   if (request.method === 'GET' && url.pathname === '/api/skills') return json(response, 200, { skills: skillCatalog() })
-  if (request.method === 'GET' && url.pathname === '/api/mcp') return json(response, 200, { configs: store.listMcpConfigs() })
+  if (request.method === 'GET' && url.pathname === '/api/mcp') return json(response, 200, { configs: store.listMcpConfigs(actorUserId) })
   if (request.method === 'POST' && url.pathname === '/api/mcp') {
     const input = mcpConfigInput.parse(await readBody(request))
     if (['sh', 'bash', 'zsh', 'fish', 'cmd', 'powershell'].includes(path.basename(input.command).toLowerCase())) {
       throw new RangeError('Shell interpreters cannot be registered as MCP commands')
     }
-    return json(response, 201, store.createMcpConfig(input))
+    return json(response, 201, store.createMcpConfig(input, actorUserId))
   }
   if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'mcp' && segments[2] && segments.length === 3) {
-    if (!store.deleteMcpConfig(segments[2])) return json(response, 404, { error: 'MCP configuration not found' })
+    if (!store.deleteMcpConfig(segments[2], actorUserId)) return json(response, 404, { error: 'MCP configuration not found' })
     return json(response, 200, { id: segments[2], deleted: true })
   }
-  if (request.method === 'GET' && url.pathname === '/api/library') return json(response, 200, { items: await store.listLibrary() })
-  if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'library' && segments[2]) return json(response, 200, await store.hideLibraryItem(segments[2]))
+  if (request.method === 'GET' && url.pathname === '/api/library') return json(response, 200, { items: await store.listLibrary(actorUserId) })
+  if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'library' && segments[2]) return json(response, 200, await store.hideLibraryItem(segments[2], actorUserId))
 
-  if (request.method === 'GET' && url.pathname === '/api/projects') return json(response, 200, { projects: store.listProjects() })
+  if (request.method === 'GET' && url.pathname === '/api/projects') {
+    let projects = store.listProjects(actorUserId)
+    if (actorUserId && projects.length === 0) {
+      await store.createProject('Personal workspace', 'Private workspace created for the authenticated user.', actorUserId)
+      projects = store.listProjects(actorUserId)
+    }
+    return json(response, 200, { projects })
+  }
   if (request.method === 'POST' && url.pathname === '/api/projects') {
     const input = createProjectInput.parse(await readBody(request))
-    return json(response, 201, await store.createProject(input.name, input.context))
+    return json(response, 201, await store.createProject(input.name, input.context, actorUserId))
   }
   if (request.method === 'PATCH' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments.length === 3) {
     const input = updateProjectInput.parse(await readBody(request))
-    return json(response, 200, await store.updateProjectContext(segments[2], input.context))
+    return json(response, 200, await store.updateProjectContext(segments[2], input.context, actorUserId))
   }
   if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments[4] === 'versions') {
     const filePath = url.searchParams.get('path')
     if (!filePath) throw new Error('Project knowledge file path is required')
-    return json(response, 200, { versions: store.listProjectFileVersions(segments[2], filePath) })
+    return json(response, 200, { versions: store.listProjectFileVersions(segments[2], filePath, actorUserId) })
   }
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments[4] === 'versions' && segments[5] === 'restore') {
     const filePath = url.searchParams.get('path')
     const versionId = url.searchParams.get('version')
     if (!filePath || !versionId) throw new Error('Project knowledge file path and revision are required')
     const input = restoreProjectFileInput.parse(await readBody(request))
-    return json(response, 200, await store.restoreProjectFileVersion(segments[2], filePath, versionId, input.expectedHash))
+    return json(response, 200, await store.restoreProjectFileVersion(segments[2], filePath, versionId, input.expectedHash, actorUserId))
   }
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments.length === 4) {
     const input = projectAttachment.parse(await readBody(request, 500_000))
     const bytes = Buffer.from(input.dataBase64, 'base64')
     if (!bytes.length || bytes.byteLength > 256 * 1024) throw new Error('Each project knowledge file must be between 1 byte and 256 KiB')
-    return json(response, 201, await store.addProjectFile(segments[2], { name: input.name, mimeType: input.mimeType || 'application/octet-stream', bytes }))
+    return json(response, 201, await store.addProjectFile(segments[2], { name: input.name, mimeType: input.mimeType || 'application/octet-stream', bytes }, actorUserId))
   }
   if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments.length === 4) {
     const filePath = url.searchParams.get('path')
     if (!filePath) throw new Error('Project knowledge file path is required')
-    return json(response, 200, await store.readProjectFile(segments[2], filePath))
+    return json(response, 200, await store.readProjectFile(segments[2], filePath, actorUserId))
   }
   if (request.method === 'PUT' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments.length === 4) {
     const filePath = url.searchParams.get('path')
     if (!filePath) throw new Error('Project knowledge file path is required')
     const input = editFileInput.parse(await readBody(request))
-    return json(response, 200, await store.updateProjectFile(segments[2], filePath, input.content, input.expectedHash))
+    return json(response, 200, await store.updateProjectFile(segments[2], filePath, input.content, input.expectedHash, actorUserId))
   }
   if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments[3] === 'files' && segments.length === 4) {
     const filePath = url.searchParams.get('path')
     if (!filePath) throw new Error('Project knowledge file path is required')
-    return json(response, 200, await store.removeProjectFile(segments[2], filePath))
+    return json(response, 200, await store.removeProjectFile(segments[2], filePath, actorUserId))
   }
-  if (request.method === 'GET' && url.pathname === '/api/schedules') return json(response, 200, { schedules: store.listSchedules() })
+  if (request.method === 'GET' && url.pathname === '/api/schedules') return json(response, 200, { schedules: store.listSchedules(actorUserId) })
   if (request.method === 'POST' && url.pathname === '/api/schedules') {
     const input = createScheduleInput.parse(await readBody(request))
     const { state } = await providerAvailability(input.provider)
     if (!state?.available) return json(response, 409, { error: `${state?.label ?? input.provider} is unavailable: ${state?.detail ?? 'runtime is not configured'}` })
-    return json(response, 201, await store.createSchedule(input))
+    return json(response, 201, await store.createSchedule(input, actorUserId))
   }
   if (request.method === 'PATCH' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2]) {
     const input = scheduleStateInput.parse(await readBody(request))
-    return json(response, 200, await store.setScheduleEnabled(segments[2], input.enabled))
+    return json(response, 200, await store.setScheduleEnabled(segments[2], input.enabled, actorUserId))
   }
   if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2]) {
-    return json(response, 200, await store.deleteSchedule(segments[2]))
+    return json(response, 200, await store.deleteSchedule(segments[2], actorUserId))
   }
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'schedules' && segments[2] && segments[3] === 'run') {
-    const schedule = await store.claimScheduleNow(segments[2])
+    const schedule = await store.claimScheduleNow(segments[2], new Date(), actorUserId)
     const task = await dispatchSchedule(schedule, 'manual')
     return json(response, 201, { schedule, task })
   }
@@ -465,18 +468,18 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'GET' && url.pathname === '/api/search') {
     const query = url.searchParams.get('q') ?? ''
     if (query.trim().length < 2) return json(response, 200, { results: [] })
-    return json(response, 200, { results: store.searchMessages(query).map(({ task, message }) => ({ taskId: task.id, taskTitle: task.title, message })) })
+    return json(response, 200, { results: store.searchMessages(query, 50, actorUserId).map(({ task, message }) => ({ taskId: task.id, taskTitle: task.title, message })) })
   }
 
   if (segments[0] === 'api' && segments[1] === 'wallet') {
     if (!walletService) return json(response, 503, { error: 'External wallet resolution is not configured' })
     walletService.authorize(request.headers.authorization)
     if (request.method === 'GET' && segments[2] === 'approvals' && segments.length === 3) {
-      return json(response, 200, { approvals: await walletService.listPending() })
+      return json(response, 200, { approvals: await walletService.listPending(actorUserId) })
     }
     if (request.method === 'POST' && segments[2] === 'approvals' && segments[3] && segments[4] === 'decision') {
       const input = walletDecision.parse(await readBody(request))
-      return json(response, 200, await walletService.decide(segments[3], input.decision, input.signer))
+      return json(response, 200, await walletService.decide(segments[3], input.decision, input.signer, actorUserId))
     }
   }
 
@@ -497,6 +500,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 
   if (request.method === 'POST' && url.pathname === '/api/tasks') {
     const input = createTaskInput.parse(await readBody(request, 1_500_000))
+    const projectId = input.projectId ?? store.listProjects(actorUserId)[0]?.id ?? 'project_onevibe'
     const readiness = await runtimeSnapshot()
     const provider = input.provider ?? runtimeRegistry.defaultProvider(input.mode, readiness.providers)
     const providerState = readiness.providers.find((candidate) => candidate.id === provider)
@@ -511,7 +515,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const totalAttachmentBytes = normalizedAttachments.reduce((total, attachment) => total + attachment.bytes.byteLength, 0)
     if (totalAttachmentBytes > 1_000_000) throw new RangeError('Task attachments exceed the 1 MiB total limit')
     const attachments = normalizedAttachments.map((attachment, index) => ({ name: attachment.name, path: `inputs/${String(index + 1).padStart(2, '0')}-${attachment.name}`, size: attachment.bytes.byteLength, mimeType: attachment.mimeType }))
-    const task = await store.createTask(input.prompt, provider, input.mode, input.projectId, undefined, input.references, attachments, [...new Set(input.skills)])
+    const task = await store.createTask(input.prompt, provider, input.mode, projectId, undefined, input.references, attachments, [...new Set(input.skills)], actorUserId)
     await Promise.all(attachments.map((attachment, index) => store.writeWorkspaceBytes(task.id, attachment.path, normalizedAttachments[index]!.bytes)))
     setTimeout(() => executeTask(task.id, input.prompt, false), 25)
     return json(response, 201, task)
@@ -519,8 +523,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 
   const taskId = segments[2]
   if (segments[0] === 'api' && segments[1] === 'tasks' && taskId) {
+    if (actorUserId) store.assertTaskOwner(taskId, actorUserId)
     if (request.method === 'GET' && segments.length === 3) {
-      await store.reconcileExpiredApprovals()
+      await store.reconcileExpiredApprovals(actorUserId)
       return json(response, 200, await store.snapshot(taskId))
     }
     if (request.method === 'POST' && segments[3] === 'cancel') {
@@ -638,7 +643,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'POST' && segments[3] === 'copy') {
       const source = store.getTask(taskId)
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before copying it' })
-      const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode, source.projectId, undefined, source.references, [], source.skills)
+      const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode, source.projectId, undefined, source.references, [], source.skills, source.ownerUserId)
       const fileCount = await store.copyWorkspace(source.id, copied.id)
       const sourceHead = store.listEvents(source.id).at(-1)?.eventHash ?? 'GENESIS'
       await store.updateTask(copied.id, {
@@ -838,7 +843,7 @@ void runtimeSnapshot().catch(() => undefined)
 const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | 'manual') => {
   const providerState = (await providerAvailability(schedule.provider)).state
   if (!providerState?.available) throw new Error(`${providerState?.label ?? schedule.provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}`)
-  const task = await store.createTask(schedule.prompt, schedule.provider, schedule.mode, schedule.projectId, schedule.id)
+  const task = await store.createTask(schedule.prompt, schedule.provider, schedule.mode, schedule.projectId, schedule.id, [], [], [], schedule.ownerUserId)
   await store.appendEvent(task.id, {
     type: 'activity_delta', lane: 'control', label: trigger === 'manual' ? 'Scheduled run started manually' : 'Scheduled run claimed',
     content: trigger === 'manual' ? `Started manually from schedule “${schedule.name}”.` : `Created by schedule “${schedule.name}” at its governed interval.`,

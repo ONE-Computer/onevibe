@@ -13,9 +13,9 @@ export class WalletApprovalService {
     if (expectedBytes.length !== suppliedBytes.length || !timingSafeEqual(expectedBytes, suppliedBytes)) throw new Error('Wallet authorization failed')
   }
 
-  async listPending() {
-    await this.store.reconcileExpiredApprovals()
-    return this.store.listTasks().flatMap((task) => {
+  async listPending(ownerUserId?: string) {
+    await this.store.reconcileExpiredApprovals(ownerUserId)
+    return this.store.listTasks(ownerUserId).flatMap((task) => {
       const approval = task.approval
       if (!approval || approval.state !== 'pending') return []
       return [{
@@ -38,9 +38,9 @@ export class WalletApprovalService {
     })
   }
 
-  async decide(approvalId: string, decision: 'approved' | 'denied', signer: string) {
-    await this.store.reconcileExpiredApprovals()
-    const task = this.store.findTaskByApproval(approvalId)
+  async decide(approvalId: string, decision: 'approved' | 'denied', signer: string, ownerUserId?: string) {
+    await this.store.reconcileExpiredApprovals(ownerUserId)
+    const task = this.store.findTaskByApproval(approvalId, ownerUserId)
     const approval = task.approval
     if (!approval || approval.state !== 'pending') throw new Error('Approval is not pending')
     if (!approval.intentHash || !approval.evidenceHash) throw new Error('Approval is missing an evidence-bound intent; request a new approval')

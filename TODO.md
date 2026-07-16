@@ -8,7 +8,7 @@
 >
 > **Current state**: The local-first foundation is substantially implemented: backend-offline recovery, truthful simulation labelling, durable SSE replay/reconnect, LiteLLM-only routing, provider-neutral runtime lifecycle, runtime health/routing, task workspaces, durable guidance queueing, and assistant-ui conversation rendering are in place. Remaining release blockers are conversation branching, auth/persistence/deployment, sandboxed execution, MCP/skills integration, and the remaining professional-UI dead ends. See `HANDOVER.md` and `plan/00-gap-analysis.md`.
 >
-> **Release gate**: `npm run check` must stay green (oxlint + 228 vitest tests + tsc build + e2e harness typecheck) after every task.
+> **Release gate**: `npm run check` must stay green (oxlint + 229 vitest tests + tsc build + e2e harness typecheck) after every task.
 
 > **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The Claude SDK configuration now fails closed unless the server-controlled relay is configured; Codex/AgentCore remain blocked until their adapters also use the same boundary.
 
@@ -64,12 +64,12 @@ Reference: `plan/03-runtime-routing.md`
 **Target: `https://onevibe.yourdomain.com` — deployed, authenticated, persistent, multi-user.**
 Reference: `plan/04-cloud-infrastructure.md`
 
-- [ ] **P4-01** Add auth — feature-gated Better Auth + hashed email-OTP foundation now exists, but keep open until owner-scoped session middleware, login page, real delivery acceptance, and hardcoded-identity removal are complete; enabled data-plane requests currently fail closed with `auth_ownership_not_ready`
+- [ ] **P4-01** Add auth — feature-gated Better Auth + hashed email-OTP foundation, real delivery webhook, session middleware, login UI, and hardcoded-identity removal are now implemented locally; keep open until production delivery, all route/session acceptance, and Postgres-backed ownership are complete
 - [ ] **P4-02** Migrate database — replace in-process SQLite with **PostgreSQL via Drizzle ORM**; add `userId` foreign key to tasks, projects, schedules; multi-user isolation
 - [ ] **P4-03** Containerise — current non-root multi-stage `Dockerfile`, hardened SQLite-volume `docker-compose.yml`, and `.env.example` are implemented; keep open until the P4-02 Postgres contract is wired into the image/Compose path rather than shipping an unused database service
 - [ ] **P4-04** Deploy to Railway or Fly.io — `railway.toml` or `fly.toml`; deploy instructions in `plan/04-cloud-infrastructure.md#deploy`
 - [ ] **P4-05** Add cloud sandbox — integrate **e2b.dev** (`@e2b/code-interpreter`) as the default `sandboxed` execution backend; surface sandbox preview URL in workspace iframe; `E2bRuntimeAdapter` wraps e2b and implements the full `RuntimeAdapter` interface
-- [ ] **P4-06** Add multi-tenancy scaffolding — `orgs` and `org_members` tables; tasks scoped to org when `orgId` set; sidebar project switcher drives real data isolation
+- [ ] **P4-06** Add multi-tenancy scaffolding — local user ownership now scopes tasks, projects, schedules, conversations, MCP declarations, and task routes; keep open until `orgs`/`org_members`, Postgres ownership, migration/import, and cross-user negative coverage for every route are complete
 
 ---
 

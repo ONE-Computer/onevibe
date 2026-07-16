@@ -91,6 +91,7 @@ export interface RuntimeLeaseFence {
 
 export interface McpConfigRecord {
   id: string
+  ownerUserId: string | null
   name: string
   command: string
   argsJson: string
@@ -109,10 +110,10 @@ export interface McpConfigAuditRecord {
 }
 
 export interface McpConfigRepository {
-  list(): McpConfigRecord[]
+  list(ownerUserId?: string): McpConfigRecord[]
   findById(id: string): McpConfigRecord | undefined
   insert(record: McpConfigRecord): void
-  delete(id: string): boolean
+  delete(id: string, ownerUserId?: string): boolean
   appendAudit(record: McpConfigAuditRecord): void
 }
 

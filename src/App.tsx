@@ -11,10 +11,12 @@ import { SkillsLibrary } from './components/SkillsLibrary'
 import { Library } from './components/Library'
 import { Computers } from './components/Computers'
 import { HomeHero } from './components/HomeHero'
+import { LoginPage } from './components/LoginPage'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTask } from './hooks/useTask'
 import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags, type SkillOption } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
+import { getAuthSession, signOut as signOutAuth, type AuthSessionState } from './lib/auth'
 import { providerLabel, statusLabel } from './lib/runtime-labels'
 import type { ConversationSummary, LibraryItem, Project, RuntimeMcpConfig, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
@@ -69,7 +71,13 @@ export default function App() {
   })
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [authState, setAuthState] = useState<AuthSessionState>()
+  const [authLoading, setAuthLoading] = useState(true)
   const { snapshot, connected, error, retry: retryConnection, refresh: refreshSnapshot } = useTask(activeTaskId)
+
+  const refreshAuth = useCallback(async () => {
+    try { setAuthState(await getAuthSession()) } catch { setAuthState({ enabled: false, session: null }) } finally { setAuthLoading(false) }
+  }, [])
 
   const refreshTasks = useCallback(async () => {
     const result = await listTasks()
@@ -95,6 +103,7 @@ export default function App() {
   }, [conversationCursor, loadingConversationPage])
 
   useEffect(() => { void refreshTasks() }, [refreshTasks])
+  useEffect(() => { void refreshAuth() }, [refreshAuth])
   useEffect(() => { void refreshConversations() }, [refreshConversations])
   useEffect(() => { void listLibrary().then(({ items }) => setLibrary(items)) }, [])
   useEffect(() => {
@@ -243,8 +252,15 @@ export default function App() {
     setConversations((current) => upsertConversation(current, conversationSummaryFromTask(result.task)))
     navigateToTask(result.task.id)
   }
+  const signOut = async () => {
+    await signOutAuth()
+    setAuthState({ enabled: true, session: null })
+    setTasks([]); setConversations([]); setProjects([]); setSchedules([]); setLibrary([])
+  }
 
   if (shareId) return <SharedArtifact shareId={shareId} />
+  if (authLoading) return <div className="auth-loading"><span className="loader" /> Checking workspace session…</div>
+  if (authState?.enabled && !authState.session) return <LoginPage onAuthenticated={refreshAuth} />
 
   const continueTask = async (prompt: string, attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) => {
     if (!activeTaskId) return
@@ -295,7 +311,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      <AnimatePresence>{sidebarOpen && <><motion.button key="sidebar-backdrop" className="sidebar-backdrop" aria-label="Close sidebar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)} /><motion.div key="sidebar-panel" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} conversations={conversations} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onClose={() => setSidebarOpen(false)} onSelectTask={(taskId) => navigateToTask(taskId)} hasMoreConversations={Boolean(conversationCursor)} loadingMoreConversations={loadingConversationPage} onLoadMoreConversations={loadMoreConversations} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onRemoveProjectFile={detachProjectFile} onUpdateProjectFile={editProjectFile} onRestoreProjectFile={restoreProjectFile} onUpdateProjectContext={updateProject} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} skillCount={skillCatalog.length} /></motion.div></>}</AnimatePresence>
+      <AnimatePresence>{sidebarOpen && <><motion.button key="sidebar-backdrop" className="sidebar-backdrop" aria-label="Close sidebar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)} /><motion.div key="sidebar-panel" initial={{ x: -260 }} animate={{ x: 0 }} exit={{ x: -260 }}><Sidebar view={view} conversations={conversations} activeTaskId={activeTaskId} onNewTask={() => navigateToTask(null)} onClose={() => setSidebarOpen(false)} onSelectTask={(taskId) => navigateToTask(taskId)} hasMoreConversations={Boolean(conversationCursor)} loadingMoreConversations={loadingConversationPage} onLoadMoreConversations={loadMoreConversations} projects={projects} activeProjectId={activeProjectId} onSelectProject={setActiveProjectId} onCreateProject={addProject} onAttachProjectFile={attachProjectFile} onRemoveProjectFile={detachProjectFile} onUpdateProjectFile={editProjectFile} onRestoreProjectFile={restoreProjectFile} onUpdateProjectContext={updateProject} onOpenSkills={() => navigateToView('skills')} onOpenLibrary={() => navigateToView('library')} onOpenSchedules={() => navigateToView('schedules')} onOpenComputers={() => navigateToView('computers')} skillCount={skillCatalog.length} user={authState?.session?.user} onSignOut={signOut} /></motion.div></>}</AnimatePresence>
       <main className="main-shell">
         {backendOffline && <div className="backend-offline-banner" role="alert"><div><TriangleAlert size={15} /><span><strong>Backend offline</strong><small>Run <code>npm run dev</code> in the ONEVibe project root to connect the workspace.</small></span></div><button type="button" onClick={() => void retryBackend()} disabled={retryingBackend}>{retryingBackend ? 'Checking…' : 'Retry'}</button></div>}
         <header className="topbar">
@@ -307,7 +323,7 @@ export default function App() {
           {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} onRemove={hideLibraryItem} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} runtime={runtime} mcpConfigs={mcpConfigs} onCreateMcpConfig={addMcpConfig} onDeleteMcpConfig={removeMcpConfig} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} onDelete={removeSchedule} runtime={runtime} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="home-content">
-                <HomeHero />
+                <HomeHero name={authState?.session?.user.name?.trim() || authState?.session?.user.email.split('@')[0] || 'there'} />
                 {runtime && !runtime.providers.some((candidate) => candidate.available && candidate.id !== 'demo') && <div className="setup-banner" role="status"><TriangleAlert size={14} /><span><strong>No governed runtime configured</strong><small>Set the protected ONEVIBE_LITELLM_URL and ONEVIBE_LITELLM_API_KEY, or configure a governed sandbox runtime.</small></span></div>}
                 <PromptComposer busy={creating} skills={selectedSkills} runtime={runtime} initialProvider={preferredProvider} onSubmit={startTask} />
                 <div className="starter-prompts">{starterPrompts.map((prompt) => <button key={prompt} onClick={() => void startTask(prompt)}>{prompt}<span>↗</span></button>)}</div>

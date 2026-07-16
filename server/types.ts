@@ -56,6 +56,7 @@ export type RuntimeCapability = 'streaming' | 'tool_use' | 'file_system' | 'sand
 
 export type Project = {
   id: string
+  ownerUserId?: string
   name: string
   context: string
   files: ProjectFile[]
@@ -69,6 +70,7 @@ export type ProjectFileVersion = { id: string; path: string; createdAt: string; 
 
 export type TaskSchedule = {
   id: string
+  ownerUserId?: string
   name: string
   prompt: string
   provider: Task['provider']
@@ -145,6 +147,7 @@ export type ChatMessage = {
 
 export type Task = {
   id: string
+  ownerUserId?: string
   title: string
   prompt: string
   provider: 'demo' | 'claude_sdk' | 'codex' | 'agentcore' | 'onecomputer' | 'remote'
@@ -224,6 +227,7 @@ export type RuntimeHealth = { status: 'online' | 'offline' | 'not_configured' | 
 /** Public MCP declaration. Secret environment values are deliberately not part of this type. */
 export type RuntimeMcpConfig = {
   id: string
+  ownerUserId?: string
   name: string
   command: string
   args: string[]
