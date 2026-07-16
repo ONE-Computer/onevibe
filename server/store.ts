@@ -64,6 +64,10 @@ const planFor = (mode: TaskMode, prompt: string): Task['plan'] => {
 const runtimePlanIds = ['scope', 'workspace', 'build', 'verify', 'deliver'] as const
 export type RuntimePlanTitle = { id: (typeof runtimePlanIds)[number]; title: string }
 
+const restartReconciliationStatuses = new Set<Task['status']>([
+  'pending', 'running', 'waiting_for_user_input', 'waiting_for_approval',
+])
+
 const NATIVE_PROJECTOR_VERSION = 1
 
 export const normalizeRuntimePlanTitles = (value: unknown): RuntimePlanTitle[] | undefined => {
@@ -195,6 +199,7 @@ export class TaskStore {
       project.fileVersions ??= {}
       this.projects.set(id, project)
     }
+    await this.reconcileRestartedTasks()
   }
 
   async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = [], attachments: TaskAttachment[] = [], skills: TaskSkill[] = []): Promise<Task> {
@@ -1021,16 +1026,40 @@ export class TaskStore {
     this.requireUnitOfWork().run((repositories) => {
       const turn = repositories.turns.findById(turnId)
       if (!turn) throw new Error(`Turn ${turnId} is missing from durable history`)
-      repositories.turns.transition(turnId, turn.status, { ...turn, status, completedAt })
+      if (turn.status !== status) repositories.turns.transition(turnId, turn.status, { ...turn, status, completedAt })
       if (message) {
         const record = repositories.messages.listByConversation(taskId, -1, 500).find((candidate) => candidate.id === message.id)
         if (!record) throw new Error(`Assistant message ${message.id} is missing from durable history`)
-        repositories.messages.reviseAssistant(message.id, record.revision, JSON.stringify({ text: message.content, provider: message.provider, updatedAt: completedAt }), status)
+        if (record.status !== status) repositories.messages.reviseAssistant(message.id, record.revision, JSON.stringify({ text: message.content, provider: message.provider, updatedAt: completedAt }), status)
       }
     })
     this.messages.set(taskId, this.readMessages(task))
     this.activeTurns.delete(taskId)
     if (this.getTask(taskId).activeRunId === turnId) await this.updateTask(taskId, { activeRunId: undefined })
+  }
+
+  private async reconcileRestartedTasks() {
+    for (const candidate of this.listTasks()) {
+      if (!candidate.activeRunId || !restartReconciliationStatuses.has(candidate.status) || this.activeTurns.has(candidate.id)) continue
+
+      const task = this.getTask(candidate.id)
+      const runId = task.activeRunId
+      if (!runId || !restartReconciliationStatuses.has(task.status) || this.activeTurns.has(task.id)) continue
+
+      this.activeTurns.set(task.id, runId)
+      try {
+        const alreadyFailed = this.listEvents(task.id).some((event) => event.runId === runId && event.type === 'run_failed')
+        if (!alreadyFailed) await this.appendEvent(task.id, {
+          type: 'run_failed', lane: 'control', status: 'failed', label: 'Process restart reconciled',
+          content: 'The previous run ended during a process restart. Retry is available.',
+          payload: { reason: 'process_restart_reconciliation', retryable: true },
+        })
+        else await this.finishTurn(task.id, 'failed')
+        await this.updateTask(task.id, { status: 'failed', activeRunId: undefined })
+      } finally {
+        this.activeTurns.delete(task.id)
+      }
+    }
   }
 
   private requireUnitOfWork() {

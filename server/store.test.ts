@@ -206,6 +206,55 @@ describe('TaskStore', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it.each(['running', 'waiting_for_user_input', 'waiting_for_approval'] as const)('reconciles a durable %s run after process restart', async (status) => {
+    const root = await mkdtemp(path.join(tmpdir(), `onevibe-restart-${status}-`))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Recover a run after restart', 'demo')
+    const runId = await store.beginTurn(task.id, task.prompt, task.provider)
+    await store.appendEvent(task.id, { type: 'assistant_text_delta', lane: 'transcript', content: 'Partial answer', payload: {} })
+    await store.updateTask(task.id, { status })
+
+    const reopened = new TaskStore(root)
+    await reopened.initialize()
+
+    const reconciled = reopened.getTask(task.id)
+    const events = reopened.listEvents(task.id)
+    const restartFailures = events.filter((event) => event.runId === runId && event.type === 'run_failed')
+    expect(reconciled.status).toBe('failed')
+    expect(reconciled.activeRunId).toBeUndefined()
+    expect(restartFailures).toHaveLength(1)
+    expect(restartFailures[0]?.payload).toEqual({ reason: 'process_restart_reconciliation', retryable: true })
+    expect(reopened.listMessages(task.id).messages.at(-1)).toMatchObject({ role: 'assistant', content: 'Partial answer', status: 'failed' })
+    expect(reopened.verifyChain(task.id)).toBe(true)
+
+    const eventCount = events.length
+    const reopenedAgain = new TaskStore(root)
+    await reopenedAgain.initialize()
+    expect(reopenedAgain.listEvents(task.id)).toHaveLength(eventCount)
+    expect(reopenedAgain.getTask(task.id).activeRunId).toBeUndefined()
+    expect(reopenedAgain.verifyChain(task.id)).toBe(true)
+  })
+
+  it('does not reconcile an ordinary pending task without an active run', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-restart-pending-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Remain pending after restart', 'demo')
+
+    const reopened = new TaskStore(root)
+    await reopened.initialize()
+
+    expect(reopened.getTask(task.id).status).toBe('pending')
+    expect(reopened.getTask(task.id).activeRunId).toBeUndefined()
+    expect(reopened.listEvents(task.id)).toEqual([])
+    expect(reopened.listMessages(task.id).messages).toEqual([])
+  })
+
   it('rejects workspace traversal', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-store-'))
     temporaryRoots.push(root)
