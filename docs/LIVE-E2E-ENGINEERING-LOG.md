@@ -9,6 +9,10 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 - The local browser smoke rendered the existing truthful home state after the `ThemeProvider` integration with no observed UI error. Screenshot: [`local-home-20260717-theme-provider.jpg`](browser-screenshots/local-home-20260717-theme-provider.jpg).
 - Follow-on gates remain: reference-seed/import tooling, admin appearance/content controls, luminance/contrast/reduced-motion matrix, asset integrity/provenance, production org policy, managed deployment, and sandbox/provider attestation.
 
+## 2026-07-17 — fixture-only theme seed validation
+
+- `npm run theme:validate-seed -- docs/fixtures/themes/reference-onevibe.json` passed. The validator accepts only checked-in `reference-*` profiles under `docs/fixtures/themes`, applies the same bounded schema, and rejects credential-like fields; it has no live database write path.
+
 ## 2026-07-17 — disposable Postgres driver and multi-process acceptance
 
 - Started a disposable PostgreSQL 18 container, applied the twelve reviewed migrations, and ran the actual API with `ONEVIBE_PERSISTENCE_DRIVER=postgres` on a separate port. `npm run e2e:postgres-http` passed with `driver=postgres`, readiness/runtime switching, `401` unauthenticated owner protection, and `directFirstPartyAllowed=false`.

@@ -8,6 +8,11 @@
 - `npm run e2e:postgres-auth-http` passed the theme acceptance slice: base fallback, owner read, member `404`/write `403`, update to version 2, stale-write `409`, reset to version 3, three audit events, body tenant-id rejection, and cleanup. Fresh Postgres migration, `npm run e2e:postgres-http`, `npm run e2e:postgres-http-sse`, and `npm run e2e:postgres-backup-restore` also passed; backup/restore verified 14 reviewed migrations. Browser smoke screenshot: [`local-home-20260717-theme-provider.jpg`](browser-screenshots/local-home-20260717-theme-provider.jpg).
 - Boundary: this closes the local P7-03 persistence/API slice and the initial P7-04 provider projection only. Reference-seed tooling, admin appearance/content UI, luminance/contrast automation, asset integrity policy, organization-wide theme isolation, managed deployment, and production auth remain open.
 
+## 2026-07-17 — reference theme seed validation
+
+- Added `scripts/theme-seed.ts` and the fixture-only `docs/fixtures/themes/reference-onevibe.json`. The validator refuses paths outside the checked-in reference-fixture directory, requires `reference-*` tenant IDs, reuses the bounded tenant schema, and rejects credential-like fields. It performs validation only; it never writes a live tenant or database row.
+- Verification: `npm run theme:validate-seed -- docs/fixtures/themes/reference-onevibe.json`, focused seed tests, and lint passed.
+
 ## 2026-07-17 — disposable Postgres HTTP, auth, SSE, backup, and TaskStore acceptance
 
 - Ran the selected server with `ONEVIBE_PERSISTENCE_DRIVER=postgres` against a disposable PostgreSQL 18 instance, after applying all twelve reviewed migrations. The real HTTP driver proof passed with `driver=postgres`, `runtimeSwitchReady=true`, owner-scope rejection `401`, and `directFirstPartyAllowed=false`.

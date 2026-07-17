@@ -143,7 +143,7 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 - [x] Add a Postgres-backed `tenant_theme_config`/audit table and migrations with version, owner/org scope, audit metadata, optimistic update checks, and reset tombstones; do not add a second SQLite-only authority. The live owner row is `org_member.role=owner`; stored owner identity is provenance only.
 - [x] Implement authenticated `GET /api/theme/current`, owner-only `GET/PUT /api/theme/:tenantId`, and owner-only reset with typed errors and append-only audit events. Writes and audit rows are committed transactionally; stale versions return `theme_version_conflict`.
-- [ ] Add import/seed validation for reference tenant fixtures; never seed live customer data or secrets into the repository.
+- [x] Add import/seed validation for reference tenant fixtures; `npm run theme:validate-seed -- docs/fixtures/themes/reference-onevibe.json` accepts only checked-in `reference-*` profiles and rejects credential-like fields, unsafe schema values, and live-looking tenant IDs.
 
 ### P7-04 — Runtime ThemeProvider and asset loader (P1)
 

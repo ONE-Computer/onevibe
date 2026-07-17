@@ -15,6 +15,7 @@
     "test": "vitest run",
     "preview": "vite preview",
     "wallet": "tsx server/wallet-cli.ts",
+    "theme:validate-seed": "tsx scripts/theme-seed.ts",
     "linear": "tsx scripts/linear-cli.ts",
     "e2e:onecomputer": "tsx scripts/onecomputer-live-e2e.ts",
     "e2e:onecomputer-recovery": "tsx scripts/onecomputer-allocation-recovery-e2e.ts",

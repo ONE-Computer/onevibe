@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "tenantId": "reference-onevibe",
+  "tenantName": "Reference ONEVibe",
+  "brand": { "brandName": "ONEVibe" },
+  "homePage": {
+    "heroHeadline": "A governed workspace for agentic work",
+    "heroSubheadline": "Reference-only content for local theme acceptance.",
+    "announcementBannerVisible": false,
+    "featureCards": []
+  },
+  "navigation": { "items": [] },
+  "features": {
+    "showComputerTab": true,
+    "showMcpMarketplace": true,
+    "showRuntimePicker": true,
+    "showDebugPanel": false
+  },
+  "compliance": {}
+}
