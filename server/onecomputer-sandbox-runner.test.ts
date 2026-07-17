@@ -155,7 +155,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     expect(store.getTask(task.id).plan[0]?.title).toBe('Frame the launch outcome')
     expect(store.listEvents(task.id).some((event) => event.label === 'Task plan refined by runtime' && event.payload.source === 'onecomputer')).toBe(true)
     expect(store.getTask(task.id).securityContext).toMatchObject({ executionBoundary: 'onecomputer_sandbox', sandboxState: 'started', gatewayEnforced: true })
-    expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-1', generation: 1 })
+    await expect(store.findActiveRuntimeLease(task.id)).resolves.toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-1', generation: 1 })
     expect(store.listEvents(task.id).some((event) => event.label === 'Governed browser automation ready')).toBe(true)
     expect(commands.some((command) => command.includes('onevibe-browser-review.png'))).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.label === 'Sandbox browser review observed' && event.payload.generatedArtifactPreview === true)).toBe(true)
@@ -236,7 +236,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     })
     expect(store.listEvents(task.id).some((event) => event.label === 'ONEComputer allocation outcome unknown' && event.payload.recovery === 'immutable_allocation_identity_required')).toBe(true)
     expect(JSON.stringify(store.listEvents(task.id))).not.toContain('provider secret')
-    expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'unknown', lastError: { code: 'ALLOCATION_OUTCOME_UNKNOWN' } })
+    await expect(store.findActiveRuntimeLease(task.id)).resolves.toMatchObject({ status: 'unknown', lastError: { code: 'ALLOCATION_OUTCOME_UNKNOWN' } })
   })
 
   it('retains the known conversation sandbox when cancellation occurs during provisioning', async () => {
@@ -267,7 +267,7 @@ describe('OneComputerSandboxRuntimeAdapter', () => {
     await expect(completion).rejects.toMatchObject({ name: 'AbortError' })
     expect(client.deleteSandbox).not.toHaveBeenCalled()
     expect(store.getTask(task.id).securityContext).toMatchObject({ sandboxId: 'sandbox-provisioning', sandboxState: 'provisioning' })
-    expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-provisioning' })
+    await expect(store.findActiveRuntimeLease(task.id)).resolves.toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-provisioning' })
   })
 
   it('terminates the sandbox agent on cancellation and preserves verified exit evidence', async () => {

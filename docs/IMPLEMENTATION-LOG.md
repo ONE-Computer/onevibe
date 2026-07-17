@@ -34,6 +34,11 @@
 - Added `npm run e2e:postgres-taskstore` and CI coverage. Disposable PostgreSQL 18 evidence passed project/task creation, chat transcript persistence, runtime event-chain validation, retry completion, and restart recovery. The driver remains opt-in and `resolvePersistenceConfig` still fails closed because MCP/org/skills/leases/workspace, full async reads, atomic native ingestion, and server/auth bootstrap are not integrated.
 - Fixed two issues exposed by the proof: Postgres event hashes now retain `runId`, and JSONB idempotency responses are normalized to objects instead of double-encoded strings.
 
+## 2026-07-17 — move runtime lease boundary to async contract
+
+- `RuntimeLeaseStore` and `TaskStore` lease methods now return promises, and `RuntimeLeaseService` awaits every read/write fence. SQLite behavior is unchanged; the ONEComputer adapter observes the same async boundary required by a Postgres lease repository.
+- The opt-in Postgres TaskStore core path fails closed for lease calls until transactional coordinator wrappers are integrated. A partial lease implementation must not silently fall back to SQLite or an in-memory cache.
+
 ## 2026-07-17 — extend the Postgres target contract for durable identity and audit
 
 - Added Drizzle migration `0004_majestic_multiple_man.sql` and schema parity for a first-class `conversation` identity, task fork lineage, turn error metadata, provider message IDs, runtime-lease allocation/idempotency uniqueness, append-only MCP configuration events, and source-keyed `legacy_imports` provenance; migration `0005_deep_rachel_grey.sql` adds owner-bound conversation and task identity.

@@ -34,7 +34,7 @@ describe('RuntimeLeaseService', () => {
     expect(second).toMatchObject({ reused: true, lease: { id: first.lease.id, providerSandboxId: 'sandbox-1', generation: 1 } })
     expect(client.createSandbox).toHaveBeenCalledTimes(1)
     expect(client.getSandbox).toHaveBeenCalledWith('sandbox-1', undefined)
-    expect(store.listRuntimeLeases(task.id)).toHaveLength(1)
+    await expect(store.listRuntimeLeases(task.id)).resolves.toHaveLength(1)
   })
 
   it('gives different conversations different sandbox identities', async () => {
@@ -65,7 +65,7 @@ describe('RuntimeLeaseService', () => {
     await expect(service.acquire(task.id)).rejects.toThrow('provider timeout')
     await expect(service.acquire(task.id)).rejects.toThrow('found no provider sandbox with a matching allocation identity')
     expect(client.createSandbox).toHaveBeenCalledTimes(1)
-    expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'unknown', lastError: { code: 'ALLOCATION_OUTCOME_UNKNOWN' } })
+    await expect(store.findActiveRuntimeLease(task.id)).resolves.toMatchObject({ status: 'unknown', lastError: { code: 'ALLOCATION_OUTCOME_UNKNOWN' } })
   })
 
   it('reconciles an ambiguous allocation only with a provider allocation identity', async () => {
@@ -79,13 +79,14 @@ describe('RuntimeLeaseService', () => {
     const service = new RuntimeLeaseService(store, client)
 
     await expect(service.acquire(task.id)).rejects.toThrow('provider timeout')
-    const unknown = store.findActiveRuntimeLease(task.id)!
+    const unknown = await store.findActiveRuntimeLease(task.id)
+    expect(unknown).toBeDefined()
     vi.mocked(client.listSandboxes).mockResolvedValue([{ id: 'sandbox-recovered', allocationIdempotencyKey: unknown.allocationIdempotencyKey }])
 
     const recovered = await service.reconcileUnknown(task.id)
 
     expect(recovered).toMatchObject({ reused: true, sandbox: { id: 'sandbox-recovered' }, lease: { status: 'ready', providerSandboxId: 'sandbox-recovered', lastError: null } })
-    expect(store.findActiveRuntimeLease(task.id)).toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-recovered' })
+    await expect(store.findActiveRuntimeLease(task.id)).resolves.toMatchObject({ status: 'ready', providerSandboxId: 'sandbox-recovered' })
     expect(client.createSandbox).toHaveBeenCalledTimes(1)
     expect(client.getSandbox).toHaveBeenCalledWith('sandbox-recovered', undefined)
   })

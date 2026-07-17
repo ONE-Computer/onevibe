@@ -292,7 +292,7 @@ export class OneComputerSandboxRuntimeAdapter extends RuntimeAdapterBase {
       // ambiguous. The browser must be able to explain that this turn is
       // recoverable, while the server still refuses any blind duplicate
       // allocation. Do not copy provider error bodies into the task record.
-      const unknownLease = store.findActiveRuntimeLease(task.id)
+      const unknownLease = await store.findActiveRuntimeLease(task.id)
       if (unknownLease?.status === 'unknown') {
         const current = store.getTask(task.id)
         await store.updateTask(task.id, {

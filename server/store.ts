@@ -347,22 +347,26 @@ export class TaskStore {
     }
   }
 
-  findActiveRuntimeLease(conversationId: string) {
+  async findActiveRuntimeLease(conversationId: string) {
+    if (this.postgresState) throw new Error('Postgres runtime leases are not integrated into the opt-in TaskStore core slice')
     this.getTask(conversationId)
     return this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.findActiveByConversation(conversationId))
   }
 
-  listRuntimeLeases(conversationId: string) {
+  async listRuntimeLeases(conversationId: string) {
+    if (this.postgresState) throw new Error('Postgres runtime leases are not integrated into the opt-in TaskStore core slice')
     this.getTask(conversationId)
     return this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.listByConversation(conversationId))
   }
 
-  insertRuntimeLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number) {
+  async insertRuntimeLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number) {
+    if (this.postgresState) throw new Error('Postgres runtime leases are not integrated into the opt-in TaskStore core slice')
     this.getTask(record.conversationId)
     this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.insert(record, expectedPreviousGeneration))
   }
 
-  transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord) {
+  async transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord) {
+    if (this.postgresState) throw new Error('Postgres runtime leases are not integrated into the opt-in TaskStore core slice')
     this.getTask(next.conversationId)
     this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.transition(id, expected, next))
   }

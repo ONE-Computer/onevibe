@@ -3,10 +3,10 @@ import type { OneComputerClient, OneComputerSandbox } from './onecomputer-client
 import type { RuntimeLeaseFence, RuntimeLeaseRecord } from './persistence/index.js'
 
 export interface RuntimeLeaseStore {
-  findActiveRuntimeLease(conversationId: string): RuntimeLeaseRecord | undefined
-  listRuntimeLeases(conversationId: string): RuntimeLeaseRecord[]
-  insertRuntimeLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number): void
-  transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord): void
+  findActiveRuntimeLease(conversationId: string): Promise<RuntimeLeaseRecord | undefined>
+  listRuntimeLeases(conversationId: string): Promise<RuntimeLeaseRecord[]>
+  insertRuntimeLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number): Promise<void>
+  transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord): Promise<void>
 }
 
 export type AcquiredRuntime = { lease: RuntimeLeaseRecord; sandbox: OneComputerSandbox; reused: boolean }
@@ -36,7 +36,7 @@ export class RuntimeLeaseService {
   }
 
   async acquire(conversationId: string, signal?: AbortSignal): Promise<AcquiredRuntime> {
-    const active = this.store.findActiveRuntimeLease(conversationId)
+    const active = await this.store.findActiveRuntimeLease(conversationId)
     if (active) {
       if (active.status === 'unknown') return this.reconcileUnknown(conversationId, signal)
       if (active.status !== 'ready' || !active.providerSandboxId) {
@@ -45,7 +45,7 @@ export class RuntimeLeaseService {
       return { lease: active, sandbox: await this.client.getSandbox(active.providerSandboxId, signal), reused: true }
     }
 
-    const previous = this.store.listRuntimeLeases(conversationId).at(-1)
+    const previous = (await this.store.listRuntimeLeases(conversationId)).at(-1)
     const generation = (previous?.generation ?? 0) + 1
     const createdAt = this.now()
     const suffix = randomUUID().replaceAll('-', '')
@@ -65,7 +65,7 @@ export class RuntimeLeaseService {
       releasedAt: null,
       lastError: null,
     }
-    this.store.insertRuntimeLease(allocating, generation - 1)
+    await this.store.insertRuntimeLease(allocating, generation - 1)
 
     try {
       const sandbox = await this.client.createSandbox(`onevibe-${conversationId.slice(-8)}`, {
@@ -80,7 +80,7 @@ export class RuntimeLeaseService {
         updatedAt: readyAt,
         readyAt,
       }
-      this.store.transitionRuntimeLease(allocating.id, fenceFor(allocating), ready)
+      await this.store.transitionRuntimeLease(allocating.id, fenceFor(allocating), ready)
       return { lease: ready, sandbox, reused: false }
     } catch (error) {
       const failedAt = this.timestampAfter(allocating.updatedAt)
@@ -90,7 +90,7 @@ export class RuntimeLeaseService {
         updatedAt: failedAt,
         lastError: { code: 'ALLOCATION_OUTCOME_UNKNOWN', category: 'transient', retryable: true, occurredAt: failedAt },
       }
-      this.store.transitionRuntimeLease(allocating.id, fenceFor(allocating), unknown)
+      await this.store.transitionRuntimeLease(allocating.id, fenceFor(allocating), unknown)
       throw error
     }
   }
@@ -101,7 +101,7 @@ export class RuntimeLeaseService {
    * the provider must return an immutable allocation operation/key label.
    */
   async reconcileUnknown(conversationId: string, signal?: AbortSignal): Promise<AcquiredRuntime> {
-    const active = this.store.findActiveRuntimeLease(conversationId)
+    const active = await this.store.findActiveRuntimeLease(conversationId)
     if (!active || active.status !== 'unknown') {
       throw new Error(`Conversation runtime lease is not awaiting reconciliation (status=${active?.status ?? 'none'})`)
     }
@@ -122,24 +122,24 @@ export class RuntimeLeaseService {
       readyAt,
       lastError: null,
     }
-    this.store.transitionRuntimeLease(active.id, fenceFor(active), ready)
+    await this.store.transitionRuntimeLease(active.id, fenceFor(active), ready)
     return { lease: ready, sandbox, reused: true }
   }
 
   async release(conversationId: string): Promise<RuntimeLeaseRecord | undefined> {
-    const active = this.store.findActiveRuntimeLease(conversationId)
+    const active = await this.store.findActiveRuntimeLease(conversationId)
     if (!active) return undefined
     if (active.status !== 'ready' || !active.providerSandboxId) {
       throw new Error(`Conversation runtime lease requires reconciliation before release (status=${active.status})`)
     }
     const requestedAt = this.timestampAfter(active.updatedAt)
     const releasing: RuntimeLeaseRecord = { ...active, status: 'releasing', updatedAt: requestedAt, releaseRequestedAt: requestedAt }
-    this.store.transitionRuntimeLease(active.id, fenceFor(active), releasing)
+    await this.store.transitionRuntimeLease(active.id, fenceFor(active), releasing)
     try {
       await this.client.deleteSandbox(active.providerSandboxId)
       const releasedAt = this.timestampAfter(releasing.updatedAt)
       const released: RuntimeLeaseRecord = { ...releasing, status: 'released', updatedAt: releasedAt, releasedAt }
-      this.store.transitionRuntimeLease(active.id, fenceFor(releasing), released)
+      await this.store.transitionRuntimeLease(active.id, fenceFor(releasing), released)
       return released
     } catch (error) {
       const failedAt = this.timestampAfter(releasing.updatedAt)
@@ -149,7 +149,7 @@ export class RuntimeLeaseService {
         updatedAt: failedAt,
         lastError: { code: 'RELEASE_OUTCOME_UNKNOWN', category: 'transient', retryable: true, occurredAt: failedAt },
       }
-      this.store.transitionRuntimeLease(active.id, fenceFor(releasing), unknown)
+      await this.store.transitionRuntimeLease(active.id, fenceFor(releasing), unknown)
       throw error
     }
   }
