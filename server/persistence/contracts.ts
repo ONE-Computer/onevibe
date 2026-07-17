@@ -242,6 +242,8 @@ export interface NativeProjectionOffset {
 export interface NativeEventRepository {
   findBySourceEvent(conversationId: string, runId: string, source: string, sourceEventId: string): NativeEventRecord | undefined
   listByConversation(conversationId: string, runId?: string, source?: string, afterSourceSequence?: number, limit?: number): NativeEventRecord[]
+  listProjections(conversationId: string): NativeEventProjectionRecord[]
+  listOffsets(conversationId: string): NativeProjectionOffset[]
   append(record: NativeEventRecord): void
   appendProjection(record: NativeEventProjectionRecord): void
   getOffset(conversationId: string, runId: string, source: string, projectorVersion: number): NativeProjectionOffset | undefined

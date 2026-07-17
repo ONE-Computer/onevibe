@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — import/export durability and browser evidence
+
+- `npm run e2e:postgres-import` passed against the local PostgreSQL 18 container after applying the full Drizzle ledger. The fixture imported a binary workspace file, a private `inputs/` file, a workspace snapshot, a project file plus revision, one native Claude SDK envelope, its runtime projection link, and its monotonic source offset; a fresh Postgres TaskStore recovered the bytes and metadata after the importer exited.
+- A first fixture attempt failed with `Turn run_import_fixture is missing from durable history` because the native envelope was attached to a task run without a durable turn. The fixture was corrected to call the real `beginTurn` path before ingesting the envelope. This is retained as a useful guard against synthetic import evidence.
+- Browser QA used the in-app browser with Vite at `http://127.0.0.1:5173/` and the API at `127.0.0.1:4311` against a clean temporary data root. The body contained `No governed runtime configured` and `Simulation only · no model call`; the screenshot is retained at `docs/browser-screenshots/local-home-20260717-postgres-import.jpg`. This proves truthful local rendering only.
+- The public export still excludes `inputs/` and `evidence/` paths by design. Do not claim private attachment export/import parity until a reviewed private-bundle or retention contract exists.
+
 ## 2026-07-17 — Postgres native-event and browser verification pass
 
 - A disposable PostgreSQL 18 server booted with `DATABASE_URL` and the reviewed driver selection. `npm run e2e:postgres-http` verified `/api/health`, bounded `/api/diagnostics` reporting `persistence.active=postgres`, direct first-party routing disabled, and `401 owner_scope_required` for unauthenticated `/api/tasks`. This proves the cutover and rejection boundary, not authenticated multi-user production acceptance.

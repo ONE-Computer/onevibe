@@ -49,7 +49,7 @@ const run = async () => {
   validateImportRelationships(projectRows, taskRows, scheduleRows)
 
   const organizationMemberUserIds = [...new Set(organizations.flatMap(({ members }) => members.map((member) => member.userId)))]
-  const counts = { organizations: organizations.length, organizationMembers: organizationMemberUserIds.length, projects: projectRows.length, tasks: taskRows.length, schedules: scheduleRows.length, mcpConfigs: mcpRows.length, skillInstallations: skillRows.length, messages: 0, events: 0, nativeEvents: 0, versions: 0 }
+  const counts = { organizations: organizations.length, organizationMembers: organizationMemberUserIds.length, projects: projectRows.length, tasks: taskRows.length, schedules: scheduleRows.length, mcpConfigs: mcpRows.length, skillInstallations: skillRows.length, messages: 0, events: 0, nativeEvents: 0, nativeProjectionLinks: 0, nativeProjectionOffsets: 0, versions: 0, workspaceFiles: 0, workspaceVersionFiles: 0, projectFiles: 0, projectRevisionFiles: 0 }
   for (const { task } of taskRows) {
     counts.messages += store.listMessages(task.id, { limit: 200 }).messages.length
     counts.events += store.listEvents(task.id).length
@@ -80,7 +80,7 @@ const run = async () => {
         orgId: member.organizationId, userId: member.userId, role: member.role, createdAt: new Date(member.createdAt),
       })))).onConflictDoNothing()
       if (projectRows.length) await tx.insert(schema.project).values(projectRows.map(({ project, ownerUserId: owner }) => ({
-        id: project.id, ownerUserId: owner, name: project.name, context: project.context, filesJson: project.files, createdAt: new Date(project.createdAt), updatedAt: new Date(project.updatedAt),
+        id: project.id, ownerUserId: owner, name: project.name, context: project.context, filesJson: { files: project.files, fileVersions: project.fileVersions ?? {} }, createdAt: new Date(project.createdAt), updatedAt: new Date(project.updatedAt),
       }))).onConflictDoNothing()
       if (taskRows.length) await tx.insert(schema.conversation).values(taskRows.map(({ task, ownerUserId: owner }) => ({
         id: task.id, ownerUserId: owner, title: task.title, status: 'active', createdAt: new Date(task.createdAt), updatedAt: new Date(task.updatedAt),
@@ -121,8 +121,36 @@ const run = async () => {
         if (events.length) await tx.insert(schema.runtimeEvent).values(events.map((event) => ({ id: event.id, taskId: task.id, runId: event.runId ?? null, sequence: event.sequence, type: event.type, lane: event.lane, status: event.status ?? null, label: event.label ?? null, content: event.content ?? null, payloadJson: event.payload, createdAt: new Date(event.createdAt), previousHash: event.previousHash, eventHash: event.eventHash }))).onConflictDoNothing()
         const nativeEvents = await store.listNativeEvents(task.id)
         if (nativeEvents.length) await tx.insert(schema.nativeEvent).values(nativeEvents.map((event) => ({ id: event.id, taskId: task.id, runId: event.runId, source: event.source, sourceEventId: event.sourceEventId, sourceSequence: event.sourceSequence, nativeType: event.nativeType, payloadJson: JSON.parse(event.payloadJson), payloadHash: event.payloadHash, receivedAt: new Date(event.receivedAt) }))).onConflictDoNothing()
+        const nativeProjectionLinks = await store.listNativeProjectionRecords(task.id)
+        if (nativeProjectionLinks.length) {
+          await tx.insert(schema.nativeEventProjection).values(nativeProjectionLinks.map((projection) => ({ nativeEventId: projection.nativeEventId, projectionIndex: projection.projectionIndex, runtimeEventId: projection.runtimeEventId, projectorVersion: projection.projectorVersion, projectedAt: new Date(projection.projectedAt) }))).onConflictDoNothing()
+          counts.nativeProjectionLinks += nativeProjectionLinks.length
+        }
+        const nativeProjectionOffsets = await store.listNativeProjectionOffsets(task.id)
+        if (nativeProjectionOffsets.length) {
+          await tx.insert(schema.nativeProjectionOffset).values(nativeProjectionOffsets.map((offset) => ({ taskId: task.id, runId: offset.runId, source: offset.source, projectorVersion: offset.projectorVersion, lastSourceSequence: offset.lastSourceSequence, updatedAt: new Date(offset.updatedAt) }))).onConflictDoNothing()
+          counts.nativeProjectionOffsets += nativeProjectionOffsets.length
+        }
         const versions = await store.listWorkspaceVersions(task.id)
         if (versions.length) await tx.insert(schema.workspaceVersion).values(versions.map((version) => ({ id: version.id, taskId: task.id, label: version.label, fileCount: version.fileCount, evidenceHash: version.evidenceHash, createdAt: new Date(version.createdAt) }))).onConflictDoNothing()
+        const workspaceFiles = await store.listWorkspaceFiles(task.id)
+        if (workspaceFiles.length) {
+          await tx.insert(schema.workspaceFile).values(await Promise.all(workspaceFiles.map(async (file) => {
+            const content = await store.readWorkspaceBytes(task.id, file.path)
+            counts.workspaceFiles += 1
+            return { taskId: task.id, path: file.path, content: Buffer.from(content), size: content.byteLength, sha256: createHash('sha256').update(content).digest('hex'), updatedAt: new Date(file.updatedAt) }
+          }))).onConflictDoNothing()
+        }
+        for (const version of versions) {
+          const versionFiles = await store.listWorkspaceVersionFiles(task.id, version.id)
+          if (versionFiles.length) {
+            await tx.insert(schema.workspaceVersionFile).values(await Promise.all(versionFiles.map(async (file) => {
+              const content = await store.readWorkspaceVersionBytes(task.id, version.id, file.path)
+              counts.workspaceVersionFiles += 1
+              return { versionId: version.id, path: file.path, content: Buffer.from(content), size: content.byteLength, sha256: createHash('sha256').update(content).digest('hex') }
+            }))).onConflictDoNothing()
+          }
+        }
         const sourceDigest = createHash('sha256').update(JSON.stringify({
           version: 'task-store-projection-v1', taskId: task.id, updatedAt: task.updatedAt,
           messageIds: messages.map((message) => message.id), eventIds: events.map((event) => event.id),
@@ -133,6 +161,21 @@ const run = async () => {
           resultJson: { status: 'imported', messageCount: messages.length, eventCount: events.length, nativeEventCount: nativeEvents.length, versionCount: versions.length },
           importedAt: new Date(),
         }).onConflictDoNothing()
+      }
+      for (const { project } of projectRows) {
+        const projectFiles = await Promise.all(project.files.map(async (file) => {
+          const content = await store.readProjectFileBytes(project.id, file.path, project.ownerUserId)
+          counts.projectFiles += 1
+          return { projectId: project.id, path: file.path, content: Buffer.from(content.content), size: content.content.byteLength, sha256: content.contentHash, updatedAt: new Date(file.createdAt) }
+        }))
+        if (projectFiles.length) await tx.insert(schema.projectFile).values(projectFiles).onConflictDoNothing()
+        for (const file of project.files) {
+          for (const version of store.listProjectFileVersions(project.id, file.path, project.ownerUserId)) {
+            const content = await store.readProjectFileVersionBytes(project.id, file.path, version.id, project.ownerUserId)
+            counts.projectRevisionFiles += 1
+            await tx.insert(schema.projectFileVersion).values({ projectId: project.id, path: file.path, id: version.id, content: Buffer.from(content.content), size: content.content.byteLength, sha256: content.contentHash, createdAt: new Date(version.createdAt) }).onConflictDoNothing()
+          }
+        }
       }
     })
     console.log(JSON.stringify({ imported: true, ownerUserId, counts }, null, 2))

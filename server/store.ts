@@ -7,7 +7,7 @@ import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
 import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, PostgresStateCoordinator, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
-import { isInternalWorkspacePath } from './artifact-path.js'
+import { isInternalWorkspacePath, portableArtifactKind } from './artifact-path.js'
 import type { McpConfig } from './runtime-adapter.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
@@ -703,17 +703,24 @@ export class TaskStore {
     const file = project.files.find((candidate) => candidate.path === filePath)
     if (!file) throw new Error('Project knowledge file not found')
     if (!isEditableProjectFile(file)) throw new Error('Only text-like project knowledge files can be edited')
+    const stored = await this.readProjectFileBytes(projectId, filePath, ownerUserId)
+    return { path: file.path, content: stored.content.toString('utf8'), contentHash: stored.contentHash }
+  }
+
+  async readProjectFileBytes(projectId: string, filePath: string, ownerUserId?: string) {
+    const project = this.getProject(projectId, ownerUserId)
+    const file = project.files.find((candidate) => candidate.path === filePath)
+    if (!file) throw new Error('Project knowledge file not found')
     if (this.postgresState) {
       if (!project.ownerUserId) throw new Error('Postgres project files require an owner')
       const stored = await this.postgresState.readProjectFile(project, project.ownerUserId, file.path)
-      const content = stored.content.toString('utf8')
-      return { path: file.path, content, contentHash: stored.sha256 }
+      return { path: file.path, content: stored.content, size: stored.size, mimeType: file.mimeType, contentHash: stored.sha256 }
     }
     const root = path.join(this.projectsRoot, projectId)
     const target = path.join(root, file.path)
     assertWithin(root, target)
-    const content = await readFile(target, 'utf8')
-    return { path: file.path, content, contentHash: createHash('sha256').update(content).digest('hex') }
+    const content = await readFile(target)
+    return { path: file.path, content, size: content.byteLength, mimeType: file.mimeType, contentHash: createHash('sha256').update(content).digest('hex') }
   }
 
   async updateProjectFile(projectId: string, filePath: string, content: string, expectedHash: string, ownerUserId?: string) {
@@ -770,6 +777,22 @@ export class TaskStore {
     assertWithin(root, source)
     const content = await readFile(source, 'utf8')
     return this.updateProjectFile(projectId, filePath, content, expectedHash, ownerUserId)
+  }
+
+  async readProjectFileVersionBytes(projectId: string, filePath: string, versionId: string, ownerUserId?: string) {
+    const project = this.getProject(projectId, ownerUserId)
+    const version = this.listProjectFileVersions(projectId, filePath, ownerUserId).find((candidate) => candidate.id === versionId)
+    if (!version) throw new Error('Project knowledge revision not found')
+    if (this.postgresState) {
+      if (!project.ownerUserId) throw new Error('Postgres project files require an owner')
+      const stored = await this.postgresState.readProjectFileVersion(project, project.ownerUserId, filePath, versionId)
+      return { ...stored, contentHash: stored.sha256 }
+    }
+    const root = path.join(this.projectsRoot, project.id)
+    const source = projectVersionPath(root, filePath, version.id)
+    assertWithin(root, source)
+    const content = await readFile(source)
+    return { path: filePath, content, size: content.byteLength, sha256: createHash('sha256').update(content).digest('hex'), contentHash: createHash('sha256').update(content).digest('hex') }
   }
 
   async projectContextFiles(projectId: string, ownerUserId?: string) {
@@ -1213,6 +1236,18 @@ export class TaskStore {
     return this.requireUnitOfWork().run((repositories) => repositories.nativeEvents.listByConversation(taskId))
   }
 
+  async listNativeProjectionRecords(taskId: string) {
+    if (this.postgresState) return this.postgresState.listNativeProjectionRecords(this.getTask(taskId))
+    this.getTask(taskId)
+    return this.requireUnitOfWork().run((repositories) => repositories.nativeEvents.listProjections(taskId))
+  }
+
+  async listNativeProjectionOffsets(taskId: string) {
+    if (this.postgresState) return this.postgresState.listNativeProjectionOffsets(this.getTask(taskId))
+    this.getTask(taskId)
+    return this.requireUnitOfWork().run((repositories) => repositories.nativeEvents.listOffsets(taskId))
+  }
+
   async beginTurn(taskId: string, content: string, provider: Task['provider']) {
     const now = new Date().toISOString()
     const turnId = `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`
@@ -1545,6 +1580,43 @@ export class TaskStore {
     return files.length
   }
 
+  async readWorkspaceVersionBytes(taskId: string, versionId: string, relativePath: string) {
+    const task = this.getTask(taskId)
+    if (this.postgresState) {
+      const files = await this.postgresState.listWorkspaceVersionFiles(task, versionId)
+      const file = files.find((candidate) => candidate.path === relativePath)
+      if (!file) throw new Error(`Workspace version file ${relativePath} does not exist`)
+      return file.content
+    }
+    const versionRoot = path.resolve(this.versionsRoot, taskId, versionId)
+    assertWithin(path.join(this.versionsRoot, taskId), versionRoot)
+    const target = path.resolve(versionRoot, 'files', relativePath)
+    assertWithin(path.join(versionRoot, 'files'), target)
+    return readFile(target)
+  }
+
+  async listWorkspaceVersionFiles(taskId: string, versionId: string): Promise<WorkspaceFile[]> {
+    const task = this.getTask(taskId)
+    if (this.postgresState) {
+      return (await this.postgresState.listWorkspaceVersionFiles(task, versionId)).map(({ path: filePath, size, updatedAt }) => ({ path: filePath, size, updatedAt }))
+    }
+    const root = path.join(this.versionsRoot, taskId, versionId, 'files')
+    assertWithin(this.versionsRoot, root)
+    const results: WorkspaceFile[] = []
+    const walk = async (directory: string) => {
+      for (const entry of await readdir(directory, { withFileTypes: true }).catch(() => [])) {
+        const full = path.join(directory, entry.name)
+        if (entry.isDirectory()) await walk(full)
+        if (entry.isFile()) {
+          const details = await stat(full)
+          results.push({ path: path.relative(root, full), size: details.size, updatedAt: details.mtime.toISOString() })
+        }
+      }
+    }
+    await walk(root)
+    return results.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
   /**
    * Reconcile files created by provider runtimes that write directly through
    * their SDK tools. The Postgres repository remains authoritative; internal
@@ -1678,10 +1750,30 @@ export class TaskStore {
     const chainValid = this.verifyChain(taskId)
     const files = await this.listWorkspaceFiles(taskId)
     const entries: Record<string, Uint8Array> = {}
-    for (const file of files) entries[file.path] = await this.readWorkspaceBytes(taskId, file.path)
+    const excludedWorkspaceFiles: string[] = []
+    for (const file of files) {
+      if (!portableArtifactKind(file.path)) { excludedWorkspaceFiles.push(file.path); continue }
+      entries[file.path] = await this.readWorkspaceBytes(taskId, file.path)
+    }
+    const project = this.getProject(task.projectId)
+    const projectFileEntries: string[] = []
+    const projectRevisionEntries: string[] = []
+    for (const file of project.files) {
+      const stored = await this.readProjectFileBytes(project.id, file.path, project.ownerUserId)
+      const entryPath = `project-knowledge/${file.path}`
+      entries[entryPath] = stored.content
+      projectFileEntries.push(entryPath)
+      for (const version of this.listProjectFileVersions(project.id, file.path, project.ownerUserId)) {
+        const revision = await this.readProjectFileVersionBytes(project.id, file.path, version.id, project.ownerUserId)
+        const revisionPath = `project-knowledge/.history/${file.path.replace(/[^a-zA-Z0-9._/-]/g, '_')}/${version.id}`
+        entries[revisionPath] = revision.content
+        projectRevisionEntries.push(revisionPath)
+      }
+    }
     entries['GITHUB-HANDOFF.md'] = strToU8(`# GitHub handoff\n\nThis archive is a portable handoff for **${task.title}**. It does not create a repository, authenticate to GitHub, or authorize publication.\n\n## Evidence\n\n- Task ID: \`${task.id}\`\n- Creation mode: \`${task.mode}\`\n- Provider: \`${task.provider}\`\n- Evidence chain: ${chainValid ? 'valid at export' : 'INVALID — do not publish until reviewed'}\n- Final evidence hash: \`${events.at(-1)?.eventHash ?? 'GENESIS'}\`\n\n## Suggested review and handoff\n\n1. Extract this archive and inspect \`ONEVIBE-EVIDENCE.json\`, \`validation-report.json\` (when present), and the generated source.\n2. Remove anything unsuitable for external publication. Never commit credentials, private inputs, evidence screenshots, or \`.env*\` files.\n3. Create a reviewed repository: \`git init && git add . && git commit -m "Initial governed handoff"\`.\n4. Use your approved GitHub identity and repository policy to create a remote or pull request. For GitHub CLI users: \`gh repo create <owner>/<repo> --private --source=. --push\`.\n5. Preserve this archive or attach \`ONEVIBE-EVIDENCE.json\` to the review record so the source handoff remains traceable.\n\nExternal publishing remains a consequential action. Obtain the required independent VTI Wallet approval before executing it.\n`)
     entries['ONEVIBE-EVIDENCE.json'] = strToU8(`${JSON.stringify({
-      task, events, messages, chainValid,
+      task, project: { id: project.id, name: project.name, context: project.context, files: project.files }, events, messages, chainValid,
+      excludedWorkspaceFiles, projectFileEntries, projectRevisionEntries,
       exportedAt: new Date().toISOString(),
     }, null, 2)}\n`)
     return zipSync(entries, { level: 6 })

@@ -154,6 +154,13 @@ type NativeProjectionOffsetRow = {
   last_source_sequence: number
   updated_at: Date
 }
+type NativeProjectionLinkRow = {
+  native_event_id: string
+  projection_index: number
+  runtime_event_id: string
+  projector_version: number
+  projected_at: Date
+}
 
 const isUniqueViolation = (error: unknown) => typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505'
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -525,6 +532,37 @@ export class PostgresChatRepository {
       LIMIT ${limit}
     `
     return rows.map((row) => nativeEventFromRow(row, conversationId))
+  }
+
+  async listNativeProjectionRecords(conversationId: string, ownerUserId: string): Promise<NativeEventProjectionRecord[]> {
+    const rows = await this.#sql<NativeProjectionLinkRow[]>`
+      SELECT nep.native_event_id, nep.projection_index, nep.runtime_event_id, nep.projector_version, nep.projected_at
+      FROM native_event_projection nep
+      INNER JOIN native_event ne ON ne.id = nep.native_event_id
+      INNER JOIN task t ON t.id = ne.task_id
+      INNER JOIN conversation c ON c.id = t.conversation_id
+      WHERE c.id = ${conversationId} AND c.owner_user_id = ${ownerUserId}
+      ORDER BY nep.native_event_id, nep.projection_index
+    `
+    return rows.map((row) => ({
+      nativeEventId: row.native_event_id,
+      projectionIndex: row.projection_index,
+      runtimeEventId: row.runtime_event_id,
+      projectorVersion: row.projector_version,
+      projectedAt: row.projected_at.toISOString(),
+    }))
+  }
+
+  async listNativeProjectionOffsets(conversationId: string, ownerUserId: string): Promise<NativeProjectionOffset[]> {
+    const rows = await this.#sql<NativeProjectionOffsetRow[]>`
+      SELECT npo.task_id, npo.run_id, npo.source, npo.projector_version, npo.last_source_sequence, npo.updated_at
+      FROM native_projection_offset npo
+      INNER JOIN task t ON t.id = npo.task_id
+      INNER JOIN conversation c ON c.id = t.conversation_id
+      WHERE c.id = ${conversationId} AND c.owner_user_id = ${ownerUserId}
+      ORDER BY npo.run_id, npo.source, npo.projector_version
+    `
+    return rows.map((row) => nativeOffsetFromRow(row, conversationId))
   }
 
   async appendNativeEvent(record: NativeEventRecord, ownerUserId: string): Promise<void> {

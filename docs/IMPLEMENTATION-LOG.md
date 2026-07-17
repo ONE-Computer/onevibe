@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-17 — prove byte-complete legacy import surfaces and browser truthfulness
+
+- Extended `db:import` to carry workspace file bytes, immutable workspace-version bytes, current project-file bytes, project revision bytes, native-event projection links, and native projection offsets into the reviewed Postgres tables. Existing task metadata still carries attachment descriptors; private `inputs/` bytes are retained in the imported workspace but remain excluded from the portable public export by policy.
+- Added `npm run e2e:postgres-import`. Against the local PostgreSQL 18 container it creates a temporary SQLite legacy store, imports it through the real importer, closes/reopens a Postgres TaskStore, and verifies binary workspace bytes, private-input bytes, snapshot bytes, project revisions, native envelopes, projection links, and offsets. It passed with no secrets or provider payloads retained.
+- Captured a fresh browser smoke screenshot at [`docs/browser-screenshots/local-home-20260717-postgres-import.jpg`](browser-screenshots/local-home-20260717-postgres-import.jpg). The page is backend-connected and truthfully displays `No governed runtime configured` plus `Simulation only · no model call`; this is local UI evidence only, not provider, sandbox, or production isolation evidence.
+- Verification: `npm test` (52 files / 259 tests), `npm run lint`, `npm run build`, `npm run check:e2e-harness`, `npm run db:migrate`, `npm run e2e:postgres-import`, and `npm run e2e:postgres-taskstore` passed against PostgreSQL 18.
+- Boundary: portable export/import of private attachments is intentionally not claimed; remaining P4 gaps are attachment export policy/round trips, full workflow idempotency/concurrency, cross-instance live SSE, and production migration/deployment controls.
+
 ## 2026-07-17 — enable the controlled Postgres server cutover
 
 - Added migration `0008_slippery_gauntlet.sql` and `project_file_version` byte storage. Project-file update/restore now writes and reads revision bytes transactionally with current project metadata; the TaskStore proof covers revision recovery after coordinator restart.

@@ -45,6 +45,7 @@ type NativeEventRow = {
   id: string; conversation_id: string; run_id: string; source: string; source_event_id: string;
   source_sequence: number; native_type: string; payload_json: string; payload_hash: string; received_at: string;
 }
+type NativeProjectionLinkRow = { native_event_id: string; projection_index: number; runtime_event_id: string; projector_version: number; projected_at: string }
 type McpConfigRow = { id: string; owner_user_id: string | null; name: string; command: string; args_json: string; created_at: string; updated_at: string }
 type SkillInstallationRow = { id: string; owner_scope: string; owner_user_id: string | null; version: number; title: string; summary: string; sha256: string; content: string; content_url: string; source_url: string; created_at: string; updated_at: string }
 type OrganizationRow = { id: string; name: string; created_at: string; updated_at: string }
@@ -324,7 +325,7 @@ const nativeEventFromRow = (row: NativeEventRow): NativeEventRecord => ({
   receivedAt: row.received_at,
 })
 
-type NativeProjectionRow = {
+type NativeProjectionOffsetRow = {
   conversation_id: string; run_id: string; source: string; projector_version: number;
   last_source_sequence: number; updated_at: string;
 }
@@ -352,6 +353,37 @@ export class SqliteNativeEventRepository implements NativeEventRepository {
       ORDER BY source_sequence ASC LIMIT ?
     `).all(conversationId, runId ?? null, runId ?? null, source ?? null, source ?? null, afterSourceSequence, limit) as NativeEventRow[]
     return rows.map(nativeEventFromRow)
+  }
+
+  listProjections(conversationId: string): NativeEventProjectionRecord[] {
+    const rows = this.database.prepare(`
+      SELECT p.native_event_id, p.projection_index, p.runtime_event_id, p.projector_version, p.projected_at
+      FROM native_event_projections p
+      INNER JOIN native_events n ON n.id = p.native_event_id
+      WHERE n.conversation_id = ?
+      ORDER BY p.native_event_id, p.projection_index
+    `).all(conversationId) as NativeProjectionLinkRow[]
+    return rows.map((row) => ({
+      nativeEventId: row.native_event_id, projectionIndex: row.projection_index,
+      runtimeEventId: row.runtime_event_id, projectorVersion: row.projector_version, projectedAt: row.projected_at,
+    }))
+  }
+
+  listOffsets(conversationId: string): NativeProjectionOffset[] {
+    const rows = this.database.prepare(`
+      SELECT conversation_id, run_id, source, projector_version, last_source_sequence, updated_at
+      FROM native_projection_offsets
+      WHERE conversation_id = ?
+      ORDER BY run_id, source, projector_version
+    `).all(conversationId) as NativeProjectionOffsetRow[]
+    return rows.map((row) => ({
+      conversationId: row.conversation_id,
+      runId: row.run_id,
+      source: row.source,
+      projectorVersion: row.projector_version,
+      lastSourceSequence: row.last_source_sequence,
+      updatedAt: row.updated_at,
+    }))
   }
 
   append(record: NativeEventRecord): void {
@@ -394,7 +426,7 @@ export class SqliteNativeEventRepository implements NativeEventRepository {
     const row = this.database.prepare(`
       SELECT * FROM native_projection_offsets
       WHERE conversation_id = ? AND run_id = ? AND source = ? AND projector_version = ?
-    `).get(conversationId, runId, source, projectorVersion) as NativeProjectionRow | undefined
+    `).get(conversationId, runId, source, projectorVersion) as NativeProjectionOffsetRow | undefined
     return row && {
       conversationId: row.conversation_id, runId: row.run_id, source: row.source,
       projectorVersion: row.projector_version, lastSourceSequence: row.last_source_sequence, updatedAt: row.updated_at,

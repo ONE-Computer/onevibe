@@ -371,6 +371,16 @@ export class PostgresStateCoordinator {
     return this.#chat.listNativeEvents(task.id, task.ownerUserId, runId, source, afterSourceSequence, limit)
   }
 
+  async listNativeProjectionRecords(task: Task) {
+    if (!task.ownerUserId) return []
+    return this.#chat.listNativeProjectionRecords(task.id, task.ownerUserId)
+  }
+
+  async listNativeProjectionOffsets(task: Task) {
+    if (!task.ownerUserId) return []
+    return this.#chat.listNativeProjectionOffsets(task.id, task.ownerUserId)
+  }
+
   async appendNativeEvent(task: Task, record: NativeEventRecord) {
     if (!task.ownerUserId) throw new Error('Postgres native events require an owner')
     if (record.conversationId !== task.id) throw new Error(`Native event ${record.id} is not bound to task conversation ${task.id}`)
