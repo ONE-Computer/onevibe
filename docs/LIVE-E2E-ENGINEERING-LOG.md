@@ -5,6 +5,7 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 ## 2026-07-17 — protected LiteLLM document and skills golden acceptance
 
 - The full `npm run e2e:golden` flow passed with explicit router alias `claude-sonnet-5` and the documented 15-minute turn deadline. Task `task_93c3a98da5964b` materialized the selected skills, completed two Claude turns, produced 5 live and 86 suffix-replayed SSE frames, preserved the README artifact, verified evidence, recovered after API restart, recovered server-side search, and proved separate-task identity/isolation.
+- A fresh browser smoke pass rendered the truthful local home state with no configured runtime and no model call; screenshot evidence is [`local-home-20260717-p1-10-golden.jpg`](browser-screenshots/local-home-20260717-p1-10-golden.jpg). This is not provider or production-isolation evidence.
 - Boundary: this is a protected host-process local proof. It does not prove ONEComputer/microVM/OpenVTC isolation or production egress controls.
 
 ## 2026-07-17 — protected LiteLLM chat acceptance rerun

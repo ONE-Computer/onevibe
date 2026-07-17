@@ -3,6 +3,7 @@
 ## 2026-07-17 — protected LiteLLM document and skills golden acceptance
 
 - The full `npm run e2e:golden` flow passed through the server-controlled LiteLLM relay using explicit router alias `claude-sonnet-5` and the documented 15-minute turn deadline (`ONEVIBE_TURN_TIMEOUT_MS=900000`). Task `task_93c3a98da5964b` selected and materialized `document`/`security_review` skills, completed two durable Claude turns, emitted 5 live SSE frames and 86 suffix-replayed frames, preserved `README.md`, verified the evidence chain, recovered the transcript/session after API restart, recovered server-side search, and proved a distinct isolated task. Boundary: `executionBoundary=host_process`; no ONEComputer, microVM, OpenVTC, or production egress claim.
+- Browser smoke after the acceptance run still rendered the honest unconfigured local state (`No governed runtime configured`, `Simulation only · no model call`, disabled `Start task`) with no observed UI error. Screenshot: [`local-home-20260717-p1-10-golden.jpg`](browser-screenshots/local-home-20260717-p1-10-golden.jpg). This is local UI evidence only.
 - Earlier 60–120s runs timed out while the provider was still executing governed tools. Those were diagnostic deadline probes below the product default, not evidence of a missing-terminal bug. The timeout remains fail-closed and no synthetic artifact fallback was added.
 
 ## 2026-07-17 — protected LiteLLM chat acceptance rerun
