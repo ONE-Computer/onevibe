@@ -209,6 +209,7 @@ export class TaskStore {
         this.events.set(task.id, state.events.get(task.id) ?? [])
         this.messages.set(task.id, state.messages.get(task.id) ?? [])
       }
+      for (const task of this.tasks.values()) await this.hydratePostgresWorkspaceCache(task)
       this.schedules = new Map(state.schedules.map((schedule) => [schedule.id, schedule]))
       this.postgresMessageRevisions = state.messageRevisions
       return
@@ -1300,26 +1301,33 @@ export class TaskStore {
   }
 
   async writeWorkspaceFile(taskId: string, relativePath: string, content: string) {
-    const target = this.workspacePath(taskId, relativePath)
-    await mkdir(path.dirname(target), { recursive: true })
-    await writeFile(target, content, 'utf8')
+    await this.writeWorkspaceBytes(taskId, relativePath, Buffer.from(content, 'utf8'))
   }
 
   async writeWorkspaceBytes(taskId: string, relativePath: string, content: Uint8Array) {
     const target = this.workspacePath(taskId, relativePath)
+    if (this.postgresState) {
+      const task = this.getTask(taskId)
+      await this.postgresState.writeWorkspaceFile(task, relativePath, content, createHash('sha256').update(content).digest('hex'))
+    }
     await mkdir(path.dirname(target), { recursive: true })
     await writeFile(target, content)
   }
 
   async readWorkspaceFile(taskId: string, relativePath: string) {
+    if (this.postgresState) return (await this.postgresState.readWorkspaceFile(this.getTask(taskId), relativePath)).content.toString('utf8')
     return readFile(this.workspacePath(taskId, relativePath), 'utf8')
   }
 
   async readWorkspaceBytes(taskId: string, relativePath: string) {
+    if (this.postgresState) return (await this.postgresState.readWorkspaceFile(this.getTask(taskId), relativePath)).content
     return readFile(this.workspacePath(taskId, relativePath))
   }
 
   async listWorkspaceFiles(taskId: string): Promise<WorkspaceFile[]> {
+    if (this.postgresState) {
+      return (await this.postgresState.listWorkspaceFiles(this.getTask(taskId))).map(({ path: filePath, size, updatedAt }) => ({ path: filePath, size, updatedAt }))
+    }
     const root = this.workspacePath(taskId)
     await mkdir(root, { recursive: true })
     const results: WorkspaceFile[] = []
@@ -1349,6 +1357,15 @@ export class TaskStore {
     const files = await this.listWorkspaceFiles(taskId)
     if (!files.length) return null
     const id = `version_${Date.now()}_${randomUUID().slice(0, 8)}`
+    if (this.postgresState) {
+      const task = this.getTask(taskId)
+      const records = await this.postgresState.listWorkspaceFiles(task)
+      const version: WorkspaceVersion = {
+        id, taskId, label: label.slice(0, 120), createdAt: new Date().toISOString(), fileCount: records.length,
+        evidenceHash: this.listEvents(taskId).at(-1)?.eventHash ?? 'GENESIS',
+      }
+      return this.postgresState.createWorkspaceVersion(task, version, records)
+    }
     const root = path.join(this.versionsRoot, taskId, id)
     assertWithin(this.versionsRoot, root)
     await mkdir(root, { recursive: true })
@@ -1362,6 +1379,7 @@ export class TaskStore {
   }
 
   async listWorkspaceVersions(taskId: string): Promise<WorkspaceVersion[]> {
+    if (this.postgresState) return this.postgresState.listWorkspaceVersions(this.getTask(taskId))
     this.getTask(taskId)
     const root = path.join(this.versionsRoot, taskId)
     await mkdir(root, { recursive: true })
@@ -1374,6 +1392,12 @@ export class TaskStore {
   }
 
   async restoreWorkspaceVersion(taskId: string, versionId: string) {
+    if (this.postgresState) {
+      const task = this.getTask(taskId)
+      const version = await this.postgresState.restoreWorkspaceVersion(task, versionId)
+      await this.hydratePostgresWorkspaceCache(task)
+      return version
+    }
     const versionRoot = path.resolve(this.versionsRoot, taskId, versionId)
     assertWithin(path.join(this.versionsRoot, taskId), versionRoot)
     const version = JSON.parse(await readFile(path.join(versionRoot, 'version.json'), 'utf8')) as WorkspaceVersion
@@ -1385,6 +1409,29 @@ export class TaskStore {
   }
 
   async compareWorkspaceVersion(taskId: string, versionId: string): Promise<WorkspaceVersionComparison> {
+    if (this.postgresState) {
+      const task = this.getTask(taskId)
+      const version = (await this.postgresState.listWorkspaceVersions(task)).find((candidate) => candidate.id === versionId)
+      if (!version) throw new Error('Invalid workspace version')
+      const [beforeRecords, afterRecords] = await Promise.all([
+        this.postgresState.listWorkspaceVersionFiles(task, versionId),
+        this.postgresState.listWorkspaceFiles(task),
+      ])
+      const before = new Map(beforeRecords.map((file) => [file.path, { size: file.size, hash: file.sha256 }]))
+      const after = new Map(afterRecords.map((file) => [file.path, { size: file.size, hash: file.sha256 }]))
+      const paths = [...new Set([...before.keys(), ...after.keys()])].sort((a, b) => a.localeCompare(b))
+      const changes: WorkspaceVersionComparison['changes'] = []
+      let added = 0; let changed = 0; let removed = 0
+      for (const relativePath of paths) {
+        const prior = before.get(relativePath)
+        const current = after.get(relativePath)
+        if (!prior && current) { added += 1; changes.push({ path: relativePath, status: 'added', afterSize: current.size, afterHash: current.hash }); continue }
+        if (prior && !current) { removed += 1; changes.push({ path: relativePath, status: 'removed', beforeSize: prior.size, beforeHash: prior.hash }); continue }
+        if (prior && current && prior.hash !== current.hash) { changed += 1; changes.push({ path: relativePath, status: 'changed', beforeSize: prior.size, afterSize: current.size, beforeHash: prior.hash, afterHash: current.hash }) }
+      }
+      const limit = 200
+      return { version, comparedAt: new Date().toISOString(), summary: { added, changed, removed }, changes: changes.slice(0, limit), truncated: changes.length > limit }
+    }
     const versionRoot = path.resolve(this.versionsRoot, taskId, versionId)
     assertWithin(path.join(this.versionsRoot, taskId), versionRoot)
     const version = JSON.parse(await readFile(path.join(versionRoot, 'version.json'), 'utf8')) as WorkspaceVersion
@@ -1421,6 +1468,14 @@ export class TaskStore {
   }
 
   async copyWorkspace(sourceTaskId: string, targetTaskId: string) {
+    if (this.postgresState) {
+      const source = this.getTask(sourceTaskId)
+      const target = this.getTask(targetTaskId)
+      if (!source.ownerUserId || source.ownerUserId !== target.ownerUserId) throw new Error('Postgres workspace copies require one owner')
+      const count = await this.postgresState.copyWorkspaceFiles(source, target)
+      await this.hydratePostgresWorkspaceCache(target)
+      return count
+    }
     const source = this.workspacePath(sourceTaskId)
     const target = this.workspacePath(targetTaskId)
     const files = await this.listWorkspaceFiles(sourceTaskId)
@@ -1671,6 +1726,19 @@ export class TaskStore {
   private requireUnitOfWork() {
     if (!this.unitOfWork) throw new Error('TaskStore is not initialized')
     return this.unitOfWork
+  }
+
+  private async hydratePostgresWorkspaceCache(task: Task) {
+    if (!this.postgresState || !task.ownerUserId) return
+    const root = this.workspacePath(task.id)
+    await rm(root, { recursive: true, force: true })
+    await mkdir(root, { recursive: true })
+    for (const file of await this.postgresState.listWorkspaceFiles(task)) {
+      const target = path.join(root, file.path)
+      assertWithin(root, target)
+      await mkdir(path.dirname(target), { recursive: true })
+      await writeFile(target, file.content)
+    }
   }
 
   private runtimeEventFromRecord(record: RuntimeEventRecord): RuntimeEvent {

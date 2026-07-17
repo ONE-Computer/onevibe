@@ -3,11 +3,12 @@ import { randomUUID } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import * as schema from '../db/schema.js'
-import type { ChatMessage, EventInput, Project, RuntimeEvent, Task, TaskSchedule } from '../types.js'
+import type { ChatMessage, EventInput, Project, RuntimeEvent, Task, TaskSchedule, WorkspaceVersion } from '../types.js'
 import { PostgresChatRepository, type AtomicNativeProjectionInput, type CloneConversationMessageInput, type CloneConversationTurnInput, type PostgresChatMessage, type PostgresRuntimeEventRow } from './postgres-chat.js'
 import { RecordNotFoundError } from './errors.js'
 import { PostgresMetadataRepository } from './postgres-metadata.js'
 import { PostgresOperationsRepository } from './postgres-operations.js'
+import { PostgresWorkspaceRepository, type PostgresWorkspaceFileRecord } from './postgres-workspace.js'
 
 export type PostgresStateConfig = { readonly maxConnections?: number; readonly connectTimeoutSeconds?: number }
 export type PostgresMcpAuditRecord = { id: string; configId: string; operation: string; config: unknown; createdAt: string }
@@ -47,6 +48,7 @@ export class PostgresStateCoordinator {
   readonly #chat: PostgresChatRepository
   readonly #metadata: PostgresMetadataRepository
   readonly #operations: PostgresOperationsRepository
+  readonly #workspace: PostgresWorkspaceRepository
 
   constructor(databaseUrl: string, config: PostgresStateConfig = {}) {
     this.#sql = postgres(databaseUrl, { max: config.maxConnections ?? 8, connect_timeout: config.connectTimeoutSeconds ?? 5, prepare: false }) as Sql<Record<string, never>>
@@ -58,6 +60,7 @@ export class PostgresStateCoordinator {
     this.#chat = new PostgresChatRepository(this.#sql)
     this.#metadata = new PostgresMetadataRepository(this.#sql)
     this.#operations = new PostgresOperationsRepository(this.#sql)
+    this.#workspace = new PostgresWorkspaceRepository(this.#sql)
     this.#close = async () => { await Promise.all([this.#sql.end({ timeout: 5 }), this.#authSql.end({ timeout: 5 })]) }
   }
 
@@ -227,6 +230,62 @@ export class PostgresStateCoordinator {
   async insertSchedule(schedule: TaskSchedule) { await this.#metadata.insertSchedule(schedule) }
   async updateSchedule(schedule: TaskSchedule, expectedUpdatedAt: string) { await this.#metadata.updateSchedule(schedule, expectedUpdatedAt) }
   async deleteSchedule(id: string, ownerUserId: string) { await this.#metadata.deleteSchedule(id, ownerUserId) }
+
+  async listWorkspaceFiles(task: Task) {
+    if (!task.ownerUserId) return []
+    return this.#workspace.listFiles(task.id, task.ownerUserId)
+  }
+
+  async readWorkspaceFile(task: Task, relativePath: string) {
+    if (!task.ownerUserId) throw new Error('Postgres workspace files require an owner')
+    return this.#workspace.readFile(task.id, task.ownerUserId, relativePath)
+  }
+
+  async writeWorkspaceFile(task: Task, relativePath: string, content: Uint8Array, sha256: string, updatedAt = new Date()) {
+    if (!task.ownerUserId) throw new Error('Postgres workspace files require an owner')
+    return this.#workspace.putFile(task.id, task.ownerUserId, relativePath, content, sha256, updatedAt)
+  }
+
+  async createWorkspaceVersion(task: Task, version: WorkspaceVersion, files: PostgresWorkspaceFileRecord[]) {
+    if (!task.ownerUserId) throw new Error('Postgres workspace versions require an owner')
+    return this.#workspace.createVersion(task.id, task.ownerUserId, version, files)
+  }
+
+  async listWorkspaceVersions(task: Task) {
+    if (!task.ownerUserId) return []
+    return this.#workspace.listVersions(task.id, task.ownerUserId)
+  }
+
+  async listWorkspaceVersionFiles(task: Task, versionId: string) {
+    if (!task.ownerUserId) throw new Error('Postgres workspace versions require an owner')
+    return this.#workspace.listVersionFiles(task.id, task.ownerUserId, versionId)
+  }
+
+  async restoreWorkspaceVersion(task: Task, versionId: string) {
+    if (!task.ownerUserId) throw new Error('Postgres workspace versions require an owner')
+    return this.#workspace.restoreVersion(task.id, task.ownerUserId, versionId)
+  }
+
+  async copyWorkspaceFiles(source: Task, target: Task) {
+    if (!source.ownerUserId || source.ownerUserId !== target.ownerUserId) throw new Error('Postgres workspace copies require one owner')
+    return this.#workspace.copyFiles(source.id, target.id, source.ownerUserId)
+  }
+
+  async listProjectFiles(project: Project, ownerUserId: string) {
+    return this.#workspace.listProjectFiles(project.id, ownerUserId)
+  }
+
+  async readProjectFile(project: Project, ownerUserId: string, relativePath: string) {
+    return this.#workspace.readProjectFile(project.id, ownerUserId, relativePath)
+  }
+
+  async writeProjectFile(project: Project, ownerUserId: string, relativePath: string, content: Uint8Array, sha256: string, updatedAt = new Date()) {
+    return this.#workspace.putProjectFile(project.id, ownerUserId, relativePath, content, sha256, updatedAt)
+  }
+
+  async deleteProjectFile(project: Project, ownerUserId: string, relativePath: string) {
+    return this.#workspace.deleteProjectFile(project.id, ownerUserId, relativePath)
+  }
 
   async beginTurn(task: Task, turnId: string, clientRequestId: string, prompt: string, createdAt = new Date()) {
     if (!task.ownerUserId) throw new Error('Postgres conversations require an owner')

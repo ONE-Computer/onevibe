@@ -28,6 +28,15 @@ const main = async () => {
     await first.appendEvent(task.id, { type: 'run_completed', lane: 'control', status: 'completed', label: 'Turn completed', payload: {} })
     await first.appendStandaloneMessage(task.id, 'assistant', 'A standalone durable message.')
     const branchBoundary = await first.appendStandaloneMessage(task.id, 'user', 'Branch from this message.')
+    await first.writeWorkspaceFile(task.id, 'README.md', '# Durable workspace\n')
+    await first.writeWorkspaceBytes(task.id, 'data.bin', new Uint8Array([0, 1, 2, 255]))
+    const workspaceVersion = await first.createWorkspaceVersion(task.id, 'Initial durable workspace')
+    assert.ok(workspaceVersion)
+    await first.writeWorkspaceFile(task.id, 'README.md', '# Changed workspace\n')
+    assert.deepEqual((await first.compareWorkspaceVersion(task.id, workspaceVersion!.id)).summary, { added: 0, changed: 1, removed: 0 })
+    await first.restoreWorkspaceVersion(task.id, workspaceVersion!.id)
+    assert.equal(await first.readWorkspaceFile(task.id, 'README.md'), '# Durable workspace\n')
+    assert.deepEqual([...await first.readWorkspaceBytes(task.id, 'data.bin')], [0, 1, 2, 255])
     await first.beginTurn(otherTask.id, 'Capture a native event.', otherTask.provider)
     const nativeInput = {
       source: 'onecomputer_sandbox' as const, sourceEventId: 'sandbox-event-0', sourceSequence: 0, nativeType: 'tool_result',
@@ -85,6 +94,9 @@ const main = async () => {
       assert.equal(snapshot.events.length, 2)
       assert.equal((await second.listNativeEvents(otherTask.id)).length, 1, 'native event count')
       assert.equal((await second.snapshot(otherTask.id)).events.length, 1, 'native projection event count')
+      assert.equal(await second.readWorkspaceFile(task.id, 'README.md'), '# Durable workspace\n')
+      assert.deepEqual([...await second.readWorkspaceBytes(task.id, 'data.bin')], [0, 1, 2, 255])
+      assert.equal((await second.listWorkspaceVersions(task.id)).length, 1)
       assert.equal(second.verifyChain(task.id), true)
       assert.deepEqual(await second.getRetry(task.id, 'retry-1'), { state: 'completed', response: { status: 'queued', taskId: task.id } })
       assert.deepEqual((await second.listRuntimeLeases(task.id, ownerUserId)).map((candidate) => ({ status: candidate.status, generation: candidate.generation, providerSandboxId: candidate.providerSandboxId })), [{ status: 'ready', generation: 0, providerSandboxId: 'sandbox-taskstore' }])
@@ -104,7 +116,8 @@ const main = async () => {
       const fork = await second.forkTask(task.id, branchBoundary.id, 'Forked Postgres conversation')
       assert.equal(fork.parentTaskId, task.id)
       assert.equal((await second.snapshot(fork.id)).messages.length, 3)
-      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, standaloneMessageRestartRecovery: true, nativeAtomicReplayAndConflict: true, nativeRestartRecovery: true, forkHistoryAtomic: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'opt-in core slice only; production driver selection remains fail-closed until the full async TaskStore surface is integrated' }, null, 2))
+      assert.equal(await second.readWorkspaceFile(fork.id, 'README.md'), '# Durable workspace\n')
+      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, workspaceBytesRestartRecovery: true, workspaceVersionRestore: true, workspaceForkCopy: true, standaloneMessageRestartRecovery: true, nativeAtomicReplayAndConflict: true, nativeRestartRecovery: true, forkHistoryAtomic: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'opt-in core slice only; production driver selection remains fail-closed until the full async TaskStore surface is integrated' }, null, 2))
     } finally {
       await second.close()
     }

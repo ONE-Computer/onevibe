@@ -1,7 +1,8 @@
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, customType, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 const createdAt = (name = 'created_at') => timestamp(name, { withTimezone: true }).notNull()
 const updatedAt = (name = 'updated_at') => timestamp(name, { withTimezone: true }).notNull()
+const binary = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' })
 
 // Better Auth's default model names are intentionally preserved. The auth
 // adapter maps these four tables directly; do not rename them without updating
@@ -245,6 +246,35 @@ export const workspaceVersion = pgTable('workspace_version', {
   evidenceHash: text('evidence_hash').notNull(),
   createdAt: createdAt(),
 }, (table) => [index('workspace_version_task_idx').on(table.taskId, table.createdAt)])
+
+// Workspace bytes are a first-class durable boundary. The runtime filesystem
+// is only a materialized working copy; these rows are the restart/multi-instance
+// source of truth for the opt-in Postgres path.
+export const workspaceFile = pgTable('workspace_file', {
+  taskId: text('task_id').notNull().references(() => task.id, { onDelete: 'cascade' }),
+  path: text('path').notNull(),
+  content: binary('content').notNull(),
+  size: integer('size').notNull(),
+  sha256: text('sha256').notNull(),
+  updatedAt: updatedAt(),
+}, (table) => [primaryKey({ columns: [table.taskId, table.path] }), index('workspace_file_task_updated_idx').on(table.taskId, table.updatedAt)])
+
+export const workspaceVersionFile = pgTable('workspace_version_file', {
+  versionId: text('version_id').notNull().references(() => workspaceVersion.id, { onDelete: 'cascade' }),
+  path: text('path').notNull(),
+  content: binary('content').notNull(),
+  size: integer('size').notNull(),
+  sha256: text('sha256').notNull(),
+}, (table) => [primaryKey({ columns: [table.versionId, table.path] })])
+
+export const projectFile = pgTable('project_file', {
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  path: text('path').notNull(),
+  content: binary('content').notNull(),
+  size: integer('size').notNull(),
+  sha256: text('sha256').notNull(),
+  updatedAt: updatedAt(),
+}, (table) => [primaryKey({ columns: [table.projectId, table.path] }), index('project_file_updated_idx').on(table.projectId, table.updatedAt)])
 
 export const runtimeMcpConfig = pgTable('runtime_mcp_config', {
   id: text('id').primaryKey(),

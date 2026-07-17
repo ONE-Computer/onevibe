@@ -1,11 +1,18 @@
 # Implementation log
 
+## 2026-07-17 — persist Postgres workspace bytes and immutable snapshots
+
+- Added Postgres-backed task workspace files and immutable workspace-version file rows with owner-checked reads/writes, binary content, byte size, and SHA-256 content hashes. The local filesystem is now a materialized cache for the opt-in Postgres path; durable writes commit before cache refresh.
+- Workspace version creation and restore are transactional. Version comparison reads the stored snapshot rows rather than relying on a local `versions/` directory, and fork workspace copying is transaction-backed. The disposable TaskStore proof now covers binary byte recovery, version restore, one-file compare, and fork copy across coordinator close/reopen.
+- Verification: `npm run check`, `npm run db:check`, and a fresh PostgreSQL 18 `npm run e2e:postgres-taskstore` passed; the proof reports `workspaceBytesRestartRecovery=true`, `workspaceVersionRestore=true`, `workspaceForkCopy=true`, and the compare assertion passed.
+- Boundary: project-file tables are schema groundwork only in this slice; project-file metadata/content integration, revisions, attachments/previews/screenshots, remaining reads/imports, and the controlled production driver switch remain open.
+
 ## 2026-07-17 — make Postgres conversation branching transactional
 
 - Added a transaction-backed Postgres history clone for forked conversations. It locks and owner-checks both source and target conversations/tasks, inserts the cloned turns and messages together, and never leaves a partially populated branch when a copy fails.
 - `TaskStore.forkTask` now uses the Postgres clone path while preserving the local filesystem workspace copy as a separate development operation. The branch retains parent/message lineage and emits the same durable branch evidence event.
 - The disposable PostgreSQL 18 TaskStore proof now reports `forkHistoryAtomic=true` alongside standalone-message restart recovery, atomic native replay/conflict handling, owner-scoped operational persistence, and lease fencing.
-- Boundary: workspace bytes and version manifests remain local filesystem state in the opt-in hybrid proof; the production driver remains fail-closed.
+- Boundary: workspace bytes and version manifests are now durable in the opt-in repository; project-file/attachment surfaces and the production driver remain fail-closed.
 
 ## 2026-07-17 — persist standalone messages and atomically ingest Postgres native events
 

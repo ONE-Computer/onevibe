@@ -4,6 +4,7 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 
 ## 2026-07-17 — Postgres native-event and browser verification pass
 
+- The opt-in TaskStore proof now stores task workspace text and binary bytes in Postgres, creates an immutable version snapshot, compares the changed workspace against that snapshot, restores it transactionally, hydrates the local cache after restart, and copies it into a fork. The compare path reads version rows directly, so it does not depend on a surviving local `versions/` directory.
 - The opt-in TaskStore proof now includes a standalone assistant message that survives restart, one atomic native envelope with a projected tool event and source offset, same-source replay without duplicate events, and a changed-payload conflict that rolls back. The native projection transaction is separate from the subsequent assistant-delta transcript update by design and remains a future cross-repository transaction gate.
 - The same proof now creates a fork from a later user boundary after restart; the cloned three-message history and parent lineage are inserted transactionally, and the branch evidence event is durable.
 - The opt-in TaskStore proof now exercises async operational wrappers as well as the core transcript: owner-isolated MCP config, skill installation, organization membership, and lease state all survive coordinator close/reopen and enforce wrong-owner access. The proof is still intentionally opt-in and does not select Postgres for the live server.
