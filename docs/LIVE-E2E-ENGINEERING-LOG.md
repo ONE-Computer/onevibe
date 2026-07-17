@@ -2,6 +2,12 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — durable attachment reservation proof
+
+- A fresh API initialized the twelve-migration SQLite ledger. Concurrent keyed follow-up requests reserved one attachment transactionally with the operation, materialized one deterministic private input path, and completed one four-message transcript; the changed-payload replay still returned `409`.
+- The restart failure-injection harness recovered attachment bytes from the `follow_up_attachments` ledger rather than relying only on the operation payload. Unit coverage verifies the reserved SHA-256/content and the `reserved` → `materialized` state transition.
+- Boundary: the durable bytes/metadata reservation is atomic with operation acceptance. The subsequent filesystem write and task JSON attachment-list update remain a recoverable promotion step, not a single cross-store transaction.
+
 ## 2026-07-17 — lease and provider-unknown recovery proof
 
 - `npm run e2e:follow-up-recovery` now exercises two independent crash boundaries against the same temporary SQLite root. A crash immediately after preparation exits `97` and recovers exactly one four-message follow-up with one attachment; a crash after the durable provider-start marker exits `98`.

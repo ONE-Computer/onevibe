@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-17 — transactional durable follow-up attachment reservations
+
+- Added SQLite migration v12 and Postgres migration 0011 with `follow_up_attachments`, storing bounded attachment metadata, SHA-256, private relative path, state, and bytes behind the durable operation foreign key.
+- Keyed follow-up creation now inserts the operation and its attachment reservations in the same SQLite/Postgres transaction. Recovery reads reserved bytes from this ledger, re-materializes deterministic `inputs/request-*` paths, and marks each reservation `materialized` after the filesystem/task staging step succeeds.
+- This removes the previous dependency on the operation JSON payload as the only durable copy of attachment bytes. It does not claim that the filesystem write and SQLite task JSON update are one atomic transaction; staged-file/task-metadata promotion remains open.
+- Verification: `npm run lint`, `npm run test` (56 test files / 270 tests), `npm run build`, `npm run db:check`, `npm run e2e:follow-up-recovery`, and a fresh v12 API `npm run e2e:follow-up-attachment` passed. The twelve-migration Postgres schema is generated and reviewed locally.
+
 ## 2026-07-17 — durable follow-up leases, provider correlation, and unknown-outcome acknowledgment
 
 - Added SQLite migration v11 and Postgres migration 0010 for lease owner/expiry, attempt count, stable execution identity, provider-request correlation identity, and explicit provider state (`not_started`, `started`, `succeeded`, `failed`, `unknown`). The reviewed Postgres ledger now contains eleven migrations.
