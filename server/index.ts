@@ -31,6 +31,7 @@ import { serveStatic } from './static-files.js'
 import { AuthService } from './auth.js'
 import { resolvePersistenceConfig } from './persistence/driver-config.js'
 import { probeMcpConfig } from './mcp-facade.js'
+import { IdempotencyConflictError } from './persistence/errors.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -175,7 +176,8 @@ const createScheduleInput = z.object({
   projectId: z.string().regex(/^project_[a-z0-9]+$/), intervalMinutes: z.number().int().min(15).max(10_080),
 })
 const scheduleStateInput = z.object({ enabled: z.boolean() })
-const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000), attachments: z.array(taskAttachment).max(4).default([]) })
+const idempotencyKeyInput = z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/)
+const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000), attachments: z.array(taskAttachment).max(4).default([]), idempotencyKey: idempotencyKeyInput.optional() })
 const forkTaskInput = z.object({ fromMessageId: z.string().regex(/^message_[a-f0-9]+$/), newPrompt: z.string().trim().min(1).max(8_000) })
 const retryInput = z.object({ idempotencyKey: z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/), provider: runtimeProviderInput.optional() })
 const moveTaskProjectInput = z.object({ projectId: z.string().regex(/^project_[a-z0-9]+$/) })
@@ -191,19 +193,30 @@ const mcpConfigInput = z.object({
 })
 const textFilePattern = /\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|ya?ml|toml|xml|svg|gitignore|prettierrc)$/i
 const contentHash = (content: string) => createHash('sha256').update(content).digest('hex')
-const stageFollowUpAttachments = async (taskId: string, input: Array<{ name: string; mimeType: string; dataBase64: string }>) => {
+const bytesHash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
+const normalizedAttachmentName = (name: string) => path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
+const followUpRequestHash = (taskId: string, prompt: string, input: Array<{ name: string; mimeType: string; dataBase64: string }>) => contentHash(JSON.stringify({
+  taskId,
+  prompt,
+  attachments: input.map((attachment) => {
+    const bytes = Buffer.from(attachment.dataBase64, 'base64')
+    return { name: normalizedAttachmentName(attachment.name), mimeType: attachment.mimeType || 'application/octet-stream', size: bytes.byteLength, sha256: bytesHash(bytes) }
+  }),
+}))
+const stageFollowUpAttachments = async (taskId: string, input: Array<{ name: string; mimeType: string; dataBase64: string }>, idempotencyKey?: string) => {
   if (!input.length) return []
   const task = store.getTask(taskId)
   if (task.attachments.length + input.length > 32) throw new RangeError('Conversation has reached the 32-file input limit')
   const decoded = input.map((attachment) => {
-    const name = path.basename(attachment.name).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
+    const name = normalizedAttachmentName(attachment.name)
     if (!name || name === '.' || name === '..') throw new RangeError('Invalid attachment filename')
     const bytes = Buffer.from(attachment.dataBase64, 'base64')
     if (!bytes.length || bytes.byteLength > 256 * 1024) throw new RangeError('Each attachment must be between 1 byte and 256 KiB')
     return { name, mimeType: attachment.mimeType || 'application/octet-stream', bytes }
   })
   if (decoded.reduce((total, attachment) => total + attachment.bytes.byteLength, 0) > 1_000_000) throw new RangeError('Follow-up attachments exceed the 1 MiB turn limit')
-  const attachments = decoded.map((attachment, index) => ({ name: attachment.name, path: `inputs/${String(task.attachments.length + index + 1).padStart(2, '0')}-${attachment.name}`, size: attachment.bytes.byteLength, mimeType: attachment.mimeType }))
+  const requestPathPrefix = idempotencyKey ? `inputs/request-${contentHash(idempotencyKey).slice(0, 16)}` : undefined
+  const attachments = decoded.map((attachment, index) => ({ name: attachment.name, path: requestPathPrefix ? `${requestPathPrefix}-${String(index + 1).padStart(2, '0')}-${attachment.name}` : `inputs/${String(task.attachments.length + index + 1).padStart(2, '0')}-${attachment.name}`, size: attachment.bytes.byteLength, mimeType: attachment.mimeType }))
   await Promise.all(attachments.map((attachment, index) => store.writeWorkspaceBytes(taskId, attachment.path, decoded[index]!.bytes)))
   await store.updateTask(taskId, { attachments: [...task.attachments, ...attachments] })
   return attachments
@@ -647,18 +660,36 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'POST' && segments[3] === 'messages') {
       const input = followUpInput.parse(await readBody(request, 1_500_000))
       const task = store.getTask(taskId)
-      if (activeRuns.has(taskId) || task.status === 'running' || task.status === 'pending') {
-        if (task.queuedGuidance.length >= 8) return json(response, 409, { error: 'Task already has the maximum of 8 queued guidance messages' })
-        const attachments = await stageFollowUpAttachments(taskId, input.attachments)
-        const guidance = await store.queueGuidance(taskId, input.prompt, attachments.map((attachment) => attachment.path))
-        return json(response, 202, { status: 'queued', taskId, guidanceId: guidance.id })
+      const headerIdempotencyKey = typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'] : undefined
+      if (input.idempotencyKey && headerIdempotencyKey && input.idempotencyKey !== headerIdempotencyKey) throw new RangeError('Body and Idempotency-Key header must match')
+      const idempotencyKey = input.idempotencyKey ?? (headerIdempotencyKey ? idempotencyKeyInput.parse(headerIdempotencyKey) : undefined)
+      const operationScope = `follow-up:${taskId}`
+      const requestHash = idempotencyKey ? followUpRequestHash(taskId, input.prompt, input.attachments) : undefined
+      const isActive = activeRuns.has(taskId) || task.status === 'running' || task.status === 'pending'
+      if (!isActive) {
+        const providerState = (await providerAvailability(task.provider)).state
+        if (!providerState?.available) return json(response, 409, { error: `${providerState?.label ?? task.provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}` })
       }
-      const providerState = (await providerAvailability(task.provider)).state
-      if (!providerState?.available) return json(response, 409, { error: `${providerState?.label ?? task.provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}` })
-      const attachments = await stageFollowUpAttachments(taskId, input.attachments)
+      if (isActive) {
+        if (task.queuedGuidance.length >= 8) return json(response, 409, { error: 'Task already has the maximum of 8 queued guidance messages' })
+      }
+      if (idempotencyKey && requestHash) {
+        const claim = await store.claimIdempotentOperation(operationScope, idempotencyKey, requestHash, task.ownerUserId ?? actorUserId)
+        if (!claim.claimed) return json(response, claim.state === 'pending' ? 202 : 200, claim.response ?? { status: 'processing', taskId, idempotencyKey })
+      }
+      if (isActive) {
+        const attachments = await stageFollowUpAttachments(taskId, input.attachments, idempotencyKey)
+        const guidance = await store.queueGuidance(taskId, input.prompt, attachments.map((attachment) => attachment.path), idempotencyKey ? `guidance_${contentHash(idempotencyKey).slice(0, 24)}` : undefined)
+        const accepted = { status: 'queued', taskId, guidanceId: guidance.id, ...(idempotencyKey ? { idempotencyKey } : {}) }
+        if (idempotencyKey) await store.completeIdempotentOperation(operationScope, idempotencyKey, accepted)
+        return json(response, 202, accepted)
+      }
+      const attachments = await stageFollowUpAttachments(taskId, input.attachments, idempotencyKey)
       await store.updateTask(taskId, { status: 'pending' })
       setTimeout(() => executeTask(taskId, input.prompt, true, attachments.map((attachment) => attachment.path)), 25)
-      return json(response, 202, { status: 'queued', taskId })
+      const accepted = { status: 'queued', taskId, ...(idempotencyKey ? { idempotencyKey } : {}) }
+      if (idempotencyKey) await store.completeIdempotentOperation(operationScope, idempotencyKey, accepted)
+      return json(response, 202, accepted)
     }
     if (request.method === 'POST' && segments[3] === 'fork') {
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before creating a conversation branch' })
@@ -940,6 +971,7 @@ createServer((request, response) => {
   route(request, response).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)
     const status = error instanceof z.ZodError || error instanceof RangeError ? 400
+      : error instanceof IdempotencyConflictError ? 409
       : message === 'Wallet authorization failed' ? 401
           : message === 'Organization owner access required' ? 403
           : /not found(?:$|\s)/.test(message) ? 404

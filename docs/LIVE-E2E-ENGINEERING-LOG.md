@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — concurrent follow-up idempotency proof
+
+- `npm run e2e:follow-up-attachment` ran against a fresh local API on port 4312. Two concurrent identical `POST /api/tasks/:id/messages` requests used the same idempotency key; both were accepted as `202` while the task completed exactly one follow-up turn with one staged attachment and one exact-turn artifact evidence record.
+- The attachment was written at a deterministic request-derived path (`inputs/request-…-01-brief_follow-up.txt`), the file returned 18 expected bytes, and a changed prompt with the same key returned `409`.
+- Browser recheck at `http://127.0.0.1:5173/` remained truthful: the page reported backend-connected local state, `No governed runtime configured`, and `Simulation only · no model call`. Screenshot: `docs/browser-screenshots/local-home-20260717-followup-idempotency.jpg`.
+- This proves local duplicate acceptance protection only. It does not prove a crash-safe transaction across the idempotency row, task JSON, workspace bytes, and provider execution, nor cross-process HTTP duplicate handling.
+
 ## 2026-07-17 — Compose contract check
 
 - `docker compose config` passed with the default SQLite contract and showed the new operator-controlled Postgres/auth variables without any retained values.

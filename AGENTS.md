@@ -91,7 +91,7 @@ Assistant-ui deliverable cards must be projections of durable artifact events wh
 
 Follow-up attachments must pass through the `/api/tasks/:id/messages` ingestion boundary and be written under numbered `inputs/` paths before task metadata changes. Preserve per-file, per-turn, and per-conversation limits. Bind files to the exact turn through durable evidence; queued guidance owns its attachment paths and cancellation must remove those staged files. Never place bytes/base64 content in messages, events, logs, or assistant-ui metadata.
 
-Run `npm run e2e:follow-up-attachment` against a running local API to prove a two-turn transcript, normalized workspace bytes, and exact-turn evidence binding.
+Run `npm run e2e:follow-up-attachment` against a running local API to prove a two-turn transcript, normalized workspace bytes, exact-turn evidence binding, concurrent duplicate follow-up acceptance, deterministic keyed attachment paths, and changed-payload `409` rejection. Clients may send `idempotencyKey` in the JSON body or the standard `Idempotency-Key` header; if both are present they must match. This is durable acceptance/replay protection, not a transaction across the idempotency row, task metadata, workspace bytes, and provider execution. Do not claim crash-safe exactly-once execution until pending-operation recovery, stable runnable turn identity, cross-process HTTP proof, and a transactional attachment/task boundary exist.
 
 For mobile work, verify the sidebar starts collapsed, opens with a backdrop and reachable in-panel close control, and leaves the main task in a nonzero grid column. A DOM-only assertion is insufficient when layout is involved; inspect a 390px browser screenshot and reset the viewport afterward.
 

@@ -970,10 +970,10 @@ export class TaskStore {
     return this.getTask(taskId)
   }
 
-  async queueGuidance(taskId: string, prompt: string, attachmentPaths: string[] = []) {
+  async queueGuidance(taskId: string, prompt: string, attachmentPaths: string[] = [], guidanceId?: string) {
     const task = this.getTask(taskId)
     if (task.queuedGuidance.length >= 8) throw new Error('Task already has the maximum of 8 queued guidance messages')
-    const guidance = { id: `guidance_${randomUUID().replaceAll('-', '').slice(0, 12)}`, prompt, attachmentPaths, createdAt: new Date().toISOString() }
+    const guidance = { id: guidanceId ?? `guidance_${randomUUID().replaceAll('-', '').slice(0, 12)}`, prompt, attachmentPaths, createdAt: new Date().toISOString() }
     await this.updateTask(taskId, { queuedGuidance: [...task.queuedGuidance, guidance] })
     await this.appendEvent(taskId, {
       type: 'guidance_queued', lane: 'control', label: 'Guidance queued for next turn',
@@ -1325,8 +1325,12 @@ export class TaskStore {
     this.getTask(taskId)
     const scope = `retry:${taskId}`
     const requestHash = createHash('sha256').update(JSON.stringify({ taskId, prompt })).digest('hex')
+    return this.claimIdempotentOperation(scope, idempotencyKey, requestHash, this.getTask(taskId).ownerUserId)
+  }
+
+  async claimIdempotentOperation(scope: string, idempotencyKey: string, requestHash: string, ownerUserId?: string): Promise<{ claimed: boolean; state: 'pending' | 'completed'; response?: Record<string, unknown> }> {
     const now = new Date().toISOString()
-    if (this.postgresState) return this.postgresState.claimIdempotency(scope, idempotencyKey, requestHash, now, this.getTask(taskId).ownerUserId)
+    if (this.postgresState) return this.postgresState.claimIdempotency(scope, idempotencyKey, requestHash, now, ownerUserId)
     return this.requireUnitOfWork().run((repositories) => {
       const existing = repositories.idempotency.find(scope, idempotencyKey)
       if (existing) {
@@ -1342,6 +1346,15 @@ export class TaskStore {
     })
   }
 
+  async completeIdempotentOperation(scope: string, idempotencyKey: string, response: Record<string, unknown>) {
+    const encodedResponse = JSON.stringify(response)
+    if (this.postgresState) {
+      await this.postgresState.completeIdempotency(scope, idempotencyKey, encodedResponse, new Date().toISOString())
+      return
+    }
+    this.requireUnitOfWork().run((repositories) => repositories.idempotency.complete(scope, idempotencyKey, encodedResponse, new Date().toISOString()))
+  }
+
   async getRetry(taskId: string, idempotencyKey: string): Promise<{ state: 'pending' | 'completed'; response?: Record<string, unknown> } | undefined> {
     this.getTask(taskId)
     if (this.postgresState) {
@@ -1355,12 +1368,7 @@ export class TaskStore {
   }
 
   async completeRetry(taskId: string, idempotencyKey: string, response: Record<string, unknown>) {
-    const scope = `retry:${taskId}`
-    if (this.postgresState) {
-      await this.postgresState.completeIdempotency(scope, idempotencyKey, JSON.stringify(response), new Date().toISOString())
-      return
-    }
-    this.requireUnitOfWork().run((repositories) => repositories.idempotency.complete(scope, idempotencyKey, JSON.stringify(response), new Date().toISOString()))
+    await this.completeIdempotentOperation(`retry:${taskId}`, idempotencyKey, response)
   }
 
   searchMessages(query: string, limit = 50, ownerUserId?: string) {

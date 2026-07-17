@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-17 — add bounded follow-up idempotency
+
+- Added an optional body `idempotencyKey` and standard `Idempotency-Key` header to `POST /api/tasks/:id/messages`. The server hashes the normalized prompt plus sanitized attachment metadata, decoded byte length, and byte digest; reusing a key with a different request returns `409` without staging a second input set.
+- Keyed attachments use deterministic request-derived paths and queued guidance uses a stable request-derived ID. The existing unkeyed follow-up behavior remains backward compatible.
+- Verification: `npm run check:e2e-harness`, focused store tests, `npm run lint`, and `npm run e2e:follow-up-attachment` passed. The concurrent fixture produced two `202` responses, one four-message transcript, one 18-byte attachment, exact-turn evidence, and rejected a changed-payload key reuse.
+- Boundary: this is durable acceptance/replay protection, not a single transaction across idempotency, filesystem/object bytes, task metadata, and provider execution. Pending operations need recovery/reclaim semantics, cross-process HTTP duplicate proof, stable runnable turn identity, and full workflow idempotency before P4-02 is complete.
+
 ## 2026-07-17 — expose the controlled container runtime contract
 
 - Added explicit Compose variables for `ONEVIBE_PERSISTENCE_DRIVER`, `DATABASE_URL`, Better Auth enablement/secret/webhook/base URL/trusted origins, while keeping SQLite as the default. The image does not auto-run migrations and does not create an implicit Postgres service.

@@ -32,20 +32,28 @@ const task = await request<{ id: string }>('/api/tasks', {
 })
 await waitForCompletion(task.id)
 const expectedContent = 'follow-up evidence'
-await request(`/api/tasks/${task.id}/messages`, {
+const followUpBody = JSON.stringify({ prompt: 'Use the attached brief and confirm it remains in this conversation workspace.', idempotencyKey: 'follow-up-attachment-proof', attachments: [{ name: 'brief follow-up.txt', mimeType: 'text/plain', dataBase64: Buffer.from(expectedContent).toString('base64') }] })
+const [firstFollowUp, replayFollowUp] = await Promise.all([1, 2].map(() => fetch(`${baseUrl}/api/tasks/${task.id}/messages`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ prompt: 'Use the attached brief and confirm it remains in this conversation workspace.', attachments: [{ name: 'brief follow-up.txt', mimeType: 'text/plain', dataBase64: Buffer.from(expectedContent).toString('base64') }] }),
-})
+  body: followUpBody,
+})))
+assert.ok([200, 202].includes(firstFollowUp.status))
+assert.ok([200, 202].includes(replayFollowUp.status))
 const snapshot = await waitForCompletion(task.id)
+const conflictingFollowUp = await fetch(`${baseUrl}/api/tasks/${task.id}/messages`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ prompt: 'A different request with the same key', idempotencyKey: 'follow-up-attachment-proof' }),
+})
+assert.equal(conflictingFollowUp.status, 409)
 assert.equal(snapshot.messages.length, 4)
 assert.equal(snapshot.attachments.length, 1)
 const attachment = snapshot.attachments[0]!
 assert.equal(attachment.name, 'brief_follow-up.txt')
-assert.match(attachment.path, /^inputs\/\d{2}-brief_follow-up\.txt$/)
+assert.match(attachment.path, /^inputs\/(?:\d{2}|request-[a-f0-9]{16}-\d{2})-brief_follow-up\.txt$/)
 const secondTurn = snapshot.messages.filter((message) => message.role === 'user')[1]?.turnId
 assert.ok(secondTurn)
 const evidence = snapshot.events.find((event) => event.runId === secondTurn && event.type === 'artifact_created' && event.payload.kind === 'task_input')
 assert.ok(evidence, 'The follow-up file must be evidenced on the second turn')
 const file = await request<{ content: string }>(`/api/tasks/${task.id}/file?path=${encodeURIComponent(attachment.path)}`)
 assert.equal(file.content, expectedContent)
-console.log(JSON.stringify({ taskId: task.id, messageCount: snapshot.messages.length, attachmentPath: attachment.path, attachmentBytes: attachment.size, turnId: secondTurn, evidenceBound: true }))
+console.log(JSON.stringify({ taskId: task.id, messageCount: snapshot.messages.length, attachmentPath: attachment.path, attachmentBytes: attachment.size, turnId: secondTurn, evidenceBound: true, followUpIdempotency: true, concurrentStatuses: [firstFollowUp.status, replayFollowUp.status], conflictingKeyRejected: true }))
