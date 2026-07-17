@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — typed tenant homepage content and owner editor
+
+- Wired `TenantThemeConfig.homePage` into the real home surface: bounded announcement text/links, hero copy, and allow-listed feature-card accents render through typed React elements. Tenant navigation items are rendered as validated links; no arbitrary HTML, icon names, scripts, iframes, or custom CSS are accepted.
+- Added the owner-scoped Homepage editor with real optimistic-version Save/Reset mutations, six-card editing guard, explicit local/Postgres-unavailable state, and unauthorized/conflict errors. It sends the complete validated theme document through the existing server API so unrelated presentation settings are preserved.
+- Added static-render tests proving configured content appears and malicious-looking copy is escaped as text. Browser smoke reached `/?view=homepage` in local SQLite mode and showed the honest persistence boundary; screenshot evidence is [`local-home-20260717-homepage-boundary.jpg`](browser-screenshots/local-home-20260717-homepage-boundary.jpg). The browser backend's duplicated side rails are a capture artifact from the constrained viewport, not treated as a product visual pass.
+
 ## 2026-07-17 — truthful owner-scoped Appearance controls
 
 - Added the `Appearance` route and navigation entry. It loads tenant summaries and detail from the authenticated Postgres theme API, keeps an immediate preview local to the form, and sends real versioned Save/Reset mutations with stale-version and unauthorized/error messaging.

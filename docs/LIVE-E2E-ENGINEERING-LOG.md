@@ -1,5 +1,11 @@
 # ONEVibe live E2E engineering log
 
+## 2026-07-17 — homepage content projection and editor boundary
+
+- The tenant homepage config is now exercised by the UI: announcement links, bounded hero text, and feature cards are typed React output; navigation links come only from the validated server response. React escaping prevents config text from becoming markup.
+- The owner editor uses the existing authenticated versioned theme API. Local SQLite displays an unavailable state and does not fabricate save success. Focused static-render tests, lint, and build passed.
+- Browser evidence reached `/?view=homepage` and captured the local owner-boundary state. The screenshot includes duplicated rails caused by the constrained browser capture viewport; it is retained as raw route evidence only.
+
 ## 2026-07-17 — semantic theme projection and bounded asset acceptance
 
 - Fixed a real runtime defect: the first ThemeProvider implementation wrote `--onevibe-theme-*` variables that no shipped component consumed. It now projects only into the existing semantic CSS layer, and removes those overrides when the server theme changes or falls back.

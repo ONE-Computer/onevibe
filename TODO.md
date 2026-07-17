@@ -159,9 +159,9 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ### P7-06 — Tenant homepage/content configuration (P1)
 
-- [ ] Add an admin-only homepage editor for bounded hero copy, announcement links, feature cards, navigation links, and compliance links.
-- [ ] Render configured content through typed React components; do not render arbitrary `customSectionsHtml` by default. If an HTML escape hatch is approved later, use a reviewed sanitizer/CSP test and prohibit scripts, iframes, inline styles, event handlers, and unsafe URLs.
-- [ ] Support optional per-card accent tokens through an allow-listed palette rather than arbitrary CSS values.
+- [x] Add an owner-scoped homepage editor for bounded hero copy, announcement links, and feature cards. Navigation links are rendered from the existing validated config; formal admin-role authorization and editor controls for compliance links remain open.
+- [x] Render configured content through typed React components; arbitrary `customSectionsHtml` is not accepted or rendered. Any future HTML escape hatch requires a reviewed sanitizer/CSP test and must prohibit scripts, iframes, inline styles, event handlers, and unsafe URLs.
+- [x] Support optional per-card accent tokens through an allow-listed palette rather than arbitrary CSS values.
 
 ### P7-07 — Reference tenant profiles and acceptance matrix (P2)
 

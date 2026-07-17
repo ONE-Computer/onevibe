@@ -1,4 +1,4 @@
-import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileText, FolderKanban, Gamepad2, Globe2, Library, MonitorCog, Palette, Pencil, Plus, Presentation, Search, Sparkles, X } from 'lucide-react'
+import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileEdit, FileText, FolderKanban, Gamepad2, Globe2, Library, MonitorCog, Palette, Pencil, Plus, Presentation, Search, Sparkles, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationSummary, Project, ProjectFileVersion, TaskMode } from '../types'
@@ -6,9 +6,10 @@ import type { AuthUser } from '../lib/auth'
 import { getProjectFile, listConversations, listProjectFileVersions } from '../lib/api'
 import { providerLabel } from '../lib/runtime-labels'
 import { BrandMark } from './BrandMark'
+import { useTenantTheme } from '../hooks/useTenantTheme'
 
 type Props = {
-  view: 'agent' | 'schedules' | 'skills' | 'library' | 'computers' | 'appearance'
+  view: 'agent' | 'schedules' | 'skills' | 'library' | 'computers' | 'appearance' | 'homepage'
   conversations: ConversationSummary[]
   activeTaskId: string | null
   onNewTask: () => void
@@ -31,6 +32,7 @@ type Props = {
   onOpenSchedules: () => void
   onOpenComputers: () => void
   onOpenAppearance: () => void
+  onOpenHomepage: () => void
   skillCount: number
   user?: AuthUser
   onSignOut: () => Promise<void>
@@ -76,7 +78,8 @@ const bucketFor = (iso: string, now: number): 'Today' | 'Yesterday' | 'This week
   return 'Older'
 }
 
-export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, onOpenAppearance, skillCount, user, onSignOut }: Props) => {
+export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, onOpenAppearance, onOpenHomepage, skillCount, user, onSignOut }: Props) => {
+  const { config } = useTenantTheme()
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
@@ -139,6 +142,8 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
       <button className={`nav-item ${view === 'library' ? 'active' : ''}`} onClick={onOpenLibrary}><Library size={16} /> Library</button>
       <button className={`nav-item ${view === 'computers' ? 'active' : ''}`} onClick={onOpenComputers}><MonitorCog size={16} /> Computers</button>
       <button className={`nav-item ${view === 'appearance' ? 'active' : ''}`} onClick={onOpenAppearance}><Palette size={16} /> Appearance</button>
+      <button className={`nav-item ${view === 'homepage' ? 'active' : ''}`} onClick={onOpenHomepage}><FileEdit size={16} /> Homepage</button>
+      {config?.navigation?.items?.map((item) => <a key={`${item.label}:${item.href}`} className="nav-item tenant-nav-link" href={item.href} target={item.external ? '_blank' : undefined} rel={item.external ? 'noreferrer' : undefined}>{item.label}</a>)}
     </nav>
     <div className="nav-section-label"><span>Projects</span><button aria-label="Create project" onClick={() => setCreatingProject((value) => !value)}><Plus size={13} /></button></div>
     {creatingProject && <form className="project-create" onSubmit={(event) => { event.preventDefault(); const name = projectName.trim(); if (!name) return; void onCreateProject(name, projectContext.trim()).then(() => { setProjectName(''); setProjectContext(''); setCreatingProject(false) }) }}><input autoFocus value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Project name" maxLength={100} /><textarea value={projectContext} onChange={(event) => setProjectContext(event.target.value)} placeholder="Governed brief (optional)" maxLength={8000} rows={2} /><button type="submit">Create project</button></form>}
