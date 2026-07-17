@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Changed
+- Add CSS motion tokens (`--duration-instant/fast/normal/slow`, `--ease-standard/decelerate/accelerate/spring`) to `:root` in `src/index.css`
+- Microanimations on sidebar nav items (translateX + spring), task rows (scale hover), buttons (scale active), running status dot (pulse), send button (lift on hover)
+- Skeleton shimmer class (`.skeleton`) for loading states; `@keyframes slide-in-toast` for toast/modal enter
+- All motion wrapped in `@media (prefers-reduced-motion: no-preference)` — degrades gracefully
+
 ### Tests
 - `server/theme-package.test.ts`: added slot-fallback, no-package-selected null, missing-manifest throw, and caller-catch rollback simulation tests. Gate: 315 tests / 63 files ✓
 
