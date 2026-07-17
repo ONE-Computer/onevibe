@@ -25,7 +25,7 @@ const eventFromRow = (row: PostgresRuntimeEventRow): RuntimeEvent => ({
   createdAt: row.created_at.toISOString(), previousHash: row.previous_hash, eventHash: row.event_hash,
 })
 
-export type PostgresStateSnapshot = { projects: Project[]; tasks: Task[]; schedules: TaskSchedule[]; messages: Map<string, ChatMessage[]>; events: Map<string, RuntimeEvent[]> }
+export type PostgresStateSnapshot = { projects: Project[]; tasks: Task[]; schedules: TaskSchedule[]; messages: Map<string, ChatMessage[]>; messageRevisions: Map<string, number>; events: Map<string, RuntimeEvent[]> }
 
 export class PostgresStateCoordinator {
   readonly #sql: Sql<Record<string, never>>
@@ -62,13 +62,16 @@ export class PostgresStateCoordinator {
   async load(ownerUserId?: string): Promise<PostgresStateSnapshot> {
     const metadata = await this.#metadata.load(ownerUserId)
     const messages = new Map<string, ChatMessage[]>()
+    const messageRevisions = new Map<string, number>()
     const events = new Map<string, RuntimeEvent[]>()
     for (const task of metadata.tasks) {
       if (!task.ownerUserId) continue
-      messages.set(task.id, (await this.#chat.listMessages(task.id, task.ownerUserId)).map((row) => messageFromRow(row, task)))
+      const rows = await this.#chat.listMessages(task.id, task.ownerUserId)
+      messages.set(task.id, rows.map((row) => messageFromRow(row, task)))
+      for (const row of rows) messageRevisions.set(row.id, row.revision)
       events.set(task.id, (await this.#chat.listRuntimeEvents(task.id, task.ownerUserId)).map(eventFromRow))
     }
-    return { ...metadata, messages, events }
+    return { ...metadata, messages, messageRevisions, events }
   }
 
   async insertProject(project: Project) { await this.#metadata.insertProject(project) }
@@ -152,7 +155,19 @@ export class PostgresStateCoordinator {
     await this.#chat.setNativeProjectionOffset(record, task.ownerUserId)
   }
 
-  async claimIdempotency(scope: string, key: string, requestHash: string, createdAt: string, ownerUserId?: string) { return this.#operations.claimIdempotency(scope, key, requestHash, createdAt, ownerUserId) }
+  async claimIdempotency(scope: string, key: string, requestHash: string, createdAt: string, ownerUserId?: string): Promise<{ claimed: boolean; state: 'pending' | 'completed'; response?: Record<string, unknown> }> {
+    const existing = await this.#operations.findIdempotency(scope, key)
+    if (existing) {
+      await this.#operations.claimIdempotency(scope, key, requestHash, createdAt, ownerUserId)
+      return {
+        claimed: false,
+        state: existing.state,
+        ...(existing.responseJson ? { response: JSON.parse(existing.responseJson) as Record<string, unknown> } : {}),
+      }
+    }
+    await this.#operations.claimIdempotency(scope, key, requestHash, createdAt, ownerUserId)
+    return { claimed: true, state: 'pending' }
+  }
   async findIdempotency(scope: string, key: string) { return this.#operations.findIdempotency(scope, key) }
   async completeIdempotency(scope: string, key: string, responseJson: string, completedAt: string) { return this.#operations.completeIdempotency(scope, key, responseJson, completedAt) }
 }

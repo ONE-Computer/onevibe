@@ -8,6 +8,12 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 - A fresh disposable PostgreSQL 18 run passed `npm run e2e:postgres-chat` and `npm run e2e:postgres-state`: one owner-scoped native event, one projection link, offset sequence `0`, restart recovery, and owner isolation. `npm run check` also passed with 52 test files / 259 tests, build, harness typecheck, and `npm run db:check`.
 - The running application still rejects `DATABASE_URL` and remains SQLite-backed. The coordinator now shares one raw repository pool but native ingestion is not yet one cross-repository transaction; these are explicit P4-01/P4-02 blockers.
 - The first shared-client attempt exposed a real Drizzle/postgres-js serializer incompatibility: constructing Drizzle on the raw repository client made Date parameters fail with `ERR_INVALID_ARG_TYPE`. The coordinator now uses one shared raw repository client and a separate Drizzle/Better Auth client; the corrected state proof passes.
+
+## 2026-07-17 — opt-in Postgres TaskStore core proof
+
+- `npm run e2e:postgres-taskstore` passed against disposable PostgreSQL 18 with `driver=postgres`: owner-bound project/task creation, durable chat delta/completion, two runtime events with a valid evidence chain, retry idempotency completion, coordinator close, and a second TaskStore restart recovered the same transcript/events/retry result.
+- The proof exposed and corrected two integration defects: the Postgres event adapter dropped `runId` before persistence, which invalidated event-chain identity, and idempotency response JSON could be returned as a JSON string. Both are now covered by the completed proof.
+- This is an opt-in core slice, not production driver evidence. `DATABASE_URL` selection remains fail-closed until all TaskStore/server reads and writes, native atomicity, operational repositories, auth bootstrap, workspace durability, and multi-instance concurrency are integrated.
 - A live local API/Vite stack was started for browser QA, but the Codex in-app browser URL policy rejected the existing `localhost:5173` tab before reload/claim. No screenshot or browser pass is claimed from that attempt; browser evidence remains open until the policy permits the local tab.
 
 ## 2026-07-17 — disposable Postgres owner-scoped chat proof

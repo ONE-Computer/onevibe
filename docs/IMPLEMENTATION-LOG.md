@@ -28,6 +28,12 @@
 - Commit `c9e155b` extends that proof to owner-scoped native envelopes, projection links, monotonic projector offsets, replay/conflict handling, and restart recovery. The methods mirror the durable SQLite native-event contract, but native ingestion is still not a single cross-repository Postgres transaction and `TaskStore` remains SQLite-backed.
 - The coordinator now owns one shared raw postgres-js client for chat, metadata, and operations, plus a separate Drizzle client for Better Auth. This separation is deliberate: Drizzle mutates date/JSON serializers on the client it receives, and sharing that client caused raw repository Date parameters to fail. The corrected disposable `npm run e2e:postgres-state` proof passes again.
 
+## 2026-07-17 — opt-in Postgres TaskStore core slice
+
+- Added an explicit `TaskStore` constructor option for a Postgres core path. It loads owner-bound projects/tasks/schedules/messages/events from `PostgresStateCoordinator`, writes project/task metadata through optimistic repository methods, persists chat turns/deltas/completion, uses async retry idempotency, and closes/reopens the coordinator cleanly.
+- Added `npm run e2e:postgres-taskstore` and CI coverage. Disposable PostgreSQL 18 evidence passed project/task creation, chat transcript persistence, runtime event-chain validation, retry completion, and restart recovery. The driver remains opt-in and `resolvePersistenceConfig` still fails closed because MCP/org/skills/leases/workspace, full async reads, atomic native ingestion, and server/auth bootstrap are not integrated.
+- Fixed two issues exposed by the proof: Postgres event hashes now retain `runId`, and JSONB idempotency responses are normalized to objects instead of double-encoded strings.
+
 ## 2026-07-17 — extend the Postgres target contract for durable identity and audit
 
 - Added Drizzle migration `0004_majestic_multiple_man.sql` and schema parity for a first-class `conversation` identity, task fork lineage, turn error metadata, provider message IDs, runtime-lease allocation/idempotency uniqueness, append-only MCP configuration events, and source-keyed `legacy_imports` provenance; migration `0005_deep_rachel_grey.sql` adds owner-bound conversation and task identity.

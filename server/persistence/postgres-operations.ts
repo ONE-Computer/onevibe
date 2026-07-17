@@ -21,7 +21,17 @@ const orgFromRow = (row: OrganizationRow): OrganizationRecord => ({ id: row.id, 
 const memberFromRow = (row: MemberRow): OrganizationMemberRecord => ({ organizationId: row.org_id, userId: row.user_id, role: row.role, createdAt: row.created_at.toISOString() })
 const skillFromRow = (row: SkillRow): SkillInstallationRecord => ({ id: row.id, ownerUserId: row.owner_user_id, version: row.version, title: row.title, summary: row.summary, sha256: row.sha256, content: row.content, contentUrl: row.content_url, sourceUrl: row.source_url, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() })
 const leaseFromRow = (row: LeaseRow): RuntimeLeaseRecord => ({ id: row.id, conversationId: row.task_id, generation: row.generation, providerName: row.provider_name, providerSandboxId: row.provider_sandbox_id, status: row.status, allocationOperationId: row.allocation_operation_id, allocationIdempotencyKey: row.allocation_idempotency_key, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(), readyAt: toIso(row.ready_at), releaseRequestedAt: toIso(row.release_requested_at), releasedAt: toIso(row.released_at), lastError: row.last_error_json && typeof row.last_error_json === 'object' ? row.last_error_json as RuntimeLeaseRecord['lastError'] : null })
-const idempotencyFromRow = (row: IdempotencyRow): IdempotencyRecord => ({ scope: row.scope, key: row.key, requestHash: row.request_hash, state: row.state, responseJson: row.response_json ? JSON.stringify(row.response_json) : null, createdAt: row.created_at.toISOString(), completedAt: toIso(row.completed_at) })
+const responseJsonFromRow = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null
+  if (typeof value !== 'string') return JSON.stringify(value)
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
+  } catch {
+    return value
+  }
+}
+const idempotencyFromRow = (row: IdempotencyRow): IdempotencyRecord => ({ scope: row.scope, key: row.key, requestHash: row.request_hash, state: row.state, responseJson: responseJsonFromRow(row.response_json), createdAt: row.created_at.toISOString(), completedAt: toIso(row.completed_at) })
 
 const leaseValues = (record: RuntimeLeaseRecord) => ({
   id: record.id, taskId: record.conversationId, generation: record.generation, providerName: record.providerName, providerSandboxId: record.providerSandboxId,
@@ -144,14 +154,17 @@ export class PostgresOperationsRepository {
   }
 
   async completeIdempotency(scope: string, key: string, responseJson: string, completedAt: string): Promise<void> {
+    let parsedResponse: unknown
+    try { parsedResponse = JSON.parse(responseJson) } catch { throw new TypeError('Idempotency response must be valid JSON') }
+    const encodedResponse = JSON.stringify(parsedResponse)
     const result = await this.sql`
-      UPDATE idempotency_key SET state = 'completed', response_json = ${responseJson}::jsonb, completed_at = ${new Date(completedAt)}
+      UPDATE idempotency_key SET state = 'completed', response_json = ${encodedResponse}::jsonb, completed_at = ${new Date(completedAt)}
       WHERE scope = ${scope} AND key = ${key} AND state = 'pending'
     `
     if (result.count === 1) return
     const existing = await this.findIdempotency(scope, key)
     if (!existing) throw new RecordNotFoundError(`Idempotency key ${scope}/${key} does not exist`)
-    if (existing.state === 'completed' && existing.responseJson === responseJson) return
+    if (existing.state === 'completed' && existing.responseJson === encodedResponse) return
     throw new OptimisticConflictError(`Idempotency key ${scope}/${key} is already completed with a different response`)
   }
 

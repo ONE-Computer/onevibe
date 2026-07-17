@@ -6,11 +6,16 @@ import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
-import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, type MessageRecord, type NativeEventRecord, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
+import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, PostgresStateCoordinator, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
 import { isInternalWorkspacePath } from './artifact-path.js'
 import type { McpConfig } from './runtime-adapter.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
+
+export type TaskStoreOptions = {
+  readonly driver?: 'sqlite' | 'postgres'
+  readonly databaseUrl?: string
+}
 
 const assertWithin = (root: string, candidate: string) => {
   const relative = path.relative(root, candidate)
@@ -118,6 +123,35 @@ const runtimeEventRecordFor = (repositories: Repositories, taskId: string, runId
   }
 }
 
+const runtimeEventInputFor = (existing: RuntimeEvent[], taskId: string, runId: string | undefined, input: EventInput): EventInput & { id: string; runId?: string; sequence: number; createdAt: string; previousHash: string; eventHash: string } => {
+  const previousHash = existing.at(-1)?.eventHash ?? 'GENESIS'
+  const sequence = existing.length
+  const createdAt = new Date().toISOString()
+  const payload = { ...input.payload }
+  const unsigned = {
+    taskId,
+    ...(runId ? { runId } : {}),
+    sequence,
+    type: input.type,
+    lane: input.lane,
+    status: input.status,
+    label: input.label,
+    content: input.content,
+    payload,
+    createdAt,
+    previousHash,
+  }
+  return {
+    ...input,
+    ...(runId ? { runId } : {}),
+    id: `${taskId}:event:${sequence}`,
+    sequence,
+    createdAt,
+    previousHash,
+    eventHash: createHash('sha256').update(JSON.stringify(unsigned)).digest('hex'),
+  }
+}
+
 export class TaskStore {
   private tasks = new Map<string, Task>()
   private events = new Map<string, RuntimeEvent[]>()
@@ -135,8 +169,10 @@ export class TaskStore {
   private schedulesFile: string
   private database?: Database.Database
   private unitOfWork?: UnitOfWork
+  private postgresState?: PostgresStateCoordinator
+  private postgresMessageRevisions = new Map<string, number>()
 
-  constructor(dataRoot = DEFAULT_DATA_ROOT) {
+  constructor(dataRoot = DEFAULT_DATA_ROOT, options: TaskStoreOptions = {}) {
     const resolvedRoot = path.resolve(dataRoot)
     this.tasksRoot = path.join(resolvedRoot, 'tasks')
     this.workspacesRoot = path.join(resolvedRoot, 'workspaces')
@@ -145,6 +181,11 @@ export class TaskStore {
     this.projectsRoot = path.join(resolvedRoot, 'projects')
     this.projectsFile = path.join(resolvedRoot, 'projects.json')
     this.schedulesFile = path.join(resolvedRoot, 'schedules.json')
+    if (options.driver === 'postgres') {
+      const databaseUrl = options.databaseUrl?.trim()
+      if (!databaseUrl) throw new Error('Postgres TaskStore requires DATABASE_URL')
+      this.postgresState = new PostgresStateCoordinator(databaseUrl)
+    }
   }
 
   async initialize() {
@@ -153,6 +194,25 @@ export class TaskStore {
     await mkdir(this.runtimeRoot, { recursive: true })
     await mkdir(this.versionsRoot, { recursive: true })
     await mkdir(this.projectsRoot, { recursive: true })
+    if (this.postgresState) {
+      const state = await this.postgresState.load()
+      for (const project of state.projects) this.projects.set(project.id, project)
+      for (const task of state.tasks) {
+        task.mode ??= 'general'
+        task.skills ??= []
+        task.tags ??= []
+        task.queuedGuidance = (task.queuedGuidance ?? []).map((guidance) => ({ ...guidance, attachmentPaths: guidance.attachmentPaths ?? [] }))
+        task.projectId ??= 'project_onevibe'
+        task.references ??= []
+        task.attachments ??= []
+        this.tasks.set(task.id, task)
+        this.events.set(task.id, state.events.get(task.id) ?? [])
+        this.messages.set(task.id, state.messages.get(task.id) ?? [])
+      }
+      this.schedules = new Map(state.schedules.map((schedule) => [schedule.id, schedule]))
+      this.postgresMessageRevisions = state.messageRevisions
+      return
+    }
     this.database = openDatabase(path.join(path.dirname(this.tasksRoot), 'onevibe.sqlite'))
     runMigrations(this.database)
     this.unitOfWork = new SqliteUnitOfWork(this.database)
@@ -223,6 +283,13 @@ export class TaskStore {
       plan: planFor(mode, prompt),
       createdAt: now,
       updatedAt: now,
+    }
+    if (this.postgresState) {
+      await this.postgresState.insertTask(task)
+      this.tasks.set(id, task)
+      this.events.set(id, [])
+      this.messages.set(id, [])
+      return task
     }
     this.tasks.set(id, task)
     this.events.set(id, [])
@@ -303,6 +370,16 @@ export class TaskStore {
   databaseHandle(): Database.Database {
     if (!this.database) throw new Error('TaskStore is not initialized')
     return this.database
+  }
+
+  async close() {
+    if (this.postgresState) {
+      await this.postgresState.close()
+      return
+    }
+    this.database?.close()
+    this.database = undefined
+    this.unitOfWork = undefined
   }
 
   listMcpConfigs(ownerUserId?: string): RuntimeMcpConfig[] {
@@ -456,6 +533,11 @@ export class TaskStore {
   async createProject(name: string, context = '', ownerUserId?: string): Promise<Project> {
     const now = new Date().toISOString()
     const project = { id: `project_${randomUUID().replaceAll('-', '').slice(0, 12)}`, ...(ownerUserId ? { ownerUserId } : {}), name, context, files: [], createdAt: now, updatedAt: now }
+    if (this.postgresState) {
+      await this.postgresState.insertProject(project)
+      this.projects.set(project.id, project)
+      return project
+    }
     this.projects.set(project.id, project)
     await this.persistProjects()
     return project
@@ -464,6 +546,11 @@ export class TaskStore {
   async updateProjectContext(projectId: string, context: string, ownerUserId?: string) {
     const project = this.getProject(projectId, ownerUserId)
     const updated = { ...project, context, updatedAt: new Date().toISOString() }
+    if (this.postgresState) {
+      await this.postgresState.updateProject(updated, project.updatedAt)
+      this.projects.set(projectId, updated)
+      return updated
+    }
     this.projects.set(projectId, updated)
     await this.persistProjects()
     return updated
@@ -585,6 +672,11 @@ export class TaskStore {
     this.getProject(input.projectId, ownerUserId)
     const now = new Date().toISOString()
     const schedule: TaskSchedule = { id: `schedule_${randomUUID().replaceAll('-', '').slice(0, 12)}`, ...(ownerUserId ? { ownerUserId } : {}), ...input, enabled: true, nextRunAt: new Date(Date.now() + input.intervalMinutes * 60_000).toISOString(), createdAt: now, updatedAt: now }
+    if (this.postgresState) {
+      await this.postgresState.insertSchedule(schedule)
+      this.schedules.set(schedule.id, schedule)
+      return schedule
+    }
     this.schedules.set(schedule.id, schedule)
     await this.persistSchedules()
     return schedule
@@ -594,6 +686,11 @@ export class TaskStore {
     const current = this.schedules.get(id)
     if (!current || (ownerUserId !== undefined && current.ownerUserId !== ownerUserId)) throw new Error('Schedule not found')
     const updated = { ...current, enabled, updatedAt: new Date().toISOString(), ...(enabled && current.nextRunAt < new Date().toISOString() ? { nextRunAt: new Date().toISOString() } : {}) }
+    if (this.postgresState) {
+      await this.postgresState.updateSchedule(updated, current.updatedAt)
+      this.schedules.set(id, updated)
+      return updated
+    }
     this.schedules.set(id, updated)
     await this.persistSchedules()
     return updated
@@ -602,6 +699,11 @@ export class TaskStore {
   async deleteSchedule(id: string, ownerUserId?: string) {
     const current = this.schedules.get(id)
     if (!current || (ownerUserId !== undefined && current.ownerUserId !== ownerUserId)) throw new Error('Schedule not found')
+    if (this.postgresState) {
+      await this.postgresState.deleteSchedule(id, current.ownerUserId!)
+      this.schedules.delete(id)
+      return { id, deleted: true as const }
+    }
     this.schedules.delete(id)
     await this.persistSchedules()
     return { id, deleted: true as const }
@@ -612,6 +714,11 @@ export class TaskStore {
     if (!schedule || (ownerUserId !== undefined && schedule.ownerUserId !== ownerUserId)) throw new Error('Schedule not found')
     if (!schedule.enabled) throw new Error('Schedule is paused')
     const updated = { ...schedule, lastRunAt: now.toISOString(), nextRunAt: new Date(now.getTime() + schedule.intervalMinutes * 60_000).toISOString(), updatedAt: now.toISOString() }
+    if (this.postgresState) {
+      await this.postgresState.updateSchedule(updated, schedule.updatedAt)
+      this.schedules.set(id, updated)
+      return updated
+    }
     this.schedules.set(id, updated)
     await this.persistSchedules()
     return updated
@@ -621,9 +728,14 @@ export class TaskStore {
     const due = this.listSchedules().filter((schedule) => schedule.enabled && schedule.nextRunAt <= now.toISOString())
     for (const schedule of due) {
       const updated = { ...schedule, lastRunAt: now.toISOString(), nextRunAt: new Date(now.getTime() + schedule.intervalMinutes * 60_000).toISOString(), updatedAt: now.toISOString() }
+      if (this.postgresState) {
+        await this.postgresState.updateSchedule(updated, schedule.updatedAt)
+        this.schedules.set(schedule.id, updated)
+        continue
+      }
       this.schedules.set(schedule.id, updated)
     }
-    if (due.length) await this.persistSchedules()
+    if (due.length && !this.postgresState) await this.persistSchedules()
     return due
   }
 
@@ -673,6 +785,11 @@ export class TaskStore {
   async updateTask(id: string, patch: Partial<Task>) {
     const current = this.getTask(id)
     const updated = { ...current, ...patch, id: current.id, updatedAt: new Date().toISOString() }
+    if (this.postgresState) {
+      await this.postgresState.updateTask(updated, current.updatedAt)
+      this.tasks.set(id, updated)
+      return updated
+    }
     this.tasks.set(id, updated)
     await this.persist(updated)
     return updated
@@ -778,6 +895,19 @@ export class TaskStore {
 
   async appendEvent(taskId: string, input: EventInput) {
     const runId = this.getTask(taskId).activeRunId
+    if (this.postgresState) {
+      const presentation = panelFor(input)
+      const projectedInput = { ...input, payload: { ...input.payload, ...(presentation ? { presentation } : {}) } }
+      const derived = runtimeEventInputFor(this.events.get(taskId) ?? [], taskId, runId, projectedInput)
+      const event = await this.postgresState.appendEvent(this.getTask(taskId), { ...derived, createdAt: new Date(derived.createdAt) })
+      this.events.set(taskId, [...(this.events.get(taskId) ?? []), event])
+      if (input.type === 'assistant_text_delta' && input.content) await this.appendAssistantDelta(taskId, input.content)
+      if (input.type === 'run_completed') await this.finishTurn(taskId, 'completed')
+      if (input.type === 'run_failed') await this.finishTurn(taskId, 'failed')
+      if (input.type === 'run_cancelled') await this.finishTurn(taskId, 'cancelled')
+      this.emitter.emit(taskId, event)
+      return event
+    }
     let event: RuntimeEvent | undefined
     for (let attempt = 0; attempt < 4 && !event; attempt += 1) {
       try {
@@ -886,10 +1016,15 @@ export class TaskStore {
   }
 
   listEvents(taskId: string) {
+    if (this.postgresState) {
+      this.getTask(taskId)
+      return this.events.get(taskId) ?? []
+    }
     return this.readEventsFromDatabase(taskId)
   }
 
   listNativeEvents(taskId: string) {
+    if (this.postgresState) throw new Error('Postgres native-event reads require the async TaskStore backend; runtime driver selection remains disabled')
     this.getTask(taskId)
     return this.requireUnitOfWork().run((repositories) => repositories.nativeEvents.listByConversation(taskId))
   }
@@ -903,6 +1038,23 @@ export class TaskStore {
     const userMessage: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'user', content, status: 'completed', provider, createdAt: now, updatedAt: now }
     const assistantMessage: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider, createdAt: now, updatedAt: now }
     const ordinal = existing.filter((message) => message.role === 'user').length
+    if (this.postgresState) {
+      await this.postgresState.beginTurn(task, turnId, turnId, content, new Date(now))
+      const persistedAssistant = await this.postgresState.createAssistantPlaceholder(task, turnId, assistantMessage.id, new Date(now))
+      this.postgresMessageRevisions.set(persistedAssistant.id, persistedAssistant.revision)
+      this.messages.set(taskId, await this.postgresState.listMessages(task))
+      this.activeTurns.set(taskId, turnId)
+      await this.updateTask(taskId, {
+        activeRunId: turnId,
+        ...(resetPlan ? { plan: task.plan.map((step) => ({ id: step.id, title: step.title, status: 'pending' as const })) } : {}),
+      })
+      if (resetPlan) await this.appendEvent(taskId, {
+        type: 'activity_delta', lane: 'control', label: 'Plan reset for new run',
+        content: 'The new turn has a fresh plan lifecycle. Prior run timing and completion remain preserved in the immutable evidence history.',
+        payload: { previousRunId: task.activeRunId, newRunId: turnId, planReset: true },
+      })
+      return turnId
+    }
     this.requireUnitOfWork().run((repositories) => {
       repositories.turns.insert({ id: turnId, conversationId: taskId, clientRequestId: turnId, ordinal, status: 'running', createdAt: now, startedAt: now, completedAt: null })
       repositories.messages.append(this.toMessageRecord(userMessage, existing.length))
@@ -949,6 +1101,7 @@ export class TaskStore {
     const scope = `retry:${taskId}`
     const requestHash = createHash('sha256').update(JSON.stringify({ taskId, prompt })).digest('hex')
     const now = new Date().toISOString()
+    if (this.postgresState) return this.postgresState.claimIdempotency(scope, idempotencyKey, requestHash, now, this.getTask(taskId).ownerUserId)
     return this.requireUnitOfWork().run((repositories) => {
       const existing = repositories.idempotency.find(scope, idempotencyKey)
       if (existing) {
@@ -964,8 +1117,13 @@ export class TaskStore {
     })
   }
 
-  getRetry(taskId: string, idempotencyKey: string): { state: 'pending' | 'completed'; response?: Record<string, unknown> } | undefined {
+  async getRetry(taskId: string, idempotencyKey: string): Promise<{ state: 'pending' | 'completed'; response?: Record<string, unknown> } | undefined> {
     this.getTask(taskId)
+    if (this.postgresState) {
+      const record = await this.postgresState.findIdempotency(`retry:${taskId}`, idempotencyKey)
+      if (!record) return undefined
+      return { state: record.state, ...(record.responseJson ? { response: JSON.parse(record.responseJson) as Record<string, unknown> } : {}) }
+    }
     const record = this.requireUnitOfWork().run((repositories) => repositories.idempotency.find(`retry:${taskId}`, idempotencyKey))
     if (!record) return undefined
     return { state: record.state, ...(record.responseJson ? { response: JSON.parse(record.responseJson) as Record<string, unknown> } : {}) }
@@ -973,6 +1131,10 @@ export class TaskStore {
 
   async completeRetry(taskId: string, idempotencyKey: string, response: Record<string, unknown>) {
     const scope = `retry:${taskId}`
+    if (this.postgresState) {
+      await this.postgresState.completeIdempotency(scope, idempotencyKey, JSON.stringify(response), new Date().toISOString())
+      return
+    }
     this.requireUnitOfWork().run((repositories) => repositories.idempotency.complete(scope, idempotencyKey, JSON.stringify(response), new Date().toISOString()))
   }
 
@@ -1253,6 +1415,18 @@ export class TaskStore {
     let turnId = this.activeTurns.get(taskId)
     const task = this.getTask(taskId)
     const existing = this.readMessages(task)
+    if (this.postgresState) {
+      if (!turnId) throw new Error('Postgres assistant deltas require an active durable turn')
+      const message = [...existing].reverse().find((item) => item.turnId === turnId && item.role === 'assistant')
+      if (!message) throw new Error(`Assistant message for turn ${turnId} is missing from durable history`)
+      const expectedRevision = this.postgresMessageRevisions.get(message.id)
+      if (expectedRevision === undefined) throw new Error(`Assistant message ${message.id} revision is missing from durable history`)
+      const updated = await this.postgresState.appendAssistantDelta(task, message.id, expectedRevision, content)
+      this.postgresMessageRevisions.set(updated.id, updated.revision)
+      Object.assign(message, this.fromPostgresMessage(task, updated))
+      this.messages.set(taskId, existing)
+      return
+    }
     if (!turnId) {
       const now = new Date().toISOString()
       turnId = `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`
@@ -1287,6 +1461,20 @@ export class TaskStore {
     const messages = this.readMessages(task)
     const message = [...messages].reverse().find((item) => item.turnId === turnId && item.role === 'assistant')
     const completedAt = new Date().toISOString()
+    if (this.postgresState) {
+      await this.postgresState.finishTurn(task, turnId, status, new Date(completedAt))
+      if (message) {
+        const persisted = await this.postgresState.listMessages(task)
+        this.messages.set(taskId, persisted)
+        for (const candidate of persisted) {
+          const revision = this.postgresMessageRevisions.get(candidate.id)
+          if (candidate.id === message.id && revision !== undefined) this.postgresMessageRevisions.set(candidate.id, revision + 1)
+        }
+      }
+      this.activeTurns.delete(taskId)
+      if (this.getTask(taskId).activeRunId === turnId) await this.updateTask(taskId, { activeRunId: undefined })
+      return
+    }
     this.requireUnitOfWork().run((repositories) => {
       const turn = repositories.turns.findById(turnId)
       if (!turn) throw new Error(`Turn ${turnId} is missing from durable history`)
@@ -1351,6 +1539,7 @@ export class TaskStore {
   }
 
   private readEventsFromDatabase(taskId: string): RuntimeEvent[] {
+    if (this.postgresState) return this.events.get(taskId) ?? []
     return this.requireUnitOfWork().run((repositories) => repositories.runtimeEvents.listByConversation(taskId).map((record) => this.runtimeEventFromRecord(record)))
   }
 
@@ -1373,7 +1562,19 @@ export class TaskStore {
     }
   }
 
+  private fromPostgresMessage(task: Task, record: PostgresChatMessage): ChatMessage {
+    const content = record.content && typeof record.content === 'object' && !Array.isArray(record.content) ? record.content as { text?: unknown; provider?: unknown; updatedAt?: unknown } : {}
+    return {
+      id: record.id, taskId: record.taskId, turnId: record.turnId ?? `legacy_turn_${record.sequence}`,
+      role: record.role === 'tool' ? 'system' : record.role as ChatMessage['role'],
+      content: typeof content.text === 'string' ? content.text : '', status: record.status as ChatMessage['status'],
+      provider: content.provider === 'demo' || content.provider === 'claude_sdk' || content.provider === 'codex' || content.provider === 'agentcore' || content.provider === 'onecomputer' || content.provider === 'remote' ? content.provider : task.provider,
+      createdAt: record.createdAt.toISOString(), updatedAt: typeof content.updatedAt === 'string' ? content.updatedAt : record.createdAt.toISOString(),
+    }
+  }
+
   private readMessages(task: Task): ChatMessage[] {
+    if (this.postgresState) return this.messages.get(task.id) ?? []
     return this.requireUnitOfWork().run((repositories) => repositories.messages.listByConversation(task.id, -1, 500))
       .map((record) => this.fromMessageRecord(task, record))
   }

@@ -118,3 +118,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
         run: npm run e2e:postgres-state
+      - name: Prove opt-in Postgres TaskStore core slice
+        env:
+          DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
+        run: npm run e2e:postgres-taskstore

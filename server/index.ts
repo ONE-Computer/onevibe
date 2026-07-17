@@ -669,7 +669,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'POST' && segments[3] === 'retry') {
       const input = retryInput.parse(await readBody(request))
       const task = store.getTask(taskId)
-      const existingRetry = store.getRetry(taskId, input.idempotencyKey)
+      const existingRetry = await store.getRetry(taskId, input.idempotencyKey)
       if (existingRetry) return json(response, existingRetry.state === 'pending' ? 202 : 200, existingRetry.response ?? { status: 'processing', taskId, retryKey: input.idempotencyKey })
       if (activeRuns.has(taskId) || task.activeRunId || ['running', 'pending', 'waiting_for_user_input', 'waiting_for_approval'].includes(task.status)) {
         return json(response, 409, { error: 'Task execution is still active; wait for a terminal state before retrying' })
