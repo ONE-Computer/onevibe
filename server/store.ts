@@ -171,6 +171,7 @@ export class TaskStore {
   private unitOfWork?: UnitOfWork
   private postgresState?: PostgresStateCoordinator
   private postgresMessageRevisions = new Map<string, number>()
+  private initialized = false
 
   constructor(dataRoot = DEFAULT_DATA_ROOT, options: TaskStoreOptions = {}) {
     const resolvedRoot = path.resolve(dataRoot)
@@ -214,6 +215,7 @@ export class TaskStore {
       this.schedules = new Map(state.schedules.map((schedule) => [schedule.id, schedule]))
       this.postgresMessageRevisions = state.messageRevisions
       await this.reconcileRestartedTasks()
+      this.initialized = true
       return
     }
     this.database = openDatabase(path.join(path.dirname(this.tasksRoot), 'onevibe.sqlite'))
@@ -262,6 +264,13 @@ export class TaskStore {
       this.projects.set(id, project)
     }
     await this.reconcileRestartedTasks()
+    this.initialized = true
+  }
+
+  async readiness() {
+    if (!this.initialized) return { ready: false, driver: this.postgresState ? 'postgres' as const : 'sqlite' as const, detail: 'TaskStore is still initializing.' }
+    if (this.postgresState) return { driver: 'postgres' as const, ...(await this.postgresState.readiness()) }
+    return { ready: Boolean(this.database && this.unitOfWork), driver: 'sqlite' as const, detail: 'SQLite TaskStore is initialized.' }
   }
 
   async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = [], attachments: TaskAttachment[] = [], skills: TaskSkill[] = [], ownerUserId?: string): Promise<Task> {
@@ -400,6 +409,7 @@ export class TaskStore {
   authDatabaseDriver(): 'sqlite' | 'postgres' { return this.postgresState ? 'postgres' : 'sqlite' }
 
   async close() {
+    this.initialized = false
     if (this.postgresState) {
       await this.postgresState.close()
       return

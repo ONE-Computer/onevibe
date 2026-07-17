@@ -1,5 +1,7 @@
 # Phase 3 — Cloud Architecture
 
+> **Implementation status (2026-07-17):** This historical plan is retained for intent, but the repository's current source of truth is `TODO.md`, `docker-compose.yml`, `Dockerfile`, `docs/DEPLOYMENT-RUNBOOK.md`, and the P4 evidence in `docs/LIVE-E2E-ENGINEERING-LOG.md`. The running server has a controlled Postgres/Better Auth path, authenticated two-process SSE proof, separate liveness/readiness endpoints, graceful shutdown, and local backup/restore evidence. The illustrative snippets below must not be copied over the current LiteLLM-only, fail-closed environment contract. Managed deployment, production secrets, PITR/retention, and e2b/attested sandbox acceptance remain external gates.
+
 > **Goal**: `https://onevibe.yourdomain.com` — deployed, authenticated, persistent across refreshes.
 > **Exit criterion**: Navigate to the URL, log in with email OTP, create a task, Claude responds, conversation persists on page refresh, all data scoped to that user.
 > **Tasks**: P3-01 through P3-07 in `TODO.md`
@@ -92,7 +94,7 @@ if (!session) return <LoginPage />
 ### Email provider options (choose one):
 1. **Resend** (recommended for production): `npm install resend` — free tier 3k emails/month
 2. **Nodemailer + SMTP**: for self-hosted setups
-3. **Dev fallback**: log OTP to console when `NODE_ENV=development` and `RESEND_API_KEY` is unset
+3. **Development policy**: no console OTP fallback is permitted. Use the loopback delivery fixture only in tests; enabled deployments require a real OTP delivery webhook.
 
 ---
 

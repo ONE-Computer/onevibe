@@ -12,6 +12,7 @@ import { PostgresWorkspaceRepository, type PostgresWorkspaceFileRecord } from '.
 
 export type PostgresStateConfig = { readonly maxConnections?: number; readonly connectTimeoutSeconds?: number }
 export type PostgresMcpAuditRecord = { id: string; configId: string; operation: string; config: unknown; createdAt: string }
+export const REQUIRED_POSTGRES_MIGRATIONS = 9
 
 const providerFor = (value: unknown, fallback: Task['provider']): Task['provider'] => value === 'demo' || value === 'claude_sdk' || value === 'codex' || value === 'agentcore' || value === 'onecomputer' || value === 'remote' ? value : fallback
 const recordJson = (value: unknown): Record<string, unknown> => {
@@ -77,6 +78,22 @@ export class PostgresStateCoordinator {
   #close: () => Promise<void>
 
   async close() { await this.#close() }
+
+  async readiness(): Promise<{ ready: boolean; migrationCount?: number; requiredMigrations: number; detail: string }> {
+    try {
+      await this.#sql`SELECT 1`
+      const rows = await this.#sql<{ count: number }[]>`SELECT COUNT(*)::int AS count FROM drizzle.__drizzle_migrations`
+      const migrationCount = rows[0]?.count ?? 0
+      return {
+        ready: migrationCount === REQUIRED_POSTGRES_MIGRATIONS,
+        migrationCount,
+        requiredMigrations: REQUIRED_POSTGRES_MIGRATIONS,
+        detail: migrationCount === REQUIRED_POSTGRES_MIGRATIONS ? 'Postgres is reachable and the reviewed migration ledger is current.' : 'Postgres is reachable but the reviewed migration ledger is missing or stale.',
+      }
+    } catch {
+      return { ready: false, requiredMigrations: REQUIRED_POSTGRES_MIGRATIONS, detail: 'Postgres is unreachable or the reviewed migration ledger is unavailable.' }
+    }
+  }
 
   /**
    * Operational methods below are intentionally thin, typed wrappers around

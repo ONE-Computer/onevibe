@@ -130,6 +130,10 @@ const main = async () => {
       if (attempt === 149) throw new Error('ONEVibe Postgres auth API did not become healthy')
       await sleep(100)
     }
+    const readiness = await request<{ status: string; applicationReady: boolean }>(baseUrl, '/api/health/ready')
+    assert.equal(readiness.response.status, 200, JSON.stringify(readiness.body))
+    assert.equal(readiness.body.status, 'ready')
+    assert.equal(readiness.body.applicationReady, true)
     const unauthorized = await request<{ error?: string; code?: string }>(baseUrl, '/api/projects')
     assert.equal(unauthorized.response.status, 401)
     const ownerA = await signIn(baseUrl, emails[0]!, mail.delivered)
@@ -153,7 +157,7 @@ const main = async () => {
     assert.equal(forbidden.response.status, 404)
     const ownerAProject = await request(baseUrl, `/api/projects/${project.body.id}`, {}, ownerA.cookie)
     assert.equal(ownerAProject.response.status, 404, 'unsupported project GET should remain bounded')
-    console.log(JSON.stringify({ auth: 'Better Auth email OTP through loopback delivery fixture', driver: diagnostics.body.persistence.active, runtimeSwitchReady: diagnostics.body.persistence.runtimeSwitchReady, unauthorizedStatus: unauthorized.response.status, ownerIsolation: true, taskCreated: true, crossOwnerTaskStatus: forbidden.response.status, directFirstPartyAllowed: diagnostics.body.auth.sessionScoped ? false : undefined }, null, 2))
+    console.log(JSON.stringify({ auth: 'Better Auth email OTP through loopback delivery fixture', driver: diagnostics.body.persistence.active, runtimeSwitchReady: diagnostics.body.persistence.runtimeSwitchReady, readiness: true, unauthorizedStatus: unauthorized.response.status, ownerIsolation: true, taskCreated: true, crossOwnerTaskStatus: forbidden.response.status, directFirstPartyAllowed: diagnostics.body.auth.sessionScoped ? false : undefined }, null, 2))
   } finally {
     await api.stop()
     mail.server.close()

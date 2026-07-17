@@ -12,6 +12,18 @@ afterEach(async () => {
 })
 
 describe('TaskStore', () => {
+  it('reports initialized local readiness and becomes not ready after close', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-readiness-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await expect(store.readiness()).resolves.toMatchObject({ ready: false, driver: 'sqlite' })
+    await store.initialize()
+    await expect(store.readiness()).resolves.toMatchObject({ ready: true, driver: 'sqlite' })
+    await store.close()
+    await expect(store.readiness()).resolves.toMatchObject({ ready: false, driver: 'sqlite' })
+  })
+
   it('enforces owner scope for local tasks, projects, schedules, and MCP declarations', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-owner-scope-'))
     temporaryRoots.push(root)

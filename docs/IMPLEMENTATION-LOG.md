@@ -1,5 +1,14 @@
 # Implementation log
 
+## 2026-07-17 — add local Postgres release-safety controls
+
+- Added separate `/api/health/live` and `/api/health/ready` contracts. Readiness checks TaskStore initialization and, for Postgres, connectivity plus the exact reviewed migration-ledger count; stale/missing ledgers return `503`. Provider unavailability remains a runtime readiness state, not a false database failure.
+- Added graceful `SIGTERM`/`SIGINT` shutdown with bounded HTTP drain and TaskStore database closure. Dockerfile and Compose healthchecks now use readiness rather than `/api/runtime`.
+- Added `docs/DEPLOYMENT-RUNBOOK.md` with migration-before-start, backup-before-migration, restore verification, immutable-image rollback, secret, and external-deployment boundaries.
+- Added `npm run e2e:postgres-backup-restore`. Against the local PostgreSQL 18 container it inserted a namespaced temporary fixture, performed a custom-format backup and restore into a fresh database, verified nine reviewed migrations, task/event/workspace/project-file counts, exact workspace/project bytes, and SHA-256 fingerprints, then cleaned up. Connection credentials were passed through environment variables, not argv.
+- Verification: `npm run test -- --run server/store.test.ts`, `npm run check:e2e-harness`, `npm run lint`, `DATABASE_URL=… npm run e2e:postgres-auth-http`, `DATABASE_URL=… PG_DUMP_DOCKER_CONTAINER=… ONEVIBE_BACKUP_E2E_ALLOW_MUTATION=true npm run e2e:postgres-backup-restore`, `docker compose config`, and `git diff --check` passed.
+- Boundary: managed secret delivery/rotation, encrypted snapshots/PITR/retention, production deployment/rollback, and cloud/microVM isolation remain external acceptance work.
+
 ## 2026-07-17 — prove authenticated cross-process HTTP SSE
 
 - Added `npm run e2e:postgres-http-sse`, which starts two independent API processes with separate local caches, one shared migrated Postgres database, one shared Better Auth secret, and a loopback OTP delivery fixture. A session created on API A authenticates against API B; a demo task is created on A, a tag mutation is committed through B, and A's open SSE stream receives the durable event through the Postgres polling bridge.

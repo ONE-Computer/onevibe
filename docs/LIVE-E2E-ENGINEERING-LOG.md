@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — Postgres release-safety and backup/restore proof
+
+- The API now separates liveness (`/api/health/live`) from readiness (`/api/health/ready`). Readiness returned `200` in the authenticated Postgres HTTP harness and includes application initialization plus the reviewed migration-ledger check. Compose and the container healthcheck use readiness.
+- `npm run e2e:postgres-backup-restore` ran against PostgreSQL 18 inside `onecli-postgres-1` using the matching in-container client. A temporary fixture inserted one user/project/conversation/task, one runtime event, workspace bytes, and project-file bytes; a custom-format dump restored into a fresh database with nine migration rows, matching counts/fingerprints, and exact bytes. The fixture/user/database were removed afterward.
+- The backup harness requires `ONEVIBE_BACKUP_E2E_ALLOW_MUTATION=true` and is explicitly for a disposable database. It passes credentials through environment variables and does not log them or place them in client argv. Managed retention/PITR and object-storage backup policy are not claimed.
+- A server shutdown test path now receives SIGTERM through the real API child process and closes the HTTP/TaskStore resources within the bounded harness grace period.
+
 ## 2026-07-17 — authenticated two-process HTTP SSE proof
 
 - `npm run e2e:postgres-http-sse` started API A and API B with separate temporary cache roots, shared Postgres and Better Auth secret, and loopback OTP delivery. A session created on A was accepted by B; the demo task was created on A and the `Task tags updated` mutation was committed on B.

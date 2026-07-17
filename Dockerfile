@@ -35,6 +35,6 @@ COPY --from=builder --chown=onevibe:onevibe /app/package.json ./package.json
 USER onevibe
 EXPOSE 4311
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:4311/api/runtime').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:4311/api/health/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 CMD ["node", "--import=tsx/esm", "server/index.ts"]

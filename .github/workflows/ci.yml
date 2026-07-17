@@ -126,3 +126,13 @@ jobs:
         env:
           DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
         run: npm run e2e:postgres-http-sse
+      - name: Locate PostgreSQL service container
+        id: postgres-container
+        shell: bash
+        run: echo "name=$(docker ps --filter ancestor=postgres:18-alpine --format '{{.Names}}' | head -n 1)" >> "$GITHUB_OUTPUT"
+      - name: Prove Postgres backup and restore
+        env:
+          DATABASE_URL: postgresql://onevibe:onevibe-ci-password@127.0.0.1:5432/onevibe
+          ONEVIBE_BACKUP_E2E_ALLOW_MUTATION: "true"
+          PG_DUMP_DOCKER_CONTAINER: ${{ steps.postgres-container.outputs.name }}
+        run: npm run e2e:postgres-backup-restore

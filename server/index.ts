@@ -56,6 +56,7 @@ const claudeProvider = claudeProviderConfig()
 const claudeConfigured = claudeProvider.configured
 const store = new TaskStore(undefined, { driver: persistenceConfig.active, databaseUrl: process.env.DATABASE_URL })
 let authService: AuthService | undefined
+let applicationReady = false
 const activeRuns = new Map<string, AbortController>()
 const activeAdapters = new Map<string, RuntimeAdapter>()
 let oneComputerHealthCache: { checkedAt: number; reachable: boolean } | undefined
@@ -381,12 +382,18 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'GET' && url.pathname === '/api/health') {
     return json(response, 200, {
       status: 'healthy',
+      ready: applicationReady,
       runtime: REMOTE_RUNTIME_URL ? 'remote_available' : 'demo_only',
       approvalAuthority: 'external_vti_wallet',
       walletResolutionConfigured: Boolean(walletService),
       oneComputerSandboxConfigured: oneComputerConfigured,
       authEnabled: Boolean(authService?.isEnabled),
     })
+  }
+  if (request.method === 'GET' && url.pathname === '/api/health/live') return json(response, 200, { status: 'alive' })
+  if (request.method === 'GET' && url.pathname === '/api/health/ready') {
+    const readiness = await store.readiness()
+    return json(response, applicationReady && readiness.ready ? 200 : 503, { status: readiness.ready && applicationReady ? 'ready' : 'not_ready', applicationReady, ...readiness })
   }
   const publicReadOnly = request.method === 'GET' && (url.pathname === '/api/runtime' || url.pathname.startsWith('/api/shares/'))
   const actorUserId = authService?.isEnabled && !publicReadOnly ? (await authService.getSession(request))?.user.id : undefined
@@ -409,6 +416,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       runtime: { providers: readiness.providers, defaultProvider: readiness.defaultProvider },
       sandbox: { configured: oneComputerConfigured, ...(reachable !== undefined ? { reachable } : {}), boundary: oneComputerConfigured ? 'development ONEComputer adapter' : 'host-process local runtime', detail: oneComputerConfigured ? (reachable ? 'ONEComputer health probe is reachable; production attestation remains open.' : 'ONEComputer is configured but the health probe is unreachable.') : 'No isolated sandbox is configured.' },
       mcp: { configuredCount: mcpConfigs.length, healthyCount: healthyMcpCount, checks: mcpChecks, secretValuesAccepted: false, detail: mcpConfigs.length ? `${healthyMcpCount}/${mcpConfigs.length} configured MCP servers returned a tool catalog.` : 'No MCP declarations are configured.' },
+      readiness: await store.readiness(),
     })
   }
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'runtime' && segments[2] === 'test' && segments[3] && segments.length === 4) {
@@ -948,6 +956,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 await store.initialize()
 authService = new AuthService(store.authDatabaseHandle(), store.authDatabaseDriver())
 await authService.initialize()
+applicationReady = true
 void runtimeSnapshot().catch(() => undefined)
 const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | 'manual') => {
   const providerState = (await providerAvailability(schedule.provider)).state
@@ -967,7 +976,7 @@ const runDueSchedules = async () => {
   }
 }
 setInterval(() => { void runDueSchedules().catch((error: unknown) => console.error('Schedule dispatch failed', error)) }, 15_000).unref()
-createServer((request, response) => {
+const httpServer = createServer((request, response) => {
   route(request, response).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)
     const status = error instanceof z.ZodError || error instanceof RangeError ? 400
@@ -979,6 +988,18 @@ createServer((request, response) => {
             : 500
     json(response, status, { error: message })
   })
-}).listen(PORT, HOST, () => {
+})
+let shuttingDown = false
+const shutdown = async () => {
+  if (shuttingDown) return
+  shuttingDown = true
+  applicationReady = false
+  const closed = new Promise<void>((resolve) => httpServer.close(() => resolve()))
+  await Promise.race([closed, new Promise<void>((resolve) => setTimeout(resolve, 5_000))])
+  await store.close()
+}
+process.once('SIGTERM', () => { void shutdown().then(() => process.exit(0)).catch(() => process.exit(1)) })
+process.once('SIGINT', () => { void shutdown().then(() => process.exit(0)).catch(() => process.exit(1)) })
+httpServer.listen(PORT, HOST, () => {
   console.log(`ONEVibe API listening at http://${HOST}:${PORT}`)
 })
