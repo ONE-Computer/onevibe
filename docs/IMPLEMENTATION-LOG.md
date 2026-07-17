@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — expose the controlled container runtime contract
+
+- Added explicit Compose variables for `ONEVIBE_PERSISTENCE_DRIVER`, `DATABASE_URL`, Better Auth enablement/secret/webhook/base URL/trusted origins, while keeping SQLite as the default. The image does not auto-run migrations and does not create an implicit Postgres service.
+- This wires the already-proven runtime switch into the deployment surface without claiming that secret delivery, backups, rollout/rollback, production email, or sandbox isolation are solved.
+- Verification: `docker compose config` passes with the default SQLite contract; the full application checks remain the release gate.
+
 ## 2026-07-17 — prove authenticated Postgres HTTP ownership
 
 - Commit `c311bba` adds `npm run e2e:postgres-auth-http`, which starts the real server with `ONEVIBE_PERSISTENCE_DRIVER=postgres`, Better Auth email OTP, and the loopback delivery fixture. Two sessions are created through the actual OTP webhook contract; an authenticated owner creates a project/task, the second owner cannot enumerate or read them, and diagnostics reports the selected Postgres driver and readiness.

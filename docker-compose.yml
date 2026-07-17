@@ -10,6 +10,11 @@ services:
       ONEVIBE_API_HOST: 0.0.0.0
       ONEVIBE_API_PORT: 4311
       ONEVIBE_DATA_DIR: /var/lib/onevibe
+      # SQLite remains the local default. Set both variables explicitly for
+      # the reviewed Postgres runtime; the database is operator-managed and
+      # migrations are never run implicitly by the application container.
+      ONEVIBE_PERSISTENCE_DRIVER: ${ONEVIBE_PERSISTENCE_DRIVER:-sqlite}
+      DATABASE_URL: ${DATABASE_URL:-}
       ONEVIBE_LITELLM_URL: ${ONEVIBE_LITELLM_URL:-}
       ONEVIBE_LITELLM_API_KEY: ${ONEVIBE_LITELLM_API_KEY:-}
       ONEVIBE_LITELLM_MODEL: ${ONEVIBE_LITELLM_MODEL:-claude-sonnet-5}
@@ -17,6 +22,11 @@ services:
       ONEVIBE_WALLET_TOKEN: ${ONEVIBE_WALLET_TOKEN:-}
       ONEVIBE_RUNTIME_URL: ${ONEVIBE_RUNTIME_URL:-}
       ONEVIBE_RUNTIME_BEARER_TOKEN: ${ONEVIBE_RUNTIME_BEARER_TOKEN:-}
+      ONEVIBE_AUTH_ENABLED: ${ONEVIBE_AUTH_ENABLED:-false}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      ONEVIBE_AUTH_OTP_WEBHOOK_URL: ${ONEVIBE_AUTH_OTP_WEBHOOK_URL:-}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
+      ONEVIBE_TRUSTED_ORIGINS: ${ONEVIBE_TRUSTED_ORIGINS:-}
     volumes:
       - onevibe-data:/var/lib/onevibe
     init: true

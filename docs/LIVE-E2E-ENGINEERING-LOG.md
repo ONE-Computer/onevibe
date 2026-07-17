@@ -2,6 +2,11 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — Compose contract check
+
+- `docker compose config` passed with the default SQLite contract and showed the new operator-controlled Postgres/auth variables without any retained values.
+- `docker build --tag onevibe-ci:local .` was attempted but Docker Desktop timed out while fetching public `node:22-bookworm-slim` metadata from Docker Hub. No source compilation result was produced; the image build gate remains pending an available registry/network path.
+
 ## 2026-07-17 — authenticated Postgres HTTP proof
 
 - Commit `c311bba` started the actual API with `ONEVIBE_PERSISTENCE_DRIVER=postgres`, a disposable data root, Better Auth enabled, and a loopback OTP webhook. Two distinct users completed email OTP sign-in and received separate session cookies.
