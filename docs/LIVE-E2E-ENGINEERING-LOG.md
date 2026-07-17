@@ -4,6 +4,7 @@
 
 - Focused package tests pass for bounded manifest parsing, exact operator allow-list selection, host-owned route IDs, relative-path rejection, token-default schema reuse, external integrity pin enforcement, symlink-safe resolution, and SHA-256 tamper detection.
 - `loadThemePackageManifest` has no tenant/request-controlled import path and performs no extension-code execution. The package name, root, manifest, version, and digests are deployment inputs only; a package cannot self-attest its own integrity.
+- Browser smoke confirmed the local Homepage route was reachable with one app shell and no horizontal overflow. Screenshot `docs/browser-screenshots/local-home-20260717-package-boundary.jpg` is retained as raw route evidence; duplicate rails in the constrained capture are a browser-capture artifact and do not count as UI parity evidence.
 - Static-build/CSP/slot fallback/rollback integration remains intentionally open; the current proof must not be read as a claim that theme packages are active in the React runtime.
 
 ## 2026-07-17 — executable theme acceptance against disposable Postgres

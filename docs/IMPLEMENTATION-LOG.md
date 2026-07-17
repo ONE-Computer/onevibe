@@ -5,7 +5,8 @@
 - Added `server/theme-package.ts` and `docs/THEME-PACKAGE-CONTRACT.md` for a versioned deployment-time package manifest covering named slots, host-owned route IDs, and token defaults. CSS artifacts, arbitrary URL paths, and runtime imports are explicitly excluded.
 - Package selection is exact and operator-controlled through `ONEVIBE_ALLOWED_THEME_PACKAGES`, `ONEVIBE_THEME_PACKAGE`, `ONEVIBE_THEME_PACKAGE_VERSION`, `ONEVIBE_THEME_PACKAGE_INTEGRITY`, `ONEVIBE_THEME_PACKAGE_ROOT`, and `ONEVIBE_THEME_PACKAGE_MANIFEST`. The loader rejects traversal, invalid semver, symlink escapes, non-regular/oversized files, mismatched package names or versions, and entry SHA-256 failures. The package-declared digest must match the external operator integrity pin.
 - The loader deliberately verifies metadata/artifacts without importing or executing extension code. This is a security boundary, not a production package runtime; static-build, CSP, slot isolation, and rollback must precede execution.
-- Focused package tests (5/5), lint, production build, and E2E harness typecheck passed. Full `npm run check` passed with 60 test files / 280 tests.
+- Focused package tests (6/6), lint, production build, and E2E harness typecheck passed. Full `npm run check` passed with 60 test files / 282 tests.
+- Browser smoke against `http://127.0.0.1:5173/?view=homepage` confirmed one `.app-shell`, the Homepage route, and no horizontal overflow. Screenshot evidence is [`local-home-20260717-package-boundary.jpg`](browser-screenshots/local-home-20260717-package-boundary.jpg); the constrained browser capture repeats the side rail, so it is retained as route/boundary evidence and not a visual-design pass.
 
 ## 2026-07-17 — reference profiles and executable theme acceptance gate
 
