@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — prove authenticated Postgres HTTP ownership
+
+- Commit `c311bba` adds `npm run e2e:postgres-auth-http`, which starts the real server with `ONEVIBE_PERSISTENCE_DRIVER=postgres`, Better Auth email OTP, and the loopback delivery fixture. Two sessions are created through the actual OTP webhook contract; an authenticated owner creates a project/task, the second owner cannot enumerate or read them, and diagnostics reports the selected Postgres driver and readiness.
+- Verification: `npm run lint`, `npm run check:e2e-harness`, and `DATABASE_URL=… npm run e2e:postgres-auth-http` passed against PostgreSQL 18. The fixture cleans up users, temporary data, and the server after the run.
+- Boundary: this proves local authenticated Postgres owner scope, not production email delivery, organization-policy authorization, provider isolation, sandbox attestation, or deployment readiness.
+
 ## 2026-07-17 — validate imported attachment metadata
 
 - Commit `f79769f` makes the legacy importer reject dangling task attachments and size mismatches before the Postgres transaction. The E2E fixture now creates a real `TaskAttachment` descriptor, writes its bytes under the descriptor path, imports it, and verifies the bytes after restart.

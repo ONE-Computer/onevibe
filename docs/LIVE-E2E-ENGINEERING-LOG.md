@@ -2,6 +2,12 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — authenticated Postgres HTTP proof
+
+- Commit `c311bba` started the actual API with `ONEVIBE_PERSISTENCE_DRIVER=postgres`, a disposable data root, Better Auth enabled, and a loopback OTP webhook. Two distinct users completed email OTP sign-in and received separate session cookies.
+- Owner A created a project and a demo task through HTTP. Owner B’s project inventory omitted the project and the task read returned `404`; authenticated diagnostics reported `persistence.active=postgres` and `runtimeSwitchReady=true`. The unauthenticated project route returned `401`.
+- This is local auth/ownership evidence only. It does not prove production mail, org policy, microVM isolation, OpenVTC/VTI approval, or cloud deployment.
+
 ## 2026-07-17 — attachment import integrity proof
 
 - Commit `f79769f` was verified against PostgreSQL 18. The temporary legacy fixture included a real attachment descriptor (`inputs/01-private.txt`, text/plain, 13 bytes); the importer validated the path and byte count before writing, and the reopened Postgres TaskStore recovered the exact private bytes.
