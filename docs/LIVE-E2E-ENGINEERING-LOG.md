@@ -19,6 +19,11 @@
 - Focused loader tests pass. Browser screenshots for each fixture, mobile/desktop, light/dark, keyboard, and reduced-motion remain required before P7-07 can be closed.
 - Dedicated local fixture API/web smoke rendered the institutional profile and verified the theme data attribute, configured headline, one app shell, and no-overflow behavior. The explicit desktop/mobile screenshot attempt timed out in the browser backend; no screenshot is claimed from that attempt.
 
+## 2026-07-17 — two-organization theme isolation acceptance
+
+- Fresh disposable Postgres 18 run passed with `themeIsolation=true`, owner lists isolated to one tenant each, cross-tenant read `404`, and `runtimeInvariant=true` after theme update/reset. Stable diagnostics for model boundary, auth, persistence, runtime providers, sandbox boundary, and MCP count were unchanged.
+- This does not close approval/evidence/artifact invariance or the visual matrix.
+
 ## 2026-07-17 — executable theme acceptance against disposable Postgres
 
 - `npm run e2e:themes` passed with three fixture-only profiles and static checks for base fallback, server-controlled scope precedence, contrast, sans-serif enforcement, typed-content markup boundaries, reduced motion, and credential-free bounded asset loading.

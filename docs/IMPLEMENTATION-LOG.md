@@ -20,6 +20,11 @@
 - The fixture loader is read-only and is not connected to mutation routes, runtime selection, credentials, approvals, evidence, or sandbox policy. This enables visual QA without simulating a durable tenant save.
 - Browser smoke through a dedicated fixture API/web pair rendered the institutional profile with `data-tenant-theme=reference-institutional`, the configured hero/feature content, one app shell, and no horizontal overflow at the default viewport. Explicit desktop/mobile screenshot capture timed out in the browser backend and was not recorded as visual evidence.
 
+## 2026-07-17 — two-organization theme isolation and runtime invariance
+
+- Extended the authenticated Postgres proof with a second owner-owned organization/theme. Owner A and owner B each list only their own theme; cross-tenant reads return `404` even when the users share membership in the first organization.
+- The same proof compares stable diagnostics before/after theme mutation and proves no change to the LiteLLM boundary, authenticated session state, persistence readiness, runtime capability map, sandbox boundary, or MCP configuration count. Approval state, evidence chain, and artifact invariance remain separate open gates.
+
 ## 2026-07-17 — reference profiles and executable theme acceptance gate
 
 - Added three fixture-only profiles (`reference-institutional`, `reference-financial`, and `reference-philanthropic`) with safe content, WCAG-passing navigation/page color pairs, no customer credentials/assets, and the sans-serif-only font contract.

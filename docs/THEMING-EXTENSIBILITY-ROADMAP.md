@@ -13,6 +13,7 @@ Current local evidence now covers P7-03/P7-04 persistence and runtime projection
 ## Decisions and constraints
 
 - Tenant configuration is untrusted data and must be validated server-side with bounded schemas, optimistic versions, tenant/org ownership, and append-only audit records.
+- Implemented theme reads/writes are owner/org isolated: the two-organization Postgres acceptance proves each owner lists only its own theme and cross-tenant reads return `404`. The remaining invariance proof must cover approval state, evidence, and artifacts as well as the already-tested model/auth/runtime/sandbox diagnostics.
 - The theme layer is presentation-only. It cannot change model routing, the server-controlled LiteLLM boundary, provider credentials, Better Auth/session policy, OpenVTC/VTI approval authority, evidence redaction, sandbox policy, or runtime capabilities.
 - The current ONEVibe visual contract is sans-serif UI typography only. The source brief contains serif and monospace examples for customer research, but they must not be introduced into the product without a separate approved design/accessibility decision.
 - Arbitrary HTML is not an acceptable default content mechanism. Typed React sections are preferred; any future HTML escape hatch requires a reviewed sanitizer, unsafe-URL rejection, CSP coverage, and regression tests.

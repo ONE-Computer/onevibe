@@ -122,6 +122,8 @@ const main = async () => {
   const sql = postgres(databaseUrl, { max: 2, prepare: false })
   let themeTenantId: string | undefined
   let themeOrganizationId: string | undefined
+  let otherThemeTenantId: string | undefined
+  let otherThemeOrganizationId: string | undefined
   try {
     for (let attempt = 0; attempt < 150; attempt += 1) {
       if (api.child.exitCode !== null || api.child.signalCode !== null) throw new Error('ONEVibe Postgres auth API exited before becoming healthy')
@@ -140,6 +142,8 @@ const main = async () => {
     assert.equal(unauthorized.response.status, 401)
     const ownerA = await signIn(baseUrl, emails[0]!, mail.delivered)
     const ownerB = await signIn(baseUrl, emails[1]!, mail.delivered)
+    const baselineDiagnostics = await request<{ auth: { enabled: boolean; sessionScoped: boolean }; modelBoundary: { directFirstPartyAllowed: boolean; configured: boolean }; persistence: { active: string; runtimeSwitchReady: boolean }; runtime: { providers: Array<{ id: string; available: boolean; compatible: boolean }> }; sandbox: { configured: boolean; boundary: string }; mcp: { configuredCount: number } }>(baseUrl, '/api/diagnostics', {}, ownerA.cookie)
+    assert.equal(baselineDiagnostics.response.status, 200, JSON.stringify(baselineDiagnostics.body))
     const currentTheme = await request<{ source: string; persistent: boolean; config: { tenantId: string } }>(baseUrl, '/api/theme/current', {}, ownerA.cookie)
     assert.equal(currentTheme.response.status, 200, JSON.stringify(currentTheme.body))
     assert.equal(currentTheme.body.source, 'base')
@@ -148,6 +152,10 @@ const main = async () => {
     assert.equal(organization.response.status, 201, JSON.stringify(organization.body))
     themeOrganizationId = organization.body.id
     themeTenantId = `acme-${suffix.slice(0, 12)}`
+    const otherOrganization = await request<{ id: string }>(baseUrl, '/api/organizations', { method: 'POST', body: JSON.stringify({ name: 'Second theme acceptance org' }) }, ownerB.cookie)
+    assert.equal(otherOrganization.response.status, 201, JSON.stringify(otherOrganization.body))
+    otherThemeOrganizationId = otherOrganization.body.id
+    otherThemeTenantId = `second-${suffix.slice(0, 10)}`
     const seededTheme = {
       schemaVersion: 1, tenantId: themeTenantId, tenantName: 'Acme',
       tokens: { colorBrandPrimary: '#123456' }, brand: { brandName: 'Acme' },
@@ -163,6 +171,15 @@ const main = async () => {
       INSERT INTO tenant_theme_config_event (id, tenant_id, org_id, version, operation, actor_user_id, config_json, created_at)
       VALUES (${`theme_event_seed_${suffix}`}, ${themeTenantId}, ${themeOrganizationId}, 1, 'created', ${ownerA.userId}, ${JSON.stringify(seededTheme)}::jsonb, ${seededAt})
     `
+    const otherSeededTheme = { ...seededTheme, tenantId: otherThemeTenantId, tenantName: 'Second', brand: { brandName: 'Second' } }
+    await sql`
+      INSERT INTO tenant_theme_config (tenant_id, org_id, owner_user_id, version, customized, config_json, created_by, updated_by, created_at, updated_at)
+      VALUES (${otherThemeTenantId}, ${otherThemeOrganizationId}, ${ownerB.userId}, 1, true, ${JSON.stringify(otherSeededTheme)}::jsonb, ${ownerB.userId}, ${ownerB.userId}, ${seededAt}, ${seededAt})
+    `
+    await sql`
+      INSERT INTO tenant_theme_config_event (id, tenant_id, org_id, version, operation, actor_user_id, config_json, created_at)
+      VALUES (${`theme_event_other_seed_${suffix}`}, ${otherThemeTenantId}, ${otherThemeOrganizationId}, 1, 'created', ${ownerB.userId}, ${JSON.stringify(otherSeededTheme)}::jsonb, ${seededAt})
+    `
     const ownerATheme = await request<{ config: { tenantId: string }; customized: boolean; version: number }>(baseUrl, `/api/theme/${themeTenantId}`, {}, ownerA.cookie)
     assert.equal(ownerATheme.response.status, 200, JSON.stringify(ownerATheme.body))
     assert.equal(ownerATheme.body.config.tenantId, themeTenantId)
@@ -172,6 +189,15 @@ const main = async () => {
     assert.equal(addThemeMember.response.status, 201, JSON.stringify(addThemeMember.body))
     const ownerBTheme = await request(baseUrl, `/api/theme/${themeTenantId}`, {}, ownerB.cookie)
     assert.equal(ownerBTheme.response.status, 404, JSON.stringify(ownerBTheme.body))
+    const ownerBOwnTheme = await request<{ config: { tenantId: string } }>(baseUrl, `/api/theme/${otherThemeTenantId}`, {}, ownerB.cookie)
+    assert.equal(ownerBOwnTheme.response.status, 200, JSON.stringify(ownerBOwnTheme.body))
+    assert.equal(ownerBOwnTheme.body.config.tenantId, otherThemeTenantId)
+    const ownerAOtherTheme = await request(baseUrl, `/api/theme/${otherThemeTenantId}`, {}, ownerA.cookie)
+    assert.equal(ownerAOtherTheme.response.status, 404, JSON.stringify(ownerAOtherTheme.body))
+    const ownerAThemeList = await request<{ themes: Array<{ tenantId: string }> }>(baseUrl, '/api/theme', {}, ownerA.cookie)
+    const ownerBThemeList = await request<{ themes: Array<{ tenantId: string }> }>(baseUrl, '/api/theme', {}, ownerB.cookie)
+    assert.deepEqual(ownerAThemeList.body.themes.map((theme) => theme.tenantId), [themeTenantId])
+    assert.deepEqual(ownerBThemeList.body.themes.map((theme) => theme.tenantId), [otherThemeTenantId])
     const memberMutation = await request(baseUrl, `/api/theme/${themeTenantId}`, { method: 'PUT', body: JSON.stringify({ expectedVersion: 1, config: { schemaVersion: 1, tenantName: 'Acme', tokens: { colorBrandPrimary: '#654321' }, homePage: { announcementBannerVisible: false, featureCards: [] }, brand: { brandName: 'Acme' }, navigation: { items: [] }, features: { showComputerTab: true, showMcpMarketplace: true, showRuntimePicker: true, showDebugPanel: false }, compliance: {} } }) }, ownerB.cookie)
     assert.equal(memberMutation.response.status, 403, JSON.stringify(memberMutation.body))
     const updatedTheme = await request<{ config: { homePage: { heroHeadline?: string } }; customized: boolean; version: number }>(baseUrl, `/api/theme/${themeTenantId}`, { method: 'PUT', body: JSON.stringify({ expectedVersion: 1, config: { schemaVersion: 1, tenantName: 'Acme', tokens: { colorBrandPrimary: '#654321' }, homePage: { heroHeadline: 'Secure workspaces', announcementBannerVisible: false, featureCards: [] }, brand: { brandName: 'Acme' }, navigation: { items: [] }, features: { showComputerTab: true, showMcpMarketplace: true, showRuntimePicker: true, showDebugPanel: false }, compliance: {} } }) }, ownerA.cookie)
@@ -192,7 +218,7 @@ const main = async () => {
     assert.equal(unknownTheme.response.status, 404)
     const bodyTenantId = await request(baseUrl, `/api/theme/${themeTenantId}`, { method: 'PUT', body: JSON.stringify({ expectedVersion: 3, config: { tenantId: 'attacker', schemaVersion: 1, tenantName: 'Attacker' } }) }, ownerA.cookie)
     assert.equal(bodyTenantId.response.status, 400)
-    const diagnostics = await request<{ auth: { sessionScoped: boolean }; persistence: { active: string; runtimeSwitchReady: boolean }; theme: { persistent: boolean; audit: { tenantCount: number; eventCount: number; latestOperation: string | null; latestAt: string | null } } }>(baseUrl, '/api/diagnostics', {}, ownerA.cookie)
+    const diagnostics = await request<{ auth: { enabled: boolean; sessionScoped: boolean }; modelBoundary: { directFirstPartyAllowed: boolean; configured: boolean }; persistence: { active: string; runtimeSwitchReady: boolean }; runtime: { providers: Array<{ id: string; available: boolean; compatible: boolean }> }; sandbox: { configured: boolean; boundary: string }; mcp: { configuredCount: number }; theme: { persistent: boolean; audit: { tenantCount: number; eventCount: number; latestOperation: string | null; latestAt: string | null } } }>(baseUrl, '/api/diagnostics', {}, ownerA.cookie)
     assert.equal(diagnostics.response.status, 200)
     assert.equal(diagnostics.body.auth.sessionScoped, true)
     assert.equal(diagnostics.body.persistence.active, 'postgres')
@@ -200,6 +226,7 @@ const main = async () => {
     assert.equal(diagnostics.body.theme.persistent, true)
     assert.deepEqual(diagnostics.body.theme.audit, { tenantCount: 1, eventCount: 3, latestOperation: 'reset', latestAt: diagnostics.body.theme.audit.latestAt })
     assert.match(diagnostics.body.theme.audit.latestAt ?? '', /^20\d\d-/)
+    assert.deepEqual({ auth: diagnostics.body.auth, modelBoundary: diagnostics.body.modelBoundary, persistence: diagnostics.body.persistence, runtime: diagnostics.body.runtime.providers.map(({ id, available, compatible }) => ({ id, available, compatible })), sandbox: diagnostics.body.sandbox, mcp: diagnostics.body.mcp.configuredCount }, { auth: baselineDiagnostics.body.auth, modelBoundary: baselineDiagnostics.body.modelBoundary, persistence: baselineDiagnostics.body.persistence, runtime: baselineDiagnostics.body.runtime.providers.map(({ id, available, compatible }) => ({ id, available, compatible })), sandbox: baselineDiagnostics.body.sandbox, mcp: baselineDiagnostics.body.mcp.configuredCount })
     const project = await request<{ id: string }>(baseUrl, '/api/projects', { method: 'POST', body: JSON.stringify({ name: 'Postgres auth project', context: 'owner A' }) }, ownerA.cookie)
     assert.equal(project.response.status, 201, JSON.stringify(project.body))
     const ownerBProjects = await request<{ projects: Array<{ id: string }> }>(baseUrl, '/api/projects', {}, ownerB.cookie)
@@ -214,13 +241,16 @@ const main = async () => {
     assert.equal(forbidden.response.status, 404)
     const ownerAProject = await request(baseUrl, `/api/projects/${project.body.id}`, {}, ownerA.cookie)
     assert.equal(ownerAProject.response.status, 404, 'unsupported project GET should remain bounded')
-    console.log(JSON.stringify({ auth: 'Better Auth email OTP through loopback delivery fixture', driver: diagnostics.body.persistence.active, runtimeSwitchReady: diagnostics.body.persistence.runtimeSwitchReady, readiness: true, unauthorizedStatus: unauthorized.response.status, ownerIsolation: true, taskCreated: true, crossOwnerTaskStatus: forbidden.response.status, themeVersion: resetTheme.body.version, themeEvents: eventRows.length, themeAuditEvents: diagnostics.body.theme.audit.eventCount, themeAuditLatest: diagnostics.body.theme.audit.latestOperation, themeMemberRead: ownerBTheme.response.status, themeMemberWrite: memberMutation.response.status, themeConflict: staleTheme.response.status, themeReset: resetTheme.body.customized === false, directFirstPartyAllowed: diagnostics.body.auth.sessionScoped ? false : undefined }, null, 2))
+    console.log(JSON.stringify({ auth: 'Better Auth email OTP through loopback delivery fixture', driver: diagnostics.body.persistence.active, runtimeSwitchReady: diagnostics.body.persistence.runtimeSwitchReady, readiness: true, unauthorizedStatus: unauthorized.response.status, ownerIsolation: true, themeIsolation: true, taskCreated: true, crossOwnerTaskStatus: forbidden.response.status, themeVersion: resetTheme.body.version, themeEvents: eventRows.length, themeAuditEvents: diagnostics.body.theme.audit.eventCount, themeAuditLatest: diagnostics.body.theme.audit.latestOperation, themeMemberRead: ownerBTheme.response.status, themeMemberWrite: memberMutation.response.status, themeOtherOwnerRead: ownerAOtherTheme.response.status, themeConflict: staleTheme.response.status, themeReset: resetTheme.body.customized === false, runtimeInvariant: true, directFirstPartyAllowed: diagnostics.body.auth.sessionScoped ? false : undefined }, null, 2))
   } finally {
     await api.stop()
     mail.server.close()
     if (themeTenantId) await sql`DELETE FROM tenant_theme_config_event WHERE tenant_id = ${themeTenantId}`
     if (themeTenantId) await sql`DELETE FROM tenant_theme_config WHERE tenant_id = ${themeTenantId}`
+    if (otherThemeTenantId) await sql`DELETE FROM tenant_theme_config_event WHERE tenant_id = ${otherThemeTenantId}`
+    if (otherThemeTenantId) await sql`DELETE FROM tenant_theme_config WHERE tenant_id = ${otherThemeTenantId}`
     if (themeOrganizationId) await sql`DELETE FROM org WHERE id = ${themeOrganizationId}`
+    if (otherThemeOrganizationId) await sql`DELETE FROM org WHERE id = ${otherThemeOrganizationId}`
     await sql`DELETE FROM "user" WHERE email IN (${emails[0]}, ${emails[1]})`
     await sql.end({ timeout: 5 })
     await rm(dataRoot, { recursive: true, force: true })

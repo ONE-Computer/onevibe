@@ -136,8 +136,8 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 - [x] Add a versioned `TenantThemeConfig` schema with bounded tokens, brand assets, homepage content, navigation, feature flags, and compliance links. `server/theme-config.ts` rejects CSS injection primitives, unsafe URLs, unapproved fonts, and unbounded content.
 - [x] Define tenant resolution order: authenticated session/org, explicit deployment environment, then validated host/subdomain; default to the base theme when unresolved. The resolver accepts only server-derived scope and an operator-owned host allow-list.
-- [ ] Enforce tenant isolation on every read/write and reject cross-tenant admin access; preserve server-derived actor/org scope.
-- [ ] Keep theme configuration unable to override LiteLLM routes, runtime credentials, approval state, auth policy, sandbox boundaries, or evidence payloads.
+- [x] Enforce tenant isolation on the implemented theme reads/writes and reject cross-tenant owner access; preserve server-derived actor/org scope. Fresh two-organization Postgres HTTP acceptance proves owner A/B lists are isolated and cross-tenant reads return `404`.
+- [ ] Complete the no-capability-escalation invariant across approval state, evidence payloads, and produced artifacts. The current acceptance proves theme mutation does not change model-boundary, auth, persistence, runtime, sandbox, or MCP diagnostics; approval/evidence/artifact invariance remains open.
 
 ### P7-03 — Durable theme store and API (P1)
 
