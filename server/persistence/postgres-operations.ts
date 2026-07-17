@@ -1,5 +1,5 @@
 import postgres, { type Sql } from 'postgres'
-import type { IdempotencyRecord, McpConfigAuditRecord, McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord } from './contracts.js'
+import type { FollowUpOperationRecord, FollowUpOperationState, IdempotencyRecord, McpConfigAuditRecord, McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord } from './contracts.js'
 import { IdempotencyConflictError, OptimisticConflictError, RecordNotFoundError } from './errors.js'
 
 export type PostgresOperationsSql = Sql<Record<string, never>>
@@ -10,6 +10,11 @@ type MemberRow = { org_id: string; user_id: string; role: 'owner' | 'member'; cr
 type SkillRow = { id: string; owner_scope: string; owner_user_id: string | null; version: number; title: string; summary: string; sha256: string; content: string; content_url: string; source_url: string; created_at: Date; updated_at: Date }
 type LeaseRow = { id: string; task_id: string; generation: number; provider_name: string; provider_sandbox_id: string | null; status: RuntimeLeaseRecord['status']; allocation_operation_id: string; allocation_idempotency_key: string; created_at: Date; updated_at: Date; ready_at: Date | null; release_requested_at: Date | null; released_at: Date | null; last_error_json: unknown }
 type IdempotencyRow = { scope: string; key: string; owner_user_id: string | null; request_hash: string; state: 'pending' | 'completed'; response_json: unknown; created_at: Date; completed_at: Date | null }
+type FollowUpOperationRow = {
+  id: string; task_id: string; owner_user_id: string | null; idempotency_key: string; request_hash: string; prompt: string;
+  attachments_json: unknown; execution_mode: 'queued' | 'immediate'; state: FollowUpOperationState; guidance_id: string | null;
+  turn_id: string | null; response_json: unknown; error_json: unknown; created_at: Date; updated_at: Date; started_at: Date | null; completed_at: Date | null
+}
 
 const toIso = (value: Date | string | null | undefined) => value instanceof Date ? value.toISOString() : value ?? null
 const argsString = (value: unknown) => JSON.stringify(Array.isArray(value) ? value : [])
@@ -32,6 +37,13 @@ const responseJsonFromRow = (value: unknown): string | null => {
   }
 }
 const idempotencyFromRow = (row: IdempotencyRow): IdempotencyRecord => ({ scope: row.scope, key: row.key, requestHash: row.request_hash, state: row.state, responseJson: responseJsonFromRow(row.response_json), createdAt: row.created_at.toISOString(), completedAt: toIso(row.completed_at) })
+const jsonStringFromRow = (value: unknown): string | null => value === null || value === undefined ? null : typeof value === 'string' ? value : JSON.stringify(value)
+const followUpOperationFromRow = (row: FollowUpOperationRow): FollowUpOperationRecord => ({
+  id: row.id, taskId: row.task_id, ownerUserId: row.owner_user_id, idempotencyKey: row.idempotency_key, requestHash: row.request_hash,
+  prompt: row.prompt, attachmentsJson: jsonStringFromRow(row.attachments_json) ?? '[]', executionMode: row.execution_mode, state: row.state,
+  guidanceId: row.guidance_id, turnId: row.turn_id, responseJson: jsonStringFromRow(row.response_json), errorJson: jsonStringFromRow(row.error_json),
+  createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(), startedAt: toIso(row.started_at), completedAt: toIso(row.completed_at),
+})
 
 const leaseValues = (record: RuntimeLeaseRecord) => ({
   id: record.id, taskId: record.conversationId, generation: record.generation, providerName: record.providerName, providerSandboxId: record.providerSandboxId,
@@ -166,6 +178,48 @@ export class PostgresOperationsRepository {
     if (!existing) throw new RecordNotFoundError(`Idempotency key ${scope}/${key} does not exist`)
     if (existing.state === 'completed' && existing.responseJson === encodedResponse) return
     throw new OptimisticConflictError(`Idempotency key ${scope}/${key} is already completed with a different response`)
+  }
+
+  async findFollowUpOperation(taskId: string, idempotencyKey: string): Promise<FollowUpOperationRecord | undefined> {
+    const rows = await this.sql<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE task_id = ${taskId} AND idempotency_key = ${idempotencyKey}`
+    return rows[0] ? followUpOperationFromRow(rows[0]) : undefined
+  }
+
+  async listRecoverableFollowUpOperations(): Promise<FollowUpOperationRecord[]> {
+    const rows = await this.sql<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE state IN ('prepared', 'ready', 'running') ORDER BY created_at ASC, id ASC`
+    return rows.map(followUpOperationFromRow)
+  }
+
+  async createFollowUpOperation(record: FollowUpOperationRecord): Promise<{ claimed: boolean; operation: FollowUpOperationRecord }> {
+    return this.sql.begin(async (tx) => {
+      const existingRows = await tx<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE task_id = ${record.taskId} AND idempotency_key = ${record.idempotencyKey} FOR UPDATE`
+      const existing = existingRows[0]
+      if (existing) {
+        const operation = followUpOperationFromRow(existing)
+        if (operation.requestHash !== record.requestHash) throw new IdempotencyConflictError(`Follow-up operation ${record.taskId}/${record.idempotencyKey} was reused with a different request`)
+        return { claimed: false, operation }
+      }
+      const rows = await tx<FollowUpOperationRow[]>`
+        INSERT INTO follow_up_operation (id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at)
+        VALUES (${record.id}, ${record.taskId}, ${record.ownerUserId}, ${record.idempotencyKey}, ${record.requestHash}, ${record.prompt}, ${record.attachmentsJson}::jsonb, ${record.executionMode}, ${record.state}, ${record.guidanceId}, ${record.turnId}, ${record.responseJson ? record.responseJson : null}::jsonb, ${record.errorJson ? record.errorJson : null}::jsonb, ${new Date(record.createdAt)}, ${new Date(record.updatedAt)}, ${record.startedAt ? new Date(record.startedAt) : null}, ${record.completedAt ? new Date(record.completedAt) : null})
+        RETURNING id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at
+      `
+      if (!rows[0]) throw new OptimisticConflictError(`Follow-up operation ${record.id} was not persisted`)
+      return { claimed: true, operation: followUpOperationFromRow(rows[0]) }
+    })
+  }
+
+  async updateFollowUpOperation(record: FollowUpOperationRecord, expectedUpdatedAt: string): Promise<void> {
+    const result = await this.sql`
+      UPDATE follow_up_operation SET state = ${record.state}, guidance_id = ${record.guidanceId}, turn_id = ${record.turnId},
+        response_json = ${record.responseJson ? record.responseJson : null}::jsonb, error_json = ${record.errorJson ? record.errorJson : null}::jsonb,
+        updated_at = ${new Date(record.updatedAt)}, started_at = ${record.startedAt ? new Date(record.startedAt) : null}, completed_at = ${record.completedAt ? new Date(record.completedAt) : null}
+      WHERE id = ${record.id} AND updated_at = ${new Date(expectedUpdatedAt)}
+    `
+    if (result.count === 1) return
+    const existing = await this.sql<{ id: string }[]>`SELECT id FROM follow_up_operation WHERE id = ${record.id}`
+    if (!existing[0]) throw new RecordNotFoundError(`Follow-up operation ${record.id} does not exist`)
+    throw new OptimisticConflictError(`Follow-up operation ${record.id} was modified concurrently`)
   }
 
   async insertLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number): Promise<void> {

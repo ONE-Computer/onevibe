@@ -64,6 +64,13 @@
       "when": 1784258917454,
       "tag": "0008_slippery_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784262872189,
+      "tag": "0009_right_madame_hydra",
+      "breakpoints": true
     }
   ]
 }

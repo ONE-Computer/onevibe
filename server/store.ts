@@ -6,7 +6,7 @@ import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
-import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, PostgresStateCoordinator, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
+import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, IdempotencyConflictError, OptimisticConflictError, PostgresStateCoordinator, type FollowUpOperationRecord, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
 import { isInternalWorkspacePath, isPrivateWorkspacePath, normalizeWorkspacePath, portableArtifactKind } from './artifact-path.js'
 import type { McpConfig } from './runtime-adapter.js'
 
@@ -980,15 +980,20 @@ export class TaskStore {
     return this.getTask(taskId)
   }
 
-  async queueGuidance(taskId: string, prompt: string, attachmentPaths: string[] = [], guidanceId?: string) {
+  async queueGuidance(taskId: string, prompt: string, attachmentPaths: string[] = [], guidanceId?: string, operationId?: string, operationKey?: string) {
     const task = this.getTask(taskId)
+    const existingGuidance = guidanceId ? task.queuedGuidance.find((candidate) => candidate.id === guidanceId) : undefined
+    if (existingGuidance) {
+      if (existingGuidance.prompt !== prompt || existingGuidance.attachmentPaths.join('|') !== attachmentPaths.join('|')) throw new OptimisticConflictError(`Guidance ${guidanceId} conflicts with the existing queued request`)
+      return existingGuidance
+    }
     if (task.queuedGuidance.length >= 8) throw new Error('Task already has the maximum of 8 queued guidance messages')
-    const guidance = { id: guidanceId ?? `guidance_${randomUUID().replaceAll('-', '').slice(0, 12)}`, prompt, attachmentPaths, createdAt: new Date().toISOString() }
+    const guidance = { id: guidanceId ?? `guidance_${randomUUID().replaceAll('-', '').slice(0, 12)}`, prompt, attachmentPaths, ...(operationId ? { operationId } : {}), ...(operationKey ? { operationKey } : {}), createdAt: new Date().toISOString() }
     await this.updateTask(taskId, { queuedGuidance: [...task.queuedGuidance, guidance] })
     await this.appendEvent(taskId, {
       type: 'guidance_queued', lane: 'control', label: 'Guidance queued for next turn',
       content: 'The current provider turn is non-interruptible; this guidance will resume the same task immediately after it reaches a terminal state.',
-      payload: { guidanceId: guidance.id, promptLength: prompt.length, attachmentCount: attachmentPaths.length, appliesAfterRun: task.activeRunId },
+      payload: { guidanceId: guidance.id, promptLength: prompt.length, attachmentCount: attachmentPaths.length, appliesAfterRun: task.activeRunId, ...(operationId ? { operationId } : {}) },
     })
     return guidance
   }
@@ -1381,6 +1386,48 @@ export class TaskStore {
       return
     }
     this.requireUnitOfWork().run((repositories) => repositories.idempotency.complete(scope, idempotencyKey, encodedResponse, new Date().toISOString()))
+  }
+
+  async createFollowUpOperation(taskId: string, idempotencyKey: string, requestHash: string, prompt: string, attachmentsJson: string, executionMode: 'queued' | 'immediate', ownerUserId?: string): Promise<{ claimed: boolean; operation: FollowUpOperationRecord }> {
+    const task = this.getTask(taskId, ownerUserId)
+    const now = new Date().toISOString()
+    const id = `follow_up_${createHash('sha256').update(`${taskId}:${idempotencyKey}`).digest('hex').slice(0, 32)}`
+    const record: FollowUpOperationRecord = {
+      id, taskId, ownerUserId: task.ownerUserId ?? ownerUserId ?? null, idempotencyKey, requestHash, prompt, attachmentsJson,
+      executionMode, state: 'prepared', guidanceId: null, turnId: null, responseJson: null, errorJson: null,
+      createdAt: now, updatedAt: now, startedAt: null, completedAt: null,
+    }
+    if (this.postgresState) return this.postgresState.createFollowUpOperation(record)
+    return this.requireUnitOfWork().run((repositories) => {
+      const existing = repositories.followUpOperations.findByKey(taskId, idempotencyKey)
+      if (existing) {
+        if (existing.requestHash !== requestHash) throw new IdempotencyConflictError(`Follow-up operation ${taskId}/${idempotencyKey} was reused with a different request`)
+        return { claimed: false, operation: existing }
+      }
+      repositories.followUpOperations.insert(record)
+      return { claimed: true, operation: record }
+    })
+  }
+
+  async listRecoverableFollowUpOperations(): Promise<FollowUpOperationRecord[]> {
+    if (this.postgresState) return this.postgresState.listRecoverableFollowUpOperations()
+    return this.requireUnitOfWork().run((repositories) => repositories.followUpOperations.listRecoverable())
+  }
+
+  async findFollowUpOperation(taskId: string, idempotencyKey: string): Promise<FollowUpOperationRecord | undefined> {
+    this.getTask(taskId)
+    if (this.postgresState) return this.postgresState.findFollowUpOperation(taskId, idempotencyKey)
+    return this.requireUnitOfWork().run((repositories) => repositories.followUpOperations.findByKey(taskId, idempotencyKey))
+  }
+
+  async updateFollowUpOperation(operation: FollowUpOperationRecord, patch: Partial<Pick<FollowUpOperationRecord, 'state' | 'guidanceId' | 'turnId' | 'responseJson' | 'errorJson' | 'startedAt' | 'completedAt'>>): Promise<FollowUpOperationRecord> {
+    const updated = { ...operation, ...patch, updatedAt: new Date().toISOString() }
+    if (this.postgresState) {
+      await this.postgresState.updateFollowUpOperation(updated, operation.updatedAt)
+      return updated
+    }
+    this.requireUnitOfWork().run((repositories) => repositories.followUpOperations.update(updated, operation.updatedAt))
+    return updated
   }
 
   async getRetry(taskId: string, idempotencyKey: string): Promise<{ state: 'pending' | 'completed'; response?: Record<string, unknown> } | undefined> {

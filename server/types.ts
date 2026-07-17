@@ -159,7 +159,7 @@ export type Task = {
   mode: TaskMode
   skills: TaskSkill[]
   tags: string[]
-  queuedGuidance: Array<{ id: string; prompt: string; attachmentPaths: string[]; createdAt: string }>
+  queuedGuidance: Array<{ id: string; prompt: string; attachmentPaths: string[]; createdAt: string; operationId?: string; operationKey?: string }>
   projectId: string
   parentTaskId?: string
   forkedFromMessageId?: string

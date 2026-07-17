@@ -22,6 +22,7 @@ import { runtimeReadiness } from './runtime-readiness.js'
 import { RuntimeRegistry } from './runtime-registry.js'
 import { evaluateAction } from './policy.js'
 import type { Task, TaskSchedule } from './types.js'
+import type { FollowUpOperationRecord } from './persistence/contracts.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
 import { encodeRuntimeEventFrame, eventsAfterLastEventId, openReplayLiveHandoff } from './task-event-stream.js'
 import { awaitTurnSettlement, createTurnDeadline, resolveTurnTimeoutMs, TURN_CLEANUP_GRACE_MS, TurnTimeoutError } from './turn-deadline.js'
@@ -204,7 +205,8 @@ const followUpRequestHash = (taskId: string, prompt: string, input: Array<{ name
     return { name: normalizedAttachmentName(attachment.name), mimeType: attachment.mimeType || 'application/octet-stream', size: bytes.byteLength, sha256: bytesHash(bytes) }
   }),
 }))
-const stageFollowUpAttachments = async (taskId: string, input: Array<{ name: string; mimeType: string; dataBase64: string }>, idempotencyKey?: string) => {
+type FollowUpAttachmentInput = { name: string; mimeType: string; dataBase64: string }
+const stageFollowUpAttachments = async (taskId: string, input: FollowUpAttachmentInput[], idempotencyKey?: string) => {
   if (!input.length) return []
   const task = store.getTask(taskId)
   if (task.attachments.length + input.length > 32) throw new RangeError('Conversation has reached the 32-file input limit')
@@ -218,11 +220,91 @@ const stageFollowUpAttachments = async (taskId: string, input: Array<{ name: str
   if (decoded.reduce((total, attachment) => total + attachment.bytes.byteLength, 0) > 1_000_000) throw new RangeError('Follow-up attachments exceed the 1 MiB turn limit')
   const requestPathPrefix = idempotencyKey ? `inputs/request-${contentHash(idempotencyKey).slice(0, 16)}` : undefined
   const attachments = decoded.map((attachment, index) => ({ name: attachment.name, path: requestPathPrefix ? `${requestPathPrefix}-${String(index + 1).padStart(2, '0')}-${attachment.name}` : `inputs/${String(task.attachments.length + index + 1).padStart(2, '0')}-${attachment.name}`, size: attachment.bytes.byteLength, mimeType: attachment.mimeType }))
-  await Promise.all(attachments.map((attachment, index) => store.writeWorkspaceBytes(taskId, attachment.path, decoded[index]!.bytes)))
-  await store.updateTask(taskId, { attachments: [...task.attachments, ...attachments] })
+  const existingPaths = new Set(task.attachments.map((attachment) => attachment.path))
+  for (const attachment of attachments.filter((candidate) => existingPaths.has(candidate.path))) {
+    const existing = task.attachments.find((candidate) => candidate.path === attachment.path)
+    if (!existing || existing.name !== attachment.name || existing.size !== attachment.size || existing.mimeType !== attachment.mimeType) throw new IdempotencyConflictError(`Attachment path ${attachment.path} conflicts with the existing operation`)
+  }
+  await Promise.all(attachments.map(async (attachment, index) => {
+    if (existingPaths.has(attachment.path)) {
+      const currentBytes = await store.readWorkspaceBytes(taskId, attachment.path)
+      if (bytesHash(currentBytes) !== bytesHash(decoded[index]!.bytes)) throw new IdempotencyConflictError(`Attachment bytes for ${attachment.path} conflict with the existing operation`)
+      return
+    }
+    await store.writeWorkspaceBytes(taskId, attachment.path, decoded[index]!.bytes)
+  }))
+  const additions = attachments.filter((attachment) => !existingPaths.has(attachment.path))
+  if (additions.length) await store.updateTask(taskId, { attachments: [...task.attachments, ...additions] })
   return attachments
 }
-const executeTask = (taskId: string, prompt: string, continuation: boolean, attachmentPaths?: string[], retryKey?: string) => {
+const parseFollowUpOperationAttachments = (operation: FollowUpOperationRecord): FollowUpAttachmentInput[] => {
+  let parsed: unknown
+  try { parsed = JSON.parse(operation.attachmentsJson) } catch { throw new Error(`Follow-up operation ${operation.id} has invalid attachment state`) }
+  if (!Array.isArray(parsed)) throw new Error(`Follow-up operation ${operation.id} has invalid attachment state`)
+  return parsed.map((attachment) => {
+    if (!attachment || typeof attachment !== 'object') throw new Error(`Follow-up operation ${operation.id} has invalid attachment state`)
+    const candidate = attachment as Record<string, unknown>
+    if (typeof candidate.name !== 'string' || typeof candidate.mimeType !== 'string' || typeof candidate.dataBase64 !== 'string') throw new Error(`Follow-up operation ${operation.id} has invalid attachment state`)
+    return { name: candidate.name, mimeType: candidate.mimeType, dataBase64: candidate.dataBase64 }
+  })
+}
+const operationResponse = (operation: FollowUpOperationRecord): Record<string, unknown> | undefined => {
+  if (!operation.responseJson) return undefined
+  try {
+    const parsed = JSON.parse(operation.responseJson) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined
+  } catch { return undefined }
+}
+const operationAttachmentPaths = (task: Task, operation: FollowUpOperationRecord) => {
+  const prefix = `inputs/request-${contentHash(operation.idempotencyKey).slice(0, 16)}-`
+  return task.attachments.filter((attachment) => attachment.path.startsWith(prefix)).map((attachment) => attachment.path)
+}
+const materializeFollowUpOperation = async (operation: FollowUpOperationRecord): Promise<FollowUpOperationRecord> => {
+  if (operation.state !== 'prepared') return operation
+  try {
+    const task = store.getTask(operation.taskId)
+    const attachments = await stageFollowUpAttachments(operation.taskId, parseFollowUpOperationAttachments(operation), operation.idempotencyKey)
+    const current = store.getTask(operation.taskId)
+    const isActive = activeRuns.has(operation.taskId) || current.status === 'running' || current.status === 'pending'
+    const attachmentPaths = attachments.map((attachment) => attachment.path)
+    if (operation.executionMode === 'queued' && isActive) {
+      const guidanceId = operation.guidanceId ?? `guidance_${contentHash(operation.id).slice(0, 24)}`
+      const guidance = await store.queueGuidance(operation.taskId, operation.prompt, attachmentPaths, guidanceId, operation.id, operation.idempotencyKey)
+      const accepted = { status: 'queued', taskId: operation.taskId, guidanceId: guidance.id, idempotencyKey: operation.idempotencyKey }
+      return store.updateFollowUpOperation(operation, { state: 'ready', guidanceId: guidance.id, responseJson: JSON.stringify(accepted) })
+    }
+    await store.updateTask(operation.taskId, { status: 'pending' })
+    const turnId = await store.beginTurn(operation.taskId, operation.prompt, task.provider, operation.idempotencyKey)
+    const accepted = { status: 'queued', taskId: operation.taskId, turnId, idempotencyKey: operation.idempotencyKey }
+    return store.updateFollowUpOperation(operation, { state: 'ready', turnId, responseJson: JSON.stringify(accepted) })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    await store.updateFollowUpOperation(operation, { state: 'failed', errorJson: JSON.stringify({ message, retryable: false }), completedAt: new Date().toISOString() }).catch(() => undefined)
+    throw error
+  }
+}
+const scheduleReadyFollowUpOperation = async (operation: FollowUpOperationRecord) => {
+  if (operation.state !== 'ready') return
+  const task = store.getTask(operation.taskId)
+  let prompt = operation.prompt
+  let continuation = true
+  let attachmentPaths = operationAttachmentPaths(task, operation)
+  if (operation.executionMode === 'queued' && operation.guidanceId) {
+    const currentGuidance = task.queuedGuidance.find((guidance) => guidance.id === operation.guidanceId)
+    const isActive = activeRuns.has(task.id) || task.status === 'running' || task.status === 'pending'
+    if (currentGuidance && isActive) return
+    if (currentGuidance) {
+      const taken = await store.takeQueuedGuidance(task.id)
+      if (taken?.id !== operation.guidanceId) return
+      prompt = taken.prompt
+      attachmentPaths = taken.attachmentPaths
+    }
+    await store.updateTask(task.id, { status: 'pending' })
+  }
+  const claimed = await store.updateFollowUpOperation(operation, { state: 'running', startedAt: new Date().toISOString() })
+  setTimeout(() => executeTask(task.id, prompt, continuation, attachmentPaths, operation.idempotencyKey, claimed.id), 25)
+}
+const executeTask = (taskId: string, prompt: string, continuation: boolean, attachmentPaths?: string[], retryKey?: string, operationId?: string) => {
   const task = store.getTask(taskId)
   const project = store.getProject(task.projectId)
   const turnAttachments = attachmentPaths ? task.attachments.filter((attachment) => attachmentPaths.includes(attachment.path)) : task.attachments
@@ -246,15 +328,19 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
         },
       })
     }
-    await store.beginTurn(task.id, prompt, task.provider, retryKey)
+    const turnId = await store.beginTurn(task.id, prompt, task.provider, retryKey)
+    if (operationId && retryKey) {
+      const operation = await store.findFollowUpOperation(task.id, retryKey)
+      if (operation && operation.state === 'ready') await store.updateFollowUpOperation(operation, { state: 'running', startedAt: new Date().toISOString() })
+    }
     if (retryKey) await store.appendEvent(task.id, {
       type: 'activity_delta', lane: 'control', label: 'Retry attempt started',
       content: 'ONEVibe is retrying the failed or cancelled turn in the same governed conversation workspace.',
       payload: { retryKey, idempotent: true },
     })
-    await store.appendEvent(task.id, {
+    if (!store.listEvents(task.id).some((event) => event.runId === turnId && event.type === 'user_message')) await store.appendEvent(task.id, {
       type: 'user_message', lane: 'transcript', content: prompt,
-      payload: { continuation },
+      payload: { continuation, ...(retryKey ? { clientRequestId: retryKey } : {}) },
     })
     if (project.context) await store.appendEvent(task.id, {
       type: 'activity_delta', lane: 'control', label: 'Project context attached',
@@ -352,6 +438,15 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
     if (settlement === 'settled') releaseActiveRun()
     else void runPromise.then(releaseActiveRun, releaseActiveRun)
     const finished = store.getTask(task.id)
+    if (operationId && retryKey) {
+      const operation = await store.findFollowUpOperation(task.id, retryKey)
+      if (operation && ['ready', 'running'].includes(operation.state)) {
+        await store.updateFollowUpOperation(operation, {
+          state: finished.status === 'completed' ? 'completed' : 'failed',
+          ...(finished.status === 'completed' ? { completedAt: new Date().toISOString() } : { errorJson: JSON.stringify({ message: `Task ended as ${finished.status}`, retryable: finished.status === 'failed' }), completedAt: new Date().toISOString() }),
+        }).catch(() => undefined)
+      }
+    }
     if (finished.status !== 'completed') return
     const guidance = await store.takeQueuedGuidance(task.id)
     if (!guidance) return
@@ -361,7 +456,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       content: 'The preceding provider turn completed. ONEVibe is resuming the same governed task with the queued guidance.',
       payload: { guidanceId: guidance.id, queuedAt: guidance.createdAt },
     })
-    setTimeout(() => executeTask(task.id, guidance.prompt, true, guidance.attachmentPaths), 25)
+    setTimeout(() => executeTask(task.id, guidance.prompt, true, guidance.attachmentPaths, guidance.operationKey, guidance.operationId), 25)
   })
 }
 
@@ -682,8 +777,18 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
         if (task.queuedGuidance.length >= 8) return json(response, 409, { error: 'Task already has the maximum of 8 queued guidance messages' })
       }
       if (idempotencyKey && requestHash) {
-        const claim = await store.claimIdempotentOperation(operationScope, idempotencyKey, requestHash, task.ownerUserId ?? actorUserId)
-        if (!claim.claimed) return json(response, claim.state === 'pending' ? 202 : 200, claim.response ?? { status: 'processing', taskId, idempotencyKey })
+        const operationClaim = await store.createFollowUpOperation(taskId, idempotencyKey, requestHash, input.prompt, JSON.stringify(input.attachments), isActive ? 'queued' : 'immediate', task.ownerUserId ?? actorUserId)
+        if (operationClaim.claimed && process.env.NODE_ENV !== 'production' && process.env.ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PREPARED === 'true') {
+          setImmediate(() => process.exit(97))
+          return json(response, 202, { status: 'crash_injected', operationId: operationClaim.operation.id })
+        }
+        if (!operationClaim.claimed) {
+          if (operationClaim.operation.state === 'failed') return json(response, 409, { error: 'This follow-up operation failed and requires a new request key', operationId: operationClaim.operation.id })
+          return json(response, operationClaim.operation.state === 'completed' ? 200 : 202, operationResponse(operationClaim.operation) ?? { status: 'processing', taskId, idempotencyKey, operationId: operationClaim.operation.id })
+        }
+        const ready = await materializeFollowUpOperation(operationClaim.operation)
+        if (ready.executionMode === 'immediate') await scheduleReadyFollowUpOperation(ready)
+        return json(response, 202, operationResponse(ready) ?? { status: 'queued', taskId, idempotencyKey, operationId: ready.id })
       }
       if (isActive) {
         const attachments = await stageFollowUpAttachments(taskId, input.attachments, idempotencyKey)
@@ -959,6 +1064,21 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 await store.initialize()
 authService = new AuthService(store.authDatabaseHandle(), store.authDatabaseDriver())
 await authService.initialize()
+const recoverFollowUpOperations = async () => {
+  for (const operation of await store.listRecoverableFollowUpOperations()) {
+    try {
+      if (operation.state === 'running') {
+        await store.updateFollowUpOperation(operation, { state: 'failed', errorJson: JSON.stringify({ message: 'Process restarted after provider execution was claimed; automatic replay is disabled because the external outcome is unknown.', retryable: false }), completedAt: new Date().toISOString() })
+        continue
+      }
+      const ready = operation.state === 'prepared' ? await materializeFollowUpOperation(operation) : operation
+      if (ready.state === 'ready' && (ready.executionMode === 'immediate' || ready.guidanceId !== null)) await scheduleReadyFollowUpOperation(ready)
+    } catch (error) {
+      console.error(`Follow-up operation recovery failed for ${operation.id}:`, error instanceof Error ? error.message : String(error))
+    }
+  }
+}
+await recoverFollowUpOperations()
 applicationReady = true
 void runtimeSnapshot().catch(() => undefined)
 const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | 'manual') => {

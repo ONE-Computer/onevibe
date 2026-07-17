@@ -2,6 +2,9 @@ import type Database from 'better-sqlite3'
 import type {
   ConversationRecord,
   ConversationRepository,
+  FollowUpOperationRecord,
+  FollowUpOperationRepository,
+  FollowUpOperationState,
   IdempotencyRecord,
   IdempotencyRepository,
   LegacyImportRecord,
@@ -35,6 +38,12 @@ type ConversationRow = { id: string; title: string | null; status: ConversationR
 type TurnRow = { id: string; conversation_id: string; client_request_id: string; ordinal: number; status: TurnStatus; created_at: string; started_at: string | null; completed_at: string | null }
 type MessageRow = { id: string; conversation_id: string; turn_id: string | null; sequence: number; role: MessageRecord['role']; content_json: string; revision: number; status: MessageRecord['status']; created_at: string }
 type IdempotencyRow = { scope: string; key: string; request_hash: string; state: IdempotencyRecord['state']; response_json: string | null; created_at: string; completed_at: string | null }
+type FollowUpOperationRow = {
+  id: string; task_id: string; owner_user_id: string | null; idempotency_key: string; request_hash: string; prompt: string;
+  attachments_json: string; execution_mode: 'queued' | 'immediate'; state: FollowUpOperationState; guidance_id: string | null;
+  turn_id: string | null; response_json: string | null; error_json: string | null; created_at: string; updated_at: string;
+  started_at: string | null; completed_at: string | null
+}
 type LegacyImportRow = { source_kind: string; source_id: string; source_digest: string; conversation_id: string; result_json: string; imported_at: string }
 type RuntimeEventRow = {
   id: string; conversation_id: string; run_id: string | null; sequence: number; type: string; lane: string;
@@ -250,6 +259,51 @@ export class SqliteIdempotencyRepository implements IdempotencyRepository {
     if (!existing) throw new RecordNotFoundError(`Idempotency key ${scope}/${key} does not exist`)
     if (existing.state === 'completed' && existing.responseJson === responseJson) return
     throw new OptimisticConflictError(`Idempotency key ${scope}/${key} is already completed with a different response`)
+  }
+}
+
+const followUpOperationFromRow = (row: FollowUpOperationRow): FollowUpOperationRecord => ({
+  id: row.id, taskId: row.task_id, ownerUserId: row.owner_user_id, idempotencyKey: row.idempotency_key, requestHash: row.request_hash,
+  prompt: row.prompt, attachmentsJson: row.attachments_json, executionMode: row.execution_mode, state: row.state,
+  guidanceId: row.guidance_id, turnId: row.turn_id, responseJson: row.response_json, errorJson: row.error_json,
+  createdAt: row.created_at, updatedAt: row.updated_at, startedAt: row.started_at, completedAt: row.completed_at,
+})
+
+export class SqliteFollowUpOperationRepository implements FollowUpOperationRepository {
+  constructor(private readonly database: Database.Database) {}
+
+  findByKey(taskId: string, idempotencyKey: string): FollowUpOperationRecord | undefined {
+    const row = this.database.prepare('SELECT * FROM follow_up_operations WHERE task_id = ? AND idempotency_key = ?')
+      .get(taskId, idempotencyKey) as FollowUpOperationRow | undefined
+    return row && followUpOperationFromRow(row)
+  }
+
+  listRecoverable(): FollowUpOperationRecord[] {
+    const rows = this.database.prepare("SELECT * FROM follow_up_operations WHERE state IN ('prepared', 'ready', 'running') ORDER BY created_at ASC, id ASC").all() as FollowUpOperationRow[]
+    return rows.map(followUpOperationFromRow)
+  }
+
+  insert(record: FollowUpOperationRecord): void {
+    this.database.prepare(`
+      INSERT INTO follow_up_operations(
+        id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state,
+        guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      record.id, record.taskId, record.ownerUserId, record.idempotencyKey, record.requestHash, record.prompt, record.attachmentsJson,
+      record.executionMode, record.state, record.guidanceId, record.turnId, record.responseJson, record.errorJson,
+      record.createdAt, record.updatedAt, record.startedAt, record.completedAt,
+    )
+  }
+
+  update(record: FollowUpOperationRecord, expectedUpdatedAt: string): void {
+    const result = this.database.prepare(`
+      UPDATE follow_up_operations SET state = ?, guidance_id = ?, turn_id = ?, response_json = ?, error_json = ?, updated_at = ?, started_at = ?, completed_at = ?
+      WHERE id = ? AND updated_at = ?
+    `).run(record.state, record.guidanceId, record.turnId, record.responseJson, record.errorJson, record.updatedAt, record.startedAt, record.completedAt, record.id, expectedUpdatedAt)
+    if (result.changes === 1) return
+    if (!this.database.prepare('SELECT 1 FROM follow_up_operations WHERE id = ?').get(record.id)) throw new RecordNotFoundError(`Follow-up operation ${record.id} does not exist`)
+    throw new OptimisticConflictError(`Follow-up operation ${record.id} was modified concurrently`)
   }
 }
 
@@ -612,6 +666,7 @@ export function createSqliteRepositories(database: Database.Database): Repositor
     runtimeEvents: new SqliteRuntimeEventRepository(database),
     nativeEvents: new SqliteNativeEventRepository(database),
     idempotency: new SqliteIdempotencyRepository(database),
+    followUpOperations: new SqliteFollowUpOperationRepository(database),
     legacyImports: new SqliteLegacyImportRepository(database),
     runtimeLeases: new SqliteRuntimeLeaseRepository(database),
     mcpConfigs: new SqliteMcpConfigRepository(database),

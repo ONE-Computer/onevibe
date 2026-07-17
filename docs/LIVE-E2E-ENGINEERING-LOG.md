@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — follow-up operation crash recovery proof
+
+- `npm run e2e:follow-up-recovery` started a fresh API against a temporary SQLite root, completed an initial demo task, injected a development-only process exit immediately after the follow-up operation journal was persisted, then restarted the API against the same root.
+- Startup recovery materialized one attachment and one follow-up turn. The recovered task contained exactly four messages and one attachment; replaying the same client request returned HTTP `200` and did not append another turn. The harness reported `crashedExit=97`, `recoveredMessages=4`, `recoveredAttachments=1`, and `exactlyOneRecoveredFollowUp=true`.
+- Operations already marked `running` are intentionally not automatically replayed after restart because the provider may have received the request. They are marked failed for explicit reconciliation; this is safer than claiming exactly-once delivery without a provider idempotency key.
+- Boundary: this is local SQLite failure-injection evidence. Postgres live migration/runtime acceptance, atomic attachment/task persistence, worker leases, and provider unknown-outcome reconciliation remain open.
+
 ## 2026-07-17 — TaskStore turn replay boundary
 
 - A focused SQLite test now reserves one turn with a stable client request key, appends one assistant delta, replays the same request, and verifies the durable history remains exactly one user plus one assistant message. A terminal replay leaves `activeRunId` unset.
@@ -18,7 +25,7 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 ## 2026-07-17 — Postgres release-safety and backup/restore proof
 
 - The API now separates liveness (`/api/health/live`) from readiness (`/api/health/ready`). Readiness returned `200` in the authenticated Postgres HTTP harness and includes application initialization plus the reviewed migration-ledger check. Compose and the container healthcheck use readiness.
-- `npm run e2e:postgres-backup-restore` ran against PostgreSQL 18 inside `onecli-postgres-1` using the matching in-container client. A temporary fixture inserted one user/project/conversation/task, one runtime event, workspace bytes, and project-file bytes; a custom-format dump restored into a fresh database with nine migration rows, matching counts/fingerprints, and exact bytes. The fixture/user/database were removed afterward.
+- `npm run e2e:postgres-backup-restore` ran against PostgreSQL 18 inside `onecli-postgres-1` using the matching in-container client. A temporary fixture inserted one user/project/conversation/task, one runtime event, workspace bytes, and project-file bytes; a custom-format dump restored into a fresh database with ten migration rows, matching counts/fingerprints, and exact bytes. The fixture/user/database were removed afterward.
 - The backup harness requires `ONEVIBE_BACKUP_E2E_ALLOW_MUTATION=true` and is explicitly for a disposable database. It passes credentials through environment variables and does not log them or place them in client argv. Managed retention/PITR and object-storage backup policy are not claimed.
 - A server shutdown test path now receives SIGTERM through the real API child process and closes the HTTP/TaskStore resources within the bounded harness grace period.
 

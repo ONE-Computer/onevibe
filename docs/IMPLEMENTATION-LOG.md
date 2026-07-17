@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-17 — durable follow-up operation journal and restart recovery
+
+- Added SQLite migration v10 and Postgres migration 0009 for `follow_up_operation`, with normalized request payload, deterministic client key/hash, execution mode, guidance/turn identity, accepted response, timestamps, and explicit `prepared`/`ready`/`running`/`completed`/`failed` states.
+- Follow-up acceptance now persists an operation before staging bytes or scheduling a provider turn. Attachment staging and queued guidance are idempotent by deterministic path/operation identity; duplicate changed payloads return `409`.
+- Added startup recovery for `prepared` and `ready` operations. A development-only crash injection proves a request can die immediately after durable preparation, restart, materialize one follow-up turn, and replay as HTTP `200` without duplicating the four-message conversation. Operations already marked `running` are marked failed on restart because the external provider outcome is unknown; they are never silently retried.
+- Added `npm run e2e:follow-up-recovery` and Postgres TaskStore operation coverage. Verification: `npm run test` passed with 56 test files / 269 tests; `npm run e2e:follow-up-recovery` passed with `crashedExit=97`, `recoveredMessages=4`, `recoveredAttachments=1`, `replayStatus=200`, and `exactlyOneRecoveredFollowUp=true`.
+- Boundary: operation acceptance and pre-provider recovery are now durable, but attachment/task metadata is still staged through separate calls, worker leases/provider request identity are not yet implemented, and an unknown external provider outcome requires explicit reconciliation.
+
 ## 2026-07-17 — make TaskStore turn reservation replay-safe
 
 - Added an explicit `clientRequestId` boundary to `TaskStore.beginTurn`. SQLite now checks the durable turn repository before inserting; Postgres consumes the repository's existing replay signal before creating the assistant placeholder.
@@ -33,7 +41,7 @@
 - Added separate `/api/health/live` and `/api/health/ready` contracts. Readiness checks TaskStore initialization and, for Postgres, connectivity plus the exact reviewed migration-ledger count; stale/missing ledgers return `503`. Provider unavailability remains a runtime readiness state, not a false database failure.
 - Added graceful `SIGTERM`/`SIGINT` shutdown with bounded HTTP drain and TaskStore database closure. Dockerfile and Compose healthchecks now use readiness rather than `/api/runtime`.
 - Added `docs/DEPLOYMENT-RUNBOOK.md` with migration-before-start, backup-before-migration, restore verification, immutable-image rollback, secret, and external-deployment boundaries.
-- Added `npm run e2e:postgres-backup-restore`. Against the local PostgreSQL 18 container it inserted a namespaced temporary fixture, performed a custom-format backup and restore into a fresh database, verified nine reviewed migrations, task/event/workspace/project-file counts, exact workspace/project bytes, and SHA-256 fingerprints, then cleaned up. Connection credentials were passed through environment variables, not argv.
+- Added `npm run e2e:postgres-backup-restore`. Against the local PostgreSQL 18 container it inserted a namespaced temporary fixture, performed a custom-format backup and restore into a fresh database, verified ten reviewed migrations, task/event/workspace/project-file counts, exact workspace/project bytes, and SHA-256 fingerprints, then cleaned up. Connection credentials were passed through environment variables, not argv.
 - Verification: `npm run test -- --run server/store.test.ts`, `npm run check:e2e-harness`, `npm run lint`, `DATABASE_URL=… npm run e2e:postgres-auth-http`, `DATABASE_URL=… PG_DUMP_DOCKER_CONTAINER=… ONEVIBE_BACKUP_E2E_ALLOW_MUTATION=true npm run e2e:postgres-backup-restore`, `docker compose config`, and `git diff --check` passed.
 - Boundary: managed secret delivery/rotation, encrypted snapshots/PITR/retention, production deployment/rollback, and cloud/microVM isolation remain external acceptance work.
 

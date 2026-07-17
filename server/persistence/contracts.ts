@@ -50,6 +50,28 @@ export interface IdempotencyRecord {
   completedAt: string | null
 }
 
+export type FollowUpOperationState = 'prepared' | 'ready' | 'running' | 'completed' | 'failed'
+
+export interface FollowUpOperationRecord {
+  id: string
+  taskId: string
+  ownerUserId: string | null
+  idempotencyKey: string
+  requestHash: string
+  prompt: string
+  attachmentsJson: string
+  executionMode: 'queued' | 'immediate'
+  state: FollowUpOperationState
+  guidanceId: string | null
+  turnId: string | null
+  responseJson: string | null
+  errorJson: string | null
+  createdAt: string
+  updatedAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
 export interface LegacyImportRecord {
   sourceKind: string
   sourceId: string
@@ -180,6 +202,13 @@ export interface TurnRepository {
   transition(id: string, expectedStatus: TurnStatus, record: TurnRecord): void
 }
 
+export interface FollowUpOperationRepository {
+  findByKey(taskId: string, idempotencyKey: string): FollowUpOperationRecord | undefined
+  listRecoverable(): FollowUpOperationRecord[]
+  insert(record: FollowUpOperationRecord): void
+  update(record: FollowUpOperationRecord, expectedUpdatedAt: string): void
+}
+
 export interface MessageRepository {
   listByConversation(conversationId: string, afterSequence?: number, limit?: number): MessageRecord[]
   pageByConversation(conversationId: string, cursor?: string, limit?: number): MessagePage
@@ -278,6 +307,7 @@ export interface Repositories {
   runtimeEvents: RuntimeEventRepository
   nativeEvents: NativeEventRepository
   idempotency: IdempotencyRepository
+  followUpOperations: FollowUpOperationRepository
   legacyImports: LegacyImportRepository
   runtimeLeases: RuntimeLeaseRepository
   mcpConfigs: McpConfigRepository

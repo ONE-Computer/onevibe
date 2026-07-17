@@ -283,6 +283,28 @@ describe('TaskStore', () => {
     expect(store.getTask(task.id).activeRunId).toBeUndefined()
   })
 
+  it('journals follow-up acceptance and replays the same operation without accepting a changed payload', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-follow-up-operation-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Journal a follow-up operation', 'demo')
+    const attachmentsJson = JSON.stringify([{ name: 'brief.txt', mimeType: 'text/plain', dataBase64: Buffer.from('brief').toString('base64') }])
+
+    const first = await store.createFollowUpOperation(task.id, 'follow-up-operation-1', 'a'.repeat(64), 'Continue the task.', attachmentsJson, 'immediate')
+    const replay = await store.createFollowUpOperation(task.id, 'follow-up-operation-1', 'a'.repeat(64), 'Continue the task.', attachmentsJson, 'immediate')
+    expect(first.claimed).toBe(true)
+    expect(replay.claimed).toBe(false)
+    expect(replay.operation.id).toBe(first.operation.id)
+    await expect(store.createFollowUpOperation(task.id, 'follow-up-operation-1', 'b'.repeat(64), 'Changed request.', attachmentsJson, 'immediate')).rejects.toThrow(/different request/)
+
+    const ready = await store.updateFollowUpOperation(first.operation, { state: 'ready', responseJson: JSON.stringify({ status: 'queued', taskId: task.id }) })
+    const reopened = new TaskStore(root)
+    await reopened.initialize()
+    await expect(reopened.listRecoverableFollowUpOperations()).resolves.toEqual([expect.objectContaining({ id: ready.id, state: 'ready', responseJson: JSON.stringify({ status: 'queued', taskId: task.id }) })])
+  })
+
   it.each(['running', 'waiting_for_user_input', 'waiting_for_approval'] as const)('reconciles a durable %s run after process restart', async (status) => {
     const root = await mkdtemp(path.join(tmpdir(), `onevibe-restart-${status}-`))
     temporaryRoots.push(root)

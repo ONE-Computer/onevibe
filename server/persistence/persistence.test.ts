@@ -49,7 +49,7 @@ describe('SQLite persistence foundation', () => {
       runMigrations(database)
       const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").pluck().all()
       expect(tables).toEqual(expect.arrayContaining([
-        'conversations', 'idempotency_keys', 'legacy_imports', 'messages', 'native_event_projections', 'native_events',
+        'conversations', 'follow_up_operations', 'idempotency_keys', 'legacy_imports', 'messages', 'native_event_projections', 'native_events',
         'native_projection_offsets', 'organization_members', 'organizations', 'runtime_events', 'runtime_mcp_configs', 'schema_migrations', 'turns',
       ]))
       expect(database.pragma('foreign_keys', { simple: true })).toBe(1)
