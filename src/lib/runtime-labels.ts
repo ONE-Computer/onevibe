@@ -8,6 +8,7 @@ const labels: Record<Task['provider'], string> = {
   onecomputer: 'ONEComputer sandbox',
   remote: 'Remote runtime',
   a2a: 'A2A Agent',
+  kimi: 'Kimi Code CLI',
 }
 
 export const providerLabel = (provider: Task['provider']) => labels[provider]

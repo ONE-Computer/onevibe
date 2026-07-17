@@ -14,6 +14,7 @@ import { skillSelectionEventFor } from './skill-selection.js'
 import { fetchMarketplaceSkill, loadMarketplaceCatalog, publicMarketplaceEntry } from './skill-marketplace.js'
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import { A2aRuntimeAdapter } from './a2a-adapter.js'
+import { KimiRuntimeAdapter } from './kimi-runner.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
 import { UserInputBroker } from './user-input-broker.js'
@@ -43,6 +44,8 @@ const REMOTE_RUNTIME_URL = process.env.ONEVIBE_RUNTIME_URL
 const REMOTE_RUNTIME_TOKEN = process.env.ONEVIBE_RUNTIME_BEARER_TOKEN
 const A2A_BASE_URL = process.env.ONEVIBE_A2A_BASE_URL
 const A2A_BEARER_TOKEN = process.env.ONEVIBE_A2A_BEARER_TOKEN
+const KIMI_SERVER_URL = process.env.KIMI_SERVER_URL
+const KIMI_SESSION_ID = process.env.KIMI_SESSION_ID
 const AGENTCORE_RUNTIME_URL = process.env.AGENTCORE_RUNTIME_URL
 const AGENTCORE_RUNTIME_TOKEN = process.env.AGENTCORE_RUNTIME_BEARER_TOKEN
 const AGENTCORE_LITELLM_ROUTED = process.env.ONEVIBE_AGENTCORE_LITELLM_ROUTED === 'true'
@@ -96,6 +99,7 @@ const runtimeRegistry = new RuntimeRegistry({
     agentcore: () => new AgentCoreRuntimeAdapter(AGENTCORE_RUNTIME_URL as string, AGENTCORE_RUNTIME_TOKEN),
     remote: () => new RemoteRuntimeAdapter(REMOTE_RUNTIME_URL as string, REMOTE_RUNTIME_TOKEN),
     a2a: () => new A2aRuntimeAdapter(A2A_BASE_URL as string, A2A_BEARER_TOKEN),
+    kimi: () => new KimiRuntimeAdapter(KIMI_SERVER_URL as string, KIMI_SESSION_ID, process.cwd()),
     onecomputer: () => new OneComputerSandboxRuntimeAdapter(new OneComputerClient({ baseUrl: ONECOMPUTER_API_URL!, serviceToken: ONECOMPUTER_SERVICE_TOKEN!, projectId: ONECOMPUTER_PROJECT_ID }), {
       gatewayEnforced: ONECOMPUTER_GATEWAY_ENFORCED, retainSandbox: ONECOMPUTER_RETAIN_SANDBOX,
       visualRuntime: ONECOMPUTER_VISUAL_RUNTIME, browserAutomation: ONECOMPUTER_BROWSER_AUTOMATION,
@@ -111,6 +115,7 @@ const runtimeSnapshot = async () => {
     agentCoreConfigured: Boolean(AGENTCORE_RUNTIME_URL && AGENTCORE_LITELLM_ROUTED),
     remoteConfigured: Boolean(REMOTE_RUNTIME_URL),
     a2aConfigured: Boolean(A2A_BASE_URL),
+    kimiConfigured: Boolean(KIMI_SERVER_URL),
     oneComputerConfigured,
     oneComputerReachable: await oneComputerReachability(),
   }).providers
@@ -118,7 +123,7 @@ const runtimeSnapshot = async () => {
   return runtimeRegistry.snapshot(states)
 }
 
-const runtimeProviderInput = z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote', 'a2a'])
+const runtimeProviderInput = z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote', 'a2a', 'kimi'])
 
 const providerAvailability = async (provider: Task['provider']) => {
   const readiness = await runtimeSnapshot()
