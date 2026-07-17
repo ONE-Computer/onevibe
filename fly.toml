@@ -1,0 +1,43 @@
+# Deployment contract for ONEVibe on Fly.io.
+# Replace the app name before provisioning. Do not commit secrets or a real
+# DATABASE_URL; provide them with `fly secrets set` or the organization secret
+# manager. The release command runs migrations before the new application is
+# considered ready, while /api/health/ready remains the runtime gate.
+app = "onevibe-change-me"
+primary_region = "sin"
+kill_signal = "SIGTERM"
+kill_timeout = "10s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  ONEVIBE_API_HOST = "0.0.0.0"
+  ONEVIBE_API_PORT = "4311"
+  ONEVIBE_DATA_DIR = "/var/lib/onevibe"
+  ONEVIBE_PERSISTENCE_DRIVER = "postgres"
+
+[deploy]
+  release_command = "npm run db:ops -- migrate"
+
+[http_service]
+  internal_port = 4311
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/api/health/ready"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+

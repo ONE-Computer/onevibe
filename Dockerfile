@@ -29,6 +29,7 @@ WORKDIR /app
 COPY --from=dependencies --chown=onevibe:onevibe /app/node_modules ./node_modules
 COPY --from=builder --chown=onevibe:onevibe /app/dist ./dist
 COPY --from=builder --chown=onevibe:onevibe /app/server ./server
+COPY --from=builder --chown=onevibe:onevibe /app/scripts ./scripts
 COPY --from=builder --chown=onevibe:onevibe /app/src ./src
 COPY --from=builder --chown=onevibe:onevibe /app/package.json ./package.json
 

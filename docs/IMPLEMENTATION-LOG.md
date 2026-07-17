@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-17 — add canonical presentation tokens and managed release contract
+
+- Added `src/theme/default.css` as the sole raw presentation-literal source for the current light/dark baseline, UI font family, pixel radii, neutral asymmetric-radius options, and legacy effect values. `src/index.css` and `src/timeline.css` now consume variables without changing the browser baseline.
+- Added `scripts/theme-literals.test.ts`, which rejects raw colors/effects/radii and direct font-family literals in production CSS while allowing the canonical token file.
+- Added `scripts/postgres-ops.ts` with explicit `status`, `migrate`, and fail-closed `verify` commands. The Fly.io manifest uses `migrate` as its release command and `/api/health/ready` as its health gate; the runtime image now includes the release script and reviewed migration files.
+- Browser evidence: [`local-home-20260717-token-foundation.jpg`](browser-screenshots/local-home-20260717-token-foundation.jpg) shows the connected local app retaining its truthful `Simulation only · no model call` and `No governed runtime configured` states after the CSS migration.
+- Verification: `npm run check` passed with 54 test files and 262 tests; managed deployment remains statically validated only.
+
 ## 2026-07-17 — add local Postgres release-safety controls
 
 - Added separate `/api/health/live` and `/api/health/ready` contracts. Readiness checks TaskStore initialization and, for Postgres, connectivity plus the exact reviewed migration-ledger count; stale/missing ledgers return `503`. Provider unavailability remains a runtime readiness state, not a false database failure.

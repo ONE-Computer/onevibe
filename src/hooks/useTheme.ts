@@ -27,7 +27,8 @@ const applyTheme = (preference: ThemePreference) => {
   root.dataset.themePreference = preference
   root.style.colorScheme = resolved
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-  meta?.setAttribute('content', resolved === 'dark' ? '#0b0d0c' : '#f5f7f5')
+  const themeColor = getComputedStyle(root).getPropertyValue('--surface-canvas').trim()
+  if (themeColor) meta?.setAttribute('content', themeColor)
   return resolved
 }
 

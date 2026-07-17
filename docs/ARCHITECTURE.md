@@ -59,6 +59,10 @@ Compose remains SQLite-first for local convenience, while its operator-controlle
 
 The GitHub Actions container gate builds this same image and starts it with an immutable root, bounded writable data/tmp mounts, dropped capabilities, and no-new-privileges. It verifies the health endpoint and non-root UID; this is a packaging/runtime contract, not evidence of cloud deployment or sandbox isolation.
 
+The presentation layer now has a checked-in token boundary at `src/theme/default.css`. Production CSS consumes canonical variables for colors/effects, font family, and pixel radii; a Vitest static gate rejects those raw literals from `src/index.css` and `src/timeline.css`. The token layer preserves the current light/dark visual baseline and exposes neutral asymmetric-radius tokens for future tenant overrides. This is a tenant-free foundation only: there is no tenant config API, admin mutation, remote asset loader, or runtime theme authority yet.
+
+`fly.toml` is the current managed-deployment contract. Its release command runs `npm run db:ops -- migrate` before the `/api/health/ready` check can pass, and the manifest carries no credentials. It is statically validated but not evidence of a provisioned Fly.io application, production secret delivery, PITR, or rollback.
+
 The proposed auth/database contract is recorded in [`AUTH-POSTGRES-ADR.md`](AUTH-POSTGRES-ADR.md). The running server now has a controlled, authenticated Postgres path and local two-process owner/SSE proofs; this is still not production deployment, organization-policy authorization, or managed secret-delivery evidence.
 
 ## Execution-path diagnostics

@@ -13,12 +13,15 @@ This runbook describes the currently testable Postgres-backed deployment contrac
 ## Migration-before-start procedure
 
 1. Provision the database and inject `DATABASE_URL` through the platform secret manager.
-2. Run the reviewed migration command from a release job, using the same application revision:
+2. Run the reviewed migration command from a release job, using the same application revision. The checked-in Fly.io contract uses the same release command:
 
    ```bash
-   DATABASE_URL="$DATABASE_URL" npm run db:migrate
+   DATABASE_URL="$DATABASE_URL" npm run db:ops -- migrate
+   DATABASE_URL="$DATABASE_URL" npm run db:ops -- verify
    DATABASE_URL="$DATABASE_URL" npm run db:check
    ```
+
+   `db:ops` requires a real `DATABASE_URL`, rejects the documented placeholder database, and never accepts credentials as CLI arguments.
 
 3. Take a database backup before destructive or long-running migration work.
 4. Start the new API image with `ONEVIBE_PERSISTENCE_DRIVER=postgres`.
@@ -52,6 +55,10 @@ Managed production operations still require encrypted snapshots/PITR, retention,
 - Promote the new image only after migration and readiness checks pass.
 - On application failure, roll back to the previous immutable image while preserving the forward-compatible schema. If data must be restored, stop writes, select an approved backup, restore into a controlled database, verify fingerprints/health, and record the incident.
 - `SIGTERM` stops accepting new HTTP connections, waits briefly for existing connections, closes the TaskStore database handles, and exits. Long-lived SSE clients are bounded by the shutdown grace period.
+
+## Managed deployment
+
+`fly.toml` is a deployment contract, not proof of a provisioned Fly.io app. Before using it, replace the placeholder app name, provision a managed Postgres instance, and inject `DATABASE_URL`, the Better Auth secret/OTP webhook, the protected LiteLLM URL/key/model, and the external wallet integration through the platform secret manager. The release command must complete before `/api/health/ready` can pass.
 
 ## Current external gates
 
