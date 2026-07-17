@@ -10,6 +10,7 @@
 ## 2026-07-17 — theme audit diagnostics acceptance
 
 - `npm run e2e:postgres-auth-http` now asserts `theme.audit` after a seeded theme plus update/reset: one owner-visible tenant, three events, latest operation `reset`, and an ISO timestamp. The response is metadata-only and remains owner-scoped.
+- Fresh disposable PostgreSQL 18 run passed with migrations applied, Better Auth OTP delivery, `themeVersion=3`, `themeEvents=3`, `themeAuditEvents=3`, latest `reset`, member read/write `404`/`403`, task creation, and `directFirstPartyAllowed=false`; the database container was stopped afterward.
 - This closes the local diagnostics/documentation slice of P7-09. Managed deployment, PITR/retention, incident automation, and full visual/runtime/artifact invariance remain open.
 
 ## 2026-07-17 — read-only reference theme preview

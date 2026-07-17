@@ -12,6 +12,7 @@
 
 - Added a metadata-only `theme.audit` diagnostics projection for authenticated Postgres owners: tenant count, event count, latest operation, and latest event time. It never returns theme JSON, actor IDs, uploaded bytes, package contents, or secrets; local SQLite reports theme persistence as unavailable.
 - Extended `npm run e2e:postgres-auth-http` to assert the real persisted sequence `created → updated → reset`, owner scope, and the bounded diagnostics projection. No new migration was required.
+- Fresh disposable PostgreSQL 18 evidence: migrations applied, Better Auth OTP/session delivery passed, versions `1→3`, `themeEvents=3`, `themeAuditEvents=3`, latest operation `reset`, owner/member `404`/`403`, task creation, and `directFirstPartyAllowed=false`. The container was stopped after the run.
 
 ## 2026-07-17 — fixture-only theme preview boundary
 
