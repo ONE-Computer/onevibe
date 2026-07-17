@@ -15,6 +15,7 @@ import { Computers } from './components/Computers'
 import { HomeHero } from './components/HomeHero'
 import { LoginPage } from './components/LoginPage'
 import { ThemeToggle } from './components/ThemeToggle'
+import { ThemeProvider } from './components/ThemeProvider'
 import { useTask } from './hooks/useTask'
 import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, installSkill, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, removeSkill, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
@@ -381,6 +382,7 @@ export default function App() {
   }).slice(0, 8)
 
   return (
+    <ThemeProvider scopeKey={authState?.session?.user.id ?? 'local'}>
     <>
       <Toaster position="bottom-right" closeButton richColors />
       <div className={`app-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
@@ -426,5 +428,6 @@ export default function App() {
       </main>
       </div>
     </>
+    </ThemeProvider>
   )
 }

@@ -67,6 +67,30 @@ export const orgMember = pgTable('org_member', {
   createdAt: createdAt(),
 }, (table) => [primaryKey({ columns: [table.orgId, table.userId] }), index('org_member_user_idx').on(table.userId)])
 
+export const tenantThemeConfig = pgTable('tenant_theme_config', {
+  tenantId: text('tenant_id').primaryKey(),
+  orgId: text('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
+  ownerUserId: text('owner_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  version: integer('version').notNull().default(1),
+  customized: boolean('customized').notNull().default(true),
+  configJson: jsonb('config_json').notNull(),
+  createdBy: text('created_by').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  updatedBy: text('updated_by').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [index('tenant_theme_config_org_idx').on(table.orgId), index('tenant_theme_config_owner_idx').on(table.ownerUserId)])
+
+export const tenantThemeConfigEvent = pgTable('tenant_theme_config_event', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenantThemeConfig.tenantId, { onDelete: 'cascade' }),
+  orgId: text('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  operation: text('operation').notNull(),
+  actorUserId: text('actor_user_id').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  configJson: jsonb('config_json'),
+  createdAt: createdAt(),
+}, (table) => [index('tenant_theme_config_event_tenant_idx').on(table.tenantId, table.version), index('tenant_theme_config_event_org_idx').on(table.orgId, table.createdAt)])
+
 // The conversation is the durable product identity. `task` remains the
 // execution/task record during the repository migration, but future reads
 // must not infer conversation lineage from process-local maps.
@@ -380,4 +404,4 @@ export const skillInstallation = pgTable('skill_installations', {
 
 export const orgTables = { org, orgMember }
 export const authTables = { user, session, account, verification }
-export const oneVibeTables = { conversation, project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, followUpOperation, followUpAttachment, runtimeLease, schedule, workspaceVersion, workspaceFile, workspaceVersionFile, projectFile, projectFileVersion, runtimeMcpConfig, runtimeMcpConfigEvent, legacyImport, skillInstallation }
+export const oneVibeTables = { conversation, project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, followUpOperation, followUpAttachment, runtimeLease, schedule, workspaceVersion, workspaceFile, workspaceVersionFile, projectFile, projectFileVersion, runtimeMcpConfig, runtimeMcpConfigEvent, legacyImport, skillInstallation, tenantThemeConfig, tenantThemeConfigEvent }

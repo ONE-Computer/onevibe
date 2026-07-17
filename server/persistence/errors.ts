@@ -41,3 +41,7 @@ export class RuntimeLeaseAllocationConflictError extends OptimisticConflictError
 export class RuntimeLeaseProviderIdentityConflictError extends OptimisticConflictError {
   override readonly name = 'RuntimeLeaseProviderIdentityConflictError'
 }
+
+export class ThemeVersionConflictError extends OptimisticConflictError {
+  override readonly name = 'ThemeVersionConflictError'
+}

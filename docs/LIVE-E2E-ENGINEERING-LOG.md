@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — tenant-theme Postgres/API/browser acceptance
+
+- Fresh Postgres migration applied the new theme table and audit ledger through 14 reviewed migrations. The protected auth HTTP harness passed base fallback, owner-only theme read/write, member `404`/`403` boundaries, optimistic update to version 2, stale-write `409` with `theme_version_conflict`, reset to version 3, append-only `created`/`updated`/`reset` events, and rejection of a browser-supplied tenant ID.
+- The mutation and audit insert execute in one Postgres transaction, and current authorization is derived from the live `org_member` owner row; the stored `owner_user_id` is provenance only. No SQLite theme table or browser tenant-selection persistence was added.
+- The local browser smoke rendered the existing truthful home state after the `ThemeProvider` integration with no observed UI error. Screenshot: [`local-home-20260717-theme-provider.jpg`](browser-screenshots/local-home-20260717-theme-provider.jpg).
+- Follow-on gates remain: reference-seed/import tooling, admin appearance/content controls, luminance/contrast/reduced-motion matrix, asset integrity/provenance, production org policy, managed deployment, and sandbox/provider attestation.
+
 ## 2026-07-17 — disposable Postgres driver and multi-process acceptance
 
 - Started a disposable PostgreSQL 18 container, applied the twelve reviewed migrations, and ran the actual API with `ONEVIBE_PERSISTENCE_DRIVER=postgres` on a separate port. `npm run e2e:postgres-http` passed with `driver=postgres`, readiness/runtime switching, `401` unauthenticated owner protection, and `directFirstPartyAllowed=false`.

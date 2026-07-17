@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, Organization, OrganizationMember, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, Organization, OrganizationMember, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, TenantThemeResponse, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 export type SkillCatalogEntry = SkillInstallation
 export type SkillOption = Pick<SkillCatalogEntry, 'id' | 'title' | 'summary' | 'source' | 'installed' | 'contentUrl'> & { selectable?: boolean }
@@ -71,6 +71,7 @@ export const listConversations = async (cursor?: string, limit = 50, query?: str
 }
 export const getRuntimeReadiness = async () => parse<RuntimeReadiness>(await fetch('/api/runtime'))
 export const getRuntimeDiagnostics = async () => parse<RuntimeDiagnostics>(await fetch('/api/diagnostics'))
+export const getCurrentTenantTheme = async () => parse<TenantThemeResponse>(await fetch('/api/theme/current', { credentials: 'include' }))
 export const testRuntime = async (provider: Task['provider']) => parse<{ provider: Task['provider']; health: RuntimeHealth }>(await fetch(`/api/runtime/test/${encodeURIComponent(provider)}`, { method: 'POST' }))
 export const listLibrary = async () => parse<{ items: LibraryItem[] }>(await fetch('/api/library'))
 export const removeLibraryItem = async (taskId: string) => parse<Task>(await fetch(`/api/library/${taskId}`, { method: 'DELETE' }))

@@ -120,6 +120,8 @@ const main = async () => {
   const api = await startApi(dataRoot, apiPort, mail.url)
   const baseUrl = `http://127.0.0.1:${apiPort}`
   const sql = postgres(databaseUrl, { max: 2, prepare: false })
+  let themeTenantId: string | undefined
+  let themeOrganizationId: string | undefined
   try {
     for (let attempt = 0; attempt < 150; attempt += 1) {
       if (api.child.exitCode !== null || api.child.signalCode !== null) throw new Error('ONEVibe Postgres auth API exited before becoming healthy')
@@ -138,6 +140,58 @@ const main = async () => {
     assert.equal(unauthorized.response.status, 401)
     const ownerA = await signIn(baseUrl, emails[0]!, mail.delivered)
     const ownerB = await signIn(baseUrl, emails[1]!, mail.delivered)
+    const currentTheme = await request<{ source: string; persistent: boolean; config: { tenantId: string } }>(baseUrl, '/api/theme/current', {}, ownerA.cookie)
+    assert.equal(currentTheme.response.status, 200, JSON.stringify(currentTheme.body))
+    assert.equal(currentTheme.body.source, 'base')
+    assert.equal(currentTheme.body.persistent, false)
+    const organization = await request<{ id: string }>(baseUrl, '/api/organizations', { method: 'POST', body: JSON.stringify({ name: 'Theme acceptance org' }) }, ownerA.cookie)
+    assert.equal(organization.response.status, 201, JSON.stringify(organization.body))
+    themeOrganizationId = organization.body.id
+    themeTenantId = `acme-${suffix.slice(0, 12)}`
+    const seededTheme = {
+      schemaVersion: 1, tenantId: themeTenantId, tenantName: 'Acme',
+      tokens: { colorBrandPrimary: '#123456' }, brand: { brandName: 'Acme' },
+      homePage: { announcementBannerVisible: false, featureCards: [] }, navigation: { items: [] },
+      features: { showComputerTab: true, showMcpMarketplace: true, showRuntimePicker: true, showDebugPanel: false }, compliance: {},
+    }
+    const seededAt = new Date()
+    await sql`
+      INSERT INTO tenant_theme_config (tenant_id, org_id, owner_user_id, version, customized, config_json, created_by, updated_by, created_at, updated_at)
+      VALUES (${themeTenantId}, ${themeOrganizationId}, ${ownerA.userId}, 1, true, ${JSON.stringify(seededTheme)}::jsonb, ${ownerA.userId}, ${ownerA.userId}, ${seededAt}, ${seededAt})
+    `
+    await sql`
+      INSERT INTO tenant_theme_config_event (id, tenant_id, org_id, version, operation, actor_user_id, config_json, created_at)
+      VALUES (${`theme_event_seed_${suffix}`}, ${themeTenantId}, ${themeOrganizationId}, 1, 'created', ${ownerA.userId}, ${JSON.stringify(seededTheme)}::jsonb, ${seededAt})
+    `
+    const ownerATheme = await request<{ config: { tenantId: string }; customized: boolean; version: number }>(baseUrl, `/api/theme/${themeTenantId}`, {}, ownerA.cookie)
+    assert.equal(ownerATheme.response.status, 200, JSON.stringify(ownerATheme.body))
+    assert.equal(ownerATheme.body.config.tenantId, themeTenantId)
+    assert.equal(ownerATheme.body.customized, true)
+    assert.equal(ownerATheme.body.version, 1)
+    const addThemeMember = await request(baseUrl, `/api/organizations/${themeOrganizationId}/members`, { method: 'POST', body: JSON.stringify({ userId: ownerB.userId }) }, ownerA.cookie)
+    assert.equal(addThemeMember.response.status, 201, JSON.stringify(addThemeMember.body))
+    const ownerBTheme = await request(baseUrl, `/api/theme/${themeTenantId}`, {}, ownerB.cookie)
+    assert.equal(ownerBTheme.response.status, 404, JSON.stringify(ownerBTheme.body))
+    const memberMutation = await request(baseUrl, `/api/theme/${themeTenantId}`, { method: 'PUT', body: JSON.stringify({ expectedVersion: 1, config: { schemaVersion: 1, tenantName: 'Acme', tokens: { colorBrandPrimary: '#654321' }, homePage: { announcementBannerVisible: false, featureCards: [] }, brand: { brandName: 'Acme' }, navigation: { items: [] }, features: { showComputerTab: true, showMcpMarketplace: true, showRuntimePicker: true, showDebugPanel: false }, compliance: {} } }) }, ownerB.cookie)
+    assert.equal(memberMutation.response.status, 403, JSON.stringify(memberMutation.body))
+    const updatedTheme = await request<{ config: { homePage: { heroHeadline?: string } }; customized: boolean; version: number }>(baseUrl, `/api/theme/${themeTenantId}`, { method: 'PUT', body: JSON.stringify({ expectedVersion: 1, config: { schemaVersion: 1, tenantName: 'Acme', tokens: { colorBrandPrimary: '#654321' }, homePage: { heroHeadline: 'Secure workspaces', announcementBannerVisible: false, featureCards: [] }, brand: { brandName: 'Acme' }, navigation: { items: [] }, features: { showComputerTab: true, showMcpMarketplace: true, showRuntimePicker: true, showDebugPanel: false }, compliance: {} } }) }, ownerA.cookie)
+    assert.equal(updatedTheme.response.status, 200, JSON.stringify(updatedTheme.body))
+    assert.equal(updatedTheme.body.version, 2)
+    assert.equal(updatedTheme.body.customized, true)
+    assert.equal(updatedTheme.body.config.homePage.heroHeadline, 'Secure workspaces')
+    const staleTheme = await request<{ code?: string }>(baseUrl, `/api/theme/${themeTenantId}`, { method: 'PUT', body: JSON.stringify({ expectedVersion: 1, config: { schemaVersion: 1, tenantName: 'Stale', homePage: { announcementBannerVisible: false, featureCards: [] }, brand: {}, navigation: { items: [] }, features: { showComputerTab: true, showMcpMarketplace: true, showRuntimePicker: true, showDebugPanel: false }, compliance: {} } }) }, ownerA.cookie)
+    assert.equal(staleTheme.response.status, 409, JSON.stringify(staleTheme.body))
+    assert.equal(staleTheme.body.code, 'theme_version_conflict')
+    const resetTheme = await request<{ customized: boolean; version: number }>(baseUrl, `/api/theme/${themeTenantId}/reset`, { method: 'POST', body: JSON.stringify({ expectedVersion: 2 }) }, ownerA.cookie)
+    assert.equal(resetTheme.response.status, 200, JSON.stringify(resetTheme.body))
+    assert.equal(resetTheme.body.version, 3)
+    assert.equal(resetTheme.body.customized, false)
+    const eventRows = await sql<{ operation: string; version: number }[]>`SELECT operation, version FROM tenant_theme_config_event WHERE tenant_id = ${themeTenantId} ORDER BY version ASC`
+    assert.deepEqual(eventRows.map((row) => [row.operation, row.version]), [['created', 1], ['updated', 2], ['reset', 3]])
+    const unknownTheme = await request(baseUrl, '/api/theme/not-visible', {}, ownerB.cookie)
+    assert.equal(unknownTheme.response.status, 404)
+    const bodyTenantId = await request(baseUrl, `/api/theme/${themeTenantId}`, { method: 'PUT', body: JSON.stringify({ expectedVersion: 3, config: { tenantId: 'attacker', schemaVersion: 1, tenantName: 'Attacker' } }) }, ownerA.cookie)
+    assert.equal(bodyTenantId.response.status, 400)
     const diagnostics = await request<{ auth: { sessionScoped: boolean }; persistence: { active: string; runtimeSwitchReady: boolean } }>(baseUrl, '/api/diagnostics', {}, ownerA.cookie)
     assert.equal(diagnostics.response.status, 200)
     assert.equal(diagnostics.body.auth.sessionScoped, true)
@@ -157,10 +211,13 @@ const main = async () => {
     assert.equal(forbidden.response.status, 404)
     const ownerAProject = await request(baseUrl, `/api/projects/${project.body.id}`, {}, ownerA.cookie)
     assert.equal(ownerAProject.response.status, 404, 'unsupported project GET should remain bounded')
-    console.log(JSON.stringify({ auth: 'Better Auth email OTP through loopback delivery fixture', driver: diagnostics.body.persistence.active, runtimeSwitchReady: diagnostics.body.persistence.runtimeSwitchReady, readiness: true, unauthorizedStatus: unauthorized.response.status, ownerIsolation: true, taskCreated: true, crossOwnerTaskStatus: forbidden.response.status, directFirstPartyAllowed: diagnostics.body.auth.sessionScoped ? false : undefined }, null, 2))
+    console.log(JSON.stringify({ auth: 'Better Auth email OTP through loopback delivery fixture', driver: diagnostics.body.persistence.active, runtimeSwitchReady: diagnostics.body.persistence.runtimeSwitchReady, readiness: true, unauthorizedStatus: unauthorized.response.status, ownerIsolation: true, taskCreated: true, crossOwnerTaskStatus: forbidden.response.status, themeVersion: resetTheme.body.version, themeEvents: eventRows.length, themeMemberRead: ownerBTheme.response.status, themeMemberWrite: memberMutation.response.status, themeConflict: staleTheme.response.status, themeReset: resetTheme.body.customized === false, directFirstPartyAllowed: diagnostics.body.auth.sessionScoped ? false : undefined }, null, 2))
   } finally {
     await api.stop()
     mail.server.close()
+    if (themeTenantId) await sql`DELETE FROM tenant_theme_config_event WHERE tenant_id = ${themeTenantId}`
+    if (themeTenantId) await sql`DELETE FROM tenant_theme_config WHERE tenant_id = ${themeTenantId}`
+    if (themeOrganizationId) await sql`DELETE FROM org WHERE id = ${themeOrganizationId}`
     await sql`DELETE FROM "user" WHERE email IN (${emails[0]}, ${emails[1]})`
     await sql.end({ timeout: 5 })
     await rm(dataRoot, { recursive: true, force: true })

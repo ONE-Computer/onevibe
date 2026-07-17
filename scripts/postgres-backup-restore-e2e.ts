@@ -137,7 +137,7 @@ const main = async () => {
     `
     assert.deepEqual(tables.map((row) => row.table_name), ['runtime_event', 'task', 'workspace_file'])
     const migrationRows = await restored<{ count: number }[]>`SELECT COUNT(*)::int AS count FROM drizzle.__drizzle_migrations`
-    assert.equal(migrationRows[0]?.count, 12, 'restored database must contain all reviewed migration entries')
+    assert.equal(migrationRows[0]?.count, 14, 'restored database must contain all reviewed migration entries')
     const restoredFingerprint = await fingerprint(restored)
     assert.deepEqual(restoredFingerprint, sourceFingerprint)
     const restoredBytes = await restored<{ content: Buffer }[]>`SELECT content FROM workspace_file WHERE task_id = ${fixtureTask} AND path = 'README.md'`

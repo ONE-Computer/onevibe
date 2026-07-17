@@ -1,12 +1,14 @@
+import { randomUUID } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
-import type { FollowUpAttachmentRecord, FollowUpAttachmentState, FollowUpOperationRecord, FollowUpOperationState, IdempotencyRecord, McpConfigAuditRecord, McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord } from './contracts.js'
-import { IdempotencyConflictError, OptimisticConflictError, RecordNotFoundError } from './errors.js'
+import type { FollowUpAttachmentRecord, FollowUpAttachmentState, FollowUpOperationRecord, FollowUpOperationState, IdempotencyRecord, McpConfigAuditRecord, McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord, TenantThemeConfigRecord } from './contracts.js'
+import { IdempotencyConflictError, OptimisticConflictError, RecordNotFoundError, ThemeVersionConflictError } from './errors.js'
 
 export type PostgresOperationsSql = Sql<Record<string, never>>
 
 type McpRow = { id: string; owner_user_id: string | null; name: string; command: string; args_json: unknown; created_at: Date; updated_at: Date }
 type OrganizationRow = { id: string; name: string; created_at: Date; updated_at: Date }
 type MemberRow = { org_id: string; user_id: string; role: 'owner' | 'member'; created_at: Date }
+type TenantThemeRow = { tenant_id: string; org_id: string; owner_user_id: string; version: number; customized: boolean; config_json: unknown; created_by: string; updated_by: string; created_at: Date; updated_at: Date }
 type SkillRow = { id: string; owner_scope: string; owner_user_id: string | null; version: number; title: string; summary: string; sha256: string; content: string; content_url: string; source_url: string; created_at: Date; updated_at: Date }
 type LeaseRow = { id: string; task_id: string; generation: number; provider_name: string; provider_sandbox_id: string | null; status: RuntimeLeaseRecord['status']; allocation_operation_id: string; allocation_idempotency_key: string; created_at: Date; updated_at: Date; ready_at: Date | null; release_requested_at: Date | null; released_at: Date | null; last_error_json: unknown }
 type IdempotencyRow = { scope: string; key: string; owner_user_id: string | null; request_hash: string; state: 'pending' | 'completed'; response_json: unknown; created_at: Date; completed_at: Date | null }
@@ -30,6 +32,11 @@ const parseJson = (value: string | null) => {
 const mcpFromRow = (row: McpRow): McpConfigRecord => ({ id: row.id, ownerUserId: row.owner_user_id, name: row.name, command: row.command, argsJson: argsString(row.args_json), createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() })
 const orgFromRow = (row: OrganizationRow): OrganizationRecord => ({ id: row.id, name: row.name, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() })
 const memberFromRow = (row: MemberRow): OrganizationMemberRecord => ({ organizationId: row.org_id, userId: row.user_id, role: row.role, createdAt: row.created_at.toISOString() })
+const tenantThemeFromRow = (row: TenantThemeRow): TenantThemeConfigRecord => ({
+  tenantId: row.tenant_id, organizationId: row.org_id, ownerUserId: row.owner_user_id, version: row.version, customized: row.customized,
+  configJson: typeof row.config_json === 'string' ? row.config_json : JSON.stringify(row.config_json),
+  createdBy: row.created_by, updatedBy: row.updated_by, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
+})
 const skillFromRow = (row: SkillRow): SkillInstallationRecord => ({ id: row.id, ownerUserId: row.owner_user_id, version: row.version, title: row.title, summary: row.summary, sha256: row.sha256, content: row.content, contentUrl: row.content_url, sourceUrl: row.source_url, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() })
 const leaseFromRow = (row: LeaseRow): RuntimeLeaseRecord => ({ id: row.id, conversationId: row.task_id, generation: row.generation, providerName: row.provider_name, providerSandboxId: row.provider_sandbox_id, status: row.status, allocationOperationId: row.allocation_operation_id, allocationIdempotencyKey: row.allocation_idempotency_key, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(), readyAt: toIso(row.ready_at), releaseRequestedAt: toIso(row.release_requested_at), releasedAt: toIso(row.released_at), lastError: row.last_error_json && typeof row.last_error_json === 'object' ? row.last_error_json as RuntimeLeaseRecord['lastError'] : null })
 const responseJsonFromRow = (value: unknown): string | null => {
@@ -138,6 +145,98 @@ export class PostgresOperationsRepository {
   async deleteMember(organizationId: string, userId: string): Promise<boolean> {
     const result = await this.sql`DELETE FROM org_member WHERE org_id = ${organizationId} AND user_id = ${userId}`
     return result.count === 1
+  }
+
+  async findTenantTheme(tenantId: string): Promise<TenantThemeConfigRecord | undefined> {
+    const rows = await this.sql<TenantThemeRow[]>`
+      SELECT tenant_id, org_id, owner_user_id, version, customized, config_json, created_by, updated_by, created_at, updated_at
+      FROM tenant_theme_config WHERE tenant_id = ${tenantId}
+    `
+    return rows[0] ? tenantThemeFromRow(rows[0]) : undefined
+  }
+
+  async listTenantThemesForOrganizations(organizationIds: string[]): Promise<TenantThemeConfigRecord[]> {
+    if (!organizationIds.length) return []
+    const rows = await this.sql<TenantThemeRow[]>`
+      SELECT tenant_id, org_id, owner_user_id, version, customized, config_json, created_by, updated_by, created_at, updated_at
+      FROM tenant_theme_config WHERE org_id IN ${this.sql(organizationIds)}
+      ORDER BY updated_at DESC, tenant_id ASC
+    `
+    return rows.map(tenantThemeFromRow)
+  }
+
+  async putTenantTheme(tenantId: string, organizationId: string | undefined, configJson: string, actorUserId: string, expectedVersion: number): Promise<TenantThemeConfigRecord> {
+    return this.sql.begin(async (tx) => {
+      const existingRows = await tx<TenantThemeRow[]>`
+        SELECT tenant_id, org_id, owner_user_id, version, customized, config_json, created_by, updated_by, created_at, updated_at
+        FROM tenant_theme_config WHERE tenant_id = ${tenantId} FOR UPDATE
+      `
+      const existing = existingRows[0]
+      const targetOrganizationId = existing?.org_id ?? organizationId
+      if (!targetOrganizationId) throw new RecordNotFoundError(`Tenant theme ${tenantId} is not provisioned`)
+      const members = await tx<MemberRow[]>`SELECT org_id, user_id, role, created_at FROM org_member WHERE org_id = ${targetOrganizationId} AND user_id = ${actorUserId}`
+      const member = members[0]
+      if (!member) throw new RecordNotFoundError(`Tenant theme ${tenantId} does not exist for this user`)
+      if (member.role !== 'owner') throw new Error('Organization owner access required')
+      const now = new Date()
+      if (!existing) {
+        if (expectedVersion !== 0) throw new ThemeVersionConflictError(`Tenant theme ${tenantId} does not exist at version ${expectedVersion}`)
+        const created: TenantThemeConfigRecord = {
+          tenantId, organizationId: targetOrganizationId, ownerUserId: actorUserId, version: 1, customized: true,
+          configJson, createdBy: actorUserId, updatedBy: actorUserId, createdAt: now.toISOString(), updatedAt: now.toISOString(),
+        }
+        await tx`
+          INSERT INTO tenant_theme_config (tenant_id, org_id, owner_user_id, version, customized, config_json, created_by, updated_by, created_at, updated_at)
+          VALUES (${created.tenantId}, ${created.organizationId}, ${created.ownerUserId}, ${created.version}, ${created.customized}, ${created.configJson}::jsonb, ${created.createdBy}, ${created.updatedBy}, ${now}, ${now})
+        `
+        await tx`
+          INSERT INTO tenant_theme_config_event (id, tenant_id, org_id, version, operation, actor_user_id, config_json, created_at)
+          VALUES (${`theme_event_${randomUUID()}`}, ${created.tenantId}, ${created.organizationId}, ${created.version}, 'created', ${actorUserId}, ${created.configJson}::jsonb, ${now})
+        `
+        return created
+      }
+      if (expectedVersion !== existing.version) throw new ThemeVersionConflictError(`Tenant theme ${tenantId} was modified concurrently`)
+      const updated: TenantThemeConfigRecord = {
+        ...tenantThemeFromRow(existing), version: existing.version + 1, customized: true, configJson,
+        updatedBy: actorUserId, updatedAt: now.toISOString(),
+      }
+      await tx`
+        UPDATE tenant_theme_config SET version = ${updated.version}, customized = true, config_json = ${updated.configJson}::jsonb, updated_by = ${actorUserId}, updated_at = ${now}
+        WHERE tenant_id = ${tenantId} AND version = ${expectedVersion}
+      `
+      await tx`
+        INSERT INTO tenant_theme_config_event (id, tenant_id, org_id, version, operation, actor_user_id, config_json, created_at)
+        VALUES (${`theme_event_${randomUUID()}`}, ${updated.tenantId}, ${updated.organizationId}, ${updated.version}, 'updated', ${actorUserId}, ${updated.configJson}::jsonb, ${now})
+      `
+      return updated
+    })
+  }
+
+  async resetTenantTheme(tenantId: string, baseConfigJson: string, actorUserId: string, expectedVersion: number): Promise<TenantThemeConfigRecord> {
+    return this.sql.begin(async (tx) => {
+      const rows = await tx<TenantThemeRow[]>`
+        SELECT tenant_id, org_id, owner_user_id, version, customized, config_json, created_by, updated_by, created_at, updated_at
+        FROM tenant_theme_config WHERE tenant_id = ${tenantId} FOR UPDATE
+      `
+      const existing = rows[0]
+      if (!existing) throw new RecordNotFoundError(`Tenant theme ${tenantId} does not exist`)
+      const members = await tx<MemberRow[]>`SELECT org_id, user_id, role, created_at FROM org_member WHERE org_id = ${existing.org_id} AND user_id = ${actorUserId}`
+      const member = members[0]
+      if (!member) throw new RecordNotFoundError(`Tenant theme ${tenantId} does not exist for this user`)
+      if (member.role !== 'owner') throw new Error('Organization owner access required')
+      if (expectedVersion !== existing.version) throw new ThemeVersionConflictError(`Tenant theme ${tenantId} was modified concurrently`)
+      const now = new Date()
+      const updated: TenantThemeConfigRecord = { ...tenantThemeFromRow(existing), version: existing.version + 1, customized: false, configJson: baseConfigJson, updatedBy: actorUserId, updatedAt: now.toISOString() }
+      await tx`
+        UPDATE tenant_theme_config SET version = ${updated.version}, customized = false, config_json = ${updated.configJson}::jsonb, updated_by = ${actorUserId}, updated_at = ${now}
+        WHERE tenant_id = ${tenantId} AND version = ${expectedVersion}
+      `
+      await tx`
+        INSERT INTO tenant_theme_config_event (id, tenant_id, org_id, version, operation, actor_user_id, config_json, created_at)
+        VALUES (${`theme_event_${randomUUID()}`}, ${updated.tenantId}, ${updated.organizationId}, ${updated.version}, 'reset', ${actorUserId}, ${updated.configJson}::jsonb, ${now})
+      `
+      return updated
+    })
   }
 
   async listSkills(ownerUserId?: string): Promise<SkillInstallationRecord[]> {

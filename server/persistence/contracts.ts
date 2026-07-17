@@ -169,6 +169,19 @@ export interface OrganizationRepository {
   deleteMember(organizationId: string, userId: string): boolean
 }
 
+export interface TenantThemeConfigRecord {
+  tenantId: string
+  organizationId: string
+  ownerUserId: string
+  version: number
+  customized: boolean
+  configJson: string
+  createdBy: string
+  updatedBy: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SkillInstallationRecord {
   id: string
   ownerUserId: string | null

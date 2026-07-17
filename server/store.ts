@@ -6,7 +6,7 @@ import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
-import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, IdempotencyConflictError, OptimisticConflictError, PostgresStateCoordinator, type FollowUpAttachmentRecord, type FollowUpOperationRecord, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
+import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, IdempotencyConflictError, OptimisticConflictError, PostgresStateCoordinator, type FollowUpAttachmentRecord, type FollowUpOperationRecord, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type TenantThemeConfigRecord, type UnitOfWork } from './persistence/index.js'
 import { isInternalWorkspacePath, isPrivateWorkspacePath, normalizeWorkspacePath, portableArtifactKind } from './artifact-path.js'
 import type { McpConfig } from './runtime-adapter.js'
 
@@ -581,6 +581,30 @@ export class TaskStore {
       if (!repositories.organizations.deleteMember(organizationId, userId)) throw new Error('Organization member not found')
       return { organizationId, userId, removed: true as const }
     })
+  }
+
+  async listTenantThemes(ownerUserId: string): Promise<TenantThemeConfigRecord[]> {
+    if (!this.postgresState) return []
+    if (!ownerUserId) throw new Error('Tenant theme reads require an owner')
+    return this.postgresState.listTenantThemesForUser(ownerUserId)
+  }
+
+  async getTenantTheme(tenantId: string, ownerUserId: string): Promise<TenantThemeConfigRecord> {
+    if (!this.postgresState) throw new Error('Tenant theme persistence requires Postgres')
+    if (!ownerUserId) throw new Error('Tenant theme reads require an owner')
+    return this.postgresState.getTenantTheme(tenantId, ownerUserId)
+  }
+
+  async putTenantTheme(tenantId: string, organizationId: string | undefined, configJson: string, ownerUserId: string, expectedVersion: number): Promise<TenantThemeConfigRecord> {
+    if (!this.postgresState) throw new Error('Tenant theme persistence requires Postgres')
+    if (!ownerUserId) throw new Error('Tenant theme writes require an owner')
+    return this.postgresState.putTenantTheme(tenantId, organizationId, configJson, ownerUserId, expectedVersion)
+  }
+
+  async resetTenantTheme(tenantId: string, baseConfigJson: string, ownerUserId: string, expectedVersion: number): Promise<TenantThemeConfigRecord> {
+    if (!this.postgresState) throw new Error('Tenant theme persistence requires Postgres')
+    if (!ownerUserId) throw new Error('Tenant theme writes require an owner')
+    return this.postgresState.resetTenantTheme(tenantId, baseConfigJson, ownerUserId, expectedVersion)
   }
 
   async runtimeMcpConfigs(ownerUserId?: string): Promise<McpConfig[]> {

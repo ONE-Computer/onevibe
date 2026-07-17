@@ -32,7 +32,8 @@ import { serveStatic } from './static-files.js'
 import { AuthService } from './auth.js'
 import { resolvePersistenceConfig } from './persistence/driver-config.js'
 import { probeMcpConfig } from './mcp-facade.js'
-import { IdempotencyConflictError } from './persistence/errors.js'
+import { IdempotencyConflictError, OptimisticConflictError, RecordNotFoundError, ThemeVersionConflictError } from './persistence/errors.js'
+import { baseTenantThemeConfig, tenantThemeConfigSchema, type TenantThemeConfig } from './theme-config.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -173,6 +174,27 @@ const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), c
 const updateProjectInput = z.object({ context: z.string().trim().max(8_000) })
 const createOrganizationInput = z.object({ name: z.string().trim().min(2).max(160) })
 const organizationMemberInput = z.object({ userId: z.string().trim().min(1).max(255) })
+const tenantThemeUpdateInput = z.object({
+  expectedVersion: z.number().int().min(0).max(1_000_000).default(0),
+  config: tenantThemeConfigSchema.omit({ tenantId: true }),
+}).strict()
+
+const parseTenantThemeConfig = (configJson: string): TenantThemeConfig => {
+  let value: unknown
+  try { value = JSON.parse(configJson) } catch { throw new Error('Persisted tenant theme is not valid JSON') }
+  return tenantThemeConfigSchema.parse(value)
+}
+
+const configuredThemeOrganization = (tenantId: string): string | undefined => {
+  const raw = process.env.ONEVIBE_THEME_TENANT_ORG_MAP?.trim()
+  if (!raw) return undefined
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
+    const value = (parsed as Record<string, unknown>)[tenantId]
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined
+  } catch { return undefined }
+}
 const createScheduleInput = z.object({
   name: z.string().trim().min(2).max(100), prompt: z.string().trim().min(3).max(8_000),
   provider: z.enum(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote']).default('demo'),
@@ -573,6 +595,42 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       mcp: { configuredCount: mcpConfigs.length, healthyCount: healthyMcpCount, checks: mcpChecks, secretValuesAccepted: false, detail: mcpConfigs.length ? `${healthyMcpCount}/${mcpConfigs.length} configured MCP servers returned a tool catalog.` : 'No MCP declarations are configured.' },
       readiness: await store.readiness(),
     })
+  }
+  if (request.method === 'GET' && url.pathname === '/api/theme/current') {
+    const selectedTenantId = process.env.ONEVIBE_THEME_TENANT_ID?.trim()
+    if (!selectedTenantId || persistenceConfig.active !== 'postgres') return json(response, 200, { config: baseTenantThemeConfig(), source: 'base', persistent: false })
+    if (!actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
+    const theme = await store.getTenantTheme(selectedTenantId, actorUserId)
+    return json(response, 200, { tenantId: theme.tenantId, config: parseTenantThemeConfig(theme.configJson), source: 'tenant', persistent: true, customized: theme.customized, version: theme.version, updatedAt: theme.updatedAt })
+  }
+  if (segments[0] === 'api' && segments[1] === 'theme' && segments.length === 2 && request.method === 'GET') {
+    if (persistenceConfig.active !== 'postgres') return json(response, 200, { themes: [], persistent: false })
+    if (!actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
+    const themes = await store.listTenantThemes(actorUserId)
+    return json(response, 200, { persistent: true, themes: themes.map((theme) => ({ tenantId: theme.tenantId, organizationId: theme.organizationId, version: theme.version, updatedAt: theme.updatedAt })) })
+  }
+  if (segments[0] === 'api' && segments[1] === 'theme' && segments[2] && segments.length >= 3) {
+    const tenantId = segments[2]
+    if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(tenantId)) throw new RangeError('Tenant theme id is invalid')
+    if (persistenceConfig.active !== 'postgres') return json(response, 409, { error: 'Tenant theme persistence requires Postgres', code: 'postgres_required' })
+    if (!actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
+    if (segments.length === 3 && request.method === 'GET') {
+      const theme = await store.getTenantTheme(tenantId, actorUserId)
+      return json(response, 200, { tenantId: theme.tenantId, config: parseTenantThemeConfig(theme.configJson), customized: theme.customized, version: theme.version, organizationId: theme.organizationId, updatedAt: theme.updatedAt })
+    }
+    if (segments.length === 3 && request.method === 'PUT') {
+      const input = tenantThemeUpdateInput.parse(await readBody(request))
+      const config = tenantThemeConfigSchema.parse({ ...input.config, tenantId })
+      const theme = await store.putTenantTheme(tenantId, configuredThemeOrganization(tenantId), JSON.stringify(config), actorUserId, input.expectedVersion)
+      return json(response, 200, { tenantId: theme.tenantId, config: parseTenantThemeConfig(theme.configJson), customized: theme.customized, version: theme.version, organizationId: theme.organizationId, updatedAt: theme.updatedAt })
+    }
+    if (request.method === 'POST' && segments[3] === 'reset' && segments.length === 4) {
+      const input = z.object({ expectedVersion: z.number().int().min(1).max(1_000_000) }).strict().parse(await readBody(request))
+      const base = baseTenantThemeConfig()
+      const resetConfig = tenantThemeConfigSchema.parse({ ...base, tenantId })
+      const theme = await store.resetTenantTheme(tenantId, JSON.stringify(resetConfig), actorUserId, input.expectedVersion)
+      return json(response, 200, { tenantId: theme.tenantId, config: parseTenantThemeConfig(theme.configJson), customized: theme.customized, version: theme.version, organizationId: theme.organizationId, updatedAt: theme.updatedAt })
+    }
   }
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'runtime' && segments[2] === 'test' && segments[3] && segments.length === 4) {
     const provider = runtimeProviderInput.parse(segments[3])
@@ -1184,13 +1242,13 @@ const httpServer = createServer((request, response) => {
   route(request, response).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)
     const status = error instanceof z.ZodError || error instanceof RangeError ? 400
-      : error instanceof IdempotencyConflictError ? 409
+      : error instanceof IdempotencyConflictError || error instanceof OptimisticConflictError ? 409
       : message === 'Wallet authorization failed' ? 401
           : message === 'Organization owner access required' ? 403
-          : /not found(?:$|\s)/.test(message) ? 404
+          : error instanceof RecordNotFoundError || /not found(?:$|\s)/.test(message) ? 404
           : /(?:not pending|has expired|no longer active|cannot remove themselves)/.test(message) ? 409
             : 500
-    json(response, status, { error: message })
+    json(response, status, { error: message, ...(error instanceof ThemeVersionConflictError ? { code: 'theme_version_conflict' } : {}) })
   })
 })
 let shuttingDown = false

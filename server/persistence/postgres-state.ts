@@ -1,4 +1,4 @@
-import type { FollowUpAttachmentRecord, FollowUpOperationRecord, McpConfigRecord, NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord } from './contracts.js'
+import type { FollowUpAttachmentRecord, FollowUpOperationRecord, McpConfigRecord, NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord, TenantThemeConfigRecord } from './contracts.js'
 import { randomUUID } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -12,7 +12,7 @@ import { PostgresWorkspaceRepository, type PostgresWorkspaceFileRecord } from '.
 
 export type PostgresStateConfig = { readonly maxConnections?: number; readonly connectTimeoutSeconds?: number }
 export type PostgresMcpAuditRecord = { id: string; configId: string; operation: string; config: unknown; createdAt: string }
-export const REQUIRED_POSTGRES_MIGRATIONS = 12
+export const REQUIRED_POSTGRES_MIGRATIONS = 14
 
 const providerFor = (value: unknown, fallback: Task['provider']): Task['provider'] => value === 'demo' || value === 'claude_sdk' || value === 'codex' || value === 'agentcore' || value === 'onecomputer' || value === 'remote' ? value : fallback
 const recordJson = (value: unknown): Record<string, unknown> => {
@@ -186,6 +186,31 @@ export class PostgresStateCoordinator {
     if (userId === actorUserId) throw new Error('Organization owner cannot remove themselves')
     if (!await this.#operations.deleteMember(organizationId, userId)) throw new RecordNotFoundError(`Organization member ${userId} does not exist`)
     return { organizationId, userId, removed: true }
+  }
+
+  async listTenantThemesForUser(actorUserId: string): Promise<TenantThemeConfigRecord[]> {
+    const organizations = await this.#operations.listOrganizationsForUser(actorUserId)
+    const ownedOrganizations = (await Promise.all(organizations.map(async (organization) => {
+      const member = await this.#operations.findMember(organization.id, actorUserId)
+      return member?.role === 'owner' ? organization.id : undefined
+    }))).filter((organizationId): organizationId is string => Boolean(organizationId))
+    return this.#operations.listTenantThemesForOrganizations(ownedOrganizations)
+  }
+
+  async getTenantTheme(tenantId: string, actorUserId: string): Promise<TenantThemeConfigRecord> {
+    const theme = await this.#operations.findTenantTheme(tenantId)
+    if (!theme) throw new RecordNotFoundError(`Tenant theme ${tenantId} does not exist`)
+    const member = await this.#requireOrganizationMember(theme.organizationId, actorUserId)
+    if (member.role !== 'owner') throw new RecordNotFoundError(`Tenant theme ${tenantId} does not exist for this user`)
+    return theme
+  }
+
+  async putTenantTheme(tenantId: string, organizationId: string | undefined, configJson: string, actorUserId: string, expectedVersion: number): Promise<TenantThemeConfigRecord> {
+    return this.#operations.putTenantTheme(tenantId, organizationId, configJson, actorUserId, expectedVersion)
+  }
+
+  async resetTenantTheme(tenantId: string, baseConfigJson: string, actorUserId: string, expectedVersion: number): Promise<TenantThemeConfigRecord> {
+    return this.#operations.resetTenantTheme(tenantId, baseConfigJson, actorUserId, expectedVersion)
   }
 
   async listSkillInstallations(ownerUserId: string): Promise<SkillInstallationRecord[]> {

@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-17 — secure tenant theme persistence and server-authoritative runtime projection
+
+- Added Postgres migrations `0012_flawless_argent` and `0013_perfect_namorita` for the bounded `tenant_theme_config` record, versioned `customized` state, and append-only `tenant_theme_config_event` audit ledger. SQLite remains deliberately without a second theme authority.
+- Added authenticated owner-scoped `GET /api/theme/current`, owner-only `GET/PUT /api/theme/:tenantId`, and versioned `POST /api/theme/:tenantId/reset`. Tenant IDs are resource selectors only; creation requires the server-owned `ONEVIBE_THEME_TENANT_ORG_MAP` binding, and current-org ownership is checked inside the same Postgres transaction as mutation and audit insertion. Stale writes return HTTP `409` with `theme_version_conflict`.
+- Added `ThemeProvider`/`ThemeSlot` with bounded server response types and prefixed CSS-variable projection. The provider re-applies variables on config revision, cleans them up on unmount, rejects unsafe logo URLs before rendering, and does not persist a browser-owned tenant selection.
+- `npm run e2e:postgres-auth-http` passed the theme acceptance slice: base fallback, owner read, member `404`/write `403`, update to version 2, stale-write `409`, reset to version 3, three audit events, body tenant-id rejection, and cleanup. Fresh Postgres migration, `npm run e2e:postgres-http`, `npm run e2e:postgres-http-sse`, and `npm run e2e:postgres-backup-restore` also passed; backup/restore verified 14 reviewed migrations. Browser smoke screenshot: [`local-home-20260717-theme-provider.jpg`](browser-screenshots/local-home-20260717-theme-provider.jpg).
+- Boundary: this closes the local P7-03 persistence/API slice and the initial P7-04 provider projection only. Reference-seed tooling, admin appearance/content UI, luminance/contrast automation, asset integrity policy, organization-wide theme isolation, managed deployment, and production auth remain open.
+
 ## 2026-07-17 — disposable Postgres HTTP, auth, SSE, backup, and TaskStore acceptance
 
 - Ran the selected server with `ONEVIBE_PERSISTENCE_DRIVER=postgres` against a disposable PostgreSQL 18 instance, after applying all twelve reviewed migrations. The real HTTP driver proof passed with `driver=postgres`, `runtimeSwitchReady=true`, owner-scope rejection `401`, and `directFirstPartyAllowed=false`.

@@ -75,6 +75,16 @@ export const tenantThemeConfigSchema = z.object({
 
 export type TenantThemeConfig = z.infer<typeof tenantThemeConfigSchema>
 
+export const baseTenantThemeConfig = (): TenantThemeConfig => tenantThemeConfigSchema.parse({
+  schemaVersion: 1,
+  tenantId: 'onevibe',
+  tenantName: 'ONEVibe',
+  brand: { brandName: 'ONEVibe' },
+  homePage: { announcementBannerVisible: false, featureCards: [] },
+  navigation: { items: [] },
+  features: { showComputerTab: true, showMcpMarketplace: true, showRuntimePicker: true, showDebugPanel: false },
+})
+
 export type ThemeResolutionInput = {
   /** Server-derived organization/session scope; never a browser-supplied tenant id. */
   sessionTenantId?: string
