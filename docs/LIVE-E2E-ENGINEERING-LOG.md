@@ -2,6 +2,11 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — protected LiteLLM chat acceptance rerun
+
+- `npm run e2e:chat` passed with the explicit `claude-sonnet-5` router alias: 2 durable chat turns, 8 live SSE frames, 35 suffix-replayed frames, one bounded Bash call, restart recovery, valid evidence, and failure/retry recovery. This is host-process local provider evidence only.
+- The document-mode `npm run e2e:golden` attempt was bounded to a 60-second turn deadline and failed closed with `failureReason=turn_timeout` after provider stream events without a terminal result. The router was reachable and the model alias was valid; document-mode completion latency/termination remains open and must not be represented as a passing artifact gate.
+
 ## 2026-07-17 — staged-file/task-metadata promotion recovery proof
 
 - `npm run e2e:follow-up-recovery` injected a process exit (`99`) after follow-up attachment bytes had been written to the private workspace but before the task attachment list was updated. A restarted API recovered the durable reservation, preserved the six-message transcript, materialized exactly two attachments, and replayed the same keyed request with HTTP `200`.
