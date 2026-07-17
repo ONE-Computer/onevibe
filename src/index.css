@@ -50,6 +50,7 @@
 }
 html,body,#root{background:var(--surface-canvas);color:var(--text-primary)}
 body{transition:background-color .2s ease,color .2s ease}
+.locale-toggle{background:transparent;color:var(--text-muted);font:9px var(--font-ui);font-weight:600;letter-spacing:.06em;padding:4px 6px;border-radius:var(--radius-6px);cursor:pointer;border:1px solid var(--border-subtle)}.locale-toggle:hover{background:var(--surface-hover);color:var(--text-primary);border-color:var(--border-default)}
 @keyframes pulse-dot{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 50%,transparent)}50%{box-shadow:0 0 0 5px transparent}}
 @keyframes slide-in-toast{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
