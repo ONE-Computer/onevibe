@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FC, type ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Copy, Download, Eye, FileText, LoaderCircle, Paperclip, Pencil, Presentation, ShieldCheck, TriangleAlert, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy, Download, Eye, FileText, LoaderCircle, Paperclip, Pencil, Presentation, ShieldCheck, Square, TriangleAlert, X } from 'lucide-react'
 import {
   AssistantRuntimeProvider,
   ActionBarPrimitive,
+  AuiIf,
+  BranchPickerPrimitive,
   ComposerPrimitive,
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
   groupPartByType,
+  unstable_useComposerInputHistory,
+  unstable_useMessageStallDetection,
   useAuiState,
   useExternalStoreRuntime,
   type AppendMessage,
@@ -27,6 +31,17 @@ const timestamp = (value?: Date) => value?.toLocaleTimeString([], { hour: '2-dig
 type DraftFollowUpAttachment = { name: string; mimeType: string; dataBase64: string; size: number }
 
 const MessageActions = () => <ActionBarPrimitive.Root className="aui-message-actions" autohide="not-last"><ActionBarPrimitive.Copy aria-label="Copy message" title="Copy message"><Copy size={11} /></ActionBarPrimitive.Copy></ActionBarPrimitive.Root>
+
+// Branch navigation stays hidden for single-branch conversations; it appears
+// once the runtime exposes multiple branches for one message (edit/fork flow).
+const BranchNav = () => <BranchPickerPrimitive.Root className="aui-branch-nav" hideWhenSingleBranch><BranchPickerPrimitive.Previous className="aui-branch-btn" aria-label="Previous response" title="Previous response"><ChevronLeft size={11} /></BranchPickerPrimitive.Previous><span className="aui-branch-count"><BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count /></span><BranchPickerPrimitive.Next className="aui-branch-btn" aria-label="Next response" title="Next response"><ChevronRight size={11} /></BranchPickerPrimitive.Next></BranchPickerPrimitive.Root>
+
+// Input history lives inside the composer scope, so the hook needs a child
+// component under AssistantRuntimeProvider rather than the thread body.
+const ComposerInput = (props: ComponentProps<typeof ComposerPrimitive.Input>) => {
+  const history = unstable_useComposerInputHistory()
+  return <ComposerPrimitive.Input {...history} {...props} />
+}
 
 type ForkMessage = (messageId: string, newPrompt: string) => Promise<void>
 
@@ -81,14 +96,15 @@ const ToolGroup = ({ children, count, active }: { children: ReactNode; count: nu
 const AssistantMessage = () => {
   const createdAt = useAuiState((state) => state.message.createdAt)
   const running = useAuiState((state) => state.message.status?.type === 'running')
+  const { stalled } = unstable_useMessageStallDetection({ thresholdMs: 15_000 })
   const artifacts = useAuiState((state) => (state.message.metadata.custom as { artifacts?: AssistantArtifact[] } | undefined)?.artifacts ?? [])
-  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb" aria-hidden="true">O</div><div className="aui-assistant-message-body"><header><small>{running ? 'Writing…' : timestamp(createdAt)}</small>{running && <span className="aui-live-label"><i /> Live</span>}</header><WorkingTrace /><MessagePrimitive.GroupedParts groupBy={groupPartByType({ 'tool-call': ['group-tool'] })}>{({ part, children }) => {
+  return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb" aria-hidden="true">O</div><div className="aui-assistant-message-body"><header><small>{running ? 'Writing…' : timestamp(createdAt)}</small>{running && <span className="aui-live-label"><i /> Live</span>}</header>{stalled && <div className="aui-stall-warning"><Clock size={11} /> Taking longer than expected…</div>}<WorkingTrace /><MessagePrimitive.GroupedParts groupBy={groupPartByType({ 'tool-call': ['group-tool'] })}>{({ part, children }) => {
     if (part.type === 'group-tool') return <ToolGroup count={part.indices.length} active={part.status.type === 'running'}>{children}</ToolGroup>
     if (part.type === 'tool-call') return <ToolCallCard {...part} />
     if (part.type === 'text') return <><MarkdownText />{part.status?.type === 'running' && <span className="streaming-cursor" aria-hidden="true" />}</>
     if (part.type === 'indicator') return <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>
     return null
-  }}</MessagePrimitive.GroupedParts><MessagePrimitive.Error><div className="aui-message-error"><TriangleAlert size={14} /><ErrorPrimitive.Message /></div></MessagePrimitive.Error><ArtifactCards artifacts={artifacts} /><MessageActions /></div></MessagePrimitive.Root>
+  }}</MessagePrimitive.GroupedParts><MessagePrimitive.Error><div className="aui-message-error"><TriangleAlert size={14} /><ErrorPrimitive.Message /></div></MessagePrimitive.Error><ArtifactCards artifacts={artifacts} /><MessageActions /><BranchNav /></div></MessagePrimitive.Root>
 }
 
 type MessageRow = { id: string; role: 'user' | 'assistant' | 'system' }
@@ -120,13 +136,9 @@ const turnsFor = (messages: readonly MessageRow[]): Turn[] => {
 const VirtualizedMessages: FC<{ taskId: string; components: MessageComponents }> = ({ taskId, components }) => {
   const rows = useThreadMessageRows()
   const turns = useMemo(() => turnsFor(rows), [rows])
-  const isRunning = useAuiState((state) => state.thread.isRunning)
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const sticky = useRef(true)
-  const previousRunning = useRef(false)
   const didInitialJump = useRef<string | undefined>(undefined)
-  const [atBottom, setAtBottom] = useState(true)
   const virtualizer = useVirtualizer({
     count: turns.length,
     estimateSize: () => 180,
@@ -136,46 +148,21 @@ const VirtualizedMessages: FC<{ taskId: string; components: MessageComponents }>
     overscan: 5,
   })
   const jumpToBottom = useCallback(() => {
-    sticky.current = true
     if (turns.length > 0) virtualizer.scrollToIndex(turns.length - 1, { align: 'end' })
-    requestAnimationFrame(() => { if (scrollRef.current && sticky.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight })
+    requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight })
   }, [turns.length, virtualizer])
 
-  useEffect(() => {
-    const element = scrollRef.current
-    if (!element) return
-    const onScroll = () => {
-      const bottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 8
-      if (bottom) sticky.current = true
-      setAtBottom(bottom)
-    }
-    const stopFollowing = () => { sticky.current = false }
-    const onWheel = (event: WheelEvent) => { if (event.deltaY < 0) stopFollowing() }
-    element.addEventListener('scroll', onScroll, { passive: true })
-    element.addEventListener('wheel', onWheel, { passive: true })
-    element.addEventListener('touchmove', stopFollowing, { passive: true })
-    return () => { element.removeEventListener('scroll', onScroll); element.removeEventListener('wheel', onWheel); element.removeEventListener('touchmove', stopFollowing) }
-  }, [])
-
-  useEffect(() => {
-    const element = scrollRef.current
-    const content = contentRef.current
-    if (!element || !content) return
-    const observer = new ResizeObserver(() => { if (sticky.current) element.scrollTop = element.scrollHeight })
-    observer.observe(content)
-    return () => observer.disconnect()
-  }, [])
-
+  // Ongoing auto-scroll (follow while at bottom, yield on user scroll, jump on
+  // run start) is owned by ThreadPrimitive.Viewport's built-in behavior; this
+  // effect only covers the first jump when opening a task with history.
   useLayoutEffect(() => {
     if (taskId !== didInitialJump.current && turns.length > 0) { didInitialJump.current = taskId; jumpToBottom() }
-    if (isRunning && !previousRunning.current) jumpToBottom()
-    previousRunning.current = isRunning
-  }, [isRunning, jumpToBottom, taskId, turns.length])
+  }, [jumpToBottom, taskId, turns.length])
 
   const virtualItems = virtualizer.getVirtualItems()
   const paddingTop = virtualItems[0]?.start ?? 0
   const paddingBottom = Math.max(0, virtualizer.getTotalSize() - (virtualItems.at(-1)?.end ?? 0))
-  return <ThreadPrimitive.Viewport className="aui-thread-scroll" ref={scrollRef}><div className="aui-thread-content" ref={contentRef} style={{ paddingTop, paddingBottom }}>{virtualItems.map((item) => <div key={item.key} ref={virtualizer.measureElement} data-index={item.index} className="aui-thread-turn">{turns[item.index]?.messageIds.map((messageId) => <ThreadPrimitive.Unstable_MessageById key={messageId} messageId={messageId} components={components} />)}</div>)} </div>{!atBottom && <button type="button" className="aui-thread-jump" onClick={jumpToBottom} aria-label="Scroll to latest activity" title="Scroll to latest activity"><ArrowDown size={14} /></button>}</ThreadPrimitive.Viewport>
+  return <ThreadPrimitive.Viewport className="aui-thread-scroll" ref={scrollRef} autoScroll scrollToBottomOnRunStart><div className="aui-thread-content" ref={contentRef} style={{ paddingTop, paddingBottom }}>{virtualItems.map((item) => <div key={item.key} ref={virtualizer.measureElement} data-index={item.index} className="aui-thread-turn">{turns[item.index]?.messageIds.map((messageId) => <ThreadPrimitive.Unstable_MessageById key={messageId} messageId={messageId} components={components} />)}</div>)} </div><ThreadPrimitive.ScrollToBottom className="aui-thread-jump" aria-label="Scroll to latest activity" title="Scroll to latest activity"><ArrowDown size={14} /></ThreadPrimitive.ScrollToBottom></ThreadPrimitive.Viewport>
 }
 
 type Props = { task: TaskSnapshot; busy: boolean; onSubmit: (prompt: string, attachments?: DraftFollowUpAttachment[]) => Promise<void>; onSwitchRuntime: (provider: TaskSnapshot['provider']) => Promise<void>; onEditMessage: ForkMessage }
@@ -229,5 +216,5 @@ export const AssistantThread = ({ task, busy, onSubmit, onSwitchRuntime, onEditM
     isSendDisabled: busy || Boolean(task.inputRequest),
   })
 
-  return <AssistantRuntimeProvider runtime={runtime}><ThreadPrimitive.Root className="aui-thread"><VirtualizedMessages taskId={task.id} components={messageComponents} />{fallbackProvider && task.status === 'failed' && <div className="aui-runtime-fallback" role="alert"><div><TriangleAlert size={14} /><span><strong>Try another runtime?</strong><small>The selected runtime failed. Switching is explicit and starts a new retry on a different execution boundary.</small></span></div><button type="button" onClick={() => void onSwitchRuntime(fallbackProvider)}>Switch to {providerLabel(fallbackProvider)} and retry</button></div>}<ThreadPrimitive.ViewportFooter className="aui-thread-footer"><ComposerPrimitive.Root className="aui-composer"><input ref={fileInput} className="file-input" type="file" multiple onChange={(event) => { void chooseFiles(event.target.files); event.currentTarget.value = '' }} />{attachments.length > 0 && <div className="aui-composer-files">{attachments.map((file) => <span key={`${file.name}-${file.size}`}><Paperclip size={10} />{file.name}<small>{Math.ceil(file.size / 1024)} KB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== file))}><X size={10} /></button></span>)}</div>}{attachmentError && <p className="aui-attachment-error">{attachmentError}</p>}<ComposerPrimitive.Input aria-label="Continue this task" placeholder={task.inputRequest ? 'Choose an answer above to resume…' : task.status === 'running' ? 'Add guidance for the next provider turn…' : 'Continue this task…'} rows={1} /><div className="aui-composer-meta"><span><ShieldCheck size={11} /> {task.inputRequest ? 'Waiting for your answer' : task.status === 'running' ? 'Durably queued while this turn runs' : 'Bound to this conversation workspace'}</span><div><button type="button" className="aui-attach" aria-label="Attach files to this turn" title="Attach files to this turn" disabled={attachments.length >= 4 || busy || Boolean(task.inputRequest)} onClick={() => fileInput.current?.click()}><Paperclip size={14} /></button><ComposerPrimitive.Send className="aui-send" aria-label="Send message"><ArrowUp size={15} /></ComposerPrimitive.Send></div></div></ComposerPrimitive.Root></ThreadPrimitive.ViewportFooter></ThreadPrimitive.Root></AssistantRuntimeProvider>
+  return <AssistantRuntimeProvider runtime={runtime}><ThreadPrimitive.Root className="aui-thread"><VirtualizedMessages taskId={task.id} components={messageComponents} />{fallbackProvider && task.status === 'failed' && <div className="aui-runtime-fallback" role="alert"><div><TriangleAlert size={14} /><span><strong>Try another runtime?</strong><small>The selected runtime failed. Switching is explicit and starts a new retry on a different execution boundary.</small></span></div><button type="button" onClick={() => void onSwitchRuntime(fallbackProvider)}>Switch to {providerLabel(fallbackProvider)} and retry</button></div>}<ThreadPrimitive.ViewportFooter className="aui-thread-footer"><ComposerPrimitive.Root className="aui-composer"><input ref={fileInput} className="file-input" type="file" multiple onChange={(event) => { void chooseFiles(event.target.files); event.currentTarget.value = '' }} />{attachments.length > 0 && <div className="aui-composer-files">{attachments.map((file) => <span key={`${file.name}-${file.size}`}><Paperclip size={10} />{file.name}<small>{Math.ceil(file.size / 1024)} KB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== file))}><X size={10} /></button></span>)}</div>}{attachmentError && <p className="aui-attachment-error">{attachmentError}</p>}<ComposerInput aria-label="Continue this task" placeholder={task.inputRequest ? 'Choose an answer above to resume…' : task.status === 'running' ? 'Add guidance for the next provider turn…' : 'Continue this task…'} rows={1} /><div className="aui-composer-meta"><span><ShieldCheck size={11} /> {task.inputRequest ? 'Waiting for your answer' : task.status === 'running' ? 'Durably queued while this turn runs' : 'Bound to this conversation workspace'}</span><div><button type="button" className="aui-attach" aria-label="Attach files to this turn" title="Attach files to this turn" disabled={attachments.length >= 4 || busy || Boolean(task.inputRequest)} onClick={() => fileInput.current?.click()}><Paperclip size={14} /></button><AuiIf condition={(state) => state.thread.isRunning}><ComposerPrimitive.Cancel className="aui-cancel" aria-label="Stop generation" title="Stop generation"><Square size={13} /></ComposerPrimitive.Cancel></AuiIf><ComposerPrimitive.Send className="aui-send" aria-label="Send message"><ArrowUp size={15} /></ComposerPrimitive.Send></div></div></ComposerPrimitive.Root></ThreadPrimitive.ViewportFooter></ThreadPrimitive.Root></AssistantRuntimeProvider>
 }

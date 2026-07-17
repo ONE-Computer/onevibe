@@ -944,3 +944,14 @@ button.model-selector *{color:inherit}
 .capability-card small{font-size:10px;line-height:1.4;color:var(--text-faint)}
 @media(prefers-reduced-motion:no-preference){.capability-card:hover{transform:translateY(-2px)}}
 @media(max-width:600px){.capability-cards{grid-template-columns:1fr}}
+.aui-thread-jump:disabled{display:none}
+.aui-branch-nav{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--text-muted)}
+.aui-branch-btn{display:grid;place-items:center;padding:2px 4px;border:0;border-radius:var(--radius-5px);background:transparent;color:inherit;cursor:pointer}
+.aui-branch-btn:hover{background:var(--surface-hover);color:var(--text-primary)}
+.aui-branch-count{font:10px var(--font-ui)}
+.aui-cancel{display:grid;place-items:center;padding:6px;border:0;border-radius:var(--radius-6px);background:transparent;color:var(--text-muted);cursor:pointer}
+.aui-cancel:hover{background:var(--surface-hover);color:var(--text-primary)}
+.aui-cancel:disabled{display:none}
+.aui-stall-warning{display:flex;align-items:center;gap:5px;padding:4px 0;font-size:11px;color:var(--text-muted)}
+@media(prefers-reduced-motion:no-preference){.aui-stall-warning{animation:aui-fade-in .3s ease}}
+@keyframes aui-fade-in{from{opacity:0}to{opacity:1}}
