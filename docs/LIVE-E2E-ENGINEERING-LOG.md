@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — Postgres native-event and browser verification pass
+
+- Commit `c9e155b` added owner-scoped native envelope lookup/list/append, projection links, projector offsets, cursor/monotonicity validation, and replay/conflict coverage to the Postgres repository surface.
+- A fresh disposable PostgreSQL 18 run passed `npm run e2e:postgres-chat` and `npm run e2e:postgres-state`: one owner-scoped native event, one projection link, offset sequence `0`, restart recovery, and owner isolation. `npm run check` also passed with 52 test files / 259 tests, build, harness typecheck, and `npm run db:check`.
+- The running application still rejects `DATABASE_URL` and remains SQLite-backed. The coordinator uses separate repository pools and native ingestion is not yet one cross-repository transaction; these are explicit P4-01/P4-02 blockers.
+- A live local API/Vite stack was started for browser QA, but the Codex in-app browser URL policy rejected the existing `localhost:5173` tab before reload/claim. No screenshot or browser pass is claimed from that attempt; browser evidence remains open until the policy permits the local tab.
+
 ## 2026-07-17 — disposable Postgres owner-scoped chat proof
 
 - Applied the reviewed Drizzle migrations through `0005_deep_rachel_grey.sql` to disposable PostgreSQL 18. The expected long-identifier notice from replaying the historical native-projection migration was non-fatal; the migration sequence completed successfully.
