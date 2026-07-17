@@ -329,6 +329,15 @@ export class SqliteFollowUpOperationRepository implements FollowUpOperationRepos
     if (result.changes !== 1) return undefined
     return followUpOperationFromRow(this.database.prepare('SELECT * FROM follow_up_operations WHERE id = ?').get(recordId) as FollowUpOperationRow)
   }
+
+  renew(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string): FollowUpOperationRecord | undefined {
+    const result = this.database.prepare(`
+      UPDATE follow_up_operations SET lease_expires_at = ?, updated_at = ?
+      WHERE id = ? AND state = 'running' AND lease_owner = ?
+    `).run(leaseExpiresAt, now, recordId, leaseOwner)
+    if (result.changes !== 1) return undefined
+    return followUpOperationFromRow(this.database.prepare('SELECT * FROM follow_up_operations WHERE id = ?').get(recordId) as FollowUpOperationRow)
+  }
 }
 
 const followUpAttachmentFromRow = (row: FollowUpAttachmentRow): FollowUpAttachmentRecord => ({

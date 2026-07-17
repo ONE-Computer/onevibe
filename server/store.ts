@@ -1467,6 +1467,11 @@ export class TaskStore {
     return this.requireUnitOfWork().run((repositories) => repositories.followUpOperations.claim(operation.id, leaseOwner, now, leaseExpiresAt))
   }
 
+  async renewFollowUpOperation(operation: FollowUpOperationRecord, leaseOwner: string, now: string, leaseExpiresAt: string): Promise<FollowUpOperationRecord | undefined> {
+    if (this.postgresState) return this.postgresState.renewFollowUpOperation(operation.id, leaseOwner, now, leaseExpiresAt)
+    return this.requireUnitOfWork().run((repositories) => repositories.followUpOperations.renew(operation.id, leaseOwner, now, leaseExpiresAt))
+  }
+
   async listFollowUpAttachments(operationId: string): Promise<FollowUpAttachmentRecord[]> {
     if (this.postgresState) return this.postgresState.listFollowUpAttachments(operationId)
     return this.requireUnitOfWork().run((repositories) => repositories.followUpAttachments.listForOperation(operationId))

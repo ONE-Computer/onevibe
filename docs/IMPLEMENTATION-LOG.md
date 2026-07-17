@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — follow-up lease heartbeat and renewal
+
+- Added atomic lease renewal for SQLite/Postgres keyed follow-up operations. Active provider runs renew their lease on a bounded heartbeat interval; a lost lease emits a fail-closed evidence event, aborts the local run, and preserves the provider-unknown reconciliation boundary.
+- Unit coverage verifies the owning worker can renew a running claim, a different worker cannot renew it, and the attempt count remains stable. The recovery E2E continues to prove both safe pre-provider reclamation and no automatic replay after provider start.
+- Verification: `npx tsc -b --pretty false`, `npm run test -- server/store.test.ts`, and `npm run e2e:follow-up-recovery` passed. Provider-side idempotency is still not inferred from the correlation headers/metadata.
+
 ## 2026-07-17 — transactional durable follow-up attachment reservations
 
 - Added SQLite migration v12 and Postgres migration 0011 with `follow_up_attachments`, storing bounded attachment metadata, SHA-256, private relative path, state, and bytes behind the durable operation foreign key.

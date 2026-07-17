@@ -326,6 +326,8 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
   activeRuns.set(taskId, controller)
   const adapter = runtimeRegistry.create(task.provider)
   const turnDeadline = createTurnDeadline({ timeoutMs: TURN_TIMEOUT_MS, onExpire: () => { void activeAdapters.get(taskId)?.cancel(); controller.abort() } })
+  let leaseHeartbeat: NodeJS.Timeout | undefined
+  let leaseLost = false
   const run = async () => {
     controller.signal.throwIfAborted()
     const projectKnowledge = await store.projectContextFiles(project.id)
@@ -391,6 +393,20 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
         content: 'The provider request identity was durably recorded before the selected runtime was called. This is a correlation boundary, not provider-side exactly-once proof.',
         payload: { executionId: operation.executionId, providerRequestId: operation.providerRequestId, providerState: 'started', providerIdempotencyProven: false },
       })
+      leaseHeartbeat = setInterval(() => {
+        void (async () => {
+          const renewed = await store.renewFollowUpOperation(operation, FOLLOW_UP_WORKER_ID, new Date().toISOString(), new Date(Date.now() + FOLLOW_UP_LEASE_MS).toISOString())
+          if (renewed || leaseLost) return
+          leaseLost = true
+          await store.appendEvent(task.id, {
+            type: 'run_failed', lane: 'control', status: 'failed', label: 'Execution lease lost',
+            content: 'The durable execution lease could not be renewed. The provider outcome is treated as unknown and automatic replay is disabled.',
+            payload: { executionId: operation.executionId, providerRequestId: operation.providerRequestId, providerState: 'unknown', failureReason: 'execution_lease_lost', reconciliationRequired: true },
+          })
+          controller.abort()
+        })().catch(() => { controller.abort() })
+      }, Math.max(1_000, Math.floor(FOLLOW_UP_LEASE_MS / 3)))
+      leaseHeartbeat.unref?.()
       if (process.env.NODE_ENV !== 'production' && process.env.ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PROVIDER_STARTED === 'true') {
         setImmediate(() => process.exit(98))
         return
@@ -413,6 +429,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
         if (latestOperation) await store.updateFollowUpOperation(latestOperation, { providerState: 'succeeded', providerCompletedAt: new Date().toISOString(), leaseOwner: null, leaseExpiresAt: null })
       }
     } finally {
+      if (leaseHeartbeat) clearInterval(leaseHeartbeat)
       await adapter.destroy()
       if (activeAdapters.get(task.id) === adapter) activeAdapters.delete(task.id)
     }

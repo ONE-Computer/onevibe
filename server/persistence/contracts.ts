@@ -218,6 +218,7 @@ export interface FollowUpOperationRepository {
   insert(record: FollowUpOperationRecord): void
   update(record: FollowUpOperationRecord, expectedUpdatedAt: string): void
   claim(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string): FollowUpOperationRecord | undefined
+  renew(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string): FollowUpOperationRecord | undefined
 }
 
 export interface FollowUpAttachmentRecord {

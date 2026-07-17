@@ -456,6 +456,7 @@ export class PostgresStateCoordinator {
   async listRecoverableFollowUpOperations() { return this.#operations.listRecoverableFollowUpOperations() }
   async updateFollowUpOperation(record: FollowUpOperationRecord, expectedUpdatedAt: string) { return this.#operations.updateFollowUpOperation(record, expectedUpdatedAt) }
   async claimFollowUpOperation(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string) { return this.#operations.claimFollowUpOperation(recordId, leaseOwner, now, leaseExpiresAt) }
+  async renewFollowUpOperation(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string) { return this.#operations.renewFollowUpOperation(recordId, leaseOwner, now, leaseExpiresAt) }
   async listFollowUpAttachments(operationId: string) { return this.#operations.listFollowUpAttachments(operationId) }
   async updateFollowUpAttachment(record: FollowUpAttachmentRecord, expectedUpdatedAt: string) { return this.#operations.updateFollowUpAttachment(record, expectedUpdatedAt) }
 }

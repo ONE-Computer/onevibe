@@ -251,6 +251,16 @@ export class PostgresOperationsRepository {
     return rows[0] ? followUpOperationFromRow(rows[0]) : undefined
   }
 
+  async renewFollowUpOperation(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string): Promise<FollowUpOperationRecord | undefined> {
+    const rows = await this.sql<FollowUpOperationRow[]>`
+      UPDATE follow_up_operation
+      SET lease_expires_at = ${new Date(leaseExpiresAt)}, updated_at = ${new Date(now)}
+      WHERE id = ${recordId} AND state = 'running' AND lease_owner = ${leaseOwner}
+      RETURNING id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at
+    `
+    return rows[0] ? followUpOperationFromRow(rows[0]) : undefined
+  }
+
   async listFollowUpAttachments(operationId: string): Promise<FollowUpAttachmentRecord[]> {
     const rows = await this.sql<FollowUpAttachmentRow[]>`SELECT id, operation_id, task_id, owner_user_id, path, name, mime_type, size, sha256, content, state, created_at, updated_at FROM follow_up_attachment WHERE operation_id = ${operationId} ORDER BY created_at ASC, id ASC`
     return rows.map(followUpAttachmentFromRow)

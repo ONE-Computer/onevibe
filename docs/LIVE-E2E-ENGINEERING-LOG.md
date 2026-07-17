@@ -2,6 +2,12 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — execution lease heartbeat boundary
+
+- The active follow-up worker now renews its durable claim at one-third of the lease interval. Renewal is fenced by operation ID and worker owner in both SQLite and Postgres; a different worker cannot extend the claim.
+- If renewal fails, ONEVibe emits a bounded `execution_lease_lost` failure event and aborts the local run. The provider outcome remains unknown and is not silently retried.
+- This is a local lease-coordination proof, not provider-side exactly-once execution or production worker orchestration.
+
 ## 2026-07-17 — durable attachment reservation proof
 
 - A fresh API initialized the twelve-migration SQLite ledger. Concurrent keyed follow-up requests reserved one attachment transactionally with the operation, materialized one deterministic private input path, and completed one four-message transcript; the changed-payload replay still returned `409`.
