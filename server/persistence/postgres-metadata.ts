@@ -21,18 +21,33 @@ type TaskRow = {
 }
 type ScheduleRow = { id: string; owner_user_id: string; project_id: string; name: string; prompt: string; provider: Task['provider']; mode: TaskMode; interval_minutes: number; enabled: boolean; next_run_at: Date; last_run_at: Date | null; created_at: Date; updated_at: Date }
 
-const jsonArray = <T>(value: unknown, fallback: T[] = []): T[] => Array.isArray(value) ? value as T[] : fallback
-const jsonObject = <T>(value: unknown): T | undefined => value && typeof value === 'object' && !Array.isArray(value) ? value as T : undefined
+const decodeJson = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value
+  try { return JSON.parse(value) as unknown } catch { return value }
+}
+const jsonArray = <T>(value: unknown, fallback: T[] = []): T[] => {
+  const decoded = decodeJson(value)
+  return Array.isArray(decoded) ? decoded as T[] : fallback
+}
+const jsonObject = <T>(value: unknown): T | undefined => {
+  const decoded = decodeJson(value)
+  return decoded && typeof decoded === 'object' && !Array.isArray(decoded) ? decoded as T : undefined
+}
+const projectMetadata = (project: Project) => JSON.stringify({ files: project.files, fileVersions: project.fileVersions ?? {} })
 
-const projectFromRow = (row: ProjectRow): Project => ({
+const projectFromRow = (row: ProjectRow): Project => {
+  const stored = jsonObject<{ files?: unknown; fileVersions?: unknown }>(row.files_json)
+  return {
   id: row.id,
   ownerUserId: row.owner_user_id,
   name: row.name,
   context: row.context,
-  files: jsonArray(row.files_json),
+  files: jsonArray(stored?.files ?? row.files_json),
+  ...(stored?.fileVersions && typeof stored.fileVersions === 'object' && !Array.isArray(stored.fileVersions) ? { fileVersions: stored.fileVersions as Project['fileVersions'] } : {}),
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
-})
+  }
+}
 
 const taskFromRow = (row: TaskRow): Task => ({
   id: row.id,
@@ -118,14 +133,14 @@ export class PostgresMetadataRepository {
     if (!project.ownerUserId) throw new Error('Postgres projects require an owner')
     await this.sql`
       INSERT INTO project (id, owner_user_id, name, context, files_json, created_at, updated_at)
-      VALUES (${project.id}, ${project.ownerUserId}, ${project.name}, ${project.context}, ${json(project.files)}::jsonb, ${new Date(project.createdAt)}, ${new Date(project.updatedAt)})
+      VALUES (${project.id}, ${project.ownerUserId}, ${project.name}, ${project.context}, ${projectMetadata(project)}::jsonb, ${new Date(project.createdAt)}, ${new Date(project.updatedAt)})
     `
   }
 
   async updateProject(project: Project, expectedUpdatedAt: string): Promise<void> {
     if (!project.ownerUserId) throw new Error('Postgres projects require an owner')
     const result = await this.sql`
-      UPDATE project SET name = ${project.name}, context = ${project.context}, files_json = ${json(project.files)}::jsonb, updated_at = ${new Date(project.updatedAt)}
+      UPDATE project SET name = ${project.name}, context = ${project.context}, files_json = ${projectMetadata(project)}::jsonb, updated_at = ${new Date(project.updatedAt)}
       WHERE id = ${project.id} AND owner_user_id = ${project.ownerUserId} AND updated_at = ${new Date(expectedUpdatedAt)}
     `
     if (result.count === 1) return

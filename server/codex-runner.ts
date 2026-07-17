@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import type { RuntimeHealth } from './types.js'
@@ -162,7 +162,7 @@ export class CodexRuntimeAdapter extends RuntimeAdapterBase {
           if (call.name === 'workspace_write') {
             const target = safeWorkspacePath(workspace, args.path)
             if (typeof args.content !== 'string' || args.content.length > 60_000) throw new Error('Workspace content exceeds the 60 KiB bound.')
-            await writeFile(target, args.content, 'utf8')
+            await context.store.writeWorkspaceFile(context.task.id, path.relative(workspace, target), args.content)
             result = `Wrote ${path.relative(workspace, target)}`
           } else if (call.name === 'workspace_read') {
             const target = safeWorkspacePath(workspace, args.path)

@@ -210,8 +210,10 @@ export class TaskStore {
         this.messages.set(task.id, state.messages.get(task.id) ?? [])
       }
       for (const task of this.tasks.values()) await this.hydratePostgresWorkspaceCache(task)
+      for (const project of this.projects.values()) await this.hydratePostgresProjectCache(project)
       this.schedules = new Map(state.schedules.map((schedule) => [schedule.id, schedule]))
       this.postgresMessageRevisions = state.messageRevisions
+      await this.reconcileRestartedTasks()
       return
     }
     this.database = openDatabase(path.join(path.dirname(this.tasksRoot), 'onevibe.sqlite'))
@@ -635,6 +637,12 @@ export class TaskStore {
     await writeFile(target, input.bytes)
     const file = { name, path: relativePath, size: input.bytes.byteLength, mimeType: input.mimeType, createdAt: new Date().toISOString() }
     const updated = { ...project, files: [...project.files, file], updatedAt: new Date().toISOString() }
+    if (this.postgresState) {
+      if (!project.ownerUserId) throw new Error('Postgres project files require an owner')
+      await this.postgresState.putProjectFileAndMetadata(project, project.updatedAt, relativePath, input.bytes, createHash('sha256').update(input.bytes).digest('hex'), updated)
+      this.projects.set(projectId, updated)
+      return updated
+    }
     this.projects.set(projectId, updated)
     await this.persistProjects()
     return updated
@@ -652,6 +660,12 @@ export class TaskStore {
     const fileVersions = { ...(project.fileVersions ?? {}) }
     delete fileVersions[file.path]
     const updated = { ...project, files: project.files.filter((candidate) => candidate.path !== file.path), fileVersions, updatedAt: new Date().toISOString() }
+    if (this.postgresState) {
+      if (!project.ownerUserId) throw new Error('Postgres project files require an owner')
+      await this.postgresState.deleteProjectFileAndMetadata(project, project.updatedAt, file.path, updated)
+      this.projects.set(projectId, updated)
+      return updated
+    }
     this.projects.set(projectId, updated)
     await this.persistProjects()
     return updated
@@ -662,6 +676,12 @@ export class TaskStore {
     const file = project.files.find((candidate) => candidate.path === filePath)
     if (!file) throw new Error('Project knowledge file not found')
     if (!isEditableProjectFile(file)) throw new Error('Only text-like project knowledge files can be edited')
+    if (this.postgresState) {
+      if (!project.ownerUserId) throw new Error('Postgres project files require an owner')
+      const stored = await this.postgresState.readProjectFile(project, project.ownerUserId, file.path)
+      const content = stored.content.toString('utf8')
+      return { path: file.path, content, contentHash: stored.sha256 }
+    }
     const root = path.join(this.projectsRoot, projectId)
     const target = path.join(root, file.path)
     assertWithin(root, target)
@@ -690,6 +710,12 @@ export class TaskStore {
     const retainedVersions = [version, ...previousVersions].slice(0, 10)
     await Promise.all(previousVersions.slice(9).map((old) => rm(projectVersionPath(root, filePath, old.id), { force: true })))
     const updated = { ...project, files: project.files.map((candidate) => candidate.path === filePath ? { ...candidate, size: Buffer.byteLength(content) } : candidate), fileVersions: { ...(project.fileVersions ?? {}), [filePath]: retainedVersions }, updatedAt }
+    if (this.postgresState) {
+      if (!project.ownerUserId) throw new Error('Postgres project files require an owner')
+      await this.postgresState.updateProjectFileAndMetadata(project, project.updatedAt, filePath, Buffer.from(content, 'utf8'), createHash('sha256').update(content).digest('hex'), updated)
+      this.projects.set(projectId, updated)
+      return { project: updated, path: filePath, content, contentHash: createHash('sha256').update(content).digest('hex') }
+    }
     this.projects.set(projectId, updated)
     await this.persistProjects()
     return { project: updated, path: filePath, content, contentHash: createHash('sha256').update(content).digest('hex') }
@@ -722,7 +748,9 @@ export class TaskStore {
       if (remaining <= 0 || !/^(?:text\/|application\/(?:json|yaml|xml))/.test(file.mimeType) && !/\.(?:md|txt|json|ya?ml|csv|xml)$/i.test(file.name)) continue
       const target = path.join(this.projectsRoot, project.id, file.path)
       assertWithin(path.join(this.projectsRoot, project.id), target)
-      const raw = await readFile(target, 'utf8').catch(() => '')
+      const raw = this.postgresState && project.ownerUserId
+        ? (await this.postgresState.readProjectFile(project, project.ownerUserId, file.path).catch(() => undefined))?.content.toString('utf8') ?? ''
+        : await readFile(target, 'utf8').catch(() => '')
       const content = raw.slice(0, Math.min(4_000, remaining))
       if (!content) continue
       chunks.push(`--- ${file.name} (untrusted project knowledge) ---\n${content}`)
@@ -1486,6 +1514,37 @@ export class TaskStore {
   }
 
   /**
+   * Reconcile files created by provider runtimes that write directly through
+   * their SDK tools. The Postgres repository remains authoritative; internal
+   * SDK state is deliberately excluded from the portable workspace ledger.
+   */
+  async syncWorkspaceFromDisk(taskId: string) {
+    if (!this.postgresState) return
+    const task = this.getTask(taskId)
+    if (!task.ownerUserId) throw new Error('Postgres workspace files require an owner')
+    const root = this.workspacePath(taskId)
+    const seen = new Set<string>()
+    const walk = async (directory: string) => {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const full = path.join(directory, entry.name)
+        const relative = path.relative(root, full).split(path.sep).join('/')
+        if (entry.isDirectory()) {
+          if (!isInternalWorkspacePath(`${relative}/`)) await walk(full)
+          continue
+        }
+        if (!entry.isFile() || isInternalWorkspacePath(relative)) continue
+        const bytes = await readFile(full)
+        seen.add(relative)
+        await this.postgresState!.writeWorkspaceFile(task, relative, bytes, createHash('sha256').update(bytes).digest('hex'))
+      }
+    }
+    await walk(root)
+    for (const file of await this.postgresState.listWorkspaceFiles(task)) {
+      if (!seen.has(file.path) && !isInternalWorkspacePath(file.path)) await this.postgresState.deleteWorkspaceFile(task, file.path)
+    }
+  }
+
+  /**
    * Create a durable conversation branch at a user message boundary.
    *
    * The selected user message is deliberately excluded from the copied
@@ -1669,6 +1728,13 @@ export class TaskStore {
     const task = this.getTask(taskId)
     const messages = this.readMessages(task)
     const message = [...messages].reverse().find((item) => item.turnId === turnId && item.role === 'assistant')
+    if (this.postgresState && !message) {
+      // A process can die after the task lease is persisted but before the
+      // provider creates its assistant turn. Reconciliation still records the
+      // failed run, but must not manufacture a durable turn on restart.
+      this.activeTurns.delete(taskId)
+      return
+    }
     const completedAt = new Date().toISOString()
     if (this.postgresState) {
       await this.postgresState.finishTurn(task, turnId, status, new Date(completedAt))
@@ -1738,6 +1804,21 @@ export class TaskStore {
       assertWithin(root, target)
       await mkdir(path.dirname(target), { recursive: true })
       await writeFile(target, file.content)
+    }
+  }
+
+  private async hydratePostgresProjectCache(project: Project) {
+    if (!this.postgresState || !project.ownerUserId) return
+    const root = path.join(this.projectsRoot, project.id)
+    await rm(root, { recursive: true, force: true })
+    await mkdir(root, { recursive: true })
+    for (const file of project.files) {
+      const stored = await this.postgresState.readProjectFile(project, project.ownerUserId, file.path).catch(() => undefined)
+      if (!stored) continue
+      const target = path.join(root, file.path)
+      assertWithin(root, target)
+      await mkdir(path.dirname(target), { recursive: true })
+      await writeFile(target, stored.content)
     }
   }
 

@@ -246,6 +246,11 @@ export class PostgresStateCoordinator {
     return this.#workspace.putFile(task.id, task.ownerUserId, relativePath, content, sha256, updatedAt)
   }
 
+  async deleteWorkspaceFile(task: Task, relativePath: string) {
+    if (!task.ownerUserId) throw new Error('Postgres workspace files require an owner')
+    return this.#workspace.deleteFile(task.id, task.ownerUserId, relativePath)
+  }
+
   async createWorkspaceVersion(task: Task, version: WorkspaceVersion, files: PostgresWorkspaceFileRecord[]) {
     if (!task.ownerUserId) throw new Error('Postgres workspace versions require an owner')
     return this.#workspace.createVersion(task.id, task.ownerUserId, version, files)
@@ -283,8 +288,20 @@ export class PostgresStateCoordinator {
     return this.#workspace.putProjectFile(project.id, ownerUserId, relativePath, content, sha256, updatedAt)
   }
 
+  async putProjectFileAndMetadata(project: Project, expectedUpdatedAt: string, relativePath: string, content: Uint8Array, sha256: string, nextProject: Project) {
+    return this.#workspace.putProjectFileAndMetadata(project, expectedUpdatedAt, relativePath, content, sha256, nextProject)
+  }
+
+  async updateProjectFileAndMetadata(project: Project, expectedUpdatedAt: string, relativePath: string, content: Uint8Array, sha256: string, nextProject: Project) {
+    return this.#workspace.updateProjectFileAndMetadata(project, expectedUpdatedAt, relativePath, content, sha256, nextProject)
+  }
+
   async deleteProjectFile(project: Project, ownerUserId: string, relativePath: string) {
     return this.#workspace.deleteProjectFile(project.id, ownerUserId, relativePath)
+  }
+
+  async deleteProjectFileAndMetadata(project: Project, expectedUpdatedAt: string, relativePath: string, nextProject: Project) {
+    return this.#workspace.deleteProjectFileAndMetadata(project, expectedUpdatedAt, relativePath, nextProject)
   }
 
   async beginTurn(task: Task, turnId: string, clientRequestId: string, prompt: string, createdAt = new Date()) {

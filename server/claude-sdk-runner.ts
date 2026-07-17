@@ -349,6 +349,7 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
       })
       if (message.type === 'result') terminalNativeEventId = ingested.nativeEventId
       }
+      await store.syncWorkspaceFromDisk(task.id)
     } finally {
       mcpFacade?.close()
     }

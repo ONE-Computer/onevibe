@@ -21,8 +21,13 @@ const main = async () => {
   try {
     await first.initialize()
     const project = await first.createProject('TaskStore Postgres proof', 'Core TaskStore integration.', ownerUserId)
+    const projectWithFile = await first.addProjectFile(project.id, { name: 'context.md', mimeType: 'text/markdown', bytes: Buffer.from('Durable project context.') }, ownerUserId)
+    const projectFilePath = projectWithFile.files[0]!.path
+    const projectFileBefore = await first.readProjectFile(project.id, projectFilePath, ownerUserId)
+    await first.updateProjectFile(project.id, projectFilePath, 'Updated durable project context.', projectFileBefore.contentHash, ownerUserId)
     const task = await first.createTask('Say hello from the Postgres TaskStore.', 'claude_sdk', 'chat', project.id, undefined, [], [], [], ownerUserId)
     const otherTask = await first.createTask('Lease identity fence boundary.', 'onecomputer', 'chat', project.id, undefined, [], [], [], ownerUserId)
+    const recoveryTask = await first.createTask('Recover an interrupted Postgres task.', 'claude_sdk', 'chat', project.id, undefined, [], [], [], ownerUserId)
     await first.beginTurn(task.id, 'Hello from the durable TaskStore.', task.provider)
     await first.appendEvent(task.id, { type: 'assistant_text_delta', lane: 'transcript', content: 'Hello from Postgres.', payload: {} })
     await first.appendEvent(task.id, { type: 'run_completed', lane: 'control', status: 'completed', label: 'Turn completed', payload: {} })
@@ -47,6 +52,7 @@ const main = async () => {
     assert.equal(native.events.length, 1)
     assert.equal((await first.ingestNativeEvent(otherTask.id, nativeInput)).events.length, 0)
     await assert.rejects(() => first.ingestNativeEvent(otherTask.id, { ...nativeInput, payload: { command: 'ls', access_token: 'changed' } }), /conflicts with the current source cursor/)
+    await first.appendEvent(otherTask.id, { type: 'run_completed', lane: 'control', status: 'completed', label: 'Native proof completed', payload: {} })
     const mcp: McpConfigRecord = { id: `mcp_taskstore_${suffix}`, ownerUserId, name: 'TaskStore MCP', command: 'node', argsJson: JSON.stringify(['fixture.mjs']), createdAt: now.toISOString(), updatedAt: now.toISOString() }
     const createdMcp = await first.createMcpConfig({ name: mcp.name, command: mcp.command, args: ['fixture.mjs'] }, ownerUserId)
     mcp.id = createdMcp.id
@@ -80,23 +86,28 @@ const main = async () => {
     const retry = await first.claimRetry(task.id, 'retry-1', 'Retry the greeting.')
     assert.deepEqual(retry, { claimed: true, state: 'pending' })
     await first.completeRetry(task.id, 'retry-1', { status: 'queued', taskId: task.id })
+    await first.updateTask(recoveryTask.id, { status: 'running', activeRunId: 'crashed-run' })
     await first.close()
 
     const second = new TaskStore(`/tmp/onevibe-postgres-taskstore-${suffix}`, { driver: 'postgres', databaseUrl })
     try {
       await second.initialize()
       const restored = second.getTask(task.id, ownerUserId)
+      const recovered = second.getTask(recoveryTask.id, ownerUserId)
       const snapshot = await second.snapshot(task.id)
       assert.equal(restored.status, 'pending')
+      assert.equal(recovered.status, 'failed')
+      assert.equal((await second.listEvents(recoveryTask.id)).some((event) => event.type === 'run_failed' && event.runId === 'crashed-run'), true)
       assert.equal(snapshot.messages.filter((message) => message.role === 'user').length, 2)
       assert.equal(snapshot.messages.find((message) => message.role === 'assistant')?.content, 'Hello from Postgres.')
       assert.equal(snapshot.messages.length, 4)
       assert.equal(snapshot.events.length, 2)
       assert.equal((await second.listNativeEvents(otherTask.id)).length, 1, 'native event count')
-      assert.equal((await second.snapshot(otherTask.id)).events.length, 1, 'native projection event count')
+      assert.equal((await second.snapshot(otherTask.id)).events.length, 2, 'native projection event count')
       assert.equal(await second.readWorkspaceFile(task.id, 'README.md'), '# Durable workspace\n')
       assert.deepEqual([...await second.readWorkspaceBytes(task.id, 'data.bin')], [0, 1, 2, 255])
       assert.equal((await second.listWorkspaceVersions(task.id)).length, 1)
+      assert.equal((await second.readProjectFile(project.id, projectFilePath, ownerUserId)).content, 'Updated durable project context.')
       assert.equal(second.verifyChain(task.id), true)
       assert.deepEqual(await second.getRetry(task.id, 'retry-1'), { state: 'completed', response: { status: 'queued', taskId: task.id } })
       assert.deepEqual((await second.listRuntimeLeases(task.id, ownerUserId)).map((candidate) => ({ status: candidate.status, generation: candidate.generation, providerSandboxId: candidate.providerSandboxId })), [{ status: 'ready', generation: 0, providerSandboxId: 'sandbox-taskstore' }])
@@ -127,4 +138,4 @@ const main = async () => {
   }
 }
 
-main().finally(() => seedSql.end({ timeout: 5 })).catch((error: unknown) => { console.error(error instanceof Error ? error.message : error); process.exitCode = 1 })
+main().finally(() => seedSql.end({ timeout: 5 })).catch((error: unknown) => { console.error(error instanceof Error ? error.stack ?? error.message : error); process.exitCode = 1 })

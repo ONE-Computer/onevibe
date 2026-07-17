@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-17 — route Postgres project knowledge through the durable repository
+
+- Project knowledge add/update/delete metadata operations now use owner-checked transaction-backed Postgres methods; current project-file bytes are durable and are rehydrated into the local cache after restart. Project context loading and text reads use Postgres in the opt-in path rather than trusting `projectsRoot`.
+- The Postgres metadata decoder now accepts the repository's JSONB string representation explicitly. This corrected a restart defect where a valid `files_json` object was interpreted as an empty project file list.
+- Claude SDK runs reconcile portable files written directly by native SDK tools back into `workspace_file`; Codex `workspace_write` now routes through `TaskStore`. Postgres startup also runs interrupted-task reconciliation, including a proof for a task whose process ended before an assistant turn existed.
+- Verification: fresh PostgreSQL 18 `npm run e2e:postgres-taskstore` passed project-file update/restart recovery, workspace byte/version compare/restore/copy recovery, native replay/conflict handling, fork history, operational owner isolation, and interrupted-task reconciliation.
+- Boundary: project-file revision bytes are not yet stored durably (metadata may describe local history), direct runtime writes are reconciled at run boundaries rather than transactionally per tool call, and attachment/preview/screenshot/object storage plus the production driver switch remain open.
+
 ## 2026-07-17 — persist Postgres workspace bytes and immutable snapshots
 
 - Added Postgres-backed task workspace files and immutable workspace-version file rows with owner-checked reads/writes, binary content, byte size, and SHA-256 content hashes. The local filesystem is now a materialized cache for the opt-in Postgres path; durable writes commit before cache refresh.
