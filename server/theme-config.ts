@@ -46,7 +46,12 @@ export const tenantThemeConfigSchema = z.object({
     logoUrl: safeUrl.optional(),
     logoAlt: z.string().trim().max(160).optional(),
     brandName: boundedLabel.optional(),
-  }).strict().default({}),
+    logoSha256: z.string().trim().regex(/^[a-f0-9]{64}$/i, 'logoSha256 must be a SHA-256 hex digest').optional(),
+  }).strict().superRefine((brand, context) => {
+    if (brand.logoUrl && /^https:\/\//i.test(brand.logoUrl) && !brand.logoSha256) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['logoSha256'], message: 'Remote logos require an integrity digest' })
+    }
+  }).default({}),
   homePage: z.object({
     heroHeadline: z.string().trim().max(180).optional(),
     heroSubheadline: z.string().trim().max(600).optional(),

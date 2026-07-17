@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, Organization, OrganizationMember, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, TenantThemeResponse, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, Organization, OrganizationMember, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, TenantThemeConfig, TenantThemeResponse, TenantThemeSummary, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 export type SkillCatalogEntry = SkillInstallation
 export type SkillOption = Pick<SkillCatalogEntry, 'id' | 'title' | 'summary' | 'source' | 'installed' | 'contentUrl'> & { selectable?: boolean }
@@ -72,6 +72,17 @@ export const listConversations = async (cursor?: string, limit = 50, query?: str
 export const getRuntimeReadiness = async () => parse<RuntimeReadiness>(await fetch('/api/runtime'))
 export const getRuntimeDiagnostics = async () => parse<RuntimeDiagnostics>(await fetch('/api/diagnostics'))
 export const getCurrentTenantTheme = async () => parse<TenantThemeResponse>(await fetch('/api/theme/current', { credentials: 'include' }))
+export const listTenantThemes = async () => parse<{ themes: TenantThemeSummary[]; persistent: boolean }>(await fetch('/api/theme', { credentials: 'include' }))
+export const getTenantTheme = async (tenantId: string) => parse<TenantThemeResponse & { organizationId: string }>(await fetch(`/api/theme/${encodeURIComponent(tenantId)}`, { credentials: 'include' }))
+export const putTenantTheme = async (tenantId: string, expectedVersion: number, config: TenantThemeConfig) => {
+  const { tenantId: _tenantId, ...browserConfig } = config
+  return parse<TenantThemeResponse & { organizationId: string }>(await fetch(`/api/theme/${encodeURIComponent(tenantId)}`, {
+    method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVersion, config: browserConfig }),
+  }))
+}
+export const resetTenantTheme = async (tenantId: string, expectedVersion: number) => parse<TenantThemeResponse & { organizationId: string }>(await fetch(`/api/theme/${encodeURIComponent(tenantId)}/reset`, {
+  method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVersion }),
+}))
 export const testRuntime = async (provider: Task['provider']) => parse<{ provider: Task['provider']; health: RuntimeHealth }>(await fetch(`/api/runtime/test/${encodeURIComponent(provider)}`, { method: 'POST' }))
 export const listLibrary = async () => parse<{ items: LibraryItem[] }>(await fetch('/api/library'))
 export const removeLibraryItem = async (taskId: string) => parse<Task>(await fetch(`/api/library/${taskId}`, { method: 'DELETE' }))

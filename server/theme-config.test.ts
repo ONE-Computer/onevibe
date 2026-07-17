@@ -21,6 +21,8 @@ describe('tenant theme contract', () => {
     expect(() => tenantThemeConfigSchema.parse({ schemaVersion: 1, tenantId: 'acme', tenantName: 'Acme', brand: { logoUrl: 'javascript:alert(1)' } })).toThrow()
     expect(() => tenantThemeConfigSchema.parse({ schemaVersion: 1, tenantId: 'acme', tenantName: 'Acme', tokens: { fontUi: 'Comic Sans' } })).toThrow()
     expect(() => tenantThemeConfigSchema.parse({ schemaVersion: 1, tenantId: 'acme', tenantName: 'Acme', homePage: { heroHeadline: 'x'.repeat(181) } })).toThrow()
+    expect(() => tenantThemeConfigSchema.parse({ schemaVersion: 1, tenantId: 'acme', tenantName: 'Acme', brand: { logoUrl: 'https://cdn.example/logo.svg' } })).toThrow(/integrity/i)
+    expect(tenantThemeConfigSchema.parse({ schemaVersion: 1, tenantId: 'acme', tenantName: 'Acme', brand: { logoUrl: 'https://cdn.example/logo.svg', logoSha256: 'a'.repeat(64) } }).brand.logoSha256).toBe('a'.repeat(64))
   })
 
   it('resolves server-controlled scope in session, deployment, host, then base order', () => {
@@ -31,4 +33,3 @@ describe('tenant theme contract', () => {
     expect(resolveTenantTheme({ configs, base, host: 'evil.example.com', hostTenantAllowList: { 'acme.example.com': 'acme' } })).toMatchObject({ source: 'base', config: base })
   })
 })
-

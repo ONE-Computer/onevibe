@@ -1,5 +1,18 @@
 # Implementation log
 
+## 2026-07-17 — truthful owner-scoped Appearance controls
+
+- Added the `Appearance` route and navigation entry. It loads tenant summaries and detail from the authenticated Postgres theme API, keeps an immediate preview local to the form, and sends real versioned Save/Reset mutations with stale-version and unauthorized/error messaging.
+- SQLite/local mode explicitly renders an unavailable state instead of pretending an appearance save works. The UI labels the current authorization boundary as organization-owner scoped; it does not claim a general admin role that the auth contract does not provide.
+- Verification: browser route smoke reached `/?view=appearance` and showed the honest local boundary. Screenshot capture was attempted twice but the browser backend timed out at `Page.captureScreenshot`; no failed capture was recorded as visual evidence.
+
+## 2026-07-17 — complete the ThemeProvider projection boundary
+
+- Corrected the runtime projection to target the semantic CSS variables consumed by the shipped UI (`--surface-*`, `--text-*`, `--accent`, `--border-*`, `--font-ui`, and bounded radius tokens). The previous prefixed variables were not wired into the actual stylesheet and therefore could not change the rendered product.
+- Added client-side defense-in-depth for CSS-token mapping, automatic cleanup on revision/unmount, and tested WCAG relative-luminance/contrast metadata (`data-tenant-nav-contrast` and `data-tenant-page-contrast`). The server schema remains authoritative and still rejects unsafe CSS primitives and non-sans-serif fonts.
+- Added a bounded image loader for `ThemeSlot`: same-origin or HTTPS only, no ambient credentials, redirect refusal, image MIME validation, 2 MiB maximum, abort/revoke cleanup, and optional SHA-256 verification. Remote logos must carry `brand.logoSha256`; no remote font loader was added because the sans-serif allow-list is the safer contract.
+- Verification: focused ThemeProvider/theme-schema tests, lint, and production build passed. Remaining P7 gates are owner/admin controls, homepage content rendering, organization-wide isolation, reference visual matrix, and deployment-time package contracts.
+
 ## 2026-07-17 — secure tenant theme persistence and server-authoritative runtime projection
 
 - Added Postgres migrations `0012_flawless_argent` and `0013_perfect_namorita` for the bounded `tenant_theme_config` record, versioned `customized` state, and append-only `tenant_theme_config_event` audit ledger. SQLite remains deliberately without a second theme authority.

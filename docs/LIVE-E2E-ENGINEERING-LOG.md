@@ -1,5 +1,11 @@
 # ONEVibe live E2E engineering log
 
+## 2026-07-17 — semantic theme projection and bounded asset acceptance
+
+- Fixed a real runtime defect: the first ThemeProvider implementation wrote `--onevibe-theme-*` variables that no shipped component consumed. It now projects only into the existing semantic CSS layer, and removes those overrides when the server theme changes or falls back.
+- Focused tests cover luminance/contrast classification and the schema requires SHA-256 integrity for remote logos. Browser asset loading is credential-free, redirect-free, MIME-checked, abortable, and capped at 2 MiB. This is client-side defense in depth, not a substitute for server-side upload/content validation.
+- Lint and production build passed. The local browser remains on the truthful unconfigured-runtime path; no fake tenant theme or browser-owned tenant selection was introduced.
+
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
 ## 2026-07-17 — tenant-theme Postgres/API/browser acceptance

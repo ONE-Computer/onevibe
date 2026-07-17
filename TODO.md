@@ -148,12 +148,12 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 ### P7-04 — Runtime ThemeProvider and asset loader (P1)
 
 - [x] Add `ThemeProvider` and `ThemeSlot` contexts that project server-authoritative configuration into the React tree without browser-owned tenant persistence.
-- [ ] Sanitize camelCase-to-CSS-token mapping, reject unsafe values, replace styles on config revision, and set nav contrast attributes from a tested luminance helper.
-- [ ] Add a bounded font/asset loader. Prefer self-hosted, integrity-checked assets; remote font loading must be explicit, allow-listed, and compatible with the sans-serif contract.
+- [x] Sanitize camelCase-to-CSS-token mapping, reject unsafe values, replace styles on config revision, and set nav/page contrast attributes from tested luminance and WCAG ratio helpers. Projection targets the semantic CSS layer actually consumed by the UI.
+- [x] Add a bounded font/asset loader. Fonts remain a sans-serif allow-list; image assets are HTTPS/same-origin only, fetched without ambient credentials, MIME-checked, capped at 2 MiB, abortable, and integrity-checked when a remote digest is configured. Remote logos require `logoSha256`.
 
 ### P7-05 — Admin appearance controls (P1)
 
-- [ ] Add an admin-only Appearance surface for palette, allowed font, radius, logo, and logo-mark changes with immediate local preview and explicit Save/Reset.
+- [x] Add a truthful owner-scoped Appearance surface for palette, allowed font, radius, and logo changes with immediate local preview and explicit versioned Save/Reset. Formal admin-role authorization and logo-mark controls remain open because the current auth contract only proves organization-owner membership.
 - [ ] Validate logo MIME/content server-side (PNG/SVG, bounded size); sanitize SVG scripts, event handlers, external references, and unsafe URL schemes.
 - [ ] Add keyboard, reduced-motion, contrast, error, optimistic-conflict, and unauthorized-state coverage.
 
