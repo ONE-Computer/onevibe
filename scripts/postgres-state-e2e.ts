@@ -33,12 +33,32 @@ const main = async () => {
     await coordinator.appendAssistantDelta(task, placeholder.id, 0, 'Durable answer.', 'streaming')
     const event = await coordinator.appendEvent(task, { id: `${taskId}:event:1`, runId: turn.id, type: 'assistant_text_delta', lane: 'transcript', content: 'Durable answer.', payload: {}, createdAt: now, previousHash: 'GENESIS', eventHash: 'a'.repeat(64) })
     assert.equal(event.sequence, 0)
+    const nativeEvent = {
+      id: `${taskId}:native:1`, conversationId: task.id, runId: turn.id, source: 'claude_agent_sdk', sourceEventId: 'sdk-1',
+      sourceSequence: 0, nativeType: 'assistant_message', payloadJson: '{"text":"Durable answer."}', payloadHash: 'b'.repeat(64), receivedAt: now.toISOString(),
+    } as const
+    await assert.rejects(() => coordinator.appendNativeEvent(task, { ...nativeEvent, id: `${taskId}:native:invalid`, payloadJson: '[]' }), /payload must be an object/)
+    await coordinator.appendNativeEvent(task, nativeEvent)
+    assert.deepEqual((await coordinator.findNativeEvent(task, turn.id, nativeEvent.source, nativeEvent.sourceEventId))?.id, nativeEvent.id)
+    assert.deepEqual((await coordinator.listNativeEvents(task, turn.id, nativeEvent.source)).map((item) => item.sourceSequence), [0])
+    assert.equal(await coordinator.findNativeEvent({ ...task, ownerUserId: 'different-owner' }, turn.id, nativeEvent.source, nativeEvent.sourceEventId), undefined)
+    await coordinator.appendNativeEventProjection(task, { nativeEventId: nativeEvent.id, projectionIndex: 0, runtimeEventId: event.id, projectorVersion: 1, projectedAt: now.toISOString() })
+    await coordinator.setNativeProjectionOffset(task, { conversationId: task.id, runId: turn.id, source: nativeEvent.source, projectorVersion: 1, lastSourceSequence: 0, updatedAt: now.toISOString() })
+    assert.equal((await coordinator.getNativeProjectionOffset(task, turn.id, nativeEvent.source, 1))?.lastSourceSequence, 0)
+    await coordinator.setNativeProjectionOffset(task, { conversationId: task.id, runId: turn.id, source: nativeEvent.source, projectorVersion: 1, lastSourceSequence: -1, updatedAt: new Date(now.getTime() + 1).toISOString() })
+    assert.equal((await coordinator.getNativeProjectionOffset(task, turn.id, nativeEvent.source, 1))?.lastSourceSequence, 0, 'projection offsets must be monotonic')
+    await assert.rejects(() => coordinator.appendNativeEvent(task, { ...nativeEvent, id: `${taskId}:native:duplicate-id`, sourceEventId: 'sdk-2' }), /conflicts with the current source cursor/)
+    await assert.rejects(() => coordinator.appendNativeEvent(task, { ...nativeEvent, id: `${taskId}:native:duplicate-sequence`, sourceEventId: 'sdk-3' }), /conflicts with the current source cursor/)
     await coordinator.finishTurn(task, turn.id, 'completed', new Date(now.getTime() + 1))
     const messages = await coordinator.listMessages(task)
     assert.deepEqual(messages.map((message) => message.role), ['user', 'assistant'])
     assert.equal(messages[1]?.content, 'Durable answer.')
     assert.equal((await coordinator.listEvents(task)).length, 1)
-    console.log(JSON.stringify({ repository: 'Postgres state coordinator', restoredTasks: restored.tasks.length, messageCount: messages.length, eventCount: 1, restartRecovery: true, limitation: 'coordinator is not yet wired into the running TaskStore/server driver' }, null, 2))
+    await coordinator.close()
+    coordinator = new PostgresStateCoordinator(databaseUrl, { maxConnections: 1 })
+    assert.deepEqual((await coordinator.listNativeEvents(task, turn.id, nativeEvent.source)).map((item) => item.id), [nativeEvent.id])
+    assert.equal((await coordinator.getNativeProjectionOffset(task, turn.id, nativeEvent.source, 1))?.lastSourceSequence, 0)
+    console.log(JSON.stringify({ repository: 'Postgres state coordinator', restoredTasks: restored.tasks.length, messageCount: messages.length, eventCount: 1, nativeEventCount: 1, nativeProjectionCount: 1, offsetSequence: 0, restartRecovery: true, limitation: 'coordinator is not yet wired into the running TaskStore/server driver' }, null, 2))
   } finally {
     await coordinator.close()
     await sql`DELETE FROM "user" WHERE id = ${ownerUserId}`

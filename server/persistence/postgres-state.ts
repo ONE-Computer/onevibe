@@ -1,3 +1,4 @@
+import type { NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset } from './contracts.js'
 import type { ChatMessage, EventInput, Project, RuntimeEvent, Task, TaskSchedule } from '../types.js'
 import { createPostgresChatRepository, type PostgresChatRepository, type PostgresChatMessage, type PostgresRuntimeEventRow } from './postgres-chat.js'
 import { createPostgresMetadataRepository, type PostgresMetadataRepository } from './postgres-metadata.js'
@@ -79,7 +80,7 @@ export class PostgresStateCoordinator {
 
   async reviseAssistant(task: Task, messageId: string, expectedRevision: number, content: unknown, status: ChatMessage['status']) {
     if (!task.ownerUserId) throw new Error('Postgres conversations require an owner')
-    return this.#chat.reviseAssistant({ conversationId: task.id, taskId: task.id, ownerUserId: task.ownerUserId, messageId, expectedRevision, delta: '', content, status })
+    return this.#chat.reviseAssistant({ conversationId: task.id, taskId: task.id, ownerUserId: task.ownerUserId, messageId, expectedRevision, content, status })
   }
 
   async finishTurn(task: Task, turnId: string, status: ChatMessage['status'], completedAt = new Date(), error?: unknown) {
@@ -101,6 +102,38 @@ export class PostgresStateCoordinator {
   async listEvents(task: Task) {
     if (!task.ownerUserId) return []
     return (await this.#chat.listRuntimeEvents(task.id, task.ownerUserId)).map(eventFromRow)
+  }
+
+  async findNativeEvent(task: Task, runId: string, source: string, sourceEventId: string) {
+    if (!task.ownerUserId) return undefined
+    return this.#chat.findNativeEvent(task.id, task.ownerUserId, runId, source, sourceEventId)
+  }
+
+  async listNativeEvents(task: Task, runId?: string, source?: string, afterSourceSequence = -1, limit = 10_000) {
+    if (!task.ownerUserId) return []
+    return this.#chat.listNativeEvents(task.id, task.ownerUserId, runId, source, afterSourceSequence, limit)
+  }
+
+  async appendNativeEvent(task: Task, record: NativeEventRecord) {
+    if (!task.ownerUserId) throw new Error('Postgres native events require an owner')
+    if (record.conversationId !== task.id) throw new Error(`Native event ${record.id} is not bound to task conversation ${task.id}`)
+    await this.#chat.appendNativeEvent(record, task.ownerUserId)
+  }
+
+  async appendNativeEventProjection(task: Task, record: NativeEventProjectionRecord) {
+    if (!task.ownerUserId) throw new Error('Postgres native event projections require an owner')
+    await this.#chat.appendNativeEventProjection(record, task.id, task.ownerUserId)
+  }
+
+  async getNativeProjectionOffset(task: Task, runId: string, source: string, projectorVersion: number) {
+    if (!task.ownerUserId) return undefined
+    return this.#chat.getNativeProjectionOffset(task.id, task.ownerUserId, runId, source, projectorVersion)
+  }
+
+  async setNativeProjectionOffset(task: Task, record: NativeProjectionOffset) {
+    if (!task.ownerUserId) throw new Error('Postgres native projection offsets require an owner')
+    if (record.conversationId !== task.id) throw new Error(`Native projection offset is not bound to task conversation ${task.id}`)
+    await this.#chat.setNativeProjectionOffset(record, task.ownerUserId)
   }
 
   async claimIdempotency(scope: string, key: string, requestHash: string, createdAt: string, ownerUserId?: string) { return this.#operations.claimIdempotency(scope, key, requestHash, createdAt, ownerUserId) }

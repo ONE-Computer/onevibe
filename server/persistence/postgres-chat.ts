@@ -1,4 +1,5 @@
 import postgres, { type Sql, type TransactionSql } from 'postgres'
+import type { NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset } from './contracts.js'
 import { RecordNotFoundError, OptimisticConflictError } from './errors.js'
 
 type ChatSql = Sql<Record<string, never>>
@@ -74,7 +75,7 @@ export type AppendAssistantDeltaInput = {
   status?: string
 }
 
-export type ReviseAssistantInput = AppendAssistantDeltaInput & { content: unknown; status: string }
+export type ReviseAssistantInput = Omit<AppendAssistantDeltaInput, 'delta' | 'status'> & { content: unknown; status: string }
 
 export type AppendRuntimeEventInput = {
   conversationId: string
@@ -97,6 +98,64 @@ type ConversationRow = { id: string; owner_user_id: string; title: string | null
 type TurnRow = { id: string; task_id: string; client_request_id: string; ordinal: number; status: string }
 type MessageRow = { id: string; task_id: string; turn_id: string | null; sequence: number; role: string; content_json: unknown; provider_message_id: string | null; revision: number; status: string; created_at: Date }
 export type PostgresRuntimeEventRow = { id: string; task_id: string; run_id: string | null; sequence: number; type: string; lane: string; status: string | null; label: string | null; content: string | null; payload_json: unknown; created_at: Date; previous_hash: string; event_hash: string }
+
+type NativeEventRow = {
+  id: string
+  task_id: string
+  run_id: string
+  source: string
+  source_event_id: string
+  source_sequence: number
+  native_type: string
+  payload_json: unknown
+  payload_hash: string
+  received_at: Date
+}
+
+type NativeProjectionOffsetRow = {
+  task_id: string
+  run_id: string
+  source: string
+  projector_version: number
+  last_source_sequence: number
+  updated_at: Date
+}
+
+const isUniqueViolation = (error: unknown) => typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505'
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const parseNativePayload = (payloadJson: string): Record<string, unknown> => {
+  let parsed: unknown
+  try { parsed = JSON.parse(payloadJson) } catch (error) { throw new TypeError(`Native event payload must be valid JSON: ${error instanceof Error ? error.message : 'invalid'}`) }
+  if (!isRecord(parsed)) throw new TypeError('Native event payload must be an object')
+  return parsed
+}
+const validateNativeCursor = (sourceSequence: number) => {
+  if (!Number.isSafeInteger(sourceSequence) || sourceSequence < 0) throw new RangeError('Native event source sequence is invalid')
+}
+const validateNativeList = (afterSourceSequence: number, limit: number) => {
+  if (!Number.isSafeInteger(afterSourceSequence) || afterSourceSequence < -1) throw new RangeError('Native event cursor is invalid')
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50_000) throw new RangeError('Native event limit is invalid')
+}
+const nativeEventFromRow = (row: NativeEventRow, conversationId: string): NativeEventRecord => ({
+  id: row.id,
+  conversationId,
+  runId: row.run_id,
+  source: row.source,
+  sourceEventId: row.source_event_id,
+  sourceSequence: row.source_sequence,
+  nativeType: row.native_type,
+  payloadJson: JSON.stringify(row.payload_json),
+  payloadHash: row.payload_hash,
+  receivedAt: row.received_at.toISOString(),
+})
+const nativeOffsetFromRow = (row: NativeProjectionOffsetRow, conversationId: string): NativeProjectionOffset => ({
+  conversationId,
+  runId: row.run_id,
+  source: row.source,
+  projectorVersion: row.projector_version,
+  lastSourceSequence: row.last_source_sequence,
+  updatedAt: row.updated_at.toISOString(),
+})
 
 const turnFromRow = (row: TurnRow, replayed: boolean): PostgresChatTurn => ({
   id: row.id,
@@ -127,6 +186,19 @@ const requireOwnerTask = async (sql: ChatSql | ChatTransaction, taskId: string, 
     FOR UPDATE
   `
   if (!rows[0]) throw new RecordNotFoundError(`Task ${taskId} does not belong to this owner conversation`)
+}
+
+const requireOwnerConversationTask = async (sql: ChatSql | ChatTransaction, conversationId: string, ownerUserId: string): Promise<string> => {
+  const rows = await sql<{ id: string }[]>`
+    SELECT t.id
+    FROM task t
+    INNER JOIN conversation c ON c.id = t.conversation_id
+    WHERE c.id = ${conversationId} AND c.owner_user_id = ${ownerUserId}
+    FOR UPDATE
+  `
+  const task = rows[0]
+  if (!task) throw new RecordNotFoundError(`Conversation ${conversationId} does not have a task for this owner`)
+  return task.id
 }
 
 const messageFromRow = (row: MessageRow): PostgresChatMessage => ({
@@ -335,6 +407,125 @@ export class PostgresChatRepository {
       ORDER BY e.sequence ASC
     `
     return rows
+  }
+
+  /**
+   * Native provider envelopes are the durable source ledger. These methods
+   * intentionally keep the conversation/owner boundary explicit: a caller
+   * cannot read or link an envelope that belongs to another owner.
+   */
+  async findNativeEvent(conversationId: string, ownerUserId: string, runId: string, source: string, sourceEventId: string): Promise<NativeEventRecord | undefined> {
+    const rows = await this.#sql<NativeEventRow[]>`
+      SELECT ne.id, ne.task_id, ne.run_id, ne.source, ne.source_event_id, ne.source_sequence,
+        ne.native_type, ne.payload_json, ne.payload_hash, ne.received_at
+      FROM native_event ne
+      INNER JOIN task t ON t.id = ne.task_id
+      INNER JOIN conversation c ON c.id = t.conversation_id
+      WHERE c.id = ${conversationId} AND c.owner_user_id = ${ownerUserId}
+        AND ne.run_id = ${runId} AND ne.source = ${source} AND ne.source_event_id = ${sourceEventId}
+    `
+    return rows[0] ? nativeEventFromRow(rows[0], conversationId) : undefined
+  }
+
+  async listNativeEvents(
+    conversationId: string,
+    ownerUserId: string,
+    runId?: string,
+    source?: string,
+    afterSourceSequence = -1,
+    limit = 10_000,
+  ): Promise<NativeEventRecord[]> {
+    validateNativeList(afterSourceSequence, limit)
+    const rows = await this.#sql<NativeEventRow[]>`
+      SELECT ne.id, ne.task_id, ne.run_id, ne.source, ne.source_event_id, ne.source_sequence,
+        ne.native_type, ne.payload_json, ne.payload_hash, ne.received_at
+      FROM native_event ne
+      INNER JOIN task t ON t.id = ne.task_id
+      INNER JOIN conversation c ON c.id = t.conversation_id
+      WHERE c.id = ${conversationId} AND c.owner_user_id = ${ownerUserId}
+        ${runId === undefined ? this.#sql`` : this.#sql`AND ne.run_id = ${runId}`}
+        ${source === undefined ? this.#sql`` : this.#sql`AND ne.source = ${source}`}
+        AND ne.source_sequence > ${afterSourceSequence}
+      ORDER BY ne.source_sequence ASC
+      LIMIT ${limit}
+    `
+    return rows.map((row) => nativeEventFromRow(row, conversationId))
+  }
+
+  async appendNativeEvent(record: NativeEventRecord, ownerUserId: string): Promise<void> {
+    validateNativeCursor(record.sourceSequence)
+    parseNativePayload(record.payloadJson)
+    try {
+      await this.#sql.begin(async (tx) => {
+        const taskId = await requireOwnerConversationTask(tx, record.conversationId, ownerUserId)
+        await tx`
+          INSERT INTO native_event (
+            id, task_id, run_id, source, source_event_id, source_sequence,
+            native_type, payload_json, payload_hash, received_at
+          ) VALUES (
+            ${record.id}, ${taskId}, ${record.runId}, ${record.source}, ${record.sourceEventId}, ${record.sourceSequence},
+            ${record.nativeType}, ${record.payloadJson}::jsonb, ${record.payloadHash}, ${new Date(record.receivedAt)}
+          )
+        `
+      })
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new OptimisticConflictError(`Native event ${record.sourceEventId} conflicts with the current source cursor`)
+      throw error
+    }
+  }
+
+  async appendNativeEventProjection(record: NativeEventProjectionRecord, conversationId: string, ownerUserId: string): Promise<void> {
+    if (!Number.isSafeInteger(record.projectionIndex) || record.projectionIndex < 0) throw new RangeError('Native event projection index is invalid')
+    if (!Number.isSafeInteger(record.projectorVersion) || record.projectorVersion < 0) throw new RangeError('Native event projector version is invalid')
+    try {
+      await this.#sql.begin(async (tx) => {
+        const rows = await tx<{ task_id: string }[]>`
+          SELECT ne.task_id
+          FROM native_event ne
+          INNER JOIN task t ON t.id = ne.task_id
+          INNER JOIN conversation c ON c.id = t.conversation_id
+          INNER JOIN runtime_event re ON re.id = ${record.runtimeEventId} AND re.task_id = ne.task_id
+          WHERE ne.id = ${record.nativeEventId} AND c.id = ${conversationId} AND c.owner_user_id = ${ownerUserId}
+          FOR UPDATE
+        `
+        if (!rows[0]) throw new RecordNotFoundError(`Native event projection ${record.nativeEventId}/${record.projectionIndex} is not owned by this conversation`)
+        await tx`
+          INSERT INTO native_event_projection (native_event_id, projection_index, runtime_event_id, projector_version, projected_at)
+          VALUES (${record.nativeEventId}, ${record.projectionIndex}, ${record.runtimeEventId}, ${record.projectorVersion}, ${new Date(record.projectedAt)})
+        `
+      })
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new OptimisticConflictError(`Native event projection ${record.nativeEventId}/${record.projectionIndex} was not appended`)
+      throw error
+    }
+  }
+
+  async getNativeProjectionOffset(conversationId: string, ownerUserId: string, runId: string, source: string, projectorVersion: number): Promise<NativeProjectionOffset | undefined> {
+    if (!Number.isSafeInteger(projectorVersion) || projectorVersion < 0) throw new RangeError('Native event projector version is invalid')
+    const rows = await this.#sql<NativeProjectionOffsetRow[]>`
+      SELECT npo.task_id, npo.run_id, npo.source, npo.projector_version, npo.last_source_sequence, npo.updated_at
+      FROM native_projection_offset npo
+      INNER JOIN task t ON t.id = npo.task_id
+      INNER JOIN conversation c ON c.id = t.conversation_id
+      WHERE c.id = ${conversationId} AND c.owner_user_id = ${ownerUserId}
+        AND npo.run_id = ${runId} AND npo.source = ${source} AND npo.projector_version = ${projectorVersion}
+    `
+    return rows[0] ? nativeOffsetFromRow(rows[0], conversationId) : undefined
+  }
+
+  async setNativeProjectionOffset(record: NativeProjectionOffset, ownerUserId: string): Promise<void> {
+    if (!Number.isSafeInteger(record.projectorVersion) || record.projectorVersion < 0) throw new RangeError('Native event projector version is invalid')
+    if (!Number.isSafeInteger(record.lastSourceSequence) || record.lastSourceSequence < -1) throw new RangeError('Native event offset is invalid')
+    await this.#sql.begin(async (tx) => {
+      const taskId = await requireOwnerConversationTask(tx, record.conversationId, ownerUserId)
+      await tx`
+        INSERT INTO native_projection_offset (task_id, run_id, source, projector_version, last_source_sequence, updated_at)
+        VALUES (${taskId}, ${record.runId}, ${record.source}, ${record.projectorVersion}, ${record.lastSourceSequence}, ${new Date(record.updatedAt)})
+        ON CONFLICT (task_id, run_id, source, projector_version)
+        DO UPDATE SET last_source_sequence = EXCLUDED.last_source_sequence, updated_at = EXCLUDED.updated_at
+        WHERE EXCLUDED.last_source_sequence >= native_projection_offset.last_source_sequence
+      `
+    })
   }
 }
 
