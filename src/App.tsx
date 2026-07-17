@@ -15,6 +15,7 @@ import { Computers } from './components/Computers'
 import { Appearance } from './components/Appearance'
 import { HomepageEditor } from './components/HomepageEditor'
 import { HomeHero } from './components/HomeHero'
+import { CapabilityCards } from './components/CapabilityCards'
 import { LoginPage } from './components/LoginPage'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ThemeProvider } from './components/ThemeProvider'
@@ -28,12 +29,6 @@ import { useComposerStore, useSessionStore, useUiStore, viewFromLocation, type A
 import type { ConversationSummary, LibraryItem, Project, RuntimeMcpConfig, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
-const starterPrompts = [
-  'Research a market, synthesise the findings, and write me a one-page brief',
-  'Build a web app I can share with my team today',
-  'Automate a repetitive workflow end-to-end — I\'ll describe what to do',
-  'Create an evidence-backed report on a topic I choose',
-]
 const AssistantThread = lazy(() => import('./components/AssistantThread').then((module) => ({ default: module.AssistantThread })))
 const canStopTask = (status: Task['status']) => status === 'running' || status === 'pending' || status === 'waiting_for_user_input' || status === 'waiting_for_approval'
 const persistSelectedSkills = (skills: TaskSkill[]) => {
@@ -401,13 +396,13 @@ export default function App() {
         </header>
 
         <AnimatePresence mode="wait">
-          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} onInstall={installMarketplaceSkill} onRemove={removeMarketplaceSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} onRemove={hideLibraryItem} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} runtime={runtime} mcpConfigs={mcpConfigs} onCreateMcpConfig={addMcpConfig} onDeleteMcpConfig={removeMcpConfig} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} onDelete={removeSchedule} runtime={runtime} /></motion.section> : view === 'appearance' ? <motion.section key="appearance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Appearance summaries={themeAdminQuery.data?.themes ?? []} persistent={themeAdminQuery.data?.persistent ?? false} onChanged={() => { void queryClient.invalidateQueries({ queryKey: ['theme'] }) }} /></motion.section> : view === 'homepage' ? <motion.section key="homepage" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><HomepageEditor summaries={themeAdminQuery.data?.themes ?? []} persistent={themeAdminQuery.data?.persistent ?? false} onChanged={() => { void queryClient.invalidateQueries({ queryKey: ['theme'] }) }} /></motion.section> : !activeTaskId ? (
+          {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} onInstall={installMarketplaceSkill} onRemove={removeMarketplaceSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} onRemove={hideLibraryItem} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} runtime={runtime} mcpConfigs={mcpConfigs} onCreateMcpConfig={addMcpConfig} onDeleteMcpConfig={removeMcpConfig} locale={locale} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} onDelete={removeSchedule} runtime={runtime} /></motion.section> : view === 'appearance' ? <motion.section key="appearance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Appearance summaries={themeAdminQuery.data?.themes ?? []} persistent={themeAdminQuery.data?.persistent ?? false} onChanged={() => { void queryClient.invalidateQueries({ queryKey: ['theme'] }) }} /></motion.section> : view === 'homepage' ? <motion.section key="homepage" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><HomepageEditor summaries={themeAdminQuery.data?.themes ?? []} persistent={themeAdminQuery.data?.persistent ?? false} onChanged={() => { void queryClient.invalidateQueries({ queryKey: ['theme'] }) }} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="home-content">
                 <HomeHero name={authState?.session?.user.name?.trim() || authState?.session?.user.email.split('@')[0] || 'there'} recentConversations={conversations} onSelectTask={navigateToTask} locale={locale} />
                 {runtime && !runtime.providers.some((candidate) => candidate.available && candidate.id !== 'demo') && <div className="setup-banner" role="status"><TriangleAlert size={14} /><span><strong>No governed runtime configured</strong><small>Set the protected ONEVIBE_LITELLM_URL and ONEVIBE_LITELLM_API_KEY, or configure a governed sandbox runtime.</small></span></div>}
                 <PromptComposer busy={creating} skills={selectedSkills} runtime={runtime} initialProvider={preferredProvider} onSubmit={startTask} />
-                <div className="starter-prompts">{starterPrompts.map((prompt) => <button key={prompt} onClick={() => void startTask(prompt)}>{prompt}<span>↗</span></button>)}</div>
+                <CapabilityCards locale={locale} onStart={(prompt) => void startTask(prompt)} />
               </div>
             </motion.section>
           ) : (

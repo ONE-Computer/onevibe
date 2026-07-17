@@ -7,6 +7,7 @@
 ### Added
 - Streaming cursor (`src/components/AssistantThread.tsx`, `src/index.css`): blinking caret (`.streaming-cursor`) rendered at the end of the actively-streaming assistant text part, replacing the always-on bottom typing dots while text streams; respects `prefers-reduced-motion`
 - Computers view i18n (`src/components/Computers.tsx`, `src/lib/i18n.ts`): user-visible strings routed through the typed en/zh dictionary with `{minutes}`/`{time}`/`{healthy}`/`{total}`/`{count}`/`{latency}` interpolation; technical identifiers (LiteLLM, MCP, env vars, placeholders, server-provided detail strings) intentionally untranslated
+- Capability cards on the home view (`src/components/CapabilityCards.tsx`): starter prompt list replaced by three icon cards (Research/Build/Automate) whose en/zh titles, descriptions, and prompts come from the i18n dictionary; token-only styling with a reduced-motion-safe hover lift; also passes the `locale` prop through to `Computers`
 
 ### Changed
 - Add CSS motion tokens (`--duration-instant/fast/normal/slow`, `--ease-standard/decelerate/accelerate/spring`) to `:root` in `src/index.css`
