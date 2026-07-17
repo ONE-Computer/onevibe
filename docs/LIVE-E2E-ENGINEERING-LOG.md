@@ -2,6 +2,12 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — two-instance Postgres event/SSE proof
+
+- Commit `e49e818` was verified against PostgreSQL 18 with two independently constructed TaskStore instances sharing one task. Concurrent writers produced distinct contiguous event sequences, canonical IDs, and a valid evidence chain after durable refresh.
+- A listener registered on instance A received a `Cross-instance writer` event committed by instance B through the Postgres-backed 250 ms polling fallback. The poller deduplicates by durable sequence and is stopped on unsubscribe; it swallows transient read errors and retries rather than exposing database details.
+- This closes the TaskStore-level cross-instance notification proof. The HTTP-level authenticated SSE test, deployment-level polling/broker tuning, and broader workflow idempotency remain open.
+
 ## 2026-07-17 — import/export durability and browser evidence
 
 - `npm run e2e:postgres-import` passed against the local PostgreSQL 18 container after applying the full Drizzle ledger. The fixture imported a binary workspace file, a private `inputs/` file, a workspace snapshot, a project file plus revision, one native Claude SDK envelope, its runtime projection link, and its monotonic source offset; a fresh Postgres TaskStore recovered the bytes and metadata after the importer exited.

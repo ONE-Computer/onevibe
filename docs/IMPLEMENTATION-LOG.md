@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-17 — harden Postgres event allocation and cross-instance live delivery
+
+- Commit `e49e818` moves ordinary Postgres runtime-event identity into the database transaction: the transaction locks the owner conversation, allocates the next sequence, derives the canonical `${taskId}:event:${sequence}` ID, previous hash, and event hash, and ignores stale process-local identity hints from legacy callers.
+- Postgres TaskStore subscriptions retain the in-process low-latency emitter and add bounded 250 ms durable polling. A subscriber connected to one TaskStore instance now receives events committed by a second instance, with sequence deduplication and cleanup on unsubscribe. This is a durable polling proof, not a claim that a broker/LISTEN-NOTIFY deployment has been selected.
+- Extended `npm run e2e:postgres-taskstore` with two-instance concurrent event allocation, valid chain verification after refresh, and cross-instance live delivery. The disposable PostgreSQL 18 run reports `concurrentEventAllocation=true`.
+- Verification: `npm run lint`, `npm run check:e2e-harness`, `npm run e2e:postgres-taskstore`, `npm run e2e:postgres-chat`, and `npm run e2e:postgres-state` passed. Full HTTP authenticated multi-instance SSE acceptance remains open.
+
 ## 2026-07-17 — prove byte-complete legacy import surfaces and browser truthfulness
 
 - Extended `db:import` to carry workspace file bytes, immutable workspace-version bytes, current project-file bytes, project revision bytes, native-event projection links, and native projection offsets into the reviewed Postgres tables. Existing task metadata still carries attachment descriptors; private `inputs/` bytes are retained in the imported workspace but remain excluded from the portable public export by policy.
