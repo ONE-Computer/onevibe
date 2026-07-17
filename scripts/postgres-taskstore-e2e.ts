@@ -24,7 +24,7 @@ const main = async () => {
     const projectWithFile = await first.addProjectFile(project.id, { name: 'context.md', mimeType: 'text/markdown', bytes: Buffer.from('Durable project context.') }, ownerUserId)
     const projectFilePath = projectWithFile.files[0]!.path
     const projectFileBefore = await first.readProjectFile(project.id, projectFilePath, ownerUserId)
-    await first.updateProjectFile(project.id, projectFilePath, 'Updated durable project context.', projectFileBefore.contentHash, ownerUserId)
+    const savedProjectFile = await first.updateProjectFile(project.id, projectFilePath, 'Updated durable project context.', projectFileBefore.contentHash, ownerUserId)
     const task = await first.createTask('Say hello from the Postgres TaskStore.', 'claude_sdk', 'chat', project.id, undefined, [], [], [], ownerUserId)
     const otherTask = await first.createTask('Lease identity fence boundary.', 'onecomputer', 'chat', project.id, undefined, [], [], [], ownerUserId)
     const recoveryTask = await first.createTask('Recover an interrupted Postgres task.', 'claude_sdk', 'chat', project.id, undefined, [], [], [], ownerUserId)
@@ -108,6 +108,10 @@ const main = async () => {
       assert.deepEqual([...await second.readWorkspaceBytes(task.id, 'data.bin')], [0, 1, 2, 255])
       assert.equal((await second.listWorkspaceVersions(task.id)).length, 1)
       assert.equal((await second.readProjectFile(project.id, projectFilePath, ownerUserId)).content, 'Updated durable project context.')
+      const projectVersions = second.listProjectFileVersions(project.id, projectFilePath, ownerUserId)
+      assert.equal(projectVersions.length, 1)
+      const restoredProjectFile = await second.restoreProjectFileVersion(project.id, projectFilePath, projectVersions[0]!.id, savedProjectFile.contentHash, ownerUserId)
+      assert.equal(restoredProjectFile.content, 'Durable project context.')
       assert.equal(second.verifyChain(task.id), true)
       assert.deepEqual(await second.getRetry(task.id, 'retry-1'), { state: 'completed', response: { status: 'queued', taskId: task.id } })
       assert.deepEqual((await second.listRuntimeLeases(task.id, ownerUserId)).map((candidate) => ({ status: candidate.status, generation: candidate.generation, providerSandboxId: candidate.providerSandboxId })), [{ status: 'ready', generation: 0, providerSandboxId: 'sandbox-taskstore' }])
@@ -128,7 +132,7 @@ const main = async () => {
       assert.equal(fork.parentTaskId, task.id)
       assert.equal((await second.snapshot(fork.id)).messages.length, 3)
       assert.equal(await second.readWorkspaceFile(fork.id, 'README.md'), '# Durable workspace\n')
-      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, workspaceBytesRestartRecovery: true, workspaceVersionRestore: true, workspaceForkCopy: true, standaloneMessageRestartRecovery: true, nativeAtomicReplayAndConflict: true, nativeRestartRecovery: true, forkHistoryAtomic: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'opt-in core slice only; production driver selection remains fail-closed until the full async TaskStore surface is integrated' }, null, 2))
+      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, projectFileRestartRecovery: true, projectRevisionRestore: true, workspaceBytesRestartRecovery: true, workspaceVersionRestore: true, workspaceForkCopy: true, interruptedTaskReconciliation: true, standaloneMessageRestartRecovery: true, nativeAtomicReplayAndConflict: true, nativeRestartRecovery: true, forkHistoryAtomic: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'Postgres is opt-in; project revisions are durable; remaining workflow idempotency, cross-instance live SSE, import/export byte round trips, and production deployment controls remain open' }, null, 2))
     } finally {
       await second.close()
     }

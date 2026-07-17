@@ -57,6 +57,13 @@
       "when": 1784258056031,
       "tag": "0007_funny_forgotten_one",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784258917454,
+      "tag": "0008_slippery_gauntlet",
+      "breakpoints": true
     }
   ]
 }

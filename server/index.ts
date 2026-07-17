@@ -53,7 +53,7 @@ const persistenceConfig = resolvePersistenceConfig()
 // remains server-only and is never copied into task evidence.
 const claudeProvider = claudeProviderConfig()
 const claudeConfigured = claudeProvider.configured
-const store = new TaskStore()
+const store = new TaskStore(undefined, { driver: persistenceConfig.active, databaseUrl: process.env.DATABASE_URL })
 let authService: AuthService | undefined
 const activeRuns = new Map<string, AbortController>()
 const activeAdapters = new Map<string, RuntimeAdapter>()
@@ -378,11 +378,15 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   const publicReadOnly = request.method === 'GET' && (url.pathname === '/api/runtime' || url.pathname.startsWith('/api/shares/'))
   const actorUserId = authService?.isEnabled && !publicReadOnly ? (await authService.getSession(request))?.user.id : undefined
   if (authService?.isEnabled && !publicReadOnly && !actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
+  if (persistenceConfig.active === 'postgres' && !actorUserId && !publicReadOnly && url.pathname !== '/api/runtime' && url.pathname !== '/api/diagnostics') {
+    return json(response, 401, { error: 'Authenticated owner scope is required for Postgres-backed data', code: 'owner_scope_required' })
+  }
+  await store.refreshPostgresState(actorUserId)
   if (request.method === 'GET' && url.pathname === '/api/runtime') return json(response, 200, await runtimeSnapshot())
   if (request.method === 'GET' && url.pathname === '/api/diagnostics') {
     const readiness = await runtimeSnapshot()
     const reachable = await oneComputerReachability()
-    const mcpConfigs = await store.listMcpConfigs(actorUserId)
+    const mcpConfigs = actorUserId ? await store.listMcpConfigs(actorUserId) : []
     const mcpChecks = await Promise.all(mcpConfigs.map(async (config) => ({ name: config.name, ...(await probeMcpConfig({ ...config, env: {} })) })))
     const healthyMcpCount = mcpChecks.filter((check) => check.status === 'online').length
     return json(response, 200, {
@@ -911,7 +915,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
 }
 
 await store.initialize()
-authService = new AuthService(store.databaseHandle())
+authService = new AuthService(store.authDatabaseHandle(), store.authDatabaseDriver())
 await authService.initialize()
 void runtimeSnapshot().catch(() => undefined)
 const dispatchSchedule = async (schedule: TaskSchedule, trigger: 'scheduled' | 'manual') => {

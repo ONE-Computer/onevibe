@@ -4,6 +4,7 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 
 ## 2026-07-17 — Postgres native-event and browser verification pass
 
+- A disposable PostgreSQL 18 server booted with `DATABASE_URL` and the reviewed driver selection. `npm run e2e:postgres-http` verified `/api/health`, bounded `/api/diagnostics` reporting `persistence.active=postgres`, direct first-party routing disabled, and `401 owner_scope_required` for unauthenticated `/api/tasks`. This proves the cutover and rejection boundary, not authenticated multi-user production acceptance.
 - The opt-in TaskStore proof now stores task workspace text and binary bytes in Postgres, creates an immutable version snapshot, compares the changed workspace against that snapshot, restores it transactionally, hydrates the local cache after restart, and copies it into a fork. The compare path reads version rows directly, so it does not depend on a surviving local `versions/` directory.
 - The same proof now adds and edits a text project knowledge file through the Postgres repository, closes/reopens the coordinator, and reads the updated bytes from Postgres-backed project metadata/content. A JSONB representation issue was fixed after the first restart attempt returned an empty file catalog.
 - Claude SDK native workspace writes are reconciled into the durable workspace ledger after a run; Codex workspace writes use the TaskStore boundary. This is a run-boundary reconciliation proof, not per-tool-call crash atomicity.

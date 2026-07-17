@@ -1,17 +1,16 @@
 export type PersistenceDriver = 'sqlite' | 'postgres'
 
 export type PersistenceConfig = {
-  active: 'sqlite'
+  active: PersistenceDriver
   postgresContract: true
-  runtimeSwitchReady: false
+  runtimeSwitchReady: boolean
   detail: string
 }
 
 /**
- * Resolve persistence before opening the local store. The Postgres contract
- * exists, but no async TaskStore repository adapter exists yet. Refusing a
- * Postgres selection prevents DATABASE_URL from creating a misleading mixed
- * deployment where the app silently continues writing to SQLite.
+ * Resolve persistence before opening the store. Postgres is opt-in through an
+ * explicit driver or DATABASE_URL; SQLite cannot start while a database URL is
+ * present because that would create a misleading mixed deployment.
  */
 export const resolvePersistenceConfig = (env: NodeJS.ProcessEnv = process.env): PersistenceConfig => {
   const hasDatabaseUrl = Boolean(env.DATABASE_URL?.trim())
@@ -20,15 +19,19 @@ export const resolvePersistenceConfig = (env: NodeJS.ProcessEnv = process.env): 
     throw new Error(`Unsupported ONEVIBE_PERSISTENCE_DRIVER '${requested}'. Choose sqlite or postgres.`)
   }
   if (requested === 'postgres') {
-    throw new Error('Postgres persistence was requested, but the TaskStore Postgres repository adapter is not ready; refusing to start on a mixed or misleading driver.')
+    if (!hasDatabaseUrl) throw new Error('Postgres persistence requires DATABASE_URL; refusing to start without an explicit database connection.')
+    return {
+      active: 'postgres', postgresContract: true, runtimeSwitchReady: true,
+      detail: 'The running TaskStore uses the reviewed owner-scoped Postgres repository; local workspace files are materialized caches and the migration ledger must be applied before startup.',
+    }
   }
   if (hasDatabaseUrl) {
-    throw new Error('DATABASE_URL is set while SQLite was selected, but the TaskStore Postgres repository adapter is not ready; refusing to start on mixed persistence.')
+    throw new Error('DATABASE_URL is set while SQLite was selected; refusing to start on mixed persistence. Set ONEVIBE_PERSISTENCE_DRIVER=postgres.')
   }
   return {
     active: 'sqlite',
     postgresContract: true,
     runtimeSwitchReady: false,
-    detail: 'The running TaskStore uses local SQLite; the reviewed Drizzle/Postgres contract is not the active runtime driver.',
+    detail: 'The running TaskStore uses local SQLite; Postgres remains opt-in through ONEVIBE_PERSISTENCE_DRIVER=postgres and DATABASE_URL.',
   }
 }

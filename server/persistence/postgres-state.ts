@@ -296,6 +296,10 @@ export class PostgresStateCoordinator {
     return this.#workspace.updateProjectFileAndMetadata(project, expectedUpdatedAt, relativePath, content, sha256, nextProject)
   }
 
+  async readProjectFileVersion(project: Project, ownerUserId: string, relativePath: string, versionId: string) {
+    return this.#workspace.readProjectFileVersion(project.id, ownerUserId, relativePath, versionId)
+  }
+
   async deleteProjectFile(project: Project, ownerUserId: string, relativePath: string) {
     return this.#workspace.deleteProjectFile(project.id, ownerUserId, relativePath)
   }
@@ -397,17 +401,15 @@ export class PostgresStateCoordinator {
   }
 
   async claimIdempotency(scope: string, key: string, requestHash: string, createdAt: string, ownerUserId?: string): Promise<{ claimed: boolean; state: 'pending' | 'completed'; response?: Record<string, unknown> }> {
+    const claimed = await this.#operations.claimIdempotency(scope, key, requestHash, createdAt, ownerUserId)
+    if (claimed) return { claimed: true, state: 'pending' }
     const existing = await this.#operations.findIdempotency(scope, key)
-    if (existing) {
-      await this.#operations.claimIdempotency(scope, key, requestHash, createdAt, ownerUserId)
-      return {
-        claimed: false,
-        state: existing.state,
-        ...(existing.responseJson ? { response: JSON.parse(existing.responseJson) as Record<string, unknown> } : {}),
-      }
+    if (!existing) throw new RecordNotFoundError(`Idempotency key ${scope}/${key} is missing after a conflict`)
+    return {
+      claimed: false,
+      state: existing.state,
+      ...(existing.responseJson ? { response: JSON.parse(existing.responseJson) as Record<string, unknown> } : {}),
     }
-    await this.#operations.claimIdempotency(scope, key, requestHash, createdAt, ownerUserId)
-    return { claimed: true, state: 'pending' }
   }
   async findIdempotency(scope: string, key: string) { return this.#operations.findIdempotency(scope, key) }
   async completeIdempotency(scope: string, key: string, responseJson: string, completedAt: string) { return this.#operations.completeIdempotency(scope, key, responseJson, completedAt) }

@@ -276,6 +276,16 @@ export const projectFile = pgTable('project_file', {
   updatedAt: updatedAt(),
 }, (table) => [primaryKey({ columns: [table.projectId, table.path] }), index('project_file_updated_idx').on(table.projectId, table.updatedAt)])
 
+export const projectFileVersion = pgTable('project_file_version', {
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  path: text('path').notNull(),
+  id: text('id').notNull(),
+  content: binary('content').notNull(),
+  size: integer('size').notNull(),
+  sha256: text('sha256').notNull(),
+  createdAt: createdAt(),
+}, (table) => [primaryKey({ columns: [table.projectId, table.path, table.id] }), index('project_file_version_created_idx').on(table.projectId, table.path, table.createdAt)])
+
 export const runtimeMcpConfig = pgTable('runtime_mcp_config', {
   id: text('id').primaryKey(),
   ownerUserId: text('owner_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
@@ -326,4 +336,4 @@ export const skillInstallation = pgTable('skill_installations', {
 
 export const orgTables = { org, orgMember }
 export const authTables = { user, session, account, verification }
-export const oneVibeTables = { conversation, project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, runtimeLease, schedule, workspaceVersion, runtimeMcpConfig, runtimeMcpConfigEvent, legacyImport, skillInstallation }
+export const oneVibeTables = { conversation, project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, runtimeLease, schedule, workspaceVersion, workspaceFile, workspaceVersionFile, projectFile, projectFileVersion, runtimeMcpConfig, runtimeMcpConfigEvent, legacyImport, skillInstallation }

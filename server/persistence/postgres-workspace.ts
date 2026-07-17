@@ -9,6 +9,7 @@ type WorkspaceFileRow = { path: string; content: Buffer; size: number; sha256: s
 type WorkspaceVersionRow = { id: string; task_id: string; label: string; created_at: Date; file_count: number; evidence_hash: string }
 type WorkspaceSnapshotFileRow = { path: string; content: Buffer; size: number; sha256: string }
 type WorkspaceSnapshotFileWithVersionRow = WorkspaceSnapshotFileRow & { created_at: Date }
+type ProjectFileVersionRow = { path: string; id: string; content: Buffer; size: number; sha256: string; created_at: Date }
 const projectFilesJson = (project: Project) => JSON.stringify({ files: project.files, fileVersions: project.fileVersions ?? {} })
 
 const versionFromRow = (row: WorkspaceVersionRow): WorkspaceVersion => ({
@@ -174,7 +175,52 @@ export class PostgresWorkspaceRepository {
   }
 
   async updateProjectFileAndMetadata(project: Project, expectedUpdatedAt: string, relativePath: string, content: Uint8Array, sha256: string, nextProject: Project): Promise<PostgresWorkspaceFileRecord> {
-    return this.putProjectFileAndMetadata(project, expectedUpdatedAt, relativePath, content, sha256, nextProject)
+    const bytes = Buffer.from(content)
+    const ownerUserId = project.ownerUserId
+    if (!ownerUserId) throw new Error('Postgres project files require an owner')
+    return this.#sql.begin(async (tx) => {
+      await requireProject(tx, project.id, ownerUserId)
+      const currentRows = await tx<WorkspaceFileRow[]>`SELECT path, content, size, sha256, updated_at FROM project_file WHERE project_id = ${project.id} AND path = ${relativePath}`
+      const current = currentRows[0]
+      if (!current) throw new RecordNotFoundError(`Project file ${relativePath} does not exist`)
+      const version = nextProject.fileVersions?.[relativePath]?.[0]
+      if (version) {
+        await tx`
+          INSERT INTO project_file_version (project_id, path, id, content, size, sha256, created_at)
+          VALUES (${project.id}, ${relativePath}, ${version.id}, ${current.content}, ${current.size}, ${current.sha256}, ${new Date(version.createdAt)})
+          ON CONFLICT (project_id, path, id) DO NOTHING
+        `
+      }
+      const rows = await tx<WorkspaceFileRow[]>`
+        UPDATE project_file SET content = ${bytes}, size = ${bytes.byteLength}, sha256 = ${sha256}, updated_at = ${new Date(nextProject.updatedAt)}
+        WHERE project_id = ${project.id} AND path = ${relativePath}
+        RETURNING path, content, size, sha256, updated_at
+      `
+      const metadata = await tx`
+        UPDATE project SET files_json = ${projectFilesJson(nextProject)}::jsonb, updated_at = ${new Date(nextProject.updatedAt)}
+        WHERE id = ${project.id} AND owner_user_id = ${ownerUserId} AND updated_at = ${new Date(expectedUpdatedAt)}
+      `
+      if (metadata.count !== 1) throw new OptimisticConflictError(`Project ${project.id} was modified concurrently`)
+      const staleVersions = await tx<{ id: string }[]>`
+        SELECT id FROM project_file_version WHERE project_id = ${project.id} AND path = ${relativePath}
+        ORDER BY created_at DESC OFFSET 10
+      `
+      for (const stale of staleVersions) await tx`DELETE FROM project_file_version WHERE project_id = ${project.id} AND path = ${relativePath} AND id = ${stale.id}`
+      if (!rows[0]) throw new OptimisticConflictError(`Project file ${relativePath} was not persisted`)
+      return fileFromRow(rows[0])
+    })
+  }
+
+  async readProjectFileVersion(projectId: string, ownerUserId: string, relativePath: string, versionId: string): Promise<PostgresWorkspaceFileRecord> {
+    await requireProject(this.#sql, projectId, ownerUserId)
+    const rows = await this.#sql<ProjectFileVersionRow[]>`
+      SELECT path, id, content, size, sha256, created_at
+      FROM project_file_version
+      WHERE project_id = ${projectId} AND path = ${relativePath} AND id = ${versionId}
+    `
+    const row = rows[0]
+    if (!row) throw new RecordNotFoundError(`Project file revision ${versionId} does not exist`)
+    return fileFromRow({ path: row.path, content: row.content, size: row.size, sha256: row.sha256, updated_at: row.created_at })
   }
 
   async deleteProjectFile(projectId: string, ownerUserId: string, relativePath: string): Promise<boolean> {
@@ -189,6 +235,7 @@ export class PostgresWorkspaceRepository {
     return this.#sql.begin(async (tx) => {
       await requireProject(tx, project.id, ownerUserId)
       const result = await tx`DELETE FROM project_file WHERE project_id = ${project.id} AND path = ${relativePath}`
+      await tx`DELETE FROM project_file_version WHERE project_id = ${project.id} AND path = ${relativePath}`
       const metadata = await tx`
         UPDATE project SET files_json = ${projectFilesJson(nextProject)}::jsonb, updated_at = ${new Date(nextProject.updatedAt)}
         WHERE id = ${project.id} AND owner_user_id = ${ownerUserId} AND updated_at = ${new Date(expectedUpdatedAt)}

@@ -393,6 +393,12 @@ export class TaskStore {
     return this.database
   }
 
+  authDatabaseHandle() {
+    return this.postgresState ? this.postgresState.databaseHandle() : this.databaseHandle()
+  }
+
+  authDatabaseDriver(): 'sqlite' | 'postgres' { return this.postgresState ? 'postgres' : 'sqlite' }
+
   async close() {
     if (this.postgresState) {
       await this.postgresState.close()
@@ -401,6 +407,27 @@ export class TaskStore {
     this.database?.close()
     this.database = undefined
     this.unitOfWork = undefined
+  }
+
+  /** Refresh the process-local read projection from the Postgres source of truth. */
+  async refreshPostgresState(ownerUserId?: string) {
+    if (!this.postgresState) return
+    const state = await this.postgresState.load(ownerUserId)
+    for (const project of state.projects) this.projects.set(project.id, project)
+    for (const task of state.tasks) {
+      task.mode ??= 'general'
+      task.skills ??= []
+      task.tags ??= []
+      task.queuedGuidance = (task.queuedGuidance ?? []).map((guidance) => ({ ...guidance, attachmentPaths: guidance.attachmentPaths ?? [] }))
+      task.projectId ??= 'project_onevibe'
+      task.references ??= []
+      task.attachments ??= []
+      this.tasks.set(task.id, task)
+      this.events.set(task.id, state.events.get(task.id) ?? [])
+      this.messages.set(task.id, state.messages.get(task.id) ?? [])
+    }
+    for (const schedule of state.schedules) this.schedules.set(schedule.id, schedule)
+    for (const [messageId, revision] of state.messageRevisions) this.postgresMessageRevisions.set(messageId, revision)
   }
 
   async listMcpConfigs(ownerUserId?: string): Promise<RuntimeMcpConfig[]> {
@@ -733,6 +760,11 @@ export class TaskStore {
     const project = this.getProject(projectId, ownerUserId)
     const version = this.listProjectFileVersions(projectId, filePath, ownerUserId).find((candidate) => candidate.id === versionId)
     if (!version) throw new Error('Project knowledge revision not found')
+    if (this.postgresState) {
+      if (!project.ownerUserId) throw new Error('Postgres project files require an owner')
+      const stored = await this.postgresState.readProjectFileVersion(project, project.ownerUserId, filePath, version.id)
+      return this.updateProjectFile(projectId, filePath, stored.content.toString('utf8'), expectedHash, ownerUserId)
+    }
     const root = path.join(this.projectsRoot, project.id)
     const source = projectVersionPath(root, filePath, version.id)
     assertWithin(root, source)

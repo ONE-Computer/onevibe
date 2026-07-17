@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-17 — enable the controlled Postgres server cutover
+
+- Added migration `0008_slippery_gauntlet.sql` and `project_file_version` byte storage. Project-file update/restore now writes and reads revision bytes transactionally with current project metadata; the TaskStore proof covers revision recovery after coordinator restart.
+- `resolvePersistenceConfig` now selects the reviewed Postgres TaskStore when `ONEVIBE_PERSISTENCE_DRIVER=postgres` and `DATABASE_URL` are present, while rejecting ambiguous SQLite-plus-`DATABASE_URL` startup. The server passes the selected Postgres Drizzle handle and driver into Better Auth rather than constructing SQLite-only auth.
+- Added `TaskStore.refreshPostgresState` at the HTTP boundary so synchronous legacy read methods are refreshed from the Postgres source of truth before serving a request. When Postgres is selected, unauthenticated data-plane routes return `401 owner_scope_required`; public health/runtime/diagnostics remain bounded and do not expose owner data.
+- Added `npm run e2e:postgres-http`, which starts against the real server cutover and verifies Postgres diagnostics, runtime readiness, and owner-scope rejection. A disposable PostgreSQL 18 run passed alongside `npm run e2e:postgres-taskstore`.
+- Boundary: this is a controlled opt-in runtime, not a production-readiness claim. Attachment/import/export byte round trips, complete workflow idempotency/concurrency, cross-instance live SSE, production email delivery, and managed deployment operations remain open.
+
 ## 2026-07-17 — route Postgres project knowledge through the durable repository
 
 - Project knowledge add/update/delete metadata operations now use owner-checked transaction-backed Postgres methods; current project-file bytes are durable and are rehydrated into the local cache after restart. Project context loading and text reads use Postgres in the opt-in path rather than trusting `projectsRoot`.
