@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — lease and provider-unknown recovery proof
+
+- `npm run e2e:follow-up-recovery` now exercises two independent crash boundaries against the same temporary SQLite root. A crash immediately after preparation exits `97` and recovers exactly one four-message follow-up with one attachment; a crash after the durable provider-start marker exits `98`.
+- After the provider-start crash, restart marks the task `failed` with an explicit unknown external outcome. Replaying the same keyed request returns `409`, while `POST /api/tasks/:id/messages/reconcile` with `acknowledge_unknown` returns `200` and `retried=false`. No automatic provider replay is performed.
+- The operation journal persists a stable execution ID, provider-request correlation ID, lease owner/expiry, attempt count, and provider state. These IDs are opaque correlation values; the local proof does not claim that LiteLLM or an upstream model provider deduplicates requests.
+- Boundary: this is local SQLite failure-injection evidence. Postgres migration/runtime acceptance, provider-side idempotency, lease heartbeat/renewal, transactional attachment/task persistence, cloud sandbox attestation, and production deployment controls remain open.
+
 ## 2026-07-17 — follow-up operation crash recovery proof
 
 - `npm run e2e:follow-up-recovery` started a fresh API against a temporary SQLite root, completed an initial demo task, injected a development-only process exit immediately after the follow-up operation journal was persisted, then restarted the API against the same root.

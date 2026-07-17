@@ -1,5 +1,14 @@
 # Implementation log
 
+## 2026-07-17 — durable follow-up leases, provider correlation, and unknown-outcome acknowledgment
+
+- Added SQLite migration v11 and Postgres migration 0010 for lease owner/expiry, attempt count, stable execution identity, provider-request correlation identity, and explicit provider state (`not_started`, `started`, `succeeded`, `failed`, `unknown`). The reviewed Postgres ledger now contains eleven migrations.
+- Keyed follow-ups claim an expiring durable lease atomically before scheduling execution. A restart safely reclaims a lease that had not crossed the provider boundary; an operation durably marked `started` is failed closed with `PROVIDER_OUTCOME_UNKNOWN` and is never automatically replayed.
+- `RunContext` now carries stable execution/provider-request identities. Codex sends opaque relay headers and OpenAI-compatible metadata through LiteLLM; remote/AgentCore forwards the identities; Claude receives server-controlled correlation environment values. These are correlation values, not provider-side idempotency proof.
+- Added explicit `POST /api/tasks/:id/messages/reconcile` acknowledgment for unknown provider outcomes. It records that the outcome was acknowledged and returns `retried: false`; it cannot authorize an automatic replay.
+- Added provider-unknown failure injection to `npm run e2e:follow-up-recovery`: preparation crash exits 97 and recovers one four-message follow-up; provider-start crash exits 98, restart fails the task, keyed replay returns 409, and explicit acknowledgment returns 200 without retry. Full local verification passed with 56 test files / 270 tests, lint, build, and `npm run db:check`.
+- Boundary: the relay/provider may still execute a request twice after a lost response because provider-side idempotency is not verified. Attachment/task metadata and bytes still require a transactional persistence boundary, and lease heartbeat/renewal plus production deployment controls remain open.
+
 ## 2026-07-17 — durable follow-up operation journal and restart recovery
 
 - Added SQLite migration v10 and Postgres migration 0009 for `follow_up_operation`, with normalized request payload, deterministic client key/hash, execution mode, guidance/turn identity, accepted response, timestamps, and explicit `prepared`/`ready`/`running`/`completed`/`failed` states.
