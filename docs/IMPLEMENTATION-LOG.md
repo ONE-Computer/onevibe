@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-17 — reference profiles and executable theme acceptance gate
+
+- Added three fixture-only profiles (`reference-institutional`, `reference-financial`, and `reference-philanthropic`) with safe content, WCAG-passing navigation/page color pairs, no customer credentials/assets, and the sans-serif-only font contract.
+- Added `npm run e2e:themes`. Its static half validates base fallback, server-derived scope precedence, profile uniqueness, contrast, content/credential boundaries, reduced motion, and asset-loader invariants. Its persistence half requires `DATABASE_URL` and delegates to the real authenticated Postgres HTTP harness instead of simulating storage.
+- Disposable Postgres acceptance passed: migrations applied through 14, Better Auth OTP delivery, owner/member isolation, theme versions 1→3, three audit events, optimistic conflict `409`, member write `403`, member read `404`, restart-aware API proof, task creation after theme operations, and `directFirstPartyAllowed=false`.
+- Remaining matrix gates are rendered desktop/mobile/light/dark/keyboard/reduced-motion/no-overflow browser evidence for each profile, formal admin-role authorization, full theme/runtime/artifact invariance, and deployment-time package/asset operations.
+
 ## 2026-07-17 — typed tenant homepage content and owner editor
 
 - Wired `TenantThemeConfig.homePage` into the real home surface: bounded announcement text/links, hero copy, and allow-listed feature-card accents render through typed React elements. Tenant navigation items are rendered as validated links; no arbitrary HTML, icon names, scripts, iframes, or custom CSS are accepted.

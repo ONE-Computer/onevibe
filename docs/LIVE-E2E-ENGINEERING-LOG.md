@@ -1,5 +1,11 @@
 # ONEVibe live E2E engineering log
 
+## 2026-07-17 — executable theme acceptance against disposable Postgres
+
+- `npm run e2e:themes` passed with three fixture-only profiles and static checks for base fallback, server-controlled scope precedence, contrast, sans-serif enforcement, typed-content markup boundaries, reduced motion, and credential-free bounded asset loading.
+- The delegated authenticated Postgres proof passed with Better Auth OTP delivery, owner/member theme isolation (`404`/`403`), optimistic conflict `409`, reset tombstone version 3, three audit events, restart-aware API startup, owner task creation after theme mutation, and `directFirstPartyAllowed=false`.
+- The disposable Postgres 18 container was stopped after the run. This closes the executable local acceptance gate, not the managed-production or browser visual matrix.
+
 ## 2026-07-17 — homepage content projection and editor boundary
 
 - The tenant homepage config is now exercised by the UI: announcement links, bounded hero text, and feature cards are typed React output; navigation links come only from the validated server response. React escaping prevents config text from becoming markup.

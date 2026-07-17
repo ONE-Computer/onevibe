@@ -914,3 +914,5 @@ button.model-selector *{color:inherit}
 [data-theme=light] .library-grid article h2{font-size:15px!important;font-weight:500!important;color:var(--text-primary)}
 [data-theme=light] .library-grid article > button{background:transparent!important;color:var(--text-primary)!important;border:1px solid var(--border-default)!important;font-weight:500}
 [data-theme=light] .library-grid article > button:hover{background:var(--surface-hover)!important}
+.tenant-feature-grid{min-width:0}
+@media(max-width:640px){.tenant-feature-grid{grid-template-columns:1fr}}

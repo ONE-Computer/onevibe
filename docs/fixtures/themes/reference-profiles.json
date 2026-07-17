@@ -1,0 +1,104 @@
+[
+  {
+    "schemaVersion": 1,
+    "tenantId": "reference-institutional",
+    "tenantName": "Institutional Reference",
+    "tokens": {
+      "colorBrandPrimary": "#174ea6",
+      "colorBrandSecondary": "#0b2d5c",
+      "colorBgPage": "#f8fafc",
+      "colorBgSurface": "#ffffff",
+      "colorNavBg": "#0b2d5c",
+      "colorNavText": "#ffffff",
+      "colorTextPrimary": "#152238",
+      "colorTextSecondary": "#41526b",
+      "colorBorderDefault": "#c8d2df",
+      "fontUi": "Inter",
+      "radiusBase": "4px",
+      "radiusButton": "4px"
+    },
+    "brand": { "brandName": "Institutional Workspace" },
+    "homePage": {
+      "heroHeadline": "A clear workspace for institutional work",
+      "heroSubheadline": "A reference profile for formal, high-trust workflows.",
+      "heroCtaLabel": "Start a briefing",
+      "announcementBannerVisible": true,
+      "announcementBannerText": "Reference profile · non-production",
+      "announcementBannerUrl": "/docs",
+      "featureCards": [
+        { "title": "Research", "description": "Organize evidence-backed questions.", "accent": "brand" },
+        { "title": "Briefings", "description": "Turn reviewed work into portable outputs.", "accent": "neutral" }
+      ]
+    },
+    "navigation": { "items": [{ "label": "Reference docs", "href": "/docs", "external": false }] },
+    "features": { "showComputerTab": true, "showMcpMarketplace": true, "showRuntimePicker": true, "showDebugPanel": false },
+    "compliance": {}
+  },
+  {
+    "schemaVersion": 1,
+    "tenantId": "reference-financial",
+    "tenantName": "Financial Reference",
+    "tokens": {
+      "colorBrandPrimary": "#b42318",
+      "colorBrandSecondary": "#7a271a",
+      "colorBgPage": "#fffafa",
+      "colorBgSurface": "#ffffff",
+      "colorNavBg": "#2b1616",
+      "colorNavText": "#ffffff",
+      "colorTextPrimary": "#241414",
+      "colorTextSecondary": "#5f4444",
+      "colorBorderDefault": "#e4c7c3",
+      "fontUi": "Inter",
+      "radiusBase": "12px",
+      "radiusButton": "8px"
+    },
+    "brand": { "brandName": "Financial Workspace" },
+    "homePage": {
+      "heroHeadline": "Move from signal to decision",
+      "heroSubheadline": "A reference profile for controlled analysis and executive-ready work.",
+      "heroCtaLabel": "Create an analysis",
+      "announcementBannerVisible": false,
+      "featureCards": [
+        { "title": "Analysis", "description": "Frame assumptions and uncertainty clearly.", "accent": "brand" },
+        { "title": "Review", "description": "Keep approvals and evidence visible.", "accent": "warning" }
+      ]
+    },
+    "navigation": { "items": [] },
+    "features": { "showComputerTab": true, "showMcpMarketplace": false, "showRuntimePicker": true, "showDebugPanel": false },
+    "compliance": {}
+  },
+  {
+    "schemaVersion": 1,
+    "tenantId": "reference-philanthropic",
+    "tenantName": "Philanthropic Reference",
+    "tokens": {
+      "colorBrandPrimary": "#7c3aed",
+      "colorBrandSecondary": "#5b21b6",
+      "colorBgPage": "#fbfaff",
+      "colorBgSurface": "#ffffff",
+      "colorNavBg": "#24153d",
+      "colorNavText": "#ffffff",
+      "colorTextPrimary": "#21152e",
+      "colorTextSecondary": "#59476b",
+      "colorBorderDefault": "#d8cce8",
+      "fontUi": "Inter",
+      "radiusBase": "16px",
+      "radiusButton": "16px"
+    },
+    "brand": { "brandName": "Impact Workspace" },
+    "homePage": {
+      "heroHeadline": "Make room for work that matters",
+      "heroSubheadline": "A reference profile for mission-led teams and long-horizon decisions.",
+      "heroCtaLabel": "Start a project",
+      "announcementBannerVisible": true,
+      "announcementBannerText": "Reference profile · non-production",
+      "featureCards": [
+        { "title": "People", "description": "Bring context and lived experience into view.", "accent": "success" },
+        { "title": "Progress", "description": "Track decisions, evidence, and next steps.", "accent": "brand" }
+      ]
+    },
+    "navigation": { "items": [] },
+    "features": { "showComputerTab": true, "showMcpMarketplace": true, "showRuntimePicker": true, "showDebugPanel": false },
+    "compliance": {}
+  }
+]

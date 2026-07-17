@@ -165,7 +165,7 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ### P7-07 — Reference tenant profiles and acceptance matrix (P2)
 
-- [ ] Add non-production, fixture-only reference profiles for institutional, financial, and philanthropic visual systems, with no customer credentials or proprietary assets.
+- [x] Add non-production, fixture-only reference profiles for institutional, financial, and philanthropic visual systems, with no customer credentials or proprietary assets. `docs/fixtures/themes/reference-profiles.json` is schema-validated and uses the sans-serif-only contract.
 - [ ] Verify base theme plus each profile at desktop/mobile sizes, light/dark modes, keyboard navigation, reduced motion, WCAG contrast, and no-overflow conditions.
 - [ ] Verify that theme changes do not alter runtime readiness, LiteLLM routing, task ownership, approval authority, evidence chain, or artifact behavior.
 
@@ -177,7 +177,7 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ### P7-09 — Release evidence and operations (P1 before production)
 
-- [ ] Add `npm run e2e:themes` covering base-theme fallback, tenant isolation, safe token rejection, admin authorization, save/reset, content sanitization, asset validation, and restart persistence.
+- [x] Add `npm run e2e:themes` covering base-theme fallback, tenant isolation, safe token rejection, owner authorization, save/reset, typed content escaping, asset-boundary checks, and restart persistence by delegating to the authenticated Postgres HTTP proof. Disposable Postgres acceptance passed on 2026-07-17 with three reference profiles, versions 1→3, three audit events, owner/member `404`/`403`, and direct-first-party blocked.
 - [ ] Add theme audit events to diagnostics and Linear evidence without storing raw secrets, uploaded bytes, or untrusted HTML.
 - [ ] Document cache invalidation, rollout/rollback, migration, package provenance, asset retention, and incident response in the deployment runbook.
 
