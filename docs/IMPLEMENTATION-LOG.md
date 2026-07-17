@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-17 — disposable Postgres HTTP, auth, SSE, backup, and TaskStore acceptance
+
+- Ran the selected server with `ONEVIBE_PERSISTENCE_DRIVER=postgres` against a disposable PostgreSQL 18 instance, after applying all twelve reviewed migrations. The real HTTP driver proof passed with `driver=postgres`, `runtimeSwitchReady=true`, owner-scope rejection `401`, and `directFirstPartyAllowed=false`.
+- The authenticated Postgres HTTP proof passed with readiness, OTP-backed login through the loopback delivery fixture, task creation, cross-owner `404` isolation, and direct-first-party blocking. The two-process HTTP/SSE proof passed with a live cross-process event and suffix replay of the same event ID.
+- Direct Postgres repository/TaskStore proofs passed for chat replay, metadata restart recovery, operation/lease fencing, state restart recovery, fork/native-event allocation, workspace/project bytes, organization/member scope, skill/MCP owner isolation, and retry recovery. The backup/restore proof passed with twelve reviewed migrations, representative rows, exact workspace/project bytes, matching hashes, and no credentials in argv.
+- Boundary: this is disposable local Postgres and demo-provider/HTTP evidence. It does not close managed deployment, production secret/email delivery, PITR/retention, provider-side idempotency, provider runtime isolation, or microVM/OpenVTC attestation.
+
 ## 2026-07-17 — protected LiteLLM document and skills golden acceptance
 
 - The full `npm run e2e:golden` flow passed through the server-controlled LiteLLM relay using explicit router alias `claude-sonnet-5` and the documented 15-minute turn deadline (`ONEVIBE_TURN_TIMEOUT_MS=900000`). Task `task_93c3a98da5964b` selected and materialized `document`/`security_review` skills, completed two durable Claude turns, emitted 5 live SSE frames and 86 suffix-replayed frames, preserved `README.md`, verified the evidence chain, recovered the transcript/session after API restart, recovered server-side search, and proved a distinct isolated task. Boundary: `executionBoundary=host_process`; no ONEComputer, microVM, OpenVTC, or production egress claim.

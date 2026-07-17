@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — disposable Postgres driver and multi-process acceptance
+
+- Started a disposable PostgreSQL 18 container, applied the twelve reviewed migrations, and ran the actual API with `ONEVIBE_PERSISTENCE_DRIVER=postgres` on a separate port. `npm run e2e:postgres-http` passed with `driver=postgres`, readiness/runtime switching, `401` unauthenticated owner protection, and `directFirstPartyAllowed=false`.
+- `npm run e2e:postgres-auth-http` passed the real Better Auth OTP/webhook fixture against Postgres: readiness, authenticated task creation, and cross-owner `404` isolation. `npm run e2e:postgres-http-sse` passed with two API processes, authenticated cross-process live event delivery, and suffix replay.
+- `npm run e2e:postgres-chat`, `e2e:postgres-metadata`, `e2e:postgres-operations`, `e2e:postgres-state`, and `e2e:postgres-taskstore` passed their restart, owner-scope, lease, native-event, workspace/project, and retry assertions. `e2e:postgres-backup-restore` passed representative row/byte/hash restoration across twelve migrations without credentials in argv.
+- The database container and temporary Postgres API were stopped after verification. No production deployment or isolation claim is inferred from this local proof.
+
 ## 2026-07-17 — protected LiteLLM document and skills golden acceptance
 
 - The full `npm run e2e:golden` flow passed with explicit router alias `claude-sonnet-5` and the documented 15-minute turn deadline. Task `task_93c3a98da5964b` materialized the selected skills, completed two Claude turns, produced 5 live and 86 suffix-replayed SSE frames, preserved the README artifact, verified evidence, recovered after API restart, recovered server-side search, and proved separate-task identity/isolation.
