@@ -2,6 +2,11 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — attachment import integrity proof
+
+- Commit `f79769f` was verified against PostgreSQL 18. The temporary legacy fixture included a real attachment descriptor (`inputs/01-private.txt`, text/plain, 13 bytes); the importer validated the path and byte count before writing, and the reopened Postgres TaskStore recovered the exact private bytes.
+- This closes the metadata/byte integrity check for local legacy import. It does not make the safe public ZIP reversible: private input bytes remain excluded by policy until a separate protected backup contract is designed.
+
 ## 2026-07-17 — two-instance Postgres event/SSE proof
 
 - Commit `e49e818` was verified against PostgreSQL 18 with two independently constructed TaskStore instances sharing one task. Concurrent writers produced distinct contiguous event sequences, canonical IDs, and a valid evidence chain after durable refresh.

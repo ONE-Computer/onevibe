@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — validate imported attachment metadata
+
+- Commit `f79769f` makes the legacy importer reject dangling task attachments and size mismatches before the Postgres transaction. The E2E fixture now creates a real `TaskAttachment` descriptor, writes its bytes under the descriptor path, imports it, and verifies the bytes after restart.
+- Verification: `npm run lint`, `npm run check:e2e-harness`, and `DATABASE_URL=… npm run e2e:postgres-import` passed. The redacted command form is intentional; no database credentials are retained in evidence.
+- Boundary: import integrity is now checked for path and byte length, but the public ZIP still excludes private `inputs/` bytes and there is no full-backup archive importer. Attachment export policy/round trips remain open.
+
 ## 2026-07-17 — harden Postgres event allocation and cross-instance live delivery
 
 - Commit `e49e818` moves ordinary Postgres runtime-event identity into the database transaction: the transaction locks the owner conversation, allocates the next sequence, derives the canonical `${taskId}:event:${sequence}` ID, previous hash, and event hash, and ignores stale process-local identity hints from legacy callers.
