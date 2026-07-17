@@ -114,15 +114,15 @@ export class CodexRuntimeAdapter extends RuntimeAdapterBase {
     await context.store.updateTask(context.task.id, { status: 'running' })
     await context.store.appendEvent(context.task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'Codex-compatible runtime started',
-      content: 'The coding runtime is connected through the server-controlled LiteLLM relay.', payload: { executionRoute: 'codex_litellm', model },
+      content: 'The coding runtime is connected through the server-controlled LiteLLM relay.', payload: { executionRoute: 'codex_litellm', model, executionId: context.executionId, providerRequestId: context.providerRequestId, providerIdempotencyProven: false },
     })
     let messages = modelMessagesFor(context)
     for (let round = 0; round < 6; round += 1) {
       context.signal.throwIfAborted()
       const response = await fetch(`${endpoint}/v1/chat/completions`, {
         method: 'POST',
-        headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model, messages, tools, tool_choice: 'auto', stream: true }),
+        headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, 'X-OneVibe-Execution-Id': context.executionId, 'X-OneVibe-Provider-Request-Id': context.providerRequestId },
+        body: JSON.stringify({ model, messages, tools, tool_choice: 'auto', stream: true, user: context.providerRequestId, metadata: { onevibe_execution_id: context.executionId, onevibe_provider_request_id: context.providerRequestId } }),
         signal: AbortSignal.any([context.signal, AbortSignal.timeout(15 * 60_000)]),
       })
       if (!response.ok || !response.body) throw new Error(`LiteLLM Codex-compatible route returned HTTP ${response.status}`)
@@ -135,7 +135,7 @@ export class CodexRuntimeAdapter extends RuntimeAdapterBase {
         if (!isRecord(choice) || !isRecord(choice.delta)) continue
         if (typeof choice.delta.content === 'string' && choice.delta.content) {
           assistantText += choice.delta.content
-          await context.store.appendEvent(context.task.id, { type: 'assistant_text_delta', lane: 'transcript', content: choice.delta.content, payload: { executionRoute: 'codex_litellm', model } })
+          await context.store.appendEvent(context.task.id, { type: 'assistant_text_delta', lane: 'transcript', content: choice.delta.content, payload: { executionRoute: 'codex_litellm', model, executionId: context.executionId, providerRequestId: context.providerRequestId } })
         }
         if (Array.isArray(choice.delta.tool_calls)) for (const rawCall of choice.delta.tool_calls) {
           if (!isRecord(rawCall) || typeof rawCall.index !== 'number') continue
@@ -148,14 +148,14 @@ export class CodexRuntimeAdapter extends RuntimeAdapterBase {
         }
       }
       if (toolCalls.size === 0) {
-        await context.store.appendEvent(context.task.id, { type: 'run_completed', lane: 'control', status: 'completed', label: 'Codex-compatible runtime completed', content: assistantText || 'The routed runtime completed without additional text.', payload: { executionRoute: 'codex_litellm', model } })
+        await context.store.appendEvent(context.task.id, { type: 'run_completed', lane: 'control', status: 'completed', label: 'Codex-compatible runtime completed', content: assistantText || 'The routed runtime completed without additional text.', payload: { executionRoute: 'codex_litellm', model, executionId: context.executionId, providerRequestId: context.providerRequestId, providerIdempotencyProven: false } })
         await context.store.updateTask(context.task.id, { status: 'completed' })
         return
       }
       const calls = [...toolCalls.values()]
       messages = [...messages, { role: 'assistant', content: assistantText || null, tool_calls: calls.map((call) => ({ id: call.id, type: 'function' as const, function: { name: call.name, arguments: call.arguments } })) }]
       for (const call of calls) {
-        await context.store.appendEvent(context.task.id, { type: 'tool_call_started', lane: 'activity', label: call.name, content: 'Codex-compatible runtime requested a governed workspace tool.', payload: { executionRoute: 'codex_litellm', toolUseId: call.id, input: parseToolArguments(call.arguments) } })
+        await context.store.appendEvent(context.task.id, { type: 'tool_call_started', lane: 'activity', label: call.name, content: 'Codex-compatible runtime requested a governed workspace tool.', payload: { executionRoute: 'codex_litellm', toolUseId: call.id, input: parseToolArguments(call.arguments), executionId: context.executionId, providerRequestId: context.providerRequestId } })
         let result: string
         try {
           const args = parseToolArguments(call.arguments)

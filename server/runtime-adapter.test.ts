@@ -43,7 +43,7 @@ describe('RuntimeAdapter lifecycle contract', () => {
 
     const streamed = []
     for await (const event of adapter.run('hello', {
-      task, store, continuation: false, workingDir, mcpConfigs: [],
+      task, store, continuation: false, executionId: 'execution-contract', providerRequestId: 'provider-contract', workingDir, mcpConfigs: [],
       requestUserInput: async () => 'unused',
     }, new AbortController().signal)) streamed.push(event)
 

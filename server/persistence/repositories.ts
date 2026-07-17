@@ -41,7 +41,9 @@ type IdempotencyRow = { scope: string; key: string; request_hash: string; state:
 type FollowUpOperationRow = {
   id: string; task_id: string; owner_user_id: string | null; idempotency_key: string; request_hash: string; prompt: string;
   attachments_json: string; execution_mode: 'queued' | 'immediate'; state: FollowUpOperationState; guidance_id: string | null;
-  turn_id: string | null; response_json: string | null; error_json: string | null; created_at: string; updated_at: string;
+  turn_id: string | null; response_json: string | null; error_json: string | null; lease_owner: string | null; lease_expires_at: string | null;
+  attempt_count: number; execution_id: string; provider_request_id: string; provider_state: FollowUpOperationRecord['providerState'];
+  provider_started_at: string | null; provider_completed_at: string | null; created_at: string; updated_at: string;
   started_at: string | null; completed_at: string | null
 }
 type LegacyImportRow = { source_kind: string; source_id: string; source_digest: string; conversation_id: string; result_json: string; imported_at: string }
@@ -266,6 +268,9 @@ const followUpOperationFromRow = (row: FollowUpOperationRow): FollowUpOperationR
   id: row.id, taskId: row.task_id, ownerUserId: row.owner_user_id, idempotencyKey: row.idempotency_key, requestHash: row.request_hash,
   prompt: row.prompt, attachmentsJson: row.attachments_json, executionMode: row.execution_mode, state: row.state,
   guidanceId: row.guidance_id, turnId: row.turn_id, responseJson: row.response_json, errorJson: row.error_json,
+  leaseOwner: row.lease_owner, leaseExpiresAt: row.lease_expires_at, attemptCount: row.attempt_count,
+  executionId: row.execution_id, providerRequestId: row.provider_request_id, providerState: row.provider_state,
+  providerStartedAt: row.provider_started_at, providerCompletedAt: row.provider_completed_at,
   createdAt: row.created_at, updatedAt: row.updated_at, startedAt: row.started_at, completedAt: row.completed_at,
 })
 
@@ -287,23 +292,35 @@ export class SqliteFollowUpOperationRepository implements FollowUpOperationRepos
     this.database.prepare(`
       INSERT INTO follow_up_operations(
         id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state,
-        guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id,
+        provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       record.id, record.taskId, record.ownerUserId, record.idempotencyKey, record.requestHash, record.prompt, record.attachmentsJson,
       record.executionMode, record.state, record.guidanceId, record.turnId, record.responseJson, record.errorJson,
-      record.createdAt, record.updatedAt, record.startedAt, record.completedAt,
+      record.leaseOwner, record.leaseExpiresAt, record.attemptCount, record.executionId, record.providerRequestId, record.providerState,
+      record.providerStartedAt, record.providerCompletedAt, record.createdAt, record.updatedAt, record.startedAt, record.completedAt,
     )
   }
 
   update(record: FollowUpOperationRecord, expectedUpdatedAt: string): void {
     const result = this.database.prepare(`
-      UPDATE follow_up_operations SET state = ?, guidance_id = ?, turn_id = ?, response_json = ?, error_json = ?, updated_at = ?, started_at = ?, completed_at = ?
+      UPDATE follow_up_operations SET state = ?, guidance_id = ?, turn_id = ?, response_json = ?, error_json = ?, lease_owner = ?, lease_expires_at = ?, attempt_count = ?, execution_id = ?, provider_request_id = ?, provider_state = ?, provider_started_at = ?, provider_completed_at = ?, updated_at = ?, started_at = ?, completed_at = ?
       WHERE id = ? AND updated_at = ?
-    `).run(record.state, record.guidanceId, record.turnId, record.responseJson, record.errorJson, record.updatedAt, record.startedAt, record.completedAt, record.id, expectedUpdatedAt)
+    `).run(record.state, record.guidanceId, record.turnId, record.responseJson, record.errorJson, record.leaseOwner, record.leaseExpiresAt, record.attemptCount, record.executionId, record.providerRequestId, record.providerState, record.providerStartedAt, record.providerCompletedAt, record.updatedAt, record.startedAt, record.completedAt, record.id, expectedUpdatedAt)
     if (result.changes === 1) return
     if (!this.database.prepare('SELECT 1 FROM follow_up_operations WHERE id = ?').get(record.id)) throw new RecordNotFoundError(`Follow-up operation ${record.id} does not exist`)
     throw new OptimisticConflictError(`Follow-up operation ${record.id} was modified concurrently`)
+  }
+
+  claim(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string): FollowUpOperationRecord | undefined {
+    const result = this.database.prepare(`
+      UPDATE follow_up_operations
+      SET state = 'running', lease_owner = ?, lease_expires_at = ?, attempt_count = attempt_count + 1, updated_at = ?
+      WHERE id = ? AND state = 'ready' AND (lease_owner IS NULL OR lease_expires_at IS NULL OR lease_expires_at <= ?)
+    `).run(leaseOwner, leaseExpiresAt, now, recordId, now)
+    if (result.changes !== 1) return undefined
+    return followUpOperationFromRow(this.database.prepare('SELECT * FROM follow_up_operations WHERE id = ?').get(recordId) as FollowUpOperationRow)
   }
 }
 

@@ -218,11 +218,19 @@ export const followUpOperation = pgTable('follow_up_operation', {
   turnId: text('turn_id'),
   responseJson: jsonb('response_json'),
   errorJson: jsonb('error_json'),
+  leaseOwner: text('lease_owner'),
+  leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+  attemptCount: integer('attempt_count').notNull().default(0),
+  executionId: text('execution_id').notNull(),
+  providerRequestId: text('provider_request_id').notNull(),
+  providerState: text('provider_state').notNull().default('not_started'),
+  providerStartedAt: timestamp('provider_started_at', { withTimezone: true }),
+  providerCompletedAt: timestamp('provider_completed_at', { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
-}, (table) => [uniqueIndex('follow_up_operation_task_key_idx').on(table.taskId, table.idempotencyKey), index('follow_up_operation_recovery_idx').on(table.state, table.createdAt), index('follow_up_operation_task_idx').on(table.taskId, table.createdAt)])
+}, (table) => [uniqueIndex('follow_up_operation_task_key_idx').on(table.taskId, table.idempotencyKey), uniqueIndex('follow_up_operation_execution_id_idx').on(table.executionId), index('follow_up_operation_recovery_idx').on(table.state, table.createdAt), index('follow_up_operation_lease_idx').on(table.state, table.leaseExpiresAt), index('follow_up_operation_task_idx').on(table.taskId, table.createdAt)])
 
 export const runtimeLease = pgTable('runtime_lease', {
   id: text('id').primaryKey(),

@@ -11,6 +11,11 @@ const remoteSse = () => {
   const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode(body)); controller.close() } })
   return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
 }
+const remoteSseWithoutTerminal = () => {
+  const body = 'event: runtime_event\ndata: {"id":"agent-event-only","type":"assistant_text_delta","lane":"transcript","content":"partial"}\n\n'
+  const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode(body)); controller.close() } })
+  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+}
 
 afterEach(async () => {
   vi.unstubAllGlobals()
@@ -36,8 +41,28 @@ describe('AgentCoreRuntimeAdapter', () => {
     await consumeRuntime(new AgentCoreRuntimeAdapter('https://agentcore.example/runtime', 'remote-token'), task, store)
 
     expect(requestBody?.provider).toBe('agentcore')
+    expect(requestBody?.executionId).toBe('test-execution-' + task.id)
+    expect(requestBody?.providerRequestId).toBe('test-provider-request-' + task.id)
+    expect(requestBody?.providerIdempotencyProven).toBe(false)
     expect(store.listEvents(task.id).some((event) => event.payload.nativeSource === 'agentcore_runtime')).toBe(true)
     expect(store.listEvents(task.id).some((event) => event.content === 'AgentCore routed answer')).toBe(true)
     expect(store.verifyChain(task.id)).toBe(true)
+  })
+
+  it('fails closed when the remote stream ends without a terminal event', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => remoteSseWithoutTerminal()))
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-agentcore-unknown-'))
+    roots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const { AgentCoreRuntimeAdapter } = await import('./agentcore-runner.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Exercise unknown boundary', 'agentcore', 'chat')
+    await store.beginTurn(task.id, task.prompt, task.provider)
+
+    await consumeRuntime(new AgentCoreRuntimeAdapter('https://agentcore.example/runtime', 'remote-token'), task, store)
+
+    expect(store.getTask(task.id).status).toBe('failed')
+    expect(store.listEvents(task.id).at(-1)).toMatchObject({ type: 'run_failed', payload: { providerState: 'unknown', reconciliationRequired: true } })
   })
 })

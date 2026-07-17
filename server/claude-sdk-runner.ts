@@ -112,7 +112,7 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
     }
   }
 
-  protected async execute({ task, store, signal, prompt, continuation, requestUserInput }: LegacyRuntimeContext) {
+  protected async execute({ task, store, signal, prompt, continuation, executionId, providerRequestId, requestUserInput }: LegacyRuntimeContext) {
     signal.throwIfAborted()
     const provider = claudeProviderConfig()
     const runLimits = resolveClaudeRunLimits(provider.transport)
@@ -126,7 +126,7 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
     await store.appendEvent(task.id, {
       type: 'run_started', lane: 'control', status: 'running', label: 'Claude Agent SDK started',
       content: 'Native SDK messages are preserved and projected into the ONEVibe task timeline.',
-      payload: { executionRoute: 'claude_agent_sdk', transport: provider.transport, model: provider.model },
+      payload: { executionRoute: 'claude_agent_sdk', transport: provider.transport, model: provider.model, executionId, providerRequestId, providerIdempotencyProven: false },
     })
     if (materializedSkills.length) await store.appendEvent(task.id, {
       type: 'activity_delta', lane: 'control', label: 'Claude skill packs materialized',
@@ -286,7 +286,9 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
         env: {
           ...provider.childEnv,
           CLAUDE_CONFIG_DIR: runtimeState,
-          CLAUDE_AGENT_SDK_CLIENT_APP: 'onevibe/0.1.0',
+          CLAUDE_AGENT_SDK_CLIENT_APP: `onevibe/0.1.0/${executionId}`,
+          ONEVIBE_EXECUTION_ID: executionId,
+          ONEVIBE_PROVIDER_REQUEST_ID: providerRequestId,
         },
       },
     })) {

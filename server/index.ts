@@ -50,6 +50,8 @@ const ONECOMPUTER_VISUAL_RUNTIME = process.env.ONECOMPUTER_VISUAL_RUNTIME !== 'f
 const ONECOMPUTER_BROWSER_AUTOMATION = process.env.ONECOMPUTER_BROWSER_AUTOMATION === 'true'
 const WALLET_TOKEN = process.env.ONEVIBE_WALLET_TOKEN
 const TURN_TIMEOUT_MS = resolveTurnTimeoutMs()
+const FOLLOW_UP_LEASE_MS = Math.max(30_000, Math.min(Number(process.env.ONEVIBE_FOLLOW_UP_LEASE_MS ?? 120_000), 15 * 60_000))
+const FOLLOW_UP_WORKER_ID = `onevibe-worker-${randomUUID()}`
 const persistenceConfig = resolvePersistenceConfig()
 // Only this readiness boolean is sent to the browser. Credential material
 // remains server-only and is never copied into task evidence.
@@ -180,6 +182,7 @@ const createScheduleInput = z.object({
 const scheduleStateInput = z.object({ enabled: z.boolean() })
 const idempotencyKeyInput = z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/)
 const followUpInput = z.object({ prompt: z.string().trim().min(1).max(8_000), attachments: z.array(taskAttachment).max(4).default([]), idempotencyKey: idempotencyKeyInput.optional() })
+const followUpReconcileInput = z.object({ idempotencyKey: idempotencyKeyInput, decision: z.literal('acknowledge_unknown') })
 const forkTaskInput = z.object({ fromMessageId: z.string().regex(/^message_[a-f0-9]+$/), newPrompt: z.string().trim().min(1).max(8_000) })
 const retryInput = z.object({ idempotencyKey: z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/), provider: runtimeProviderInput.optional() })
 const moveTaskProjectInput = z.object({ projectId: z.string().regex(/^project_[a-z0-9]+$/) })
@@ -301,8 +304,11 @@ const scheduleReadyFollowUpOperation = async (operation: FollowUpOperationRecord
     }
     await store.updateTask(task.id, { status: 'pending' })
   }
-  const claimed = await store.updateFollowUpOperation(operation, { state: 'running', startedAt: new Date().toISOString() })
-  setTimeout(() => executeTask(task.id, prompt, continuation, attachmentPaths, operation.idempotencyKey, claimed.id), 25)
+  const now = new Date().toISOString()
+  const leaseExpiresAt = new Date(Date.now() + FOLLOW_UP_LEASE_MS).toISOString()
+  const claimed = await store.claimFollowUpOperation(operation, FOLLOW_UP_WORKER_ID, now, leaseExpiresAt)
+  if (!claimed) return
+  setTimeout(() => executeTask(task.id, prompt, continuation, attachmentPaths, claimed.idempotencyKey, claimed.id), 25)
 }
 const executeTask = (taskId: string, prompt: string, continuation: boolean, attachmentPaths?: string[], retryKey?: string, operationId?: string) => {
   const task = store.getTask(taskId)
@@ -329,9 +335,9 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       })
     }
     const turnId = await store.beginTurn(task.id, prompt, task.provider, retryKey)
+    const operation = operationId && retryKey ? await store.findFollowUpOperation(task.id, retryKey) : undefined
     if (operationId && retryKey) {
-      const operation = await store.findFollowUpOperation(task.id, retryKey)
-      if (operation && operation.state === 'ready') await store.updateFollowUpOperation(operation, { state: 'running', startedAt: new Date().toISOString() })
+      if (operation && operation.state === 'ready') await store.updateFollowUpOperation(operation, { state: 'running', startedAt: new Date().toISOString(), leaseOwner: FOLLOW_UP_WORKER_ID, leaseExpiresAt: new Date(Date.now() + FOLLOW_UP_LEASE_MS).toISOString() })
     }
     if (retryKey) await store.appendEvent(task.id, {
       type: 'activity_delta', lane: 'control', label: 'Retry attempt started',
@@ -367,15 +373,39 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
     const mcpConfigs = adapter.capabilities.includes('tool_use') ? await store.runtimeMcpConfigs(task.ownerUserId) : []
     await adapter.initialize(store.getTask(task.id), store.workspacePath(task.id), mcpConfigs)
     activeAdapters.set(task.id, adapter)
+    if (operation) {
+      await store.updateFollowUpOperation(operation, {
+        state: 'running',
+        leaseOwner: FOLLOW_UP_WORKER_ID,
+        leaseExpiresAt: new Date(Date.now() + FOLLOW_UP_LEASE_MS).toISOString(),
+        providerState: 'started',
+        providerStartedAt: new Date().toISOString(),
+      })
+      await store.appendEvent(task.id, {
+        type: 'activity_delta', lane: 'control', label: 'Provider execution claimed',
+        content: 'The provider request identity was durably recorded before the selected runtime was called. This is a correlation boundary, not provider-side exactly-once proof.',
+        payload: { executionId: operation.executionId, providerRequestId: operation.providerRequestId, providerState: 'started', providerIdempotencyProven: false },
+      })
+      if (process.env.NODE_ENV !== 'production' && process.env.ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PROVIDER_STARTED === 'true') {
+        setImmediate(() => process.exit(98))
+        return
+      }
+    }
     try {
       for await (const _event of adapter.run(scopedPrompt, {
         task: store.getTask(task.id), store, continuation,
+        executionId: operation?.executionId ?? turnId,
+        providerRequestId: operation?.providerRequestId ?? `onevibe:${turnId}`,
         workingDir: store.workspacePath(task.id), mcpConfigs,
         requestUserInput: (question, options, signal) => inputBroker.request(task.id, question, options, signal),
       }, controller.signal)) {
         // The adapter's stream is sourced from the append-only store. Draining
         // it here keeps execution provider-neutral without duplicating events.
-        void _event
+      void _event
+      }
+      if (operation) {
+        const latestOperation = await store.findFollowUpOperation(task.id, operation.idempotencyKey)
+        if (latestOperation) await store.updateFollowUpOperation(latestOperation, { providerState: 'succeeded', providerCompletedAt: new Date().toISOString(), leaseOwner: null, leaseExpiresAt: null })
       }
     } finally {
       await adapter.destroy()
@@ -443,6 +473,10 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       if (operation && ['ready', 'running'].includes(operation.state)) {
         await store.updateFollowUpOperation(operation, {
           state: finished.status === 'completed' ? 'completed' : 'failed',
+          providerState: finished.status === 'completed' ? 'succeeded' : operation.providerState === 'started' ? 'unknown' : 'failed',
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          providerCompletedAt: new Date().toISOString(),
           ...(finished.status === 'completed' ? { completedAt: new Date().toISOString() } : { errorJson: JSON.stringify({ message: `Task ended as ${finished.status}`, retryable: finished.status === 'failed' }), completedAt: new Date().toISOString() }),
         }).catch(() => undefined)
       }
@@ -760,6 +794,17 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       const input = updateTaskTagsInput.parse(await readBody(request))
       return json(response, 200, await store.updateTaskTags(taskId, input.tags, actorUserId))
     }
+    if (request.method === 'POST' && segments[3] === 'messages' && segments[4] === 'reconcile') {
+      const input = followUpReconcileInput.parse(await readBody(request))
+      const operation = await store.findFollowUpOperation(taskId, input.idempotencyKey)
+      if (!operation) return json(response, 404, { error: 'Follow-up operation not found' })
+      if (operation.providerState !== 'unknown') return json(response, 409, { error: 'Only a provider-unknown follow-up operation can be acknowledged', operationId: operation.id, providerState: operation.providerState })
+      const acknowledged = await store.updateFollowUpOperation(operation, {
+        errorJson: JSON.stringify({ code: 'PROVIDER_OUTCOME_UNKNOWN_ACKNOWLEDGED', message: 'An operator acknowledged the unknown provider outcome. ONEVibe did not retry the external request.', retryable: false, acknowledgedAt: new Date().toISOString() }),
+        completedAt: operation.completedAt ?? new Date().toISOString(),
+      })
+      return json(response, 200, { operationId: acknowledged.id, status: 'acknowledged_unknown', providerState: acknowledged.providerState, retried: false })
+    }
     if (request.method === 'POST' && segments[3] === 'messages') {
       const input = followUpInput.parse(await readBody(request, 1_500_000))
       const task = store.getTask(taskId)
@@ -1068,7 +1113,17 @@ const recoverFollowUpOperations = async () => {
   for (const operation of await store.listRecoverableFollowUpOperations()) {
     try {
       if (operation.state === 'running') {
-        await store.updateFollowUpOperation(operation, { state: 'failed', errorJson: JSON.stringify({ message: 'Process restarted after provider execution was claimed; automatic replay is disabled because the external outcome is unknown.', retryable: false }), completedAt: new Date().toISOString() })
+        if (operation.providerState === 'not_started') {
+          const reset = await store.updateFollowUpOperation(operation, { state: 'ready', leaseOwner: null, leaseExpiresAt: null, errorJson: null })
+          if (reset.executionMode === 'immediate' || reset.guidanceId !== null) await scheduleReadyFollowUpOperation(reset)
+        } else {
+          await store.updateFollowUpOperation(operation, {
+            state: 'failed', providerState: 'unknown', leaseOwner: null, leaseExpiresAt: null,
+            errorJson: JSON.stringify({ code: 'PROVIDER_OUTCOME_UNKNOWN', message: 'Process restarted after the provider request was durably marked started; automatic replay is disabled because the external outcome is unknown.', retryable: false, reconciliationRequired: true }),
+            completedAt: new Date().toISOString(), providerCompletedAt: new Date().toISOString(),
+          })
+          await store.updateTask(operation.taskId, { status: 'failed' })
+        }
         continue
       }
       const ready = operation.state === 'prepared' ? await materializeFollowUpOperation(operation) : operation

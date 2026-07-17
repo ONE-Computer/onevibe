@@ -14,6 +14,10 @@ export type RunContext = {
   task: Task
   store: TaskStore
   continuation: boolean
+  /** Stable ONEVibe execution identity for retry/recovery correlation. */
+  executionId: string
+  /** Stable provider-facing correlation value; this is not proof of provider idempotency. */
+  providerRequestId: string
   requestUserInput: (prompt: string, options: string[], signal: AbortSignal) => Promise<string>
   workingDir: string
   mcpConfigs: McpConfig[]

@@ -51,6 +51,7 @@ export interface IdempotencyRecord {
 }
 
 export type FollowUpOperationState = 'prepared' | 'ready' | 'running' | 'completed' | 'failed'
+export type FollowUpProviderState = 'not_started' | 'started' | 'succeeded' | 'failed' | 'unknown'
 
 export interface FollowUpOperationRecord {
   id: string
@@ -66,6 +67,14 @@ export interface FollowUpOperationRecord {
   turnId: string | null
   responseJson: string | null
   errorJson: string | null
+  leaseOwner: string | null
+  leaseExpiresAt: string | null
+  attemptCount: number
+  executionId: string
+  providerRequestId: string
+  providerState: FollowUpProviderState
+  providerStartedAt: string | null
+  providerCompletedAt: string | null
   createdAt: string
   updatedAt: string
   startedAt: string | null
@@ -207,6 +216,7 @@ export interface FollowUpOperationRepository {
   listRecoverable(): FollowUpOperationRecord[]
   insert(record: FollowUpOperationRecord): void
   update(record: FollowUpOperationRecord, expectedUpdatedAt: string): void
+  claim(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string): FollowUpOperationRecord | undefined
 }
 
 export interface MessageRepository {

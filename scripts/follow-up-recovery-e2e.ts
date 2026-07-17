@@ -25,9 +25,9 @@ const waitForHealth = async (child: ChildProcess) => {
   }
   throw new Error('API did not become ready')
 }
-const start = (crashAfterPrepared: boolean) => spawn(process.execPath, ['--import', 'tsx/esm', 'server/index.ts'], {
+const start = (crashAfterPrepared: boolean, crashAfterProviderStarted = false) => spawn(process.execPath, ['--import', 'tsx/esm', 'server/index.ts'], {
   cwd: process.cwd(),
-  env: { ...process.env, NODE_ENV: 'development', ONEVIBE_API_HOST: '127.0.0.1', ONEVIBE_API_PORT: String(port), ONEVIBE_DATA_DIR: root, ...(crashAfterPrepared ? { ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PREPARED: 'true' } : {}) },
+  env: { ...process.env, NODE_ENV: 'development', ONEVIBE_API_HOST: '127.0.0.1', ONEVIBE_API_PORT: String(port), ONEVIBE_DATA_DIR: root, ...(crashAfterPrepared ? { ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PREPARED: 'true' } : {}), ...(crashAfterProviderStarted ? { ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PROVIDER_STARTED: 'true' } : {}) },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 const stop = async (child: ChildProcess) => {
@@ -45,6 +45,15 @@ const waitForTask = async (taskId: string, expectedMessages: number) => {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   throw new Error('Task did not complete after recovery')
+}
+const waitForFailedTask = async (taskId: string) => {
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline) {
+    const { body } = await request<{ status: string; messages: Array<{ role: string }> }>(`/api/tasks/${taskId}`)
+    if (body.status === 'failed') return body
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error('Task did not reach the explicit provider-unknown failure state')
 }
 
 let first: ChildProcess | undefined
@@ -85,7 +94,36 @@ try {
   const replayBody = await replay.json() as { taskId?: string }
   assert.equal(replayBody.taskId, taskId)
   assert.equal((await request<{ messages: Array<{ role: string }> }>(`/api/tasks/${taskId}`)).body.messages.length, 4)
-  console.log(JSON.stringify({ taskId, crashedExit, recoveredMessages: recovered.messages.length, recoveredAttachments: recovered.attachments.length, replayStatus: replay.status, exactlyOneRecoveredFollowUp: true, providerUnknownAutoRetry: false }))
+
+  await stop(second)
+  second = undefined
+  second = start(false, true)
+  await waitForHealth(second)
+  const providerStartedCrash = await fetch(`${baseUrl}/api/tasks/${taskId}/messages`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Exercise the explicit provider unknown boundary.', idempotencyKey: 'provider-unknown-crash-key', attachments: [] }),
+  }).catch(() => undefined)
+  assert.ok(providerStartedCrash === undefined || [202, 500].includes(providerStartedCrash.status))
+  const unknownExit = await new Promise<number | null>((resolve) => second!.once('exit', (code) => resolve(code)))
+  assert.equal(unknownExit, 98)
+  second = undefined
+  second = start(false)
+  await waitForHealth(second)
+  const failedUnknown = await waitForFailedTask(taskId)
+  const unknownReplay = await fetch(`${baseUrl}/api/tasks/${taskId}/messages`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Exercise the explicit provider unknown boundary.', idempotencyKey: 'provider-unknown-crash-key', attachments: [] }),
+  })
+  assert.equal(unknownReplay.status, 409)
+  const acknowledged = await fetch(`${baseUrl}/api/tasks/${taskId}/messages/reconcile`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idempotencyKey: 'provider-unknown-crash-key', decision: 'acknowledge_unknown' }),
+  })
+  assert.equal(acknowledged.status, 200)
+  const acknowledgedBody = await acknowledged.json() as { retried?: boolean; status?: string }
+  assert.equal(acknowledgedBody.status, 'acknowledged_unknown')
+  assert.equal(acknowledgedBody.retried, false)
+  console.log(JSON.stringify({ taskId, crashedExit, recoveredMessages: recovered.messages.length, recoveredAttachments: recovered.attachments.length, replayStatus: replay.status, exactlyOneRecoveredFollowUp: true, providerUnknownCrashExit: unknownExit, providerUnknownTaskStatus: failedUnknown.status, providerUnknownReplayStatus: unknownReplay.status, providerUnknownAcknowledgedStatus: acknowledged.status, providerUnknownAutoRetry: false }))
 } finally {
   if (first) await stop(first)
   if (second) await stop(second)

@@ -13,7 +13,9 @@ type IdempotencyRow = { scope: string; key: string; owner_user_id: string | null
 type FollowUpOperationRow = {
   id: string; task_id: string; owner_user_id: string | null; idempotency_key: string; request_hash: string; prompt: string;
   attachments_json: unknown; execution_mode: 'queued' | 'immediate'; state: FollowUpOperationState; guidance_id: string | null;
-  turn_id: string | null; response_json: unknown; error_json: unknown; created_at: Date; updated_at: Date; started_at: Date | null; completed_at: Date | null
+  turn_id: string | null; response_json: unknown; error_json: unknown; lease_owner: string | null; lease_expires_at: Date | null;
+  attempt_count: number; execution_id: string; provider_request_id: string; provider_state: FollowUpOperationRecord['providerState'];
+  provider_started_at: Date | null; provider_completed_at: Date | null; created_at: Date; updated_at: Date; started_at: Date | null; completed_at: Date | null
 }
 
 const toIso = (value: Date | string | null | undefined) => value instanceof Date ? value.toISOString() : value ?? null
@@ -42,6 +44,9 @@ const followUpOperationFromRow = (row: FollowUpOperationRow): FollowUpOperationR
   id: row.id, taskId: row.task_id, ownerUserId: row.owner_user_id, idempotencyKey: row.idempotency_key, requestHash: row.request_hash,
   prompt: row.prompt, attachmentsJson: jsonStringFromRow(row.attachments_json) ?? '[]', executionMode: row.execution_mode, state: row.state,
   guidanceId: row.guidance_id, turnId: row.turn_id, responseJson: jsonStringFromRow(row.response_json), errorJson: jsonStringFromRow(row.error_json),
+  leaseOwner: row.lease_owner, leaseExpiresAt: toIso(row.lease_expires_at), attemptCount: row.attempt_count,
+  executionId: row.execution_id, providerRequestId: row.provider_request_id, providerState: row.provider_state,
+  providerStartedAt: toIso(row.provider_started_at), providerCompletedAt: toIso(row.provider_completed_at),
   createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(), startedAt: toIso(row.started_at), completedAt: toIso(row.completed_at),
 })
 
@@ -181,18 +186,18 @@ export class PostgresOperationsRepository {
   }
 
   async findFollowUpOperation(taskId: string, idempotencyKey: string): Promise<FollowUpOperationRecord | undefined> {
-    const rows = await this.sql<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE task_id = ${taskId} AND idempotency_key = ${idempotencyKey}`
+    const rows = await this.sql<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE task_id = ${taskId} AND idempotency_key = ${idempotencyKey}`
     return rows[0] ? followUpOperationFromRow(rows[0]) : undefined
   }
 
   async listRecoverableFollowUpOperations(): Promise<FollowUpOperationRecord[]> {
-    const rows = await this.sql<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE state IN ('prepared', 'ready', 'running') ORDER BY created_at ASC, id ASC`
+    const rows = await this.sql<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE state IN ('prepared', 'ready', 'running') ORDER BY created_at ASC, id ASC`
     return rows.map(followUpOperationFromRow)
   }
 
   async createFollowUpOperation(record: FollowUpOperationRecord): Promise<{ claimed: boolean; operation: FollowUpOperationRecord }> {
     return this.sql.begin(async (tx) => {
-      const existingRows = await tx<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE task_id = ${record.taskId} AND idempotency_key = ${record.idempotencyKey} FOR UPDATE`
+      const existingRows = await tx<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE task_id = ${record.taskId} AND idempotency_key = ${record.idempotencyKey} FOR UPDATE`
       const existing = existingRows[0]
       if (existing) {
         const operation = followUpOperationFromRow(existing)
@@ -200,9 +205,9 @@ export class PostgresOperationsRepository {
         return { claimed: false, operation }
       }
       const rows = await tx<FollowUpOperationRow[]>`
-        INSERT INTO follow_up_operation (id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at)
-        VALUES (${record.id}, ${record.taskId}, ${record.ownerUserId}, ${record.idempotencyKey}, ${record.requestHash}, ${record.prompt}, ${record.attachmentsJson}::jsonb, ${record.executionMode}, ${record.state}, ${record.guidanceId}, ${record.turnId}, ${record.responseJson ? record.responseJson : null}::jsonb, ${record.errorJson ? record.errorJson : null}::jsonb, ${new Date(record.createdAt)}, ${new Date(record.updatedAt)}, ${record.startedAt ? new Date(record.startedAt) : null}, ${record.completedAt ? new Date(record.completedAt) : null})
-        RETURNING id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, created_at, updated_at, started_at, completed_at
+        INSERT INTO follow_up_operation (id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at)
+        VALUES (${record.id}, ${record.taskId}, ${record.ownerUserId}, ${record.idempotencyKey}, ${record.requestHash}, ${record.prompt}, ${record.attachmentsJson}::jsonb, ${record.executionMode}, ${record.state}, ${record.guidanceId}, ${record.turnId}, ${record.responseJson ? record.responseJson : null}::jsonb, ${record.errorJson ? record.errorJson : null}::jsonb, ${record.leaseOwner}, ${record.leaseExpiresAt ? new Date(record.leaseExpiresAt) : null}, ${record.attemptCount}, ${record.executionId}, ${record.providerRequestId}, ${record.providerState}, ${record.providerStartedAt ? new Date(record.providerStartedAt) : null}, ${record.providerCompletedAt ? new Date(record.providerCompletedAt) : null}, ${new Date(record.createdAt)}, ${new Date(record.updatedAt)}, ${record.startedAt ? new Date(record.startedAt) : null}, ${record.completedAt ? new Date(record.completedAt) : null})
+        RETURNING id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at
       `
       if (!rows[0]) throw new OptimisticConflictError(`Follow-up operation ${record.id} was not persisted`)
       return { claimed: true, operation: followUpOperationFromRow(rows[0]) }
@@ -213,6 +218,7 @@ export class PostgresOperationsRepository {
     const result = await this.sql`
       UPDATE follow_up_operation SET state = ${record.state}, guidance_id = ${record.guidanceId}, turn_id = ${record.turnId},
         response_json = ${record.responseJson ? record.responseJson : null}::jsonb, error_json = ${record.errorJson ? record.errorJson : null}::jsonb,
+        lease_owner = ${record.leaseOwner}, lease_expires_at = ${record.leaseExpiresAt ? new Date(record.leaseExpiresAt) : null}, attempt_count = ${record.attemptCount}, execution_id = ${record.executionId}, provider_request_id = ${record.providerRequestId}, provider_state = ${record.providerState}, provider_started_at = ${record.providerStartedAt ? new Date(record.providerStartedAt) : null}, provider_completed_at = ${record.providerCompletedAt ? new Date(record.providerCompletedAt) : null},
         updated_at = ${new Date(record.updatedAt)}, started_at = ${record.startedAt ? new Date(record.startedAt) : null}, completed_at = ${record.completedAt ? new Date(record.completedAt) : null}
       WHERE id = ${record.id} AND updated_at = ${new Date(expectedUpdatedAt)}
     `
@@ -220,6 +226,16 @@ export class PostgresOperationsRepository {
     const existing = await this.sql<{ id: string }[]>`SELECT id FROM follow_up_operation WHERE id = ${record.id}`
     if (!existing[0]) throw new RecordNotFoundError(`Follow-up operation ${record.id} does not exist`)
     throw new OptimisticConflictError(`Follow-up operation ${record.id} was modified concurrently`)
+  }
+
+  async claimFollowUpOperation(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string): Promise<FollowUpOperationRecord | undefined> {
+    const rows = await this.sql<FollowUpOperationRow[]>`
+      UPDATE follow_up_operation
+      SET state = 'running', lease_owner = ${leaseOwner}, lease_expires_at = ${new Date(leaseExpiresAt)}, attempt_count = attempt_count + 1, updated_at = ${new Date(now)}
+      WHERE id = ${recordId} AND state = 'ready' AND (lease_owner IS NULL OR lease_expires_at IS NULL OR lease_expires_at <= ${new Date(now)})
+      RETURNING id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at
+    `
+    return rows[0] ? followUpOperationFromRow(rows[0]) : undefined
   }
 
   async insertLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number): Promise<void> {

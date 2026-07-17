@@ -12,7 +12,7 @@ import { PostgresWorkspaceRepository, type PostgresWorkspaceFileRecord } from '.
 
 export type PostgresStateConfig = { readonly maxConnections?: number; readonly connectTimeoutSeconds?: number }
 export type PostgresMcpAuditRecord = { id: string; configId: string; operation: string; config: unknown; createdAt: string }
-export const REQUIRED_POSTGRES_MIGRATIONS = 10
+export const REQUIRED_POSTGRES_MIGRATIONS = 11
 
 const providerFor = (value: unknown, fallback: Task['provider']): Task['provider'] => value === 'demo' || value === 'claude_sdk' || value === 'codex' || value === 'agentcore' || value === 'onecomputer' || value === 'remote' ? value : fallback
 const recordJson = (value: unknown): Record<string, unknown> => {
@@ -455,4 +455,5 @@ export class PostgresStateCoordinator {
   async findFollowUpOperation(taskId: string, idempotencyKey: string) { return this.#operations.findFollowUpOperation(taskId, idempotencyKey) }
   async listRecoverableFollowUpOperations() { return this.#operations.listRecoverableFollowUpOperations() }
   async updateFollowUpOperation(record: FollowUpOperationRecord, expectedUpdatedAt: string) { return this.#operations.updateFollowUpOperation(record, expectedUpdatedAt) }
+  async claimFollowUpOperation(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string) { return this.#operations.claimFollowUpOperation(recordId, leaseOwner, now, leaseExpiresAt) }
 }

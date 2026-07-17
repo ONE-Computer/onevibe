@@ -300,9 +300,14 @@ describe('TaskStore', () => {
     await expect(store.createFollowUpOperation(task.id, 'follow-up-operation-1', 'b'.repeat(64), 'Changed request.', attachmentsJson, 'immediate')).rejects.toThrow(/different request/)
 
     const ready = await store.updateFollowUpOperation(first.operation, { state: 'ready', responseJson: JSON.stringify({ status: 'queued', taskId: task.id }) })
+    expect(ready.executionId).toMatch(/^execution_[a-f0-9]{32}$/)
+    expect(ready.providerRequestId).toBe(`onevibe:${ready.executionId}`)
+    const claimed = await store.claimFollowUpOperation(ready, 'worker-a', '2026-07-17T00:00:00.000Z', '2026-07-17T00:02:00.000Z')
+    expect(claimed).toMatchObject({ state: 'running', leaseOwner: 'worker-a', attemptCount: 1, providerState: 'not_started' })
+    await expect(store.claimFollowUpOperation(ready, 'worker-b', '2026-07-17T00:00:01.000Z', '2026-07-17T00:02:01.000Z')).resolves.toBeUndefined()
     const reopened = new TaskStore(root)
     await reopened.initialize()
-    await expect(reopened.listRecoverableFollowUpOperations()).resolves.toEqual([expect.objectContaining({ id: ready.id, state: 'ready', responseJson: JSON.stringify({ status: 'queued', taskId: task.id }) })])
+    await expect(reopened.listRecoverableFollowUpOperations()).resolves.toEqual([expect.objectContaining({ id: ready.id, state: 'running', responseJson: JSON.stringify({ status: 'queued', taskId: task.id }), leaseOwner: 'worker-a', attemptCount: 1 })])
   })
 
   it.each(['running', 'waiting_for_user_input', 'waiting_for_approval'] as const)('reconciles a durable %s run after process restart', async (status) => {

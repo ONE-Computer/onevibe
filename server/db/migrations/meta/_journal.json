@@ -71,6 +71,13 @@
       "when": 1784262872189,
       "tag": "0009_right_madame_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784263749447,
+      "tag": "0010_nasty_ezekiel",
+      "breakpoints": true
     }
   ]
 }

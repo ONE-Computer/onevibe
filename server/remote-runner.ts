@@ -56,7 +56,7 @@ export class RemoteRuntimeAdapter extends RuntimeAdapterBase {
     this.name = name
   }
 
-  protected async execute({ task, store, signal, prompt }: LegacyRuntimeContext) {
+  protected async execute({ task, store, signal, prompt, executionId, providerRequestId }: LegacyRuntimeContext) {
     signal.throwIfAborted()
     await store.updateTask(task.id, { status: 'running' })
     const response = await fetch(this.endpoint, {
@@ -65,13 +65,18 @@ export class RemoteRuntimeAdapter extends RuntimeAdapterBase {
         Accept: 'text/event-stream',
         'Content-Type': 'application/json',
         ...(this.bearerToken ? { Authorization: `Bearer ${this.bearerToken}` } : {}),
+        'X-OneVibe-Execution-Id': executionId,
+        'X-OneVibe-Provider-Request-Id': providerRequestId,
       },
       body: JSON.stringify({
         provider: this.providerId === 'agentcore' ? 'agentcore' : 'claude_agentcore',
         prompt,
         userId: 'local-onevibe-user',
         projectId: 'onevibe-local',
-        runId: task.id,
+        runId: executionId,
+        executionId,
+        providerRequestId,
+        providerIdempotencyProven: false,
       }),
       signal: AbortSignal.any([signal, AbortSignal.timeout(15 * 60_000)]),
     })
@@ -104,9 +109,11 @@ export class RemoteRuntimeAdapter extends RuntimeAdapterBase {
     const last = store.listEvents(task.id).at(-1)
     if (last?.type !== 'run_completed' && last?.type !== 'run_failed' && last?.type !== 'run_cancelled') {
       await store.appendEvent(task.id, {
-        type: 'run_completed', lane: 'control', status: 'completed', label: 'Remote stream closed',
-        content: 'The configured runtime completed without a terminal normalized event.', payload: { executionRoute: 'remote_sse' },
+        type: 'run_failed', lane: 'control', status: 'failed', label: 'Remote stream ended without a terminal event',
+        content: 'The configured runtime stream ended without a terminal normalized event. The provider outcome is unknown; do not retry automatically.', payload: { executionRoute: 'remote_sse', executionId, providerRequestId, providerState: 'unknown', providerIdempotencyProven: false, reconciliationRequired: true },
       })
+      await store.updateTask(task.id, { status: 'failed' })
+      return
     }
     await store.updateTask(task.id, { status: 'completed' })
   }

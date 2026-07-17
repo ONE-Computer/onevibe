@@ -28,9 +28,9 @@ describe('CodexRuntimeAdapter', () => {
     vi.stubEnv('ONEVIBE_LITELLM_URL', 'http://127.0.0.1:4100')
     vi.stubEnv('ONEVIBE_LITELLM_API_KEY', 'server-only-test-key')
     vi.stubEnv('ONEVIBE_LITELLM_MODEL', 'codex-test-alias')
-    const requests: Array<{ url: string; body: Record<string, unknown> }> = []
+    const requests: Array<{ url: string; body: Record<string, unknown>; headers: Headers }> = []
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      requests.push({ url: String(input), body: JSON.parse(String(init?.body)) as Record<string, unknown> })
+      requests.push({ url: String(input), body: JSON.parse(String(init?.body)) as Record<string, unknown>, headers: new Headers(init?.headers) })
       if (requests.length === 1) return streamResponse([
         { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_write', function: { name: 'workspace_write', arguments: '{"path":"README.md","content":"# Routed"}' } }] } }] },
       ])
@@ -55,6 +55,9 @@ describe('CodexRuntimeAdapter', () => {
     expect(requests).toHaveLength(2)
     expect(requests.every((request) => request.url === 'http://127.0.0.1:4100/v1/chat/completions')).toBe(true)
     expect(requests[0]?.body.model).toBe('codex-test-alias')
+    expect(requests[0]?.body.user).toBe('test-provider-request-' + task.id)
+    expect(requests[0]?.headers.get('X-OneVibe-Execution-Id')).toBe('test-execution-' + task.id)
+    expect(requests[0]?.headers.get('X-OneVibe-Provider-Request-Id')).toBe('test-provider-request-' + task.id)
     expect(JSON.stringify(store.listEvents(task.id))).not.toContain('server-only-test-key')
   })
 })

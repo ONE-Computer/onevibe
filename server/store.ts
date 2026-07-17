@@ -1392,9 +1392,12 @@ export class TaskStore {
     const task = this.getTask(taskId, ownerUserId)
     const now = new Date().toISOString()
     const id = `follow_up_${createHash('sha256').update(`${taskId}:${idempotencyKey}`).digest('hex').slice(0, 32)}`
+    const executionId = `execution_${createHash('sha256').update(`${taskId}:${idempotencyKey}:execution`).digest('hex').slice(0, 32)}`
     const record: FollowUpOperationRecord = {
       id, taskId, ownerUserId: task.ownerUserId ?? ownerUserId ?? null, idempotencyKey, requestHash, prompt, attachmentsJson,
       executionMode, state: 'prepared', guidanceId: null, turnId: null, responseJson: null, errorJson: null,
+      leaseOwner: null, leaseExpiresAt: null, attemptCount: 0, executionId, providerRequestId: `onevibe:${executionId}`,
+      providerState: 'not_started', providerStartedAt: null, providerCompletedAt: null,
       createdAt: now, updatedAt: now, startedAt: null, completedAt: null,
     }
     if (this.postgresState) return this.postgresState.createFollowUpOperation(record)
@@ -1420,7 +1423,7 @@ export class TaskStore {
     return this.requireUnitOfWork().run((repositories) => repositories.followUpOperations.findByKey(taskId, idempotencyKey))
   }
 
-  async updateFollowUpOperation(operation: FollowUpOperationRecord, patch: Partial<Pick<FollowUpOperationRecord, 'state' | 'guidanceId' | 'turnId' | 'responseJson' | 'errorJson' | 'startedAt' | 'completedAt'>>): Promise<FollowUpOperationRecord> {
+  async updateFollowUpOperation(operation: FollowUpOperationRecord, patch: Partial<Pick<FollowUpOperationRecord, 'state' | 'guidanceId' | 'turnId' | 'responseJson' | 'errorJson' | 'leaseOwner' | 'leaseExpiresAt' | 'attemptCount' | 'providerState' | 'providerStartedAt' | 'providerCompletedAt' | 'startedAt' | 'completedAt'>>): Promise<FollowUpOperationRecord> {
     const updated = { ...operation, ...patch, updatedAt: new Date().toISOString() }
     if (this.postgresState) {
       await this.postgresState.updateFollowUpOperation(updated, operation.updatedAt)
@@ -1428,6 +1431,11 @@ export class TaskStore {
     }
     this.requireUnitOfWork().run((repositories) => repositories.followUpOperations.update(updated, operation.updatedAt))
     return updated
+  }
+
+  async claimFollowUpOperation(operation: FollowUpOperationRecord, leaseOwner: string, now: string, leaseExpiresAt: string): Promise<FollowUpOperationRecord | undefined> {
+    if (this.postgresState) return this.postgresState.claimFollowUpOperation(operation.id, leaseOwner, now, leaseExpiresAt)
+    return this.requireUnitOfWork().run((repositories) => repositories.followUpOperations.claim(operation.id, leaseOwner, now, leaseExpiresAt))
   }
 
   async getRetry(taskId: string, idempotencyKey: string): Promise<{ state: 'pending' | 'completed'; response?: Record<string, unknown> } | undefined> {

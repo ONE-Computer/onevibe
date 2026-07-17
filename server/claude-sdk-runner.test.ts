@@ -10,6 +10,7 @@ type QueryInput = {
   options: {
     cwd: string
     resume?: string
+    env?: Record<string, string | undefined>
     canUseTool: (name: string, input: Record<string, unknown>) => Promise<{ behavior: string }>
   }
 }
@@ -83,6 +84,8 @@ describe('ClaudeSdkRuntimeAdapter', () => {
     expect(events.some((event) => event.type === 'artifact_created')).toBe(false)
     expect(store.getTask(task.id).status).toBe('completed')
     expect(permissionChecks).toEqual(['deny', 'deny', 'deny'])
+    expect(queryCalls[0]?.options.env?.ONEVIBE_EXECUTION_ID).toBe('test-execution-' + task.id)
+    expect(queryCalls[0]?.options.env?.ONEVIBE_PROVIDER_REQUEST_ID).toBe('test-provider-request-' + task.id)
     expect(isSafeBashCommand('pwd')).toBe(true)
     expect(isSafeBashCommand('node script.js')).toBe(true)
     expect(isSafeBashCommand('python3 -c "import os"')).toBe(false)
