@@ -12,6 +12,8 @@
 
 > **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The Claude SDK configuration now fails closed unless the server-controlled relay is configured; Codex/AgentCore remain blocked until their adapters also use the same boundary.
 
+> **New planning input**: `THEMING_EXTENSIBILITY.md` defines a future multi-tenant white-labeling program. It is not release-ready implementation evidence. Its customer profiles, arbitrary custom HTML, remote font loading, and dynamic theme-package loading require the security, tenancy, typography, and supply-chain constraints captured in Phase 7 below.
+
 ---
 
 ## Phase 1 — Stop the bleeding: make the app actually work
@@ -103,6 +105,78 @@ Reference: `plan/06-mcp-extensions.md`
 - [x] **P6-02** Add skill marketplace — GitHub-backed catalog, SHA-256 verified install/remove UI, owner-scoped persistence, bounded built-in/marketplace selection validation, truthful demo/provider event contracts, deterministic restart/materialization proof, live pushed-GitHub catalog/content verification, and protected Claude/LiteLLM materialization are complete. The protected evidence is host-process only; production org authorization and ONEComputer/microVM isolation remain separate gates.
 - [x] **P6-03** Add two-tool MCP facade — opt-in server-owned stdio facade exposes `search_capabilities` + `execute_capability`, bounds output/time/process environment, and executes only IDs returned by the same catalog; production secret brokering, external health/attestation, authenticated organization ownership, and protected provider acceptance remain open
 - [x] **P6-04** Add agent context diagnostics — authenticated `/api/diagnostics` and a Computers status panel now report the LiteLLM model boundary, session scope, persistence driver/contract, runtime readiness, sandbox boundary, and owner-scoped MCP health/tool-catalog checks without returning credentials, prompts, or provider payloads. This is local operational visibility, not production attestation.
+
+---
+
+## Phase 7 — Tenant theming and extensibility (planned; post-Phase 6)
+**Target: secure, tenant-scoped white-labeling without weakening ONEVibe's provider, auth, approval, or typography boundaries.** Linear parent: `ONE-261`; security/schema: `ONE-262`; token/runtime provider: `ONE-263`; persistence/API: `ONE-264`; admin controls: `ONE-265`.
+Reference: `THEMING_EXTENSIBILITY.md`.
+
+**Dependency gate:** do not ship tenant-admin theme mutation until P4-01 auth/admin roles, P4-02 Postgres runtime persistence, P4-06 organization policy, and the P5 UI foundation are accepted. A single-tenant `ONEVIBE_TENANT_ID` preview may be used earlier only with read-only, checked-in fixtures.
+
+**Design constraints added during review:**
+
+- The current product contract is sans-serif UI typography only. The source brief's visible serif and monospace examples are reference material, not permission to reintroduce serif/monospace fonts into the ONEVibe UI. Tenant font overrides must be allow-listed and preserve this invariant unless a separately approved accessibility/design ADR changes it.
+- Theme configuration is untrusted tenant data. Validate it with a shared schema, bound every string/array/asset size, reject CSS injection primitives (`url(`, `expression(`, `javascript:`, unbalanced declarations), and never render arbitrary HTML without a reviewed sanitizer and CSP.
+- Tenant themes may change presentation and content, never model routing, LiteLLM enforcement, OpenVTC/VTI approval authority, auth/session policy, evidence redaction, sandbox policy, or provider credentials.
+- Tier 3 packages are deployment-time code, not database-controlled plugins. Load only signed/allow-listed packages from the server environment; never dynamically import a package name supplied by a request or tenant config.
+- Logos, fonts, and background assets require server-side type/size/content validation and a documented provenance policy. Remote assets must not become an unbounded browser egress path.
+
+### P7-01 — Token foundation and component migration (P1 after backend gate)
+
+- [ ] Create `src/theme/default.css` as the canonical token source for color, typography, shape, spacing, layout, and shadow.
+- [ ] Inventory raw color/font/radius literals in `src/` and migrate production components to tokens without changing the current ONEVibe visual baseline.
+- [ ] Add a CSS/static-analysis gate for raw colors and forbidden font families in component styles; allow literals only in token source, SVG assets, and reviewed test fixtures.
+- [ ] Add asymmetric brand-radius tokens as opt-in tokens, with neutral defaults; no component may assume a customer-specific shape.
+
+### P7-02 — Typed tenant configuration and safe resolution (P0 security foundation)
+
+- [ ] Add a versioned `TenantThemeConfig` schema with bounded tokens, brand assets, homepage content, navigation, feature flags, and compliance links.
+- [ ] Define tenant resolution order: authenticated session/org, explicit deployment environment, then validated host/subdomain; default to the base theme when unresolved.
+- [ ] Enforce tenant isolation on every read/write and reject cross-tenant admin access; preserve server-derived actor/org scope.
+- [ ] Keep theme configuration unable to override LiteLLM routes, runtime credentials, approval state, auth policy, sandbox boundaries, or evidence payloads.
+
+### P7-03 — Durable theme store and API (P1)
+
+- [ ] Add a Postgres-backed `tenant_theme_configs` table/migration with version, owner/org scope, audit metadata, and optimistic update checks; do not add a second SQLite-only authority.
+- [ ] Implement authenticated `GET /api/theme/current`, admin-only `GET/PUT /api/theme/:tenantId`, and admin-only reset with typed errors and append-only audit events.
+- [ ] Add import/seed validation for reference tenant fixtures; never seed live customer data or secrets into the repository.
+
+### P7-04 — Runtime ThemeProvider and asset loader (P1)
+
+- [ ] Add `ThemeProvider` and `ThemeSlot` contexts that project server-authoritative configuration into the React tree without browser-owned persistence.
+- [ ] Sanitize camelCase-to-CSS-token mapping, reject unsafe values, replace styles on config revision, and set nav contrast attributes from a tested luminance helper.
+- [ ] Add a bounded font/asset loader. Prefer self-hosted, integrity-checked assets; remote font loading must be explicit, allow-listed, and compatible with the sans-serif contract.
+
+### P7-05 — Admin appearance controls (P1)
+
+- [ ] Add an admin-only Appearance surface for palette, allowed font, radius, logo, and logo-mark changes with immediate local preview and explicit Save/Reset.
+- [ ] Validate logo MIME/content server-side (PNG/SVG, bounded size); sanitize SVG scripts, event handlers, external references, and unsafe URL schemes.
+- [ ] Add keyboard, reduced-motion, contrast, error, optimistic-conflict, and unauthorized-state coverage.
+
+### P7-06 — Tenant homepage/content configuration (P1)
+
+- [ ] Add an admin-only homepage editor for bounded hero copy, announcement links, feature cards, navigation links, and compliance links.
+- [ ] Render configured content through typed React components; do not render arbitrary `customSectionsHtml` by default. If an HTML escape hatch is approved later, use a reviewed sanitizer/CSP test and prohibit scripts, iframes, inline styles, event handlers, and unsafe URLs.
+- [ ] Support optional per-card accent tokens through an allow-listed palette rather than arbitrary CSS values.
+
+### P7-07 — Reference tenant profiles and acceptance matrix (P2)
+
+- [ ] Add non-production, fixture-only reference profiles for institutional, financial, and philanthropic visual systems, with no customer credentials or proprietary assets.
+- [ ] Verify base theme plus each profile at desktop/mobile sizes, light/dark modes, keyboard navigation, reduced motion, WCAG contrast, and no-overflow conditions.
+- [ ] Verify that theme changes do not alter runtime readiness, LiteLLM routing, task ownership, approval authority, evidence chain, or artifact behavior.
+
+### P7-08 — Tier 3 deployment-time extension package (P2, after P7-02/P7-04)
+
+- [ ] Define and document a versioned `ThemePackage` contract for page overrides, named slots, routes, CSS, and token defaults.
+- [ ] Load only packages from `ONEVIBE_ALLOWED_THEME_PACKAGES`, verify package version/integrity at deployment, and fail closed on invalid exports.
+- [ ] Add slot fallback, package isolation, static-build, CSP, and rollback tests; package code must not receive raw secrets or become an approval authority.
+
+### P7-09 — Release evidence and operations (P1 before production)
+
+- [ ] Add `npm run e2e:themes` covering base-theme fallback, tenant isolation, safe token rejection, admin authorization, save/reset, content sanitization, asset validation, and restart persistence.
+- [ ] Add theme audit events to diagnostics and Linear evidence without storing raw secrets, uploaded bytes, or untrusted HTML.
+- [ ] Document cache invalidation, rollout/rollback, migration, package provenance, asset retention, and incident response in the deployment runbook.
 
 ---
 

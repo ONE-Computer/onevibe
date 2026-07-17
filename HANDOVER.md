@@ -214,6 +214,9 @@ Full task list: `TODO.md`. Summary:
 **4 tasks. Target: users add MCP servers; verified skill marketplace installation works. The local MCP declaration, bounded health probe, marketplace install/remove slices, live GitHub catalog verification, and protected Claude/LiteLLM skill materialization exist; authenticated ownership, secret brokering, and external health attestation remain open.**
 (See `plan/06-mcp-extensions.md` for details)
 
+### Phase 7 — Tenant theming and extensibility (planned)
+`THEMING_EXTENSIBILITY.md` is a planning brief for a future white-label product surface. `TODO.md` now tracks P7-01 through P7-09. Do not start tenant-admin mutation until authenticated admin/org scope, the Postgres runtime, and the assistant-ui design foundation are accepted. Theme configuration is presentation-only: it cannot change LiteLLM routing, provider credentials, auth/session policy, OpenVTC/VTI approval authority, evidence redaction, or sandbox policy. The current ONEVibe UI remains sans-serif-only; the brief's serif/monospace examples require an explicit design/security decision before they could be considered.
+
 ---
 
 ## 6. Key files — what they do
