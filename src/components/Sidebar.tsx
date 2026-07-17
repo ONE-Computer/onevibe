@@ -7,6 +7,8 @@ import { getProjectFile, listConversations, listProjectFileVersions } from '../l
 import { providerLabel } from '../lib/runtime-labels'
 import { BrandMark } from './BrandMark'
 import { useTenantTheme } from '../hooks/useTenantTheme'
+import type { Locale } from '../lib/i18n'
+import { t } from '../lib/i18n'
 
 type Props = {
   view: 'agent' | 'schedules' | 'skills' | 'library' | 'computers' | 'appearance' | 'homepage'
@@ -36,6 +38,7 @@ type Props = {
   skillCount: number
   user?: AuthUser
   onSignOut: () => Promise<void>
+  locale?: Locale
 }
 
 const conversationSourceLabel = (provider: ConversationSummary['provider']) => providerLabel(provider)
@@ -78,7 +81,7 @@ const bucketFor = (iso: string, now: number): 'Today' | 'Yesterday' | 'This week
   return 'Older'
 }
 
-export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, onOpenAppearance, onOpenHomepage, skillCount, user, onSignOut }: Props) => {
+export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, onOpenAppearance, onOpenHomepage, skillCount, user, onSignOut, locale = 'en' }: Props) => {
   const { config } = useTenantTheme()
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
@@ -133,15 +136,15 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
   return (
   <aside className="sidebar">
     <div className="sidebar-top"><BrandMark /><button type="button" className="sidebar-close" aria-label="Close sidebar" onClick={onClose}><X size={15} /></button></div>
-    <button className="new-task" onClick={onNewTask}><Plus size={16} /> New task <kbd>⌘ K</kbd></button>
+    <button className="new-task" onClick={onNewTask}><Plus size={16} /> {t('newTask', locale)} <kbd>⌘ K</kbd></button>
     <label className="history-search"><Search size={13} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" /></label>
     <nav className="primary-nav" aria-label="Primary">
       <button className={`nav-item ${view === 'agent' ? 'active' : ''}`} onClick={onNewTask}><Sparkles size={16} /> Agent</button>
-      <button className={`nav-item ${view === 'skills' ? 'active' : ''}`} onClick={onOpenSkills}><Blocks size={16} /> Skills <span className="nav-pill">{skillCount}</span></button>
-      <button className={`nav-item ${view === 'schedules' ? 'active' : ''}`} onClick={onOpenSchedules}><Clock3 size={16} /> Scheduled</button>
-      <button className={`nav-item ${view === 'library' ? 'active' : ''}`} onClick={onOpenLibrary}><Library size={16} /> Library</button>
-      <button className={`nav-item ${view === 'computers' ? 'active' : ''}`} onClick={onOpenComputers}><MonitorCog size={16} /> Computers</button>
-      <button className={`nav-item ${view === 'appearance' ? 'active' : ''}`} onClick={onOpenAppearance}><Palette size={16} /> Appearance</button>
+      <button className={`nav-item ${view === 'skills' ? 'active' : ''}`} onClick={onOpenSkills}><Blocks size={16} /> {t('skills', locale)} <span className="nav-pill">{skillCount}</span></button>
+      <button className={`nav-item ${view === 'schedules' ? 'active' : ''}`} onClick={onOpenSchedules}><Clock3 size={16} /> {t('scheduled', locale)}</button>
+      <button className={`nav-item ${view === 'library' ? 'active' : ''}`} onClick={onOpenLibrary}><Library size={16} /> {t('library', locale)}</button>
+      <button className={`nav-item ${view === 'computers' ? 'active' : ''}`} onClick={onOpenComputers}><MonitorCog size={16} /> {t('computers', locale)}</button>
+      <button className={`nav-item ${view === 'appearance' ? 'active' : ''}`} onClick={onOpenAppearance}><Palette size={16} /> {t('appearance', locale)}</button>
       <button className={`nav-item ${view === 'homepage' ? 'active' : ''}`} onClick={onOpenHomepage}><FileEdit size={16} /> Homepage</button>
       {config?.navigation?.items?.map((item) => <a key={`${item.label}:${item.href}`} className="nav-item tenant-nav-link" href={item.href} target={item.external ? '_blank' : undefined} rel={item.external ? 'noreferrer' : undefined}>{item.label}</a>)}
     </nav>
