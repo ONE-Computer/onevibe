@@ -17,14 +17,14 @@ describe('skill installation persistence', () => {
     try {
       const store = new TaskStore(root)
       await store.initialize()
-      store.installSkillInstallation(record, 'user_a')
-      store.installSkillInstallation({ ...record, id: 'other-skill', title: 'Other' }, 'user_b')
-      expect(store.listSkillInstallations('user_a').map((skill) => skill.id)).toEqual(['meeting-brief'])
-      expect(store.listSkillInstallations('user_b').map((skill) => skill.id)).toEqual(['other-skill'])
+      await store.installSkillInstallation(record, 'user_a')
+      await store.installSkillInstallation({ ...record, id: 'other-skill', title: 'Other' }, 'user_b')
+      expect((await store.listSkillInstallations('user_a')).map((skill) => skill.id)).toEqual(['meeting-brief'])
+      expect((await store.listSkillInstallations('user_b')).map((skill) => skill.id)).toEqual(['other-skill'])
       const reopened = new TaskStore(root)
       await reopened.initialize()
-      expect(reopened.listSkillInstallationRecords('user_a')[0]?.content).toContain('name: meeting-brief')
-      expect(reopened.listSkillInstallations('user_b')).toHaveLength(1)
+      expect((await reopened.listSkillInstallationRecords('user_a'))[0]?.content).toContain('name: meeting-brief')
+      expect(await reopened.listSkillInstallations('user_b')).toHaveLength(1)
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -35,12 +35,12 @@ describe('skill installation persistence', () => {
     try {
       const store = new TaskStore(root)
       await store.initialize()
-      store.installSkillInstallation(record, 'user_a')
+      await store.installSkillInstallation(record, 'user_a')
       const project = await store.createProject('Private project', '', 'user_a')
       const task = await store.createTask('Use the installed guide', 'demo', 'chat', project.id, undefined, [], [], ['meeting-brief'], 'user_a')
-      expect(() => store.removeSkillInstallation('meeting-brief', 'user_a')).toThrow(/active task/)
+      await expect(store.removeSkillInstallation('meeting-brief', 'user_a')).rejects.toThrow(/active task/)
       await store.updateTask(task.id, { status: 'running' })
-      expect(() => store.removeSkillInstallation('meeting-brief', 'user_a')).toThrow(/active task/)
+      await expect(store.removeSkillInstallation('meeting-brief', 'user_a')).rejects.toThrow(/active task/)
     } finally {
       await rm(root, { recursive: true, force: true })
     }

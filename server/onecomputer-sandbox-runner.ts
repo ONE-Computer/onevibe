@@ -464,7 +464,7 @@ export class OneComputerSandboxRuntimeAdapter extends RuntimeAdapterBase {
       await store.setPlanStep(task.id, 'workspace', 'completed')
       await store.setPlanStep(task.id, 'build', 'running')
 
-      const selectedSkills = skillPacksFor(task.skills, skillPacksFromInstallations(store.listSkillInstallationRecords(task.ownerUserId)))
+      const selectedSkills = skillPacksFor(task.skills, skillPacksFromInstallations(await store.listSkillInstallationRecords(task.ownerUserId)))
 
       const agentPrompt = [
         'You are ONEVibe operating inside a disposable ONEComputer sandbox.',

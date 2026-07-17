@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-17 — route TaskStore operational surfaces through opt-in Postgres
+
+- Converted TaskStore MCP declarations, organization/member operations, skill-installation reads/writes, and runtime MCP projection to async methods with SQLite-compatible behavior preserved. The Postgres branch requires an owner and delegates to owner-checked `PostgresStateCoordinator` wrappers; it never falls back to SQLite or an in-memory cache.
+- Updated API routes, Claude/ONEComputer skill materialization, diagnostics, and the import harness to await the async boundary. The Postgres TaskStore E2E now proves MCP and skill owner isolation, organization membership visibility, restart recovery, deletion, and lease recovery in one opt-in run.
+- Verification: `npm run lint`, `npm run check:e2e-harness`, `npm test` (52 files / 259 tests), `npm run build`, `npm run db:check`, and disposable PostgreSQL 18 migration plus `npm run e2e:postgres-taskstore` and `npm run e2e:postgres-state` passed.
+- Boundary: the production driver remains fail-closed. Native-event ingestion is still not one cross-repository transaction, and workspace/project-file bytes, attachments, previews, screenshots, and versions remain local filesystem state pending the durable workspace repository contract.
+
 ## 2026-07-17 — integrate opt-in Postgres runtime leases into TaskStore
 
 - Added owner-checked `PostgresStateCoordinator` wrappers for MCP declarations/audit, organizations/members, skill installations, and generation-fenced runtime leases. The wrappers deliberately document that mutation-plus-audit and organization-plus-owner-membership remain separate repository calls until transaction-aware operations are added.

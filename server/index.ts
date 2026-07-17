@@ -148,7 +148,7 @@ const taskSkill = z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/)
 const builtInSkillIdSet = new Set<string>(builtInSkillIds)
 const skillCatalog = async (ownerUserId?: string) => {
   const builtins = skillPackCatalog().map((skill) => ({ ...skill, source: 'builtin' as const, installed: true }))
-  const installed = store.listSkillInstallations(ownerUserId)
+  const installed = await store.listSkillInstallations(ownerUserId)
   const installedById = new Map(installed.map((skill) => [skill.id, skill]))
   const marketplace = await loadMarketplaceCatalog()
   const entries = marketplace.map((entry) => publicMarketplaceEntry(entry, installedById.has(entry.id)))
@@ -247,7 +247,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       content: `Applied governed context from ${project.name}.`, payload: { projectId: project.id, projectName: project.name },
     })
     if (task.skills.length) {
-      await store.appendEvent(task.id, skillSelectionEventFor(task.provider, task.skills, store.listSkillInstallationRecords(task.ownerUserId)))
+      await store.appendEvent(task.id, skillSelectionEventFor(task.provider, task.skills, await store.listSkillInstallationRecords(task.ownerUserId)))
     }
     if (projectKnowledge.length) await store.appendEvent(task.id, {
       type: 'artifact_created', lane: 'artifact', label: 'Project knowledge attached',
@@ -264,7 +264,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
       content: `${turnAttachments.length} file${turnAttachments.length === 1 ? '' : 's'} staged under inputs/ for this turn.`,
       payload: { kind: 'task_input', attachmentCount: turnAttachments.length, files: turnAttachments.map(({ name, path, size, mimeType }) => ({ name, path, size, mimeType })) },
     })
-    const mcpConfigs = adapter.capabilities.includes('tool_use') ? store.runtimeMcpConfigs(task.ownerUserId) : []
+    const mcpConfigs = adapter.capabilities.includes('tool_use') ? await store.runtimeMcpConfigs(task.ownerUserId) : []
     await adapter.initialize(store.getTask(task.id), store.workspacePath(task.id), mcpConfigs)
     activeAdapters.set(task.id, adapter)
     try {
@@ -382,7 +382,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   if (request.method === 'GET' && url.pathname === '/api/diagnostics') {
     const readiness = await runtimeSnapshot()
     const reachable = await oneComputerReachability()
-    const mcpConfigs = store.listMcpConfigs(actorUserId)
+    const mcpConfigs = await store.listMcpConfigs(actorUserId)
     const mcpChecks = await Promise.all(mcpConfigs.map(async (config) => ({ name: config.name, ...(await probeMcpConfig({ ...config, env: {} })) })))
     const healthyMcpCount = mcpChecks.filter((check) => check.status === 'online').length
     return json(response, 200, {
@@ -417,18 +417,18 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const entry = (await loadMarketplaceCatalog()).find((candidate) => candidate.id === input.skillId)
     if (!entry) return json(response, 404, { error: 'Marketplace skill not found in the configured GitHub catalog' })
     const content = await fetchMarketplaceSkill(entry)
-    return json(response, 201, store.installSkillInstallation({
+    return json(response, 201, await store.installSkillInstallation({
       id: entry.id, version: entry.version, title: entry.title, summary: entry.summary, sha256: entry.sha256,
       content, contentUrl: entry.contentUrl, sourceUrl: entry.sourceUrl,
     }, actorUserId))
   }
   if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'skills' && segments[2] && segments.length === 3) {
-    if (!store.removeSkillInstallation(segments[2], actorUserId)) return json(response, 404, { error: 'Installed marketplace skill not found' })
+    if (!await store.removeSkillInstallation(segments[2], actorUserId)) return json(response, 404, { error: 'Installed marketplace skill not found' })
     return json(response, 200, { id: segments[2], deleted: true })
   }
-  if (request.method === 'GET' && url.pathname === '/api/mcp') return json(response, 200, { configs: store.listMcpConfigs(actorUserId) })
+  if (request.method === 'GET' && url.pathname === '/api/mcp') return json(response, 200, { configs: await store.listMcpConfigs(actorUserId) })
   if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'mcp' && segments[2] && segments[3] === 'health' && segments.length === 4) {
-    const config = store.listMcpConfigs(actorUserId).find((candidate) => candidate.id === segments[2])
+    const config = (await store.listMcpConfigs(actorUserId)).find((candidate) => candidate.id === segments[2])
     if (!config) return json(response, 404, { error: 'MCP configuration not found' })
     const health = await probeMcpConfig({ ...config, env: {} })
     return json(response, 200, { id: config.id, ...health })
@@ -438,28 +438,28 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (['sh', 'bash', 'zsh', 'fish', 'cmd', 'powershell'].includes(path.basename(input.command).toLowerCase())) {
       throw new RangeError('Shell interpreters cannot be registered as MCP commands')
     }
-    return json(response, 201, store.createMcpConfig(input, actorUserId))
+    return json(response, 201, await store.createMcpConfig(input, actorUserId))
   }
   if (request.method === 'DELETE' && segments[0] === 'api' && segments[1] === 'mcp' && segments[2] && segments.length === 3) {
-    if (!store.deleteMcpConfig(segments[2], actorUserId)) return json(response, 404, { error: 'MCP configuration not found' })
+    if (!await store.deleteMcpConfig(segments[2], actorUserId)) return json(response, 404, { error: 'MCP configuration not found' })
     return json(response, 200, { id: segments[2], deleted: true })
   }
   if (segments[0] === 'api' && segments[1] === 'organizations') {
     if (!actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
-    if (request.method === 'GET' && segments.length === 2) return json(response, 200, { organizations: store.listOrganizations(actorUserId) })
+    if (request.method === 'GET' && segments.length === 2) return json(response, 200, { organizations: await store.listOrganizations(actorUserId) })
     if (request.method === 'POST' && segments.length === 2) {
       const input = createOrganizationInput.parse(await readBody(request))
-      return json(response, 201, store.createOrganization(input.name, actorUserId))
+      return json(response, 201, await store.createOrganization(input.name, actorUserId))
     }
     if (segments[2] && request.method === 'GET' && segments.length === 4 && segments[3] === 'members') {
-      return json(response, 200, { members: store.listOrganizationMembers(segments[2], actorUserId) })
+      return json(response, 200, { members: await store.listOrganizationMembers(segments[2], actorUserId) })
     }
     if (segments[2] && request.method === 'POST' && segments.length === 4 && segments[3] === 'members') {
       const input = organizationMemberInput.parse(await readBody(request))
-      return json(response, 201, store.addOrganizationMember(segments[2], input.userId, actorUserId))
+      return json(response, 201, await store.addOrganizationMember(segments[2], input.userId, actorUserId))
     }
     if (segments[2] && segments[3] === 'members' && segments[4] && request.method === 'DELETE' && segments.length === 5) {
-      return json(response, 200, store.removeOrganizationMember(segments[2], segments[4], actorUserId))
+      return json(response, 200, await store.removeOrganizationMember(segments[2], segments[4], actorUserId))
     }
   }
   if (request.method === 'GET' && url.pathname === '/api/library') return json(response, 200, { items: await store.listLibrary(actorUserId) })
@@ -576,7 +576,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const providerState = readiness.providers.find((candidate) => candidate.id === provider)
     if (!providerState?.available) return json(response, 409, { error: `${providerState?.label ?? provider} is unavailable: ${providerState?.detail ?? 'runtime is not configured'}` })
     const requestedSkills = [...new Set(input.skills)]
-    const installedSkillIds = new Set(store.listSkillInstallations(actorUserId).map((skill) => skill.id))
+    const installedSkillIds = new Set((await store.listSkillInstallations(actorUserId)).map((skill) => skill.id))
     const unavailableSkill = requestedSkills.find((skill) => !builtInSkillIdSet.has(skill) && !installedSkillIds.has(skill))
     if (unavailableSkill) return json(response, 400, { error: `Skill '${unavailableSkill}' is not installed in this workspace` })
     const normalizedAttachments = input.attachments.map((attachment) => {

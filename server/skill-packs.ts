@@ -50,7 +50,7 @@ export const skillPackCatalog = (): SkillPackCatalogEntry[] => Object.values(pac
 
 /** Materialize only the selected, task-pinned packs in the project skill path. */
 export const materializeTaskSkills = async (task: Task, store: TaskStore) => {
-  const selected = skillPacksFor(task.skills, skillPacksFromInstallations(store.listSkillInstallationRecords(task.ownerUserId)))
+  const selected = skillPacksFor(task.skills, skillPacksFromInstallations(await store.listSkillInstallationRecords(task.ownerUserId)))
   await Promise.all(selected.map((skill) => store.writeWorkspaceFile(task.id, `.claude/skills/${skill.id}/SKILL.md`, skill.content)))
   return selected.map(({ id, version, title, sha256 }) => ({ id, version, title, sha256 }))
 }

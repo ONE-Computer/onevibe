@@ -4,6 +4,7 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 
 ## 2026-07-17 — Postgres native-event and browser verification pass
 
+- The opt-in TaskStore proof now exercises async operational wrappers as well as the core transcript: owner-isolated MCP config, skill installation, organization membership, and lease state all survive coordinator close/reopen and enforce wrong-owner access. The proof is still intentionally opt-in and does not select Postgres for the live server.
 - A fresh disposable PostgreSQL 18 run applied the full reviewed migration ledger and passed `npm run e2e:postgres-operations`, `npm run e2e:postgres-state`, and `npm run e2e:postgres-taskstore`. The coordinator proof covered MCP audit retention/owner isolation, organization membership, skill restart recovery, and lease transition/restart/owner fencing. The TaskStore proof now covers project/task/chat/event-chain/retry recovery plus lease allocation and transition after closing and reopening the store.
 - Browser QA was retried with the local API on port 4311 and Vite on port 5173. The existing in-app browser tab was claimable, but `tab.reload()` was rejected by Browser Use's localhost URL policy. No browser screenshot or UI acceptance claim is made; the exact desktop/mobile screenshot gate remains open.
 

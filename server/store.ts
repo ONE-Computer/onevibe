@@ -400,7 +400,16 @@ export class TaskStore {
     this.unitOfWork = undefined
   }
 
-  listMcpConfigs(ownerUserId?: string): RuntimeMcpConfig[] {
+  async listMcpConfigs(ownerUserId?: string): Promise<RuntimeMcpConfig[]> {
+    if (this.postgresState) {
+      if (!ownerUserId) throw new Error('Postgres MCP config reads require an owner')
+      const records = await this.postgresState.listMcpConfigs(ownerUserId)
+      return records.map((record) => ({
+        id: record.id, name: record.name, command: record.command,
+        ...(record.ownerUserId ? { ownerUserId: record.ownerUserId } : {}),
+        args: this.parseMcpArgs(record.argsJson), createdAt: record.createdAt, updatedAt: record.updatedAt,
+      }))
+    }
     return this.requireUnitOfWork().run((repositories) => repositories.mcpConfigs.list(ownerUserId).map((record) => {
       let args: unknown
       try { args = JSON.parse(record.argsJson) } catch { args = [] }
@@ -413,9 +422,14 @@ export class TaskStore {
     }))
   }
 
-  createMcpConfig(input: { name: string; command: string; args: string[] }, ownerUserId?: string): RuntimeMcpConfig {
+  async createMcpConfig(input: { name: string; command: string; args: string[] }, ownerUserId?: string): Promise<RuntimeMcpConfig> {
     const now = new Date().toISOString()
     const record = { id: `mcp_${randomUUID().replaceAll('-', '').slice(0, 20)}`, ownerUserId: ownerUserId ?? null, name: input.name, command: input.command, argsJson: JSON.stringify(input.args), createdAt: now, updatedAt: now }
+    if (this.postgresState) {
+      if (!ownerUserId) throw new Error('Postgres MCP config writes require an owner')
+      await this.postgresState.createMcpConfig(record, ownerUserId)
+      return { ...input, id: record.id, ownerUserId, createdAt: now, updatedAt: now }
+    }
     this.requireUnitOfWork().run((repositories) => {
       repositories.mcpConfigs.insert(record)
       repositories.mcpConfigs.appendAudit({ id: `${record.id}:created`, configId: record.id, action: 'created', name: record.name, command: record.command, argsJson: record.argsJson, createdAt: now })
@@ -423,7 +437,11 @@ export class TaskStore {
     return { ...input, id: record.id, createdAt: now, updatedAt: now }
   }
 
-  deleteMcpConfig(id: string, ownerUserId?: string): boolean {
+  async deleteMcpConfig(id: string, ownerUserId?: string): Promise<boolean> {
+    if (this.postgresState) {
+      if (!ownerUserId) throw new Error('Postgres MCP config writes require an owner')
+      return this.postgresState.deleteMcpConfig(id, ownerUserId)
+    }
     return this.requireUnitOfWork().run((repositories) => {
       const current = repositories.mcpConfigs.findById(id)
       if (!current || (ownerUserId !== undefined && current.ownerUserId !== ownerUserId) || !repositories.mcpConfigs.delete(id, ownerUserId)) return false
@@ -432,7 +450,8 @@ export class TaskStore {
     })
   }
 
-  listOrganizations(userId: string): Organization[] {
+  async listOrganizations(userId: string): Promise<Organization[]> {
+    if (this.postgresState) return (await this.postgresState.listOrganizationsForUser(userId)).map((row) => ({ id: row.id, name: row.name, createdAt: row.createdAt, updatedAt: row.updatedAt }))
     return this.requireUnitOfWork().run((repositories) => repositories.organizations.listForUser(userId).map((row) => ({ id: row.id, name: row.name, createdAt: row.createdAt, updatedAt: row.updatedAt })))
   }
 
@@ -443,10 +462,14 @@ export class TaskStore {
     })))
   }
 
-  createOrganization(name: string, ownerUserId: string): Organization {
+  async createOrganization(name: string, ownerUserId: string): Promise<Organization> {
     if (!ownerUserId) throw new Error('Organization owner is required')
     const now = new Date().toISOString()
     const organization = { id: `org_${randomUUID().replaceAll('-', '').slice(0, 16)}`, name, createdAt: now, updatedAt: now }
+    if (this.postgresState) {
+      await this.postgresState.createOrganization(organization, ownerUserId)
+      return organization
+    }
     this.requireUnitOfWork().run((repositories) => {
       repositories.organizations.insertOrganization(organization)
       repositories.organizations.insertMember({ organizationId: organization.id, userId: ownerUserId, role: 'owner', createdAt: now })
@@ -454,16 +477,18 @@ export class TaskStore {
     return organization
   }
 
-  listOrganizationMembers(organizationId: string, userId: string): OrganizationMember[] {
+  async listOrganizationMembers(organizationId: string, userId: string): Promise<OrganizationMember[]> {
+    if (this.postgresState) return (await this.postgresState.listOrganizationMembers(organizationId, userId)).map((row) => ({ organizationId: row.organizationId, userId: row.userId, role: row.role, createdAt: row.createdAt }))
     return this.requireUnitOfWork().run((repositories) => {
       if (!repositories.organizations.findMember(organizationId, userId)) throw new Error('Organization not found')
       return repositories.organizations.listMembers(organizationId).map((row) => ({ organizationId: row.organizationId, userId: row.userId, role: row.role, createdAt: row.createdAt }))
     })
   }
 
-  addOrganizationMember(organizationId: string, userId: string, actorUserId: string): OrganizationMember {
+  async addOrganizationMember(organizationId: string, userId: string, actorUserId: string): Promise<OrganizationMember> {
     if (!userId) throw new Error('Organization member user is required')
     const member = { organizationId, userId, role: 'member' as const, createdAt: new Date().toISOString() }
+    if (this.postgresState) return this.postgresState.addOrganizationMember(organizationId, userId, actorUserId)
     return this.requireUnitOfWork().run((repositories) => {
       const organization = repositories.organizations.findById(organizationId)
       const actor = repositories.organizations.findMember(organizationId, actorUserId)
@@ -478,7 +503,8 @@ export class TaskStore {
     })
   }
 
-  removeOrganizationMember(organizationId: string, userId: string, actorUserId: string): { organizationId: string; userId: string; removed: true } {
+  async removeOrganizationMember(organizationId: string, userId: string, actorUserId: string): Promise<{ organizationId: string; userId: string; removed: true }> {
+    if (this.postgresState) return this.postgresState.removeOrganizationMember(organizationId, userId, actorUserId)
     return this.requireUnitOfWork().run((repositories) => {
       const organization = repositories.organizations.findById(organizationId)
       const actor = repositories.organizations.findMember(organizationId, actorUserId)
@@ -490,32 +516,52 @@ export class TaskStore {
     })
   }
 
-  runtimeMcpConfigs(ownerUserId?: string): McpConfig[] {
-    return this.listMcpConfigs(ownerUserId).map((config) => ({ ...config, env: {} }))
+  async runtimeMcpConfigs(ownerUserId?: string): Promise<McpConfig[]> {
+    return (await this.listMcpConfigs(ownerUserId)).map((config) => ({ ...config, env: {} }))
   }
 
-  listSkillInstallationRecords(ownerUserId?: string): SkillInstallationRecord[] {
+  async listSkillInstallationRecords(ownerUserId?: string): Promise<SkillInstallationRecord[]> {
+    if (this.postgresState) {
+      if (!ownerUserId) throw new Error('Postgres skill reads require an owner')
+      return this.postgresState.listSkillInstallations(ownerUserId)
+    }
     return this.requireUnitOfWork().run((repositories) => repositories.skillInstallations.list(ownerUserId))
   }
 
-  listSkillInstallations(ownerUserId?: string): SkillInstallation[] {
-    return this.listSkillInstallationRecords(ownerUserId).map(({ id, version, title, summary, sha256, contentUrl }) => ({
+  async listSkillInstallations(ownerUserId?: string): Promise<SkillInstallation[]> {
+    return (await this.listSkillInstallationRecords(ownerUserId)).map(({ id, version, title, summary, sha256, contentUrl }) => ({
       id, version, title, summary, sha256, contentUrl, source: 'marketplace' as const, installed: true,
     }))
   }
 
-  installSkillInstallation(input: Omit<SkillInstallationRecord, 'ownerUserId' | 'createdAt' | 'updatedAt'>, ownerUserId?: string): SkillInstallation {
+  async installSkillInstallation(input: Omit<SkillInstallationRecord, 'ownerUserId' | 'createdAt' | 'updatedAt'>, ownerUserId?: string): Promise<SkillInstallation> {
     const now = new Date().toISOString()
     const record: SkillInstallationRecord = { ...input, ownerUserId: ownerUserId ?? null, createdAt: now, updatedAt: now }
+    if (this.postgresState) {
+      if (!ownerUserId) throw new Error('Postgres skill writes require an owner')
+      await this.postgresState.installSkillInstallation(record, ownerUserId)
+      return { id: record.id, version: record.version, title: record.title, summary: record.summary, sha256: record.sha256, contentUrl: record.contentUrl, source: 'marketplace', installed: true }
+    }
     this.requireUnitOfWork().run((repositories) => repositories.skillInstallations.insert(record))
     return { id: record.id, version: record.version, title: record.title, summary: record.summary, sha256: record.sha256, contentUrl: record.contentUrl, source: 'marketplace', installed: true }
   }
 
-  removeSkillInstallation(id: string, ownerUserId?: string): boolean {
+  async removeSkillInstallation(id: string, ownerUserId?: string): Promise<boolean> {
     if (this.listTasks(ownerUserId).some((task) => ['pending', 'running', 'waiting_for_approval', 'waiting_for_user_input'].includes(task.status) && task.skills.includes(id))) {
       throw new Error('Skill cannot be removed while an active task depends on it')
     }
+    if (this.postgresState) {
+      if (!ownerUserId) throw new Error('Postgres skill writes require an owner')
+      return this.postgresState.removeSkillInstallation(id, ownerUserId)
+    }
     return this.requireUnitOfWork().run((repositories) => repositories.skillInstallations.delete(id, ownerUserId))
+  }
+
+  private parseMcpArgs(argsJson: string): string[] {
+    try {
+      const args = JSON.parse(argsJson) as unknown
+      return Array.isArray(args) && args.every((arg) => typeof arg === 'string') ? args : []
+    } catch { return [] }
   }
 
   async listLibrary(ownerUserId?: string) {

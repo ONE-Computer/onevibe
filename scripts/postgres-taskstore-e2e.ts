@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import postgres from 'postgres'
-import type { RuntimeLeaseRecord } from '../server/persistence/contracts.js'
+import type { McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseRecord, SkillInstallationRecord } from '../server/persistence/contracts.js'
 import { TaskStore } from '../server/store.js'
 
 const databaseUrl = process.env.DATABASE_URL?.trim()
@@ -26,6 +26,23 @@ const main = async () => {
     await first.beginTurn(task.id, 'Hello from the durable TaskStore.', task.provider)
     await first.appendEvent(task.id, { type: 'assistant_text_delta', lane: 'transcript', content: 'Hello from Postgres.', payload: {} })
     await first.appendEvent(task.id, { type: 'run_completed', lane: 'control', status: 'completed', label: 'Turn completed', payload: {} })
+    const mcp: McpConfigRecord = { id: `mcp_taskstore_${suffix}`, ownerUserId, name: 'TaskStore MCP', command: 'node', argsJson: JSON.stringify(['fixture.mjs']), createdAt: now.toISOString(), updatedAt: now.toISOString() }
+    const createdMcp = await first.createMcpConfig({ name: mcp.name, command: mcp.command, args: ['fixture.mjs'] }, ownerUserId)
+    mcp.id = createdMcp.id
+    assert.deepEqual((await first.listMcpConfigs(ownerUserId)).map((config) => config.id), [mcp.id])
+    assert.equal((await first.listMcpConfigs(otherUserId)).length, 0)
+    const skill: SkillInstallationRecord = { id: `skill_taskstore_${suffix}`, ownerUserId, version: 1, title: 'TaskStore skill', summary: 'TaskStore proof skill', sha256: 'd'.repeat(64), content: '# TaskStore skill', contentUrl: 'https://raw.githubusercontent.com/ONE-Computer/onevibe/main/skills/catalog.json', sourceUrl: 'https://github.com/ONE-Computer/onevibe', createdAt: now.toISOString(), updatedAt: now.toISOString() }
+    await first.installSkillInstallation(skill, ownerUserId)
+    assert.deepEqual((await first.listSkillInstallationRecords(ownerUserId)).map((item) => item.id), [skill.id])
+    assert.equal((await first.listSkillInstallationRecords(otherUserId)).length, 0)
+    const organization: OrganizationRecord = { id: `org_taskstore_${suffix}`, name: 'TaskStore organization', createdAt: now.toISOString(), updatedAt: now.toISOString() }
+    await first.createOrganization(organization.name, ownerUserId)
+    const ownerOrganizations = await first.listOrganizations(ownerUserId)
+    assert.equal(ownerOrganizations.length, 1)
+    const member: OrganizationMemberRecord = await first.addOrganizationMember(ownerOrganizations[0]!.id, otherUserId, ownerUserId)
+    assert.equal(member.role, 'member')
+    assert.deepEqual((await first.listOrganizations(otherUserId)).map((item) => item.id), [ownerOrganizations[0]!.id])
+    assert.deepEqual((await first.listOrganizationMembers(ownerOrganizations[0]!.id, otherUserId)).map((item) => item.userId), [ownerUserId, otherUserId])
     const leaseCreatedAt = new Date(now.getTime() + 1).toISOString()
     const lease: RuntimeLeaseRecord = {
       id: `lease_taskstore_${suffix}`, conversationId: task.id, generation: 0, providerName: 'onecomputer', providerSandboxId: null,
@@ -56,12 +73,19 @@ const main = async () => {
       assert.equal(second.verifyChain(task.id), true)
       assert.deepEqual(await second.getRetry(task.id, 'retry-1'), { state: 'completed', response: { status: 'queued', taskId: task.id } })
       assert.deepEqual((await second.listRuntimeLeases(task.id, ownerUserId)).map((candidate) => ({ status: candidate.status, generation: candidate.generation, providerSandboxId: candidate.providerSandboxId })), [{ status: 'ready', generation: 0, providerSandboxId: 'sandbox-taskstore' }])
+      assert.deepEqual((await second.listMcpConfigs(ownerUserId)).map((config) => config.id), [mcp.id])
+      assert.deepEqual((await second.listSkillInstallationRecords(ownerUserId)).map((item) => item.id), [skill.id])
+      assert.deepEqual((await second.listOrganizationMembers((await second.listOrganizations(ownerUserId))[0]!.id, ownerUserId)).map((item) => item.userId), [ownerUserId, otherUserId])
       await assert.rejects(() => second.findActiveRuntimeLease(task.id, otherUserId), /Task not found/)
       const wrongOwnerTransition: RuntimeLeaseRecord = { ...readyLease, conversationId: `task_other_${suffix}` }
       await assert.rejects(() => second.transitionRuntimeLease(lease.id, { generation: readyLease.generation, status: readyLease.status, updatedAt: readyLease.updatedAt }, wrongOwnerTransition, otherUserId), /Task not found/)
       const wrongConversationTransition: RuntimeLeaseRecord = { ...readyLease, conversationId: otherTask.id }
       await assert.rejects(() => second.transitionRuntimeLease(lease.id, { generation: readyLease.generation, status: readyLease.status, updatedAt: readyLease.updatedAt }, wrongConversationTransition, ownerUserId), /does not exist for this owner conversation/)
-      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'opt-in core slice only; production driver selection remains fail-closed until the full async TaskStore surface is integrated' }, null, 2))
+      const organizationId = (await second.listOrganizations(ownerUserId))[0]!.id
+      assert.equal(await second.deleteMcpConfig(mcp.id, ownerUserId), true)
+      assert.equal(await second.removeSkillInstallation(skill.id, ownerUserId), true)
+      await second.removeOrganizationMember(organizationId, otherUserId, ownerUserId)
+      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'opt-in core slice only; production driver selection remains fail-closed until the full async TaskStore surface is integrated' }, null, 2))
     } finally {
       await second.close()
     }
