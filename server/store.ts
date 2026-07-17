@@ -1470,6 +1470,30 @@ export class TaskStore {
         })
       }
     }
+    if (this.postgresState) {
+      const turns = [...turnMap.values()].map((turn) => ({
+        id: turn.id, clientRequestId: turn.id, ordinal: turn.ordinal,
+        status: turn.statuses.includes('failed') ? 'failed' : turn.statuses.includes('cancelled') ? 'cancelled' : 'completed',
+        createdAt: new Date(turn.createdAt), startedAt: new Date(turn.createdAt), completedAt: new Date(turn.completedAt),
+      }))
+      const messages = history.map((message, sequence) => {
+        const turn = turnMap.get(message.turnId)
+        if (!turn) throw new Error(`Missing branch turn for message ${message.id}`)
+        return {
+          id: `message_${randomUUID().replaceAll('-', '')}`, turnId: turn.id, sequence, role: message.role,
+          content: { text: message.content, provider: message.provider, updatedAt: message.updatedAt },
+          status: message.status === 'streaming' ? 'failed' : message.status, createdAt: new Date(message.createdAt),
+        }
+      })
+      await this.postgresState.cloneConversationHistory(source, fork, turns, messages)
+      this.messages.set(fork.id, await this.postgresState.listMessages(fork))
+      await this.appendEvent(fork.id, {
+        type: 'activity_delta', lane: 'control', label: 'Conversation branch created',
+        content: `Branched from ${source.id} before the selected user message. The workspace was copied independently.`,
+        payload: { sourceTaskId: source.id, sourceMessageId: fromMessageId, sourceEvidenceHash: this.listEvents(source.id).at(-1)?.eventHash ?? 'GENESIS', historyMessageCount: history.length, workspaceCopied: true },
+      })
+      return this.getTask(fork.id)
+    }
     this.requireUnitOfWork().run((repositories) => {
       for (const turn of turnMap.values()) {
         const status = turn.statuses.includes('failed') ? 'failed' : turn.statuses.includes('cancelled') ? 'cancelled' : 'completed'

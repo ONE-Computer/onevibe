@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-17 — make Postgres conversation branching transactional
+
+- Added a transaction-backed Postgres history clone for forked conversations. It locks and owner-checks both source and target conversations/tasks, inserts the cloned turns and messages together, and never leaves a partially populated branch when a copy fails.
+- `TaskStore.forkTask` now uses the Postgres clone path while preserving the local filesystem workspace copy as a separate development operation. The branch retains parent/message lineage and emits the same durable branch evidence event.
+- The disposable PostgreSQL 18 TaskStore proof now reports `forkHistoryAtomic=true` alongside standalone-message restart recovery, atomic native replay/conflict handling, owner-scoped operational persistence, and lease fencing.
+- Boundary: workspace bytes and version manifests remain local filesystem state in the opt-in hybrid proof; the production driver remains fail-closed.
+
 ## 2026-07-17 — persist standalone messages and atomically ingest Postgres native events
 
 - Added a Postgres standalone-message insert that keeps `turn_id` nullable, preserves owner/task checks, and survives coordinator restart. This avoids manufacturing a fake turn for user-input broker messages.

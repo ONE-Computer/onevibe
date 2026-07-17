@@ -48,6 +48,8 @@ The Postgres migration work is tracked in [ONE-254](https://linear.app/onecomput
 
 The execution-path visibility slice is tracked in ONE-255: authenticated `/api/diagnostics` and the Computers panel expose bounded LiteLLM, session, persistence, runtime, sandbox, and owner-scoped MCP status/health without secrets or provider payloads. It is Done for local operational diagnostics; Postgres runtime switching, cloud health, and production sandbox attestation remain separate release gates.
 
+ONE-254 progress note: commit `34a48ff` added standalone-message and atomic native-event persistence; the current follow-up adds transaction-backed Postgres fork history with `forkHistoryAtomic=true` in the disposable TaskStore proof. Durable workspace/project-file bytes and the controlled production driver switch remain open.
+
 The focused accessibility cleanup is tracked in [ONE-256](https://linear.app/onecomputer/issue/ONE-256/uxp1-complete-accessibility-and-semantic-status-surfaces). It is Done for the local React surfaces: semantic timestamps expose `dateTime`, byte formatting is shared, and generated images have descriptive alt text. This is not a substitute for a full automated WCAG/axe audit.
 
 The client error-surface slice is tracked in [ONE-257](https://linear.app/onecomputer/issue/ONE-257/uxp1-surface-async-failures-with-a-consistent-toast-contract). It is Done locally: Sonner is mounted once, recoverable async failures surface to users, page-local errors remain authoritative, and the duplicate schedule confirmation is removed.

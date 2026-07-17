@@ -27,6 +27,7 @@ const main = async () => {
     await first.appendEvent(task.id, { type: 'assistant_text_delta', lane: 'transcript', content: 'Hello from Postgres.', payload: {} })
     await first.appendEvent(task.id, { type: 'run_completed', lane: 'control', status: 'completed', label: 'Turn completed', payload: {} })
     await first.appendStandaloneMessage(task.id, 'assistant', 'A standalone durable message.')
+    const branchBoundary = await first.appendStandaloneMessage(task.id, 'user', 'Branch from this message.')
     await first.beginTurn(otherTask.id, 'Capture a native event.', otherTask.provider)
     const nativeInput = {
       source: 'onecomputer_sandbox' as const, sourceEventId: 'sandbox-event-0', sourceSequence: 0, nativeType: 'tool_result',
@@ -78,12 +79,12 @@ const main = async () => {
       const restored = second.getTask(task.id, ownerUserId)
       const snapshot = await second.snapshot(task.id)
       assert.equal(restored.status, 'pending')
-      assert.equal(snapshot.messages.filter((message) => message.role === 'user').length, 1)
+      assert.equal(snapshot.messages.filter((message) => message.role === 'user').length, 2)
       assert.equal(snapshot.messages.find((message) => message.role === 'assistant')?.content, 'Hello from Postgres.')
-      assert.equal(snapshot.messages.length, 3)
+      assert.equal(snapshot.messages.length, 4)
       assert.equal(snapshot.events.length, 2)
-      assert.equal((await second.listNativeEvents(otherTask.id)).length, 1)
-      assert.equal((await second.snapshot(otherTask.id)).events.length, 1)
+      assert.equal((await second.listNativeEvents(otherTask.id)).length, 1, 'native event count')
+      assert.equal((await second.snapshot(otherTask.id)).events.length, 1, 'native projection event count')
       assert.equal(second.verifyChain(task.id), true)
       assert.deepEqual(await second.getRetry(task.id, 'retry-1'), { state: 'completed', response: { status: 'queued', taskId: task.id } })
       assert.deepEqual((await second.listRuntimeLeases(task.id, ownerUserId)).map((candidate) => ({ status: candidate.status, generation: candidate.generation, providerSandboxId: candidate.providerSandboxId })), [{ status: 'ready', generation: 0, providerSandboxId: 'sandbox-taskstore' }])
@@ -99,7 +100,11 @@ const main = async () => {
       assert.equal(await second.deleteMcpConfig(mcp.id, ownerUserId), true)
       assert.equal(await second.removeSkillInstallation(skill.id, ownerUserId), true)
       await second.removeOrganizationMember(organizationId, otherUserId, ownerUserId)
-      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, standaloneMessageRestartRecovery: true, nativeAtomicReplayAndConflict: true, nativeRestartRecovery: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'opt-in core slice only; production driver selection remains fail-closed until the full async TaskStore surface is integrated' }, null, 2))
+      await second.updateTask(task.id, { status: 'completed' })
+      const fork = await second.forkTask(task.id, branchBoundary.id, 'Forked Postgres conversation')
+      assert.equal(fork.parentTaskId, task.id)
+      assert.equal((await second.snapshot(fork.id)).messages.length, 3)
+      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, standaloneMessageRestartRecovery: true, nativeAtomicReplayAndConflict: true, nativeRestartRecovery: true, forkHistoryAtomic: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'opt-in core slice only; production driver selection remains fail-closed until the full async TaskStore surface is integrated' }, null, 2))
     } finally {
       await second.close()
     }

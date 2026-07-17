@@ -125,6 +125,9 @@ export type AtomicNativeProjectionInput = {
 
 export type AtomicNativeIngestResult = { replayed: boolean; nativeEventId: string; events: PostgresRuntimeEventRow[] }
 
+export type CloneConversationTurnInput = { id: string; clientRequestId: string; ordinal: number; status: string; createdAt: Date; startedAt: Date; completedAt: Date | null }
+export type CloneConversationMessageInput = { id: string; turnId: string | null; sequence: number; role: string; content: unknown; status: string; createdAt: Date }
+
 type ConversationRow = { id: string; owner_user_id: string; title: string | null; status: string; created_at: Date; updated_at: Date }
 type TurnRow = { id: string; task_id: string; client_request_id: string; ordinal: number; status: string }
 type MessageRow = { id: string; task_id: string; turn_id: string | null; sequence: number; role: string; content_json: unknown; provider_message_id: string | null; revision: number; status: string; created_at: Date }
@@ -357,6 +360,27 @@ export class PostgresChatRepository {
       const row = rows[0]
       if (!row) throw new OptimisticConflictError(`Standalone message ${input.messageId} was not appended`)
       return messageFromRow(row)
+    })
+  }
+
+  async cloneConversationHistory(sourceTask: string, targetTask: string, ownerUserId: string, turns: CloneConversationTurnInput[], messages: CloneConversationMessageInput[]): Promise<void> {
+    await this.#sql.begin(async (tx) => {
+      const sourceConversation = await requireOwnerConversation(tx, sourceTask, ownerUserId)
+      await requireOwnerTask(tx, sourceTask, sourceConversation.id, ownerUserId)
+      const targetConversation = await requireOwnerConversation(tx, targetTask, ownerUserId)
+      await requireOwnerTask(tx, targetTask, targetConversation.id, ownerUserId)
+      for (const turn of turns) {
+        await tx`
+          INSERT INTO turn (id, task_id, client_request_id, ordinal, status, created_at, started_at, completed_at)
+          VALUES (${turn.id}, ${targetTask}, ${turn.clientRequestId}, ${turn.ordinal}, ${turn.status}, ${turn.createdAt}, ${turn.startedAt}, ${turn.completedAt})
+        `
+      }
+      for (const message of messages) {
+        await tx`
+          INSERT INTO message (id, task_id, turn_id, sequence, role, content_json, revision, status, created_at)
+          VALUES (${message.id}, ${targetTask}, ${message.turnId}, ${message.sequence}, ${message.role}, ${JSON.stringify(message.content)}::jsonb, 0, ${message.status}, ${message.createdAt})
+        `
+      }
     })
   }
 

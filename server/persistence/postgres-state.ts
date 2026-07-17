@@ -4,7 +4,7 @@ import postgres, { type Sql } from 'postgres'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import * as schema from '../db/schema.js'
 import type { ChatMessage, EventInput, Project, RuntimeEvent, Task, TaskSchedule } from '../types.js'
-import { PostgresChatRepository, type AtomicNativeProjectionInput, type PostgresChatMessage, type PostgresRuntimeEventRow } from './postgres-chat.js'
+import { PostgresChatRepository, type AtomicNativeProjectionInput, type CloneConversationMessageInput, type CloneConversationTurnInput, type PostgresChatMessage, type PostgresRuntimeEventRow } from './postgres-chat.js'
 import { RecordNotFoundError } from './errors.js'
 import { PostgresMetadataRepository } from './postgres-metadata.js'
 import { PostgresOperationsRepository } from './postgres-operations.js'
@@ -243,6 +243,11 @@ export class PostgresStateCoordinator {
     return messageFromRow(await this.#chat.appendStandaloneMessage({
       conversationId: task.id, taskId: task.id, ownerUserId: task.ownerUserId, messageId, role, content, status, createdAt,
     }), task)
+  }
+
+  async cloneConversationHistory(source: Task, target: Task, turns: CloneConversationTurnInput[], messages: CloneConversationMessageInput[]) {
+    if (!source.ownerUserId || !target.ownerUserId || source.ownerUserId !== target.ownerUserId) throw new Error('Postgres conversation branches require one owner')
+    await this.#chat.cloneConversationHistory(source.id, target.id, source.ownerUserId, turns, messages)
   }
 
   async appendAssistantDelta(task: Task, messageId: string, expectedRevision: number, delta: string, status: ChatMessage['status'] = 'streaming') {
