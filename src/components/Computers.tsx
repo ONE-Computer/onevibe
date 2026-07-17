@@ -5,8 +5,9 @@ import { toast } from 'sonner'
 import { getRuntimeDiagnostics, testMcpConfig, testRuntime } from '../lib/api'
 import type { McpHealth, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, Task } from '../types'
 import { statusLabel } from '../lib/runtime-labels'
+import { t, type Locale } from '../lib/i18n'
 
-type Props = { tasks: Task[]; onOpenTask: (taskId: string) => void; runtime?: RuntimeReadiness; mcpConfigs: RuntimeMcpConfig[]; onCreateMcpConfig: (input: Pick<RuntimeMcpConfig, 'name' | 'command' | 'args'>) => Promise<void>; onDeleteMcpConfig: (config: RuntimeMcpConfig) => Promise<void> }
+type Props = { tasks: Task[]; onOpenTask: (taskId: string) => void; runtime?: RuntimeReadiness; mcpConfigs: RuntimeMcpConfig[]; onCreateMcpConfig: (input: Pick<RuntimeMcpConfig, 'name' | 'command' | 'args'>) => Promise<void>; onDeleteMcpConfig: (config: RuntimeMcpConfig) => Promise<void>; locale?: Locale }
 
 const boundaryLabel = (task: Task) => task.securityContext?.executionBoundary === 'onecomputer_sandbox'
   ? 'ONEComputer sandbox'
@@ -20,7 +21,7 @@ const lifecycleLabel = (task: Task) => task.securityContext?.destroyedAt
     ? task.securityContext.sandboxState.replaceAll('_', ' ')
     : statusLabel(task.status)
 
-export const Computers = ({ tasks, onOpenTask, runtime, mcpConfigs, onCreateMcpConfig, onDeleteMcpConfig }: Props) => {
+export const Computers = ({ tasks, onOpenTask, runtime, mcpConfigs, onCreateMcpConfig, onDeleteMcpConfig, locale = 'en' }: Props) => {
   const [health, setHealth] = useState<Record<string, RuntimeHealth>>({})
   const [testing, setTesting] = useState<string | null>(null)
   const [mcpName, setMcpName] = useState('')
@@ -31,15 +32,15 @@ export const Computers = ({ tasks, onOpenTask, runtime, mcpConfigs, onCreateMcpC
   const [mcpTesting, setMcpTesting] = useState<string | null>(null)
   const [diagnostics, setDiagnostics] = useState<RuntimeDiagnostics>()
   const computers = tasks.filter((task) => task.securityContext).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  useEffect(() => { void getRuntimeDiagnostics().then(setDiagnostics).catch((reason: unknown) => toast.error(reason instanceof Error ? reason.message : 'Unable to load execution diagnostics')) }, [])
+  useEffect(() => { void getRuntimeDiagnostics().then(setDiagnostics).catch((reason: unknown) => toast.error(reason instanceof Error ? reason.message : t('unableToLoadDiagnostics', locale))) }, [locale])
   const runHealthCheck = async (provider: Task['provider']) => {
     setTesting(provider)
     try {
       const result = await testRuntime(provider)
       setHealth((current) => ({ ...current, [provider]: result.health }))
     } catch (reason) {
-      setHealth((current) => ({ ...current, [provider]: { status: 'offline', detail: 'Health request failed at the ONEVibe API.' } }))
-      toast.error(reason instanceof Error ? reason.message : 'Runtime health check failed')
+      setHealth((current) => ({ ...current, [provider]: { status: 'offline', detail: t('healthRequestFailed', locale) } }))
+      toast.error(reason instanceof Error ? reason.message : t('runtimeHealthCheckFailed', locale))
     } finally {
       setTesting(null)
     }
@@ -68,37 +69,37 @@ export const Computers = ({ tasks, onOpenTask, runtime, mcpConfigs, onCreateMcpC
       const result = await testMcpConfig(config.id)
       setMcpHealth((current) => ({ ...current, [config.id]: result }))
     } catch (reason) {
-      setMcpHealth((current) => ({ ...current, [config.id]: { id: config.id, status: 'offline', detail: 'Health request failed at the ONEVibe API.' } }))
-      toast.error(reason instanceof Error ? reason.message : 'MCP health check failed')
+      setMcpHealth((current) => ({ ...current, [config.id]: { id: config.id, status: 'offline', detail: t('healthRequestFailed', locale) } }))
+      toast.error(reason instanceof Error ? reason.message : t('mcpHealthCheckFailed', locale))
     } finally { setMcpTesting(null) }
   }
   return <section className="computers-view">
-    <header><div><span className="task-kicker">Runtimes</span><h1>Computers</h1><p>Task-derived inventory of the runtimes ONEVibe has observed. This view is read-only: it does not provision, restart, terminate, or otherwise control an infrastructure provider.</p></div><MonitorCog size={28} /></header>
-    {runtime && <section className="runtime-health-panel" aria-label="Runtime health"><header><div><span>Runtime registry</span><strong>Connectivity checks</strong></div><small>Server-side probes only · no model prompt is sent</small></header>{allProvidersNotConfigured ? <p className="empty-state">No runtimes configured. Set ONEVIBE_LITELLM_URL in your .env file to connect a model provider.</p> : <div className="runtime-health-grid">{runtime.providers.map((provider) => { const result = health[provider.id]; const status = result?.status ?? provider.healthStatus ?? (provider.available ? 'unknown' : 'not_configured'); const staleAge = getHealthCheckAge(provider.healthCheckedAt); return <article key={provider.id}><div><span className={`runtime-health-dot ${status}`} /><strong>{provider.label}</strong></div><small>{result?.detail ?? provider.detail}</small>{result?.latencyMs !== undefined && <span>{result.latencyMs} ms</span>}{staleAge ? <time dateTime={provider.healthCheckedAt} title="Click Test again to refresh">Last checked {Math.round(staleAge)} min ago — click Test again to refresh</time> : provider.healthCheckedAt && !result && <time dateTime={provider.healthCheckedAt}>Checked {new Date(provider.healthCheckedAt).toLocaleTimeString()}</time>}<button type="button" disabled={testing === provider.id} onClick={() => void runHealthCheck(provider.id)}>{testing === provider.id ? 'Testing…' : result || provider.healthStatus ? 'Test again' : 'Test runtime'}</button></article> })}</div>}</section>}
-    {diagnostics && <section className="diagnostics-panel" aria-labelledby="diagnostics-title"><header><div><span>System status</span><strong id="diagnostics-title">Execution path</strong></div><small>Truthful server-side readiness; credentials and prompts are never displayed.</small></header><div className="diagnostics-grid"><article><strong>LiteLLM</strong><span className={diagnostics.modelBoundary.configured ? 'diagnostic-ok' : 'diagnostic-warn'}>{diagnostics.modelBoundary.configured ? 'Configured' : 'Needs configuration'}</span><small>{diagnostics.modelBoundary.detail}</small></article><article><strong>Session</strong><span>{diagnostics.auth.enabled ? diagnostics.auth.sessionScoped ? 'Scoped' : 'No session' : 'Local mode'}</span><small>{diagnostics.auth.detail}</small></article><article><strong>Persistence</strong><span>{diagnostics.persistence.active}</span><small>{diagnostics.persistence.detail}</small></article><article><strong>Sandbox</strong><span>{diagnostics.sandbox.reachable === true ? 'Reachable' : diagnostics.sandbox.configured ? 'Configured' : 'Not configured'}</span><small>{diagnostics.sandbox.detail}</small></article><article><strong>MCP</strong><span>{diagnostics.mcp.configuredCount ? `${diagnostics.mcp.healthyCount}/${diagnostics.mcp.configuredCount} healthy` : 'None configured'}</span><small>{diagnostics.mcp.detail}</small></article></div></section>}
+    <header><div><span className="task-kicker">{t('runtimesKicker', locale)}</span><h1>{t('computers', locale)}</h1><p>{t('computersIntro', locale)}</p></div><MonitorCog size={28} /></header>
+    {runtime && <section className="runtime-health-panel" aria-label="Runtime health"><header><div><span>{t('runtimeRegistry', locale)}</span><strong>{t('connectivityChecks', locale)}</strong></div><small>{t('serverProbesOnly', locale)}</small></header>{allProvidersNotConfigured ? <p className="empty-state">{t('noRuntimesConfigured', locale)}</p> : <div className="runtime-health-grid">{runtime.providers.map((provider) => { const result = health[provider.id]; const status = result?.status ?? provider.healthStatus ?? (provider.available ? 'unknown' : 'not_configured'); const staleAge = getHealthCheckAge(provider.healthCheckedAt); return <article key={provider.id}><div><span className={`runtime-health-dot ${status}`} /><strong>{provider.label}</strong></div><small>{result?.detail ?? provider.detail}</small>{result?.latencyMs !== undefined && <span>{result.latencyMs} ms</span>}{staleAge ? <time dateTime={provider.healthCheckedAt} title={t('refreshHint', locale)}>{t('lastCheckedStale', locale).replace('{minutes}', String(Math.round(staleAge)))}</time> : provider.healthCheckedAt && !result && <time dateTime={provider.healthCheckedAt}>{t('checkedAtTime', locale).replace('{time}', new Date(provider.healthCheckedAt).toLocaleTimeString())}</time>}<button type="button" disabled={testing === provider.id} onClick={() => void runHealthCheck(provider.id)}>{testing === provider.id ? t('testing', locale) : result || provider.healthStatus ? t('testAgain', locale) : t('testRuntime', locale)}</button></article> })}</div>}</section>}
+    {diagnostics && <section className="diagnostics-panel" aria-labelledby="diagnostics-title"><header><div><span>{t('systemStatus', locale)}</span><strong id="diagnostics-title">{t('executionPath', locale)}</strong></div><small>{t('diagnosticsNote', locale)}</small></header><div className="diagnostics-grid"><article><strong>LiteLLM</strong><span className={diagnostics.modelBoundary.configured ? 'diagnostic-ok' : 'diagnostic-warn'}>{diagnostics.modelBoundary.configured ? t('configured', locale) : t('needsConfiguration', locale)}</span><small>{diagnostics.modelBoundary.detail}</small></article><article><strong>{t('sessionLabel', locale)}</strong><span>{diagnostics.auth.enabled ? diagnostics.auth.sessionScoped ? t('scoped', locale) : t('noSession', locale) : t('localMode', locale)}</span><small>{diagnostics.auth.detail}</small></article><article><strong>{t('persistenceLabel', locale)}</strong><span>{diagnostics.persistence.active}</span><small>{diagnostics.persistence.detail}</small></article><article><strong>{t('sandboxLabel', locale)}</strong><span>{diagnostics.sandbox.reachable === true ? t('reachable', locale) : diagnostics.sandbox.configured ? t('configured', locale) : t('notConfigured', locale)}</span><small>{diagnostics.sandbox.detail}</small></article><article><strong>MCP</strong><span>{diagnostics.mcp.configuredCount ? t('healthyOfTotal', locale).replace('{healthy}', String(diagnostics.mcp.healthyCount)).replace('{total}', String(diagnostics.mcp.configuredCount)) : t('noneConfigured', locale)}</span><small>{diagnostics.mcp.detail}</small></article></div></section>}
     <section className="mcp-config-panel" aria-labelledby="mcp-config-title">
-      <header><div><span>Tool connections</span><strong id="mcp-config-title">MCP servers</strong></div><small>Declarations are stored locally and injected only into tool-capable runtimes.</small></header>
-      <p className="mcp-config-note">Credentials are never accepted here. Secret references and multi-user ownership belong to the upcoming authenticated server boundary.</p>
+      <header><div><span>{t('toolConnections', locale)}</span><strong id="mcp-config-title">{t('mcpServers', locale)}</strong></div><small>{t('mcpServersNote', locale)}</small></header>
+      <p className="mcp-config-note">{t('mcpCredentialsNote', locale)}</p>
       <form className="mcp-config-form" onSubmit={(event) => void submitMcp(event)}>
-        <label>Display name<input value={mcpName} onChange={(event) => setMcpName(event.target.value)} placeholder="Internal tools" maxLength={80} /></label>
-        <label>Command<input value={mcpCommand} onChange={(event) => setMcpCommand(event.target.value)} placeholder="npx" maxLength={200} /></label>
-        <label>Arguments<input value={mcpArgs} onChange={(event) => setMcpArgs(event.target.value)} placeholder="-y @example/mcp-server" maxLength={2_000} /></label>
-        <button type="submit" disabled={mcpSaving || !mcpName.trim() || !mcpCommand.trim()}><Plus size={14} /> {mcpSaving ? 'Saving…' : 'Add server'}</button>
+        <label>{t('displayName', locale)}<input value={mcpName} onChange={(event) => setMcpName(event.target.value)} placeholder="Internal tools" maxLength={80} /></label>
+        <label>{t('commandLabel', locale)}<input value={mcpCommand} onChange={(event) => setMcpCommand(event.target.value)} placeholder="npx" maxLength={200} /></label>
+        <label>{t('argumentsLabel', locale)}<input value={mcpArgs} onChange={(event) => setMcpArgs(event.target.value)} placeholder="-y @example/mcp-server" maxLength={2_000} /></label>
+        <button type="submit" disabled={mcpSaving || !mcpName.trim() || !mcpCommand.trim()}><Plus size={14} /> {mcpSaving ? t('saving', locale) : t('addServer', locale)}</button>
       </form>
-      {mcpConfigs.length ? <ul className="mcp-config-list">{mcpConfigs.map((config) => { const result = mcpHealth[config.id]; return <li key={config.id}><div><strong>{config.name}</strong><code>{config.command}{config.args.length ? ` ${config.args.join(' ')}` : ''}</code>{result && <small className={`mcp-health-status ${result.status}`}>{result.status === 'online' ? `${result.toolCount ?? 0} tools · ${result.latencyMs ?? 0} ms` : result.detail}</small>}</div><div className="mcp-config-actions"><button type="button" disabled={mcpTesting === config.id} onClick={() => void runMcpHealth(config)}>{mcpTesting === config.id ? 'Testing…' : 'Test'}</button><button type="button" onClick={() => void onDeleteMcpConfig(config)} aria-label={`Remove ${config.name}`} title="Remove MCP server"><Trash2 size={14} /></button></div></li> })}</ul> : <div className="mcp-config-empty">No MCP servers configured. Add a declaration to make it available to the next Claude tool-use turn.</div>}
+      {mcpConfigs.length ? <ul className="mcp-config-list">{mcpConfigs.map((config) => { const result = mcpHealth[config.id]; return <li key={config.id}><div><strong>{config.name}</strong><code>{config.command}{config.args.length ? ` ${config.args.join(' ')}` : ''}</code>{result && <small className={`mcp-health-status ${result.status}`}>{result.status === 'online' ? t('toolsCountMs', locale).replace('{count}', String(result.toolCount ?? 0)).replace('{latency}', String(result.latencyMs ?? 0)) : result.detail}</small>}</div><div className="mcp-config-actions"><button type="button" disabled={mcpTesting === config.id} onClick={() => void runMcpHealth(config)}>{mcpTesting === config.id ? t('testing', locale) : t('test', locale)}</button><button type="button" onClick={() => void onDeleteMcpConfig(config)} aria-label={`${t('remove', locale)} ${config.name}`} title={t('removeMcpServer', locale)}><Trash2 size={14} /></button></div></li> })}</ul> : <div className="mcp-config-empty">{t('noMcpServers', locale)}</div>}
     </section>
-    {!computers.length ? <div className="computers-empty"><MonitorCog size={22} /><strong>No governed runtimes observed</strong><span>Start a task to record its execution boundary, lifecycle evidence, and visual-runtime readiness here.</span></div> : <div className="computers-grid">{computers.map((task) => {
+    {!computers.length ? <div className="computers-empty"><MonitorCog size={22} /><strong>{t('noGovernedRuntimes', locale)}</strong><span>{t('startTaskToRecord', locale)}</span></div> : <div className="computers-grid">{computers.map((task) => {
       const context = task.securityContext!
       return <motion.article layout key={task.id}>
         <div className="computer-card-head"><span><TerminalSquare size={12} /> {boundaryLabel(task)}</span><time dateTime={task.updatedAt}>{new Date(task.updatedAt).toLocaleString()}</time></div>
         <h2>{task.title}</h2>
         <dl>
-          <div><dt>Lifecycle</dt><dd><Activity size={12} /> {lifecycleLabel(task)}</dd></div>
-          <div><dt>Gateway</dt><dd className={context.gatewayEnforced ? 'attested' : 'unattested'}><ShieldCheck size={12} /> {context.gatewayEnforced ? 'Enforced' : 'Not attested'}</dd></div>
-          <div><dt>Visual runtime</dt><dd><Eye size={12} /> {context.visualRuntimeReady ? 'Ready' : 'Unavailable'}</dd></div>
-          <div><dt>Provider reference</dt><dd className="computer-reference">{context.sandboxId ?? context.runtimeSessionId ?? context.provider ?? 'Not reported'}</dd></div>
+          <div><dt>{t('lifecycle', locale)}</dt><dd><Activity size={12} /> {lifecycleLabel(task)}</dd></div>
+          <div><dt>{t('gateway', locale)}</dt><dd className={context.gatewayEnforced ? 'attested' : 'unattested'}><ShieldCheck size={12} /> {context.gatewayEnforced ? t('enforced', locale) : t('notAttested', locale)}</dd></div>
+          <div><dt>{t('visualRuntime', locale)}</dt><dd><Eye size={12} /> {context.visualRuntimeReady ? t('ready', locale) : t('unavailable', locale)}</dd></div>
+          <div><dt>{t('providerReference', locale)}</dt><dd className="computer-reference">{context.sandboxId ?? context.runtimeSessionId ?? context.provider ?? t('notReported', locale)}</dd></div>
         </dl>
-        <footer><small>Observation only · no provider controls</small><button onClick={() => onOpenTask(task.id)}>Open task <ExternalLink size={13} /></button></footer>
+        <footer><small>{t('observationOnly', locale)}</small><button onClick={() => onOpenTask(task.id)}>{t('openTask', locale)} <ExternalLink size={13} /></button></footer>
       </motion.article>
     })}</div>}
   </section>
