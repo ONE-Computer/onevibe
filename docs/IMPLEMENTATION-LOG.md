@@ -4,6 +4,7 @@
 
 - `npm run e2e:chat` passed against the protected local LiteLLM relay with the explicit router alias `claude-sonnet-5` (the handover bundle's raw `LITELLM_MODEL` alias is not accepted by this router). The run proved two durable chat turns, 8 live SSE frames, 35 suffix-replayed frames, a bounded Bash evidence call, restart recovery, a valid evidence chain, and idempotent failure/retry recovery. Boundary: `executionBoundary=host_process`; no ONEComputer, microVM, OpenVTC, or production egress claim.
 - The broader `npm run e2e:golden` document-mode flow was also attempted with a 60-second turn deadline and timed out before terminal completion after provider stream events. It is not recorded as passing; document-mode provider latency/termination remains an acceptance gap.
+- A focused diagnostic task (`task_728f380252044d`) reproduced the same boundary with a 90-second deadline: the durable plan advanced through `scope`, `workspace`, and `build`; governed `set_task_plan`, `Bash`, and `Read` calls completed; assistant text continued streaming; no terminal result arrived before `run_failed` with `failureReason=turn_timeout`. The adapter's timeout/fail-closed behavior is working, but document-mode completion remains P1-10.
 
 ## 2026-07-17 — recoverable staged-file/task-metadata promotion proof
 

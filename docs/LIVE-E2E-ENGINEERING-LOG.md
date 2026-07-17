@@ -6,6 +6,7 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 
 - `npm run e2e:chat` passed with the explicit `claude-sonnet-5` router alias: 2 durable chat turns, 8 live SSE frames, 35 suffix-replayed frames, one bounded Bash call, restart recovery, valid evidence, and failure/retry recovery. This is host-process local provider evidence only.
 - The document-mode `npm run e2e:golden` attempt was bounded to a 60-second turn deadline and failed closed with `failureReason=turn_timeout` after provider stream events without a terminal result. The router was reachable and the model alias was valid; document-mode completion latency/termination remains open and must not be represented as a passing artifact gate.
+- Diagnostic task `task_728f380252044d` reproduced the boundary at 90 seconds: `scope` and `workspace` completed, `build` began, governed `set_task_plan`, `Bash`, and `Read` calls completed, assistant text continued streaming, and the run failed closed with `failureReason=turn_timeout` before `verify`/`deliver`. This is tracked as P1-10; no document artifact fallback was added.
 
 ## 2026-07-17 — staged-file/task-metadata promotion recovery proof
 

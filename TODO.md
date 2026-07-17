@@ -29,6 +29,7 @@ Reference: `plan/01-foundation.md`
 - [x] **P1-07** Add API error types — replace plain `Error(message)` in `src/lib/api.ts:32` with a typed `ApiError` class carrying `status: number` and `code: string`
 - [x] **P1-08** Fix demo-mode labelling — permanent "SIMULATION — no model call" banner in conversation pane when `provider === 'demo'`; current chip is invisible
 - [x] **P1-09** Make local metadata writes crash-safe — task/project/schedule/workspace-version JSON now uses same-directory temporary files, private permissions, flush-before-rename, and cleanup coverage; this protects the local fallback from truncated metadata after a process crash
+- [ ] **P1-10** Close the protected document-mode agent loop — the local Claude/LiteLLM chat gate passes, but a provider-backed document task currently reaches `scope`/`workspace`/`build`, invokes governed `set_task_plan`, `Bash`, and `Read`, then remains streaming without a terminal result until the bounded turn deadline. Acceptance requires a passing `npm run e2e:golden`/document provider run with durable source artifacts, validation, SSE, restart recovery, and no silent timeout; never synthesize document files as a fallback.
 
 ---
 
