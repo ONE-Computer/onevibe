@@ -1,5 +1,12 @@
 # ONEVibe live E2E engineering log
 
+## 2026-07-17 — organization identity round trip and concurrent Postgres update recovery
+
+- Fresh PostgreSQL 18 on loopback port `55449` applied the reviewed fourteen-migration ledger.
+- `npm run e2e:postgres-auth-http` passed with organization-backed project creation and task inheritance, owner A/B isolation, cross-owner `404`, theme reset/audit acceptance, unchanged runtime/model/auth/persistence/sandbox/MCP diagnostics, unchanged evidence/artifact state, and `directFirstPartyAllowed=false`.
+- `npm run e2e:postgres-import` passed with organization, project, task, workspace bytes, project revision bytes, native projection links, and native projection offsets preserved through the real importer.
+- The service was stopped after the run. This remains local disposable-Postgres evidence; it is not managed deployment, provider-side idempotency, microVM attestation, or production org-policy evidence.
+
 ## 2026-07-17 — deployment-time ThemePackage manifest boundary
 
 - Focused package tests pass for bounded manifest parsing, exact operator allow-list selection, host-owned route IDs, relative-path rejection, token-default schema reuse, external integrity pin enforcement, symlink-safe resolution, and SHA-256 tamper detection.

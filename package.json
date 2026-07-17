@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n check,api,web -c yellow,green,cyan \"tsx scripts/dev-check.ts\" \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:all": "concurrently -n api,web -c green,cyan \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "node --env-file-if-exists=.env --import tsx/esm --watch server/index.ts",
     "dev:web": "vite",
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",

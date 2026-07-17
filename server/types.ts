@@ -58,6 +58,7 @@ export type RuntimeCapability = 'streaming' | 'tool_use' | 'file_system' | 'sand
 export type Project = {
   id: string
   ownerUserId?: string
+  organizationId?: string
   name: string
   context: string
   files: ProjectFile[]
@@ -153,6 +154,7 @@ export type ChatMessage = {
 export type Task = {
   id: string
   ownerUserId?: string
+  organizationId?: string
   title: string
   prompt: string
   provider: 'demo' | 'claude_sdk' | 'codex' | 'agentcore' | 'onecomputer' | 'remote'

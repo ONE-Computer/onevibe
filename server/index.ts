@@ -171,7 +171,7 @@ const createTaskInput = z.object({
   attachments: z.array(taskAttachment).max(4).default([]),
   skills: z.array(taskSkill).max(4).default([]),
 })
-const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), context: z.string().trim().max(8_000).default('') })
+const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), context: z.string().trim().max(8_000).default(''), organizationId: z.string().regex(/^org_[a-z0-9]+$/).optional() })
 const updateProjectInput = z.object({ context: z.string().trim().max(8_000) })
 const createOrganizationInput = z.object({ name: z.string().trim().min(2).max(160) })
 const organizationMemberInput = z.object({ userId: z.string().trim().min(1).max(255) })
@@ -718,7 +718,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
   }
   if (request.method === 'POST' && url.pathname === '/api/projects') {
     const input = createProjectInput.parse(await readBody(request))
-    return json(response, 201, await store.createProject(input.name, input.context, actorUserId))
+    return json(response, 201, await store.createProject(input.name, input.context, actorUserId, input.organizationId))
   }
   if (request.method === 'PATCH' && segments[0] === 'api' && segments[1] === 'projects' && segments[2] && segments.length === 3) {
     const input = updateProjectInput.parse(await readBody(request))

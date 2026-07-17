@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getCurrentTenantTheme } from '../lib/api'
+import { sanitizeSvg } from '../lib/svg-sanitize'
 import type { TenantThemeConfig } from '../types'
 import { ThemeContext, themeQueryKey, type ThemeContextValue } from '../lib/theme'
 import { themeContrastAttributes } from '../lib/theme'
@@ -76,6 +77,10 @@ const loadThemeImage = async (url: string, integrity: string | undefined, signal
     const digest = await crypto.subtle.digest('SHA-256', bytes)
     const actual = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
     if (actual.toLowerCase() !== integrity.toLowerCase()) throw new Error('Theme asset integrity check failed')
+  }
+  if (contentType === 'image/svg+xml') {
+    const sanitized = sanitizeSvg(new TextDecoder().decode(bytes))
+    return URL.createObjectURL(new Blob([sanitized], { type: contentType }))
   }
   return URL.createObjectURL(new Blob([bytes], { type: contentType }))
 }

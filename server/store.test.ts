@@ -49,6 +49,22 @@ describe('TaskStore', () => {
     await expect(store.updateTaskTags(taskB.id, ['cross-user'], 'user-a')).rejects.toThrow('Task not found')
   })
 
+  it('validates organization membership and carries organization identity from projects to tasks', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-organization-projects-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const organization = await store.createOrganization('Governed workspace', 'user-owner')
+    const project = await store.createProject('Organization workspace', '', 'user-owner', organization.id)
+    const task = await store.createTask('Organization task', 'demo', 'chat', project.id, undefined, [], [], [], 'user-owner')
+
+    expect(project.organizationId).toBe(organization.id)
+    expect(task.organizationId).toBe(organization.id)
+    await expect(store.createProject('Rejected workspace', '', 'user-outsider', organization.id)).rejects.toThrow('does not exist for this user')
+    await expect(store.createProject('Missing owner workspace', '', undefined, organization.id)).rejects.toThrow('require an owner')
+  })
+
   it('persists governed MCP declarations without accepting secret material', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-mcp-config-'))
     temporaryRoots.push(root)

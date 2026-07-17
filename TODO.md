@@ -8,7 +8,7 @@
 >
 > **Current state**: The local-first foundation is substantially implemented: backend-offline recovery, truthful simulation labelling, durable SSE replay/reconnect, LiteLLM-only routing, provider-neutral runtime lifecycle, runtime health/routing, task workspaces, durable guidance queueing, assistant-ui conversation rendering, owner-scoped local auth, bounded MCP health/facade controls, and the initial skill marketplace boundary are in place. Remaining release blockers are live provider acceptance, Postgres/runtime deployment, sandbox attestation, production MCP secret brokering/external health attestation, document/provider/browser evidence, and the remaining professional-UI gates. See `HANDOVER.md` and `plan/00-gap-analysis.md`.
 >
-> **Release gate**: `npm run check` must stay green after every task: lint, the complete Vitest suite, production TypeScript/Vite build, and E2E harness typecheck. Treat the command output as the authoritative test count; the latest verified run is 56 files / 270 tests.
+> **Release gate**: `npm run check` must stay green after every task: lint, the complete Vitest suite, production TypeScript/Vite build, and E2E harness typecheck. Treat the command output as the authoritative test count; the latest verified run is 61 files / 288 tests.
 
 > **Current handover policy**: all model traffic must traverse the protected LiteLLM boundary. Direct first-party Anthropic API traffic is prohibited, not a fallback. The Claude SDK configuration now fails closed unless the server-controlled relay is configured; Codex/AgentCore remain blocked until their adapters also use the same boundary.
 
@@ -137,7 +137,7 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 - [x] Add a versioned `TenantThemeConfig` schema with bounded tokens, brand assets, homepage content, navigation, feature flags, and compliance links. `server/theme-config.ts` rejects CSS injection primitives, unsafe URLs, unapproved fonts, and unbounded content.
 - [x] Define tenant resolution order: authenticated session/org, explicit deployment environment, then validated host/subdomain; default to the base theme when unresolved. The resolver accepts only server-derived scope and an operator-owned host allow-list.
 - [x] Enforce tenant isolation on the implemented theme reads/writes and reject cross-tenant owner access; preserve server-derived actor/org scope. Fresh two-organization Postgres HTTP acceptance proves owner A/B lists are isolated and cross-tenant reads return `404`.
-- [ ] Complete the no-capability-escalation invariant across approval state, evidence payloads, and produced artifacts. The current acceptance proves theme mutation does not change model-boundary, auth, persistence, runtime, sandbox, or MCP diagnostics; approval/evidence/artifact invariance remains open.
+- [x] Complete the no-capability-escalation invariant across approval state, evidence payloads, and produced artifacts. The two-organization Postgres acceptance proves theme mutation does not change model-boundary, auth, persistence, runtime, sandbox, MCP, approval, evidence, or artifact state. Production policy and visual acceptance remain separate gates.
 
 ### P7-03 — Durable theme store and API (P1)
 
@@ -154,7 +154,7 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 ### P7-05 — Admin appearance controls (P1)
 
 - [x] Add a truthful owner-scoped Appearance surface for palette, allowed font, radius, and logo changes with immediate local preview and explicit versioned Save/Reset. Formal admin-role authorization and logo-mark controls remain open because the current auth contract only proves organization-owner membership.
-- [ ] Validate logo MIME/content server-side (PNG/SVG, bounded size); sanitize SVG scripts, event handlers, external references, and unsafe URL schemes.
+- [x] Validate logo MIME/content server-side (PNG/SVG, bounded size); sanitize SVG scripts, event handlers, external references, and unsafe URL schemes. `sanitizeSvg` (`src/lib/svg-sanitize.ts`, re-exported from `server/theme-config.ts`) strips `<script>`/`<foreignObject>` blocks, inline `on*` handlers, `javascript:`/`data:` URI hrefs/srcs, and `<use>` references to an external document, with a positive smoke test that a benign SVG and local `#fragment` `<use>` are left untouched. It is a best-effort regex pass, not a full parser, and is applied in addition to (not instead of) the existing MIME/size/integrity checks. The one live remote-asset path (`src/components/ThemeProvider.tsx` `loadThemeImage`) now runs `image/svg+xml` bytes through it before constructing the object URL.
 - [ ] Add keyboard, reduced-motion, contrast, error, optimistic-conflict, and unauthorized-state coverage.
 
 ### P7-06 — Tenant homepage/content configuration (P1)
@@ -167,8 +167,10 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 - [x] Add non-production, fixture-only reference profiles for institutional, financial, and philanthropic visual systems, with no customer credentials or proprietary assets. `docs/fixtures/themes/reference-profiles.json` is schema-validated and uses the sans-serif-only contract.
 - [x] Add a read-only, exact-ID fixture preview path via `ONEVIBE_TENANT_ID=reference-*`; it is disabled in production, returns `persistent: false`/`previewOnly: true`, and cannot select mutations, runtime policy, credentials, approvals, or sandbox behavior.
-- [ ] Verify base theme plus each profile at desktop/mobile sizes, light/dark modes, keyboard navigation, reduced motion, WCAG contrast, and no-overflow conditions.
-- [ ] Verify that theme changes do not alter runtime readiness, LiteLLM routing, task ownership, approval authority, evidence chain, or artifact behavior.
+- [x] Programmatic acceptance: `server/theme-wcag-acceptance.test.ts` validates all three reference profiles for required token presence, an allow-listed top-level schema, WCAG contrast ≥4.5:1 for nav and body text/background pairs (real luminance-ratio math, not eyeballed), `fontUi` membership in the sans-serif allow-list, and light/dark token-name parity in `src/index.css`. Full desktop/mobile, light/dark, keyboard-navigation, reduced-motion, and no-overflow browser screenshot acceptance is NOT covered by this test and still needs a manual pass — see the Manual QA note below.
+- [x] Verified via `npm run e2e:themes` (delegates to the authenticated Postgres HTTP proof): theme mutations do not alter runtime readiness, LiteLLM routing, task ownership, approval authority, evidence chain, or artifact behavior — only tenant theme rows/events change, gated by owner authorization.
+
+> **Manual QA still open (P7-07):** the programmatic test above proves data-level correctness (contrast math, schema, token parity) but does not render the app. A human still needs to load each reference profile in a real browser at desktop (≥1280px) and mobile (375px) widths, in both light and dark mode, and confirm: no layout overflow, visible focus rings for keyboard-only navigation, and no motion-heavy transitions when `prefers-reduced-motion` is set. Not automated in this environment (no attached browser/display for Playwright screenshots).
 
 ### P7-08 — Tier 3 deployment-time extension package (P2, after P7-02/P7-04)
 

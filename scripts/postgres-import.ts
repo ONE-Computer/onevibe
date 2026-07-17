@@ -46,7 +46,7 @@ const run = async () => {
   const scheduleRows: OwnedScheduleRow[] = schedules.map((schedule: TaskSchedule) => { const ownerUserId = ownerFor(schedule, options, 'Schedule', schedule.id); owners.add(ownerUserId); return { schedule, ownerUserId } })
   const mcpRows = mcpConfigs.map((config) => { const ownerUserId = ownerFor(config, options, 'MCP config', config.id); owners.add(ownerUserId); return { config, ownerUserId } })
   const skillRows = skillInstallations.map((skill) => { const ownerUserId = ownerFor(skill, options, 'Skill installation', skill.id); owners.add(ownerUserId); return { skill, ownerUserId } })
-  validateImportRelationships(projectRows, taskRows, scheduleRows)
+  validateImportRelationships(projectRows, taskRows, scheduleRows, new Set(organizations.map(({ organization }) => organization.id)))
 
   const organizationMemberUserIds = [...new Set(organizations.flatMap(({ members }) => members.map((member) => member.userId)))]
   const counts = { organizations: organizations.length, organizationMembers: organizationMemberUserIds.length, projects: projectRows.length, tasks: taskRows.length, schedules: scheduleRows.length, mcpConfigs: mcpRows.length, skillInstallations: skillRows.length, messages: 0, events: 0, nativeEvents: 0, nativeProjectionLinks: 0, nativeProjectionOffsets: 0, versions: 0, workspaceFiles: 0, workspaceVersionFiles: 0, projectFiles: 0, projectRevisionFiles: 0 }
@@ -86,13 +86,13 @@ const run = async () => {
         orgId: member.organizationId, userId: member.userId, role: member.role, createdAt: new Date(member.createdAt),
       })))).onConflictDoNothing()
       if (projectRows.length) await tx.insert(schema.project).values(projectRows.map(({ project, ownerUserId: owner }) => ({
-        id: project.id, ownerUserId: owner, name: project.name, context: project.context, filesJson: { files: project.files, fileVersions: project.fileVersions ?? {} }, createdAt: new Date(project.createdAt), updatedAt: new Date(project.updatedAt),
+        id: project.id, ownerUserId: owner, orgId: project.organizationId ?? null, name: project.name, context: project.context, filesJson: { files: project.files, fileVersions: project.fileVersions ?? {} }, createdAt: new Date(project.createdAt), updatedAt: new Date(project.updatedAt),
       }))).onConflictDoNothing()
       if (taskRows.length) await tx.insert(schema.conversation).values(taskRows.map(({ task, ownerUserId: owner }) => ({
         id: task.id, ownerUserId: owner, title: task.title, status: 'active', createdAt: new Date(task.createdAt), updatedAt: new Date(task.updatedAt),
       }))).onConflictDoNothing()
       if (taskRows.length) await tx.insert(schema.task).values(taskRows.map(({ task, ownerUserId: owner }) => ({
-        id: task.id, ownerUserId: owner, conversationId: task.id, projectId: task.projectId, title: task.title, prompt: task.prompt, provider: task.provider, mode: task.mode, status: task.status,
+        id: task.id, ownerUserId: owner, orgId: task.organizationId ?? null, conversationId: task.id, projectId: task.projectId, title: task.title, prompt: task.prompt, provider: task.provider, mode: task.mode, status: task.status,
         skillsJson: task.skills, tagsJson: task.tags, queuedGuidanceJson: task.queuedGuidance, referencesJson: task.references, attachmentsJson: task.attachments, planJson: task.plan,
         securityContextJson: task.securityContext ?? null, approvalJson: task.approval ?? null, inputRequestJson: task.inputRequest ?? null, shareJson: task.share ?? null,
         previewPath: task.previewPath ?? null, libraryHiddenAt: date(task.libraryHiddenAt), activeRunId: task.activeRunId ?? null, scheduleId: task.scheduleId ?? null,

@@ -1,0 +1,19 @@
+{
+  "profiles": [
+    {
+      "id": "default",
+      "fontUi": "Inter",
+      "tokens": {
+        "colorBgPage": "#0b0d0c",
+        "colorBgSurface": "#111411",
+        "colorNavBg": "#0e100f",
+        "colorNavText": "#e9edea",
+        "colorTextPrimary": "#e9edea",
+        "colorTextSecondary": "#8f9992",
+        "colorBorderDefault": "#262c28",
+        "colorBrandPrimary": "#38dc7d",
+        "colorBrandSecondary": "#21b863"
+      }
+    }
+  ]
+}

@@ -1,4 +1,7 @@
 import { z } from 'zod'
+import { sanitizeSvg } from '../src/lib/svg-sanitize.js'
+
+export { sanitizeSvg }
 
 const safeCssToken = (label: string, max = 96) => z.string().trim().min(1).max(max).refine((value) => {
   const lower = value.toLowerCase()

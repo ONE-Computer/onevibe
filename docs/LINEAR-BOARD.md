@@ -1,5 +1,9 @@
 # ONEVibe Linear board
 
+Evidence correction (2026-07-17): the fresh two-organization Postgres acceptance now proves theme mutation leaves approval state, evidence validity/payload state, and produced artifact/file state unchanged, in addition to model/auth/persistence/runtime/sandbox/MCP diagnostics. Any older sentence below that labels those invariants open is superseded by this recorded acceptance; visual profile coverage and production controls remain open.
+
+P4-06 / ONE-253 follow-up: the organization identity propagation slice is now implemented and locally accepted. Organization-backed project creation requires live membership; `Project.organizationId` and `Task.organizationId` survive the Postgres metadata path; tasks inherit the project organization; task insertion and import validation reject project/task organization drift; and the real importer preserves org IDs. The fresh `npm run e2e:postgres-auth-http` proof records the organization-backed project/task plus unchanged owner-only negative behavior, while `npm run e2e:postgres-import` records the organization/project/task round trip with durable workspace and native projection bytes. A bounded Postgres `TaskStore.updateTask` refresh/retry closes the observed background plan/status optimistic-conflict crash. This does not grant member data-plane access or close production org policy, provider isolation, deployment, PITR, incident, or migration controls.
+
 ## Canonical project
 
 [ONEVibe — Backend E2E & Manus Parity](https://linear.app/onecomputer/project/onevibe-backend-e2e-and-manus-parity-ff4554221471) is the execution source of truth for ONEVibe. The broader ONEComputer × OpenVTC project owns platform identity, policy, wallet, and gateway work; it is not the ONEVibe product backlog.

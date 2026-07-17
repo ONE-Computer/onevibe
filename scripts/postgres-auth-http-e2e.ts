@@ -124,6 +124,8 @@ const main = async () => {
   let themeOrganizationId: string | undefined
   let otherThemeTenantId: string | undefined
   let otherThemeOrganizationId: string | undefined
+  let invariantTaskId: string | undefined
+  type InvariantSnapshot = { status: string; provider: string; mode: string; plan: unknown; approval?: unknown; securityContext?: unknown; references: unknown; attachments: unknown }
   try {
     for (let attempt = 0; attempt < 150; attempt += 1) {
       if (api.child.exitCode !== null || api.child.signalCode !== null) throw new Error('ONEVibe Postgres auth API exited before becoming healthy')
@@ -198,6 +200,25 @@ const main = async () => {
     const ownerBThemeList = await request<{ themes: Array<{ tenantId: string }> }>(baseUrl, '/api/theme', {}, ownerB.cookie)
     assert.deepEqual(ownerAThemeList.body.themes.map((theme) => theme.tenantId), [themeTenantId])
     assert.deepEqual(ownerBThemeList.body.themes.map((theme) => theme.tenantId), [otherThemeTenantId])
+    const invariantProject = await request<{ id: string; organizationId?: string }>(baseUrl, '/api/projects', { method: 'POST', body: JSON.stringify({ name: 'Theme invariant project', context: 'Artifact/evidence invariance acceptance', organizationId: themeOrganizationId }) }, ownerA.cookie)
+    assert.equal(invariantProject.response.status, 201, JSON.stringify(invariantProject.body))
+    assert.equal(invariantProject.body.organizationId, themeOrganizationId)
+    const invariantTask = await request<{ id: string; organizationId?: string }>(baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ prompt: 'Create a short governed document for theme invariance acceptance', provider: 'demo', mode: 'document', projectId: invariantProject.body.id }) }, ownerA.cookie)
+    assert.equal(invariantTask.response.status, 201, JSON.stringify(invariantTask.body))
+    assert.equal(invariantTask.body.organizationId, themeOrganizationId)
+    invariantTaskId = invariantTask.body.id
+    let invariantSnapshot: InvariantSnapshot | undefined
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const candidate = await request<InvariantSnapshot>(baseUrl, `/api/tasks/${invariantTaskId}`, {}, ownerA.cookie)
+      if (candidate.response.status === 200 && candidate.body.status === 'completed') { invariantSnapshot = candidate.body; break }
+      await sleep(50)
+    }
+    assert.ok(invariantSnapshot, 'theme invariance task must complete before theme mutation')
+    const invariantEvidenceBefore = await request<{ valid: boolean }>(baseUrl, `/api/tasks/${invariantTaskId}/evidence`, {}, ownerA.cookie)
+    const invariantFilesBefore = await request<{ files: unknown[] }>(baseUrl, `/api/tasks/${invariantTaskId}/files`, {}, ownerA.cookie)
+    assert.equal(invariantEvidenceBefore.response.status, 200)
+    assert.equal(invariantEvidenceBefore.body.valid, true)
+    assert.equal(invariantFilesBefore.response.status, 200)
     const memberMutation = await request(baseUrl, `/api/theme/${themeTenantId}`, { method: 'PUT', body: JSON.stringify({ expectedVersion: 1, config: { schemaVersion: 1, tenantName: 'Acme', tokens: { colorBrandPrimary: '#654321' }, homePage: { announcementBannerVisible: false, featureCards: [] }, brand: { brandName: 'Acme' }, navigation: { items: [] }, features: { showComputerTab: true, showMcpMarketplace: true, showRuntimePicker: true, showDebugPanel: false }, compliance: {} } }) }, ownerB.cookie)
     assert.equal(memberMutation.response.status, 403, JSON.stringify(memberMutation.body))
     const updatedTheme = await request<{ config: { homePage: { heroHeadline?: string } }; customized: boolean; version: number }>(baseUrl, `/api/theme/${themeTenantId}`, { method: 'PUT', body: JSON.stringify({ expectedVersion: 1, config: { schemaVersion: 1, tenantName: 'Acme', tokens: { colorBrandPrimary: '#654321' }, homePage: { heroHeadline: 'Secure workspaces', announcementBannerVisible: false, featureCards: [] }, brand: { brandName: 'Acme' }, navigation: { items: [] }, features: { showComputerTab: true, showMcpMarketplace: true, showRuntimePicker: true, showDebugPanel: false }, compliance: {} } }) }, ownerA.cookie)
@@ -227,6 +248,13 @@ const main = async () => {
     assert.deepEqual(diagnostics.body.theme.audit, { tenantCount: 1, eventCount: 3, latestOperation: 'reset', latestAt: diagnostics.body.theme.audit.latestAt })
     assert.match(diagnostics.body.theme.audit.latestAt ?? '', /^20\d\d-/)
     assert.deepEqual({ auth: diagnostics.body.auth, modelBoundary: diagnostics.body.modelBoundary, persistence: diagnostics.body.persistence, runtime: diagnostics.body.runtime.providers.map(({ id, available, compatible }) => ({ id, available, compatible })), sandbox: diagnostics.body.sandbox, mcp: diagnostics.body.mcp.configuredCount }, { auth: baselineDiagnostics.body.auth, modelBoundary: baselineDiagnostics.body.modelBoundary, persistence: baselineDiagnostics.body.persistence, runtime: baselineDiagnostics.body.runtime.providers.map(({ id, available, compatible }) => ({ id, available, compatible })), sandbox: baselineDiagnostics.body.sandbox, mcp: baselineDiagnostics.body.mcp.configuredCount })
+    const invariantSnapshotAfter = await request<InvariantSnapshot>(baseUrl, `/api/tasks/${invariantTaskId}`, {}, ownerA.cookie)
+    const invariantEvidenceAfter = await request<{ valid: boolean }>(baseUrl, `/api/tasks/${invariantTaskId}/evidence`, {}, ownerA.cookie)
+    const invariantFilesAfter = await request<{ files: unknown[] }>(baseUrl, `/api/tasks/${invariantTaskId}/files`, {}, ownerA.cookie)
+    assert.equal(invariantSnapshotAfter.response.status, 200)
+    assert.deepEqual({ status: invariantSnapshotAfter.body.status, provider: invariantSnapshotAfter.body.provider, mode: invariantSnapshotAfter.body.mode, plan: invariantSnapshotAfter.body.plan, approval: invariantSnapshotAfter.body.approval, securityContext: invariantSnapshotAfter.body.securityContext, references: invariantSnapshotAfter.body.references, attachments: invariantSnapshotAfter.body.attachments }, { status: invariantSnapshot.status, provider: invariantSnapshot.provider, mode: invariantSnapshot.mode, plan: invariantSnapshot.plan, approval: invariantSnapshot.approval, securityContext: invariantSnapshot.securityContext, references: invariantSnapshot.references, attachments: invariantSnapshot.attachments })
+    assert.deepEqual(invariantFilesAfter.body.files, invariantFilesBefore.body.files)
+    assert.equal(invariantEvidenceAfter.body.valid, invariantEvidenceBefore.body.valid)
     const project = await request<{ id: string }>(baseUrl, '/api/projects', { method: 'POST', body: JSON.stringify({ name: 'Postgres auth project', context: 'owner A' }) }, ownerA.cookie)
     assert.equal(project.response.status, 201, JSON.stringify(project.body))
     const ownerBProjects = await request<{ projects: Array<{ id: string }> }>(baseUrl, '/api/projects', {}, ownerB.cookie)
@@ -241,7 +269,7 @@ const main = async () => {
     assert.equal(forbidden.response.status, 404)
     const ownerAProject = await request(baseUrl, `/api/projects/${project.body.id}`, {}, ownerA.cookie)
     assert.equal(ownerAProject.response.status, 404, 'unsupported project GET should remain bounded')
-    console.log(JSON.stringify({ auth: 'Better Auth email OTP through loopback delivery fixture', driver: diagnostics.body.persistence.active, runtimeSwitchReady: diagnostics.body.persistence.runtimeSwitchReady, readiness: true, unauthorizedStatus: unauthorized.response.status, ownerIsolation: true, themeIsolation: true, taskCreated: true, crossOwnerTaskStatus: forbidden.response.status, themeVersion: resetTheme.body.version, themeEvents: eventRows.length, themeAuditEvents: diagnostics.body.theme.audit.eventCount, themeAuditLatest: diagnostics.body.theme.audit.latestOperation, themeMemberRead: ownerBTheme.response.status, themeMemberWrite: memberMutation.response.status, themeOtherOwnerRead: ownerAOtherTheme.response.status, themeConflict: staleTheme.response.status, themeReset: resetTheme.body.customized === false, runtimeInvariant: true, directFirstPartyAllowed: diagnostics.body.auth.sessionScoped ? false : undefined }, null, 2))
+    console.log(JSON.stringify({ auth: 'Better Auth email OTP through loopback delivery fixture', driver: diagnostics.body.persistence.active, runtimeSwitchReady: diagnostics.body.persistence.runtimeSwitchReady, readiness: true, unauthorizedStatus: unauthorized.response.status, ownerIsolation: true, themeIsolation: true, taskCreated: true, crossOwnerTaskStatus: forbidden.response.status, themeVersion: resetTheme.body.version, themeEvents: eventRows.length, themeAuditEvents: diagnostics.body.theme.audit.eventCount, themeAuditLatest: diagnostics.body.theme.audit.latestOperation, themeMemberRead: ownerBTheme.response.status, themeMemberWrite: memberMutation.response.status, themeOtherOwnerRead: ownerAOtherTheme.response.status, themeConflict: staleTheme.response.status, themeReset: resetTheme.body.customized === false, runtimeInvariant: true, evidenceInvariant: true, artifactInvariant: true, directFirstPartyAllowed: diagnostics.body.auth.sessionScoped ? false : undefined }, null, 2))
   } finally {
     await api.stop()
     mail.server.close()

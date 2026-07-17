@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-17 — P4-06 organization identity propagation and Postgres conflict recovery
+
+- Added optional `organizationId` to project/task contracts. Creating an organization-backed project now requires a server-authenticated owner who is a live organization member; SQLite and Postgres enforce the same boundary. Tasks inherit the project organization and there is no task-level organization selector that could create drift.
+- Postgres metadata now reads/writes `project.org_id` and `task.org_id`, checks task/project organization equality during insertion, and the importer stages organization IDs only after validating that referenced organizations exist. Project/task import relationships reject organization drift before opening the import transaction.
+- Added a bounded retry in the Postgres `TaskStore.updateTask` path: after an optimistic conflict, the store refreshes the owner-scoped task projection and reapplies the narrow patch up to three times. This keeps concurrent plan/status transitions from crashing a background execution while retaining the optimistic conflict boundary.
+- Verification: `npm run lint`, 50 focused store/import tests, E2E harness typecheck, disposable PostgreSQL 18 migration, `npm run e2e:postgres-auth-http`, and `npm run e2e:postgres-import` all passed. The HTTP proof recorded org-project/task inheritance plus unchanged owner-only access, and the import proof recorded project/task organization round-trip. The disposable database was stopped afterward.
+- Boundary: this is identity propagation, not authorization expansion. Organization members still do not gain task/project/runtime access, and production org policy, provider isolation, deployment, PITR, and incident controls remain open.
+
 ## 2026-07-17 — fail-closed ThemePackage manifest contract
 
 - Added `server/theme-package.ts` and `docs/THEME-PACKAGE-CONTRACT.md` for a versioned deployment-time package manifest covering named slots, host-owned route IDs, and token defaults. CSS artifacts, arbitrary URL paths, and runtime imports are explicitly excluded.

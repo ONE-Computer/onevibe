@@ -10,9 +10,9 @@ export type PostgresMetadataConfig = {
   readonly connectTimeoutSeconds?: number
 }
 
-type ProjectRow = { id: string; owner_user_id: string; name: string; context: string; files_json: unknown; created_at: Date; updated_at: Date }
+type ProjectRow = { id: string; owner_user_id: string; org_id: string | null; name: string; context: string; files_json: unknown; created_at: Date; updated_at: Date }
 type TaskRow = {
-  id: string; owner_user_id: string; conversation_id: string | null; project_id: string; title: string; prompt: string;
+  id: string; owner_user_id: string; org_id: string | null; conversation_id: string | null; project_id: string; title: string; prompt: string;
   provider: Task['provider']; mode: TaskMode; status: Task['status']; skills_json: unknown; tags_json: unknown;
   queued_guidance_json: unknown; references_json: unknown; attachments_json: unknown; plan_json: unknown;
   security_context_json: unknown; approval_json: unknown; input_request_json: unknown; share_json: unknown;
@@ -40,6 +40,7 @@ const projectFromRow = (row: ProjectRow): Project => {
   return {
   id: row.id,
   ownerUserId: row.owner_user_id,
+  ...(row.org_id ? { organizationId: row.org_id } : {}),
   name: row.name,
   context: row.context,
   files: jsonArray(stored?.files ?? row.files_json),
@@ -52,6 +53,7 @@ const projectFromRow = (row: ProjectRow): Project => {
 const taskFromRow = (row: TaskRow): Task => ({
   id: row.id,
   ownerUserId: row.owner_user_id,
+  ...(row.org_id ? { organizationId: row.org_id } : {}),
   title: row.title,
   prompt: row.prompt,
   provider: row.provider,
@@ -90,12 +92,13 @@ const json = (value: unknown) => JSON.stringify(value ?? null)
 const date = (value: string | undefined) => value ? new Date(value) : null
 
 const requireProject = async (sql: PostgresMetadataSql | MetadataTransaction, projectId: string, ownerUserId: string) => {
-  const rows = await sql<{ id: string }[]>`SELECT id FROM project WHERE id = ${projectId} AND owner_user_id = ${ownerUserId} FOR UPDATE`
+  const rows = await sql<{ id: string; org_id: string | null }[]>`SELECT id, org_id FROM project WHERE id = ${projectId} AND owner_user_id = ${ownerUserId} FOR UPDATE`
   if (!rows[0]) throw new RecordNotFoundError(`Project ${projectId} does not exist for this owner`)
+  return rows[0]
 }
 
 const taskValues = (task: Task) => ({
-  id: task.id, ownerUserId: task.ownerUserId!, conversationId: task.id, projectId: task.projectId, title: task.title, prompt: task.prompt,
+  id: task.id, ownerUserId: task.ownerUserId!, organizationId: task.organizationId ?? null, conversationId: task.id, projectId: task.projectId, title: task.title, prompt: task.prompt,
   provider: task.provider, mode: task.mode, status: task.status, skills: json(task.skills), tags: json(task.tags), queuedGuidance: json(task.queuedGuidance),
   references: json(task.references), attachments: json(task.attachments), plan: json(task.plan), securityContext: json(task.securityContext), approval: json(task.approval),
   inputRequest: json(task.inputRequest), share: json(task.share), previewPath: task.previewPath ?? null, libraryHiddenAt: date(task.libraryHiddenAt),
@@ -108,12 +111,12 @@ export class PostgresMetadataRepository {
 
   async load(ownerUserId?: string): Promise<{ projects: Project[]; tasks: Task[]; schedules: TaskSchedule[] }> {
     const projects = await this.sql<ProjectRow[]>`
-      SELECT id, owner_user_id, name, context, files_json, created_at, updated_at FROM project
+      SELECT id, owner_user_id, org_id, name, context, files_json, created_at, updated_at FROM project
       ${ownerUserId ? this.sql`WHERE owner_user_id = ${ownerUserId}` : this.sql``}
       ORDER BY updated_at DESC, id DESC
     `
     const tasks = await this.sql<TaskRow[]>`
-      SELECT id, owner_user_id, conversation_id, project_id, title, prompt, provider, mode, status, skills_json, tags_json,
+      SELECT id, owner_user_id, org_id, conversation_id, project_id, title, prompt, provider, mode, status, skills_json, tags_json,
         queued_guidance_json, references_json, attachments_json, plan_json, security_context_json, approval_json, input_request_json,
         share_json, preview_path, library_hidden_at, active_run_id, schedule_id, parent_task_id, forked_from_message_id, forked_at, created_at, updated_at
       FROM task
@@ -132,8 +135,8 @@ export class PostgresMetadataRepository {
   async insertProject(project: Project): Promise<void> {
     if (!project.ownerUserId) throw new Error('Postgres projects require an owner')
     await this.sql`
-      INSERT INTO project (id, owner_user_id, name, context, files_json, created_at, updated_at)
-      VALUES (${project.id}, ${project.ownerUserId}, ${project.name}, ${project.context}, ${projectMetadata(project)}::jsonb, ${new Date(project.createdAt)}, ${new Date(project.updatedAt)})
+      INSERT INTO project (id, owner_user_id, org_id, name, context, files_json, created_at, updated_at)
+      VALUES (${project.id}, ${project.ownerUserId}, ${project.organizationId ?? null}, ${project.name}, ${project.context}, ${projectMetadata(project)}::jsonb, ${new Date(project.createdAt)}, ${new Date(project.updatedAt)})
     `
   }
 
@@ -154,19 +157,20 @@ export class PostgresMetadataRepository {
     const ownerUserId = task.ownerUserId
     if (!ownerUserId) throw new Error('Postgres tasks require an owner')
     await this.sql.begin(async (tx) => {
-      await requireProject(tx, task.projectId, ownerUserId)
+      const project = await requireProject(tx, task.projectId, ownerUserId)
+      if ((project.org_id ?? undefined) !== task.organizationId) throw new Error(`Task ${task.id} organization does not match project ${task.projectId}`)
       await tx`
         INSERT INTO conversation (id, owner_user_id, title, status, created_at, updated_at)
         VALUES (${task.id}, ${ownerUserId}, ${task.title}, 'active', ${values.createdAt}, ${values.updatedAt})
       `
       await tx`
         INSERT INTO task (
-          id, owner_user_id, conversation_id, project_id, title, prompt, provider, mode, status, skills_json, tags_json,
+          id, owner_user_id, org_id, conversation_id, project_id, title, prompt, provider, mode, status, skills_json, tags_json,
           queued_guidance_json, references_json, attachments_json, plan_json, security_context_json, approval_json,
           input_request_json, share_json, preview_path, library_hidden_at, active_run_id, schedule_id, parent_task_id,
           forked_from_message_id, forked_at, created_at, updated_at
         ) VALUES (
-          ${values.id}, ${values.ownerUserId}, ${values.conversationId}, ${values.projectId}, ${values.title}, ${values.prompt}, ${values.provider}, ${values.mode}, ${values.status},
+          ${values.id}, ${values.ownerUserId}, ${values.organizationId}, ${values.conversationId}, ${values.projectId}, ${values.title}, ${values.prompt}, ${values.provider}, ${values.mode}, ${values.status},
           ${values.skills}::jsonb, ${values.tags}::jsonb, ${values.queuedGuidance}::jsonb, ${values.references}::jsonb, ${values.attachments}::jsonb,
           ${values.plan}::jsonb, ${values.securityContext}::jsonb, ${values.approval}::jsonb, ${values.inputRequest}::jsonb, ${values.share}::jsonb,
           ${values.previewPath}, ${values.libraryHiddenAt}, ${values.activeRunId}, ${values.scheduleId}, ${values.parentTaskId}, ${values.forkedFromMessageId}, ${values.forkedAt}, ${values.createdAt}, ${values.updatedAt}

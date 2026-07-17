@@ -301,12 +301,13 @@ export class TaskStore {
   }
 
   async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = [], attachments: TaskAttachment[] = [], skills: TaskSkill[] = [], ownerUserId?: string): Promise<Task> {
-    this.getProject(projectId, ownerUserId)
+    const project = this.getProject(projectId, ownerUserId)
     const now = new Date().toISOString()
     const id = `task_${randomUUID().replaceAll('-', '').slice(0, 14)}`
     const task: Task = {
       id,
       ...(ownerUserId ? { ownerUserId } : {}),
+      ...(project.organizationId ? { organizationId: project.organizationId } : {}),
       title: prompt.length > 56 ? `${prompt.slice(0, 53).trim()}…` : prompt,
       prompt,
       provider,
@@ -691,9 +692,21 @@ export class TaskStore {
     return project
   }
 
-  async createProject(name: string, context = '', ownerUserId?: string): Promise<Project> {
+  async createProject(name: string, context = '', ownerUserId?: string, organizationId?: string): Promise<Project> {
+    if (organizationId) {
+      if (!ownerUserId) throw new Error('Organization projects require an owner')
+      if (this.postgresState) {
+        await this.postgresState.assertOrganizationMember(organizationId, ownerUserId)
+      } else {
+        this.requireUnitOfWork().run((repositories) => {
+          const organization = repositories.organizations.findById(organizationId)
+          const member = repositories.organizations.findMember(organizationId, ownerUserId)
+          if (!organization || !member) throw new Error(`Organization ${organizationId} does not exist for this user`)
+        })
+      }
+    }
     const now = new Date().toISOString()
-    const project = { id: `project_${randomUUID().replaceAll('-', '').slice(0, 12)}`, ...(ownerUserId ? { ownerUserId } : {}), name, context, files: [], createdAt: now, updatedAt: now }
+    const project = { id: `project_${randomUUID().replaceAll('-', '').slice(0, 12)}`, ...(ownerUserId ? { ownerUserId } : {}), ...(organizationId ? { organizationId } : {}), name, context, files: [], createdAt: now, updatedAt: now }
     if (this.postgresState) {
       await this.postgresState.insertProject(project)
       this.projects.set(project.id, project)
@@ -998,13 +1011,25 @@ export class TaskStore {
   }
 
   async updateTask(id: string, patch: Partial<Task>) {
+    if (this.postgresState) {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const current = this.getTask(id)
+        const updated = { ...current, ...patch, id: current.id, updatedAt: new Date().toISOString() }
+        try {
+          await this.postgresState.updateTask(updated, current.updatedAt)
+          this.tasks.set(id, updated)
+          return updated
+        } catch (error) {
+          if (!(error instanceof OptimisticConflictError) || attempt === 3) throw error
+          const refreshed = (await this.postgresState.load(current.ownerUserId)).tasks.find((candidate) => candidate.id === id)
+          if (!refreshed) throw error
+          this.tasks.set(id, refreshed)
+        }
+      }
+      throw new Error(`Task ${id} update did not settle`)
+    }
     const current = this.getTask(id)
     const updated = { ...current, ...patch, id: current.id, updatedAt: new Date().toISOString() }
-    if (this.postgresState) {
-      await this.postgresState.updateTask(updated, current.updatedAt)
-      this.tasks.set(id, updated)
-      return updated
-    }
     this.tasks.set(id, updated)
     await this.persist(updated)
     return updated

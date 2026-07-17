@@ -31,13 +31,15 @@ const main = async () => {
     await sql`INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES (${ownerUserId}, ${ownerUserId}, ${`${ownerUserId}@example.invalid`}, true, ${now}, ${now})`
     const source = new TaskStore(sourceRoot)
     await source.initialize()
-    const project = await source.createProject('Import project', 'Durable import fixture', ownerUserId)
+    const organization = await source.createOrganization('Import organization', ownerUserId)
+    const project = await source.createProject('Import project', 'Durable import fixture', ownerUserId, organization.id)
     const projectWithFile = await source.addProjectFile(project.id, { name: 'import.md', mimeType: 'text/markdown', bytes: Buffer.from('Imported project context v1.') })
     const projectFile = projectWithFile.files[0]!
     const before = await source.readProjectFile(project.id, projectFile.path)
     await source.updateProjectFile(project.id, projectFile.path, 'Imported project context v2.', before.contentHash)
     const attachment = { name: 'private.txt', path: 'inputs/01-private.txt', size: Buffer.byteLength('private input'), mimeType: 'text/plain' }
     const task = await source.createTask('Import durable bytes', 'demo', 'document', project.id, undefined, [], [attachment], [], ownerUserId)
+    assert.equal(task.organizationId, organization.id)
     await source.writeWorkspaceFile(task.id, 'README.md', '# Imported workspace\n')
     await source.writeWorkspaceBytes(task.id, 'data.bin', Buffer.from([0, 1, 2, 255]))
     const version = await source.createWorkspaceVersion(task.id, 'Import snapshot')
@@ -58,6 +60,8 @@ const main = async () => {
     const imported = new TaskStore(path.join(sourceRoot, 'postgres-read-cache'), { driver: 'postgres', databaseUrl: databaseUrl! })
     try {
       await imported.initialize()
+      assert.equal(imported.getProject(project.id, ownerUserId).organizationId, organization.id)
+      assert.equal(imported.getTask(task.id, ownerUserId).organizationId, organization.id)
       assert.equal(await imported.readWorkspaceFile(task.id, 'README.md'), '# Imported workspace\n')
       assert.deepEqual([...await imported.readWorkspaceBytes(task.id, 'data.bin')], [0, 1, 2, 255])
     assert.equal((await imported.listWorkspaceVersions(task.id)).length, 1)

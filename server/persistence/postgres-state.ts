@@ -119,6 +119,10 @@ export class PostgresStateCoordinator {
     return member
   }
 
+  async assertOrganizationMember(organizationId: string, actorUserId: string): Promise<void> {
+    await this.#requireOrganizationMember(organizationId, actorUserId)
+  }
+
   async listMcpConfigs(ownerUserId: string): Promise<McpConfigRecord[]> {
     requireActor(ownerUserId, 'MCP config')
     return this.#operations.listMcpConfigs(ownerUserId)
