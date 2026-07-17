@@ -2,6 +2,9 @@ import type Database from 'better-sqlite3'
 import type {
   ConversationRecord,
   ConversationRepository,
+  FollowUpAttachmentRecord,
+  FollowUpAttachmentRepository,
+  FollowUpAttachmentState,
   FollowUpOperationRecord,
   FollowUpOperationRepository,
   FollowUpOperationState,
@@ -45,6 +48,10 @@ type FollowUpOperationRow = {
   attempt_count: number; execution_id: string; provider_request_id: string; provider_state: FollowUpOperationRecord['providerState'];
   provider_started_at: string | null; provider_completed_at: string | null; created_at: string; updated_at: string;
   started_at: string | null; completed_at: string | null
+}
+type FollowUpAttachmentRow = {
+  id: string; operation_id: string; task_id: string; owner_user_id: string | null; path: string; name: string; mime_type: string;
+  size: number; sha256: string; content: Buffer; state: FollowUpAttachmentState; created_at: string; updated_at: string
 }
 type LegacyImportRow = { source_kind: string; source_id: string; source_digest: string; conversation_id: string; result_json: string; imported_at: string }
 type RuntimeEventRow = {
@@ -321,6 +328,36 @@ export class SqliteFollowUpOperationRepository implements FollowUpOperationRepos
     `).run(leaseOwner, leaseExpiresAt, now, recordId, now)
     if (result.changes !== 1) return undefined
     return followUpOperationFromRow(this.database.prepare('SELECT * FROM follow_up_operations WHERE id = ?').get(recordId) as FollowUpOperationRow)
+  }
+}
+
+const followUpAttachmentFromRow = (row: FollowUpAttachmentRow): FollowUpAttachmentRecord => ({
+  id: row.id, operationId: row.operation_id, taskId: row.task_id, ownerUserId: row.owner_user_id, path: row.path,
+  name: row.name, mimeType: row.mime_type, size: row.size, sha256: row.sha256, content: Buffer.from(row.content), state: row.state,
+  createdAt: row.created_at, updatedAt: row.updated_at,
+})
+
+export class SqliteFollowUpAttachmentRepository implements FollowUpAttachmentRepository {
+  constructor(private readonly database: Database.Database) {}
+
+  listForOperation(operationId: string): FollowUpAttachmentRecord[] {
+    return (this.database.prepare('SELECT * FROM follow_up_attachments WHERE operation_id = ? ORDER BY created_at ASC, id ASC').all(operationId) as FollowUpAttachmentRow[]).map(followUpAttachmentFromRow)
+  }
+
+  insert(record: FollowUpAttachmentRecord): void {
+    this.database.prepare(`
+      INSERT INTO follow_up_attachments(id, operation_id, task_id, owner_user_id, path, name, mime_type, size, sha256, content, state, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(record.id, record.operationId, record.taskId, record.ownerUserId, record.path, record.name, record.mimeType, record.size, record.sha256, Buffer.from(record.content), record.state, record.createdAt, record.updatedAt)
+  }
+
+  update(record: FollowUpAttachmentRecord, expectedUpdatedAt: string): void {
+    const result = this.database.prepare(`
+      UPDATE follow_up_attachments SET state = ?, path = ?, updated_at = ? WHERE id = ? AND updated_at = ?
+    `).run(record.state, record.path, record.updatedAt, record.id, expectedUpdatedAt)
+    if (result.changes === 1) return
+    if (!this.database.prepare('SELECT 1 FROM follow_up_attachments WHERE id = ?').get(record.id)) throw new RecordNotFoundError(`Follow-up attachment ${record.id} does not exist`)
+    throw new OptimisticConflictError(`Follow-up attachment ${record.id} was modified concurrently`)
   }
 }
 
@@ -684,6 +721,7 @@ export function createSqliteRepositories(database: Database.Database): Repositor
     nativeEvents: new SqliteNativeEventRepository(database),
     idempotency: new SqliteIdempotencyRepository(database),
     followUpOperations: new SqliteFollowUpOperationRepository(database),
+    followUpAttachments: new SqliteFollowUpAttachmentRepository(database),
     legacyImports: new SqliteLegacyImportRepository(database),
     runtimeLeases: new SqliteRuntimeLeaseRepository(database),
     mcpConfigs: new SqliteMcpConfigRepository(database),

@@ -6,7 +6,7 @@ import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
-import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, IdempotencyConflictError, OptimisticConflictError, PostgresStateCoordinator, type FollowUpOperationRecord, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
+import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, IdempotencyConflictError, OptimisticConflictError, PostgresStateCoordinator, type FollowUpAttachmentRecord, type FollowUpOperationRecord, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
 import { isInternalWorkspacePath, isPrivateWorkspacePath, normalizeWorkspacePath, portableArtifactKind } from './artifact-path.js'
 import type { McpConfig } from './runtime-adapter.js'
 
@@ -20,6 +20,33 @@ export type TaskStoreOptions = {
 const assertWithin = (root: string, candidate: string) => {
   const relative = path.relative(root, candidate)
   if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Path escapes configured workspace root')
+}
+
+const durableFollowUpAttachments = (operationId: string, taskId: string, ownerUserId: string | null, idempotencyKey: string, attachmentsJson: string, now: string): FollowUpAttachmentRecord[] => {
+  let parsed: unknown
+  try { parsed = JSON.parse(attachmentsJson) } catch { throw new Error('Follow-up attachment payload is not valid JSON') }
+  if (!Array.isArray(parsed)) throw new Error('Follow-up attachment payload must be an array')
+  if (parsed.length > 4) throw new RangeError('A follow-up may include at most four attachments')
+  const prefix = `inputs/request-${createHash('sha256').update(idempotencyKey).digest('hex').slice(0, 16)}`
+  let total = 0
+  return parsed.map((raw, index) => {
+    if (!raw || typeof raw !== 'object') throw new Error('Follow-up attachment payload is invalid')
+    const value = raw as Record<string, unknown>
+    const rawName = typeof value.name === 'string' ? value.name : ''
+    const name = path.basename(rawName).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120)
+    const mimeType = typeof value.mimeType === 'string' && value.mimeType ? value.mimeType.slice(0, 160) : 'application/octet-stream'
+    const dataBase64 = typeof value.dataBase64 === 'string' ? value.dataBase64 : ''
+    const content = Buffer.from(dataBase64, 'base64')
+    if (!name || name === '.' || name === '..' || !content.length || content.byteLength > 256 * 1024) throw new RangeError('Each attachment must be between 1 byte and 256 KiB with a safe filename')
+    total += content.byteLength
+    if (total > 1_000_000) throw new RangeError('Follow-up attachments exceed the 1 MiB turn limit')
+    const sha256 = createHash('sha256').update(content).digest('hex')
+    return {
+      id: `follow_up_attachment_${createHash('sha256').update(`${operationId}:${index}:${sha256}`).digest('hex').slice(0, 32)}`,
+      operationId, taskId, ownerUserId, path: `${prefix}-${String(index + 1).padStart(2, '0')}-${name}`,
+      name, mimeType, size: content.byteLength, sha256, content, state: 'reserved', createdAt: now, updatedAt: now,
+    }
+  })
 }
 
 const isEditableProjectFile = (file: { name: string; mimeType: string }) => /^(?:text\/|application\/(?:json|yaml|xml))/.test(file.mimeType) || /\.(?:md|txt|json|ya?ml|csv|xml)$/i.test(file.name)
@@ -1400,7 +1427,8 @@ export class TaskStore {
       providerState: 'not_started', providerStartedAt: null, providerCompletedAt: null,
       createdAt: now, updatedAt: now, startedAt: null, completedAt: null,
     }
-    if (this.postgresState) return this.postgresState.createFollowUpOperation(record)
+    const attachments = durableFollowUpAttachments(record.id, taskId, record.ownerUserId, idempotencyKey, attachmentsJson, now)
+    if (this.postgresState) return this.postgresState.createFollowUpOperation(record, attachments)
     return this.requireUnitOfWork().run((repositories) => {
       const existing = repositories.followUpOperations.findByKey(taskId, idempotencyKey)
       if (existing) {
@@ -1408,6 +1436,7 @@ export class TaskStore {
         return { claimed: false, operation: existing }
       }
       repositories.followUpOperations.insert(record)
+      for (const attachment of attachments) repositories.followUpAttachments.insert(attachment)
       return { claimed: true, operation: record }
     })
   }
@@ -1436,6 +1465,21 @@ export class TaskStore {
   async claimFollowUpOperation(operation: FollowUpOperationRecord, leaseOwner: string, now: string, leaseExpiresAt: string): Promise<FollowUpOperationRecord | undefined> {
     if (this.postgresState) return this.postgresState.claimFollowUpOperation(operation.id, leaseOwner, now, leaseExpiresAt)
     return this.requireUnitOfWork().run((repositories) => repositories.followUpOperations.claim(operation.id, leaseOwner, now, leaseExpiresAt))
+  }
+
+  async listFollowUpAttachments(operationId: string): Promise<FollowUpAttachmentRecord[]> {
+    if (this.postgresState) return this.postgresState.listFollowUpAttachments(operationId)
+    return this.requireUnitOfWork().run((repositories) => repositories.followUpAttachments.listForOperation(operationId))
+  }
+
+  async markFollowUpAttachmentsMaterialized(operationId: string): Promise<void> {
+    const attachments = await this.listFollowUpAttachments(operationId)
+    for (const attachment of attachments) {
+      if (attachment.state === 'materialized') continue
+      const updated = { ...attachment, state: 'materialized' as const, updatedAt: new Date().toISOString() }
+      if (this.postgresState) await this.postgresState.updateFollowUpAttachment(updated, attachment.updatedAt)
+      else this.requireUnitOfWork().run((repositories) => repositories.followUpAttachments.update(updated, attachment.updatedAt))
+    }
   }
 
   async getRetry(taskId: string, idempotencyKey: string): Promise<{ state: 'pending' | 'completed'; response?: Record<string, unknown> } | undefined> {

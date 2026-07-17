@@ -297,6 +297,10 @@ describe('TaskStore', () => {
     expect(first.claimed).toBe(true)
     expect(replay.claimed).toBe(false)
     expect(replay.operation.id).toBe(first.operation.id)
+    const reservedAttachments = await store.listFollowUpAttachments(first.operation.id)
+    expect(reservedAttachments).toHaveLength(1)
+    expect(reservedAttachments[0]).toMatchObject({ state: 'reserved', name: 'brief.txt', size: 5 })
+    expect(Buffer.from(reservedAttachments[0]!.content).toString('utf8')).toBe('brief')
     await expect(store.createFollowUpOperation(task.id, 'follow-up-operation-1', 'b'.repeat(64), 'Changed request.', attachmentsJson, 'immediate')).rejects.toThrow(/different request/)
 
     const ready = await store.updateFollowUpOperation(first.operation, { state: 'ready', responseJson: JSON.stringify({ status: 'queued', taskId: task.id }) })
@@ -308,6 +312,8 @@ describe('TaskStore', () => {
     const reopened = new TaskStore(root)
     await reopened.initialize()
     await expect(reopened.listRecoverableFollowUpOperations()).resolves.toEqual([expect.objectContaining({ id: ready.id, state: 'running', responseJson: JSON.stringify({ status: 'queued', taskId: task.id }), leaseOwner: 'worker-a', attemptCount: 1 })])
+    await reopened.markFollowUpAttachmentsMaterialized(ready.id)
+    await expect(reopened.listFollowUpAttachments(ready.id)).resolves.toEqual([expect.objectContaining({ state: 'materialized', sha256: '29a8825bd242f14386ee528d76e0e8f1e38f3c8c4047d7b2d6df7493368a17d0' })])
   })
 
   it.each(['running', 'waiting_for_user_input', 'waiting_for_approval'] as const)('reconciles a durable %s run after process restart', async (status) => {

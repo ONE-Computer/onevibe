@@ -11,6 +11,7 @@ import { v8Sql } from './migrations/v8.js'
 import { v9Sql } from './migrations/v9.js'
 import { v10Sql } from './migrations/v10.js'
 import { v11Sql } from './migrations/v11.js'
+import { v12Sql } from './migrations/v12.js'
 
 export interface Migration {
   version: number
@@ -43,6 +44,7 @@ export const migrations: readonly Migration[] = Object.freeze([
   { version: 9, name: 'organization_membership_scaffolding', sql: v9Sql, checksum: migrationChecksum(v9Sql) },
   { version: 10, name: 'durable_follow_up_operation_journal', sql: v10Sql, checksum: migrationChecksum(v10Sql) },
   { version: 11, name: 'follow_up_execution_identity_and_leases', sql: v11Sql, checksum: migrationChecksum(v11Sql) },
+  { version: 12, name: 'durable_follow_up_attachment_reservations', sql: v12Sql, checksum: migrationChecksum(v12Sql) },
 ])
 
 interface AppliedMigration {

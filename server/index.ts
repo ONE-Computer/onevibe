@@ -266,7 +266,12 @@ const materializeFollowUpOperation = async (operation: FollowUpOperationRecord):
   if (operation.state !== 'prepared') return operation
   try {
     const task = store.getTask(operation.taskId)
-    const attachments = await stageFollowUpAttachments(operation.taskId, parseFollowUpOperationAttachments(operation), operation.idempotencyKey)
+    const durableAttachments = await store.listFollowUpAttachments(operation.id)
+    const attachmentInputs = durableAttachments.length
+      ? durableAttachments.map((attachment) => ({ name: attachment.name, mimeType: attachment.mimeType, dataBase64: Buffer.from(attachment.content).toString('base64') }))
+      : parseFollowUpOperationAttachments(operation)
+    const attachments = await stageFollowUpAttachments(operation.taskId, attachmentInputs, operation.idempotencyKey)
+    if (durableAttachments.length) await store.markFollowUpAttachmentsMaterialized(operation.id)
     const current = store.getTask(operation.taskId)
     const isActive = activeRuns.has(operation.taskId) || current.status === 'running' || current.status === 'pending'
     const attachmentPaths = attachments.map((attachment) => attachment.path)

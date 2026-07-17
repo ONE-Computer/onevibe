@@ -31,7 +31,7 @@ try {
     console.log(JSON.stringify({ command, before, after, migrationsFolder: path.relative(process.cwd(), migrationsFolder) }, null, 2))
   } else if (command === 'verify') {
     const current = await status()
-    const expected = Number(process.env.ONEVIBE_REQUIRED_POSTGRES_MIGRATIONS ?? '11')
+    const expected = Number(process.env.ONEVIBE_REQUIRED_POSTGRES_MIGRATIONS ?? '12')
     if (current.migrationCount !== expected) throw new Error(`Expected ${expected} reviewed Postgres migrations; found ${current.migrationCount}`)
     console.log(JSON.stringify({ command, ...current, requiredMigrations: expected, ready: true }, null, 2))
   } else {

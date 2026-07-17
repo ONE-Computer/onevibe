@@ -1,4 +1,4 @@
-import type { FollowUpOperationRecord, McpConfigRecord, NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord } from './contracts.js'
+import type { FollowUpAttachmentRecord, FollowUpOperationRecord, McpConfigRecord, NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord } from './contracts.js'
 import { randomUUID } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -12,7 +12,7 @@ import { PostgresWorkspaceRepository, type PostgresWorkspaceFileRecord } from '.
 
 export type PostgresStateConfig = { readonly maxConnections?: number; readonly connectTimeoutSeconds?: number }
 export type PostgresMcpAuditRecord = { id: string; configId: string; operation: string; config: unknown; createdAt: string }
-export const REQUIRED_POSTGRES_MIGRATIONS = 11
+export const REQUIRED_POSTGRES_MIGRATIONS = 12
 
 const providerFor = (value: unknown, fallback: Task['provider']): Task['provider'] => value === 'demo' || value === 'claude_sdk' || value === 'codex' || value === 'agentcore' || value === 'onecomputer' || value === 'remote' ? value : fallback
 const recordJson = (value: unknown): Record<string, unknown> => {
@@ -451,9 +451,11 @@ export class PostgresStateCoordinator {
   async findIdempotency(scope: string, key: string) { return this.#operations.findIdempotency(scope, key) }
   async completeIdempotency(scope: string, key: string, responseJson: string, completedAt: string) { return this.#operations.completeIdempotency(scope, key, responseJson, completedAt) }
 
-  async createFollowUpOperation(record: FollowUpOperationRecord) { return this.#operations.createFollowUpOperation(record) }
+  async createFollowUpOperation(record: FollowUpOperationRecord, attachments: FollowUpAttachmentRecord[] = []) { return this.#operations.createFollowUpOperation(record, attachments) }
   async findFollowUpOperation(taskId: string, idempotencyKey: string) { return this.#operations.findFollowUpOperation(taskId, idempotencyKey) }
   async listRecoverableFollowUpOperations() { return this.#operations.listRecoverableFollowUpOperations() }
   async updateFollowUpOperation(record: FollowUpOperationRecord, expectedUpdatedAt: string) { return this.#operations.updateFollowUpOperation(record, expectedUpdatedAt) }
   async claimFollowUpOperation(recordId: string, leaseOwner: string, now: string, leaseExpiresAt: string) { return this.#operations.claimFollowUpOperation(recordId, leaseOwner, now, leaseExpiresAt) }
+  async listFollowUpAttachments(operationId: string) { return this.#operations.listFollowUpAttachments(operationId) }
+  async updateFollowUpAttachment(record: FollowUpAttachmentRecord, expectedUpdatedAt: string) { return this.#operations.updateFollowUpAttachment(record, expectedUpdatedAt) }
 }

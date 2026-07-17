@@ -232,6 +232,22 @@ export const followUpOperation = pgTable('follow_up_operation', {
   completedAt: timestamp('completed_at', { withTimezone: true }),
 }, (table) => [uniqueIndex('follow_up_operation_task_key_idx').on(table.taskId, table.idempotencyKey), uniqueIndex('follow_up_operation_execution_id_idx').on(table.executionId), index('follow_up_operation_recovery_idx').on(table.state, table.createdAt), index('follow_up_operation_lease_idx').on(table.state, table.leaseExpiresAt), index('follow_up_operation_task_idx').on(table.taskId, table.createdAt)])
 
+export const followUpAttachment = pgTable('follow_up_attachment', {
+  id: text('id').primaryKey(),
+  operationId: text('operation_id').notNull().references(() => followUpOperation.id, { onDelete: 'cascade' }),
+  taskId: text('task_id').notNull().references(() => task.id, { onDelete: 'cascade' }),
+  ownerUserId: text('owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
+  path: text('path').notNull(),
+  name: text('name').notNull(),
+  mimeType: text('mime_type').notNull(),
+  size: integer('size').notNull(),
+  sha256: text('sha256').notNull(),
+  content: binary('content').notNull(),
+  state: text('state').notNull().default('reserved'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [uniqueIndex('follow_up_attachment_operation_path_idx').on(table.operationId, table.path), index('follow_up_attachment_operation_idx').on(table.operationId, table.createdAt), index('follow_up_attachment_task_idx').on(table.taskId, table.path)])
+
 export const runtimeLease = pgTable('runtime_lease', {
   id: text('id').primaryKey(),
   taskId: text('task_id').notNull().references(() => task.id, { onDelete: 'cascade' }),
@@ -364,4 +380,4 @@ export const skillInstallation = pgTable('skill_installations', {
 
 export const orgTables = { org, orgMember }
 export const authTables = { user, session, account, verification }
-export const oneVibeTables = { conversation, project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, followUpOperation, runtimeLease, schedule, workspaceVersion, workspaceFile, workspaceVersionFile, projectFile, projectFileVersion, runtimeMcpConfig, runtimeMcpConfigEvent, legacyImport, skillInstallation }
+export const oneVibeTables = { conversation, project, task, turn, message, runtimeEvent, nativeEvent, nativeEventProjection, nativeProjectionOffset, idempotencyKey, followUpOperation, followUpAttachment, runtimeLease, schedule, workspaceVersion, workspaceFile, workspaceVersionFile, projectFile, projectFileVersion, runtimeMcpConfig, runtimeMcpConfigEvent, legacyImport, skillInstallation }

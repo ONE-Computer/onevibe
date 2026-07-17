@@ -1,5 +1,5 @@
 import postgres, { type Sql } from 'postgres'
-import type { FollowUpOperationRecord, FollowUpOperationState, IdempotencyRecord, McpConfigAuditRecord, McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord } from './contracts.js'
+import type { FollowUpAttachmentRecord, FollowUpAttachmentState, FollowUpOperationRecord, FollowUpOperationState, IdempotencyRecord, McpConfigAuditRecord, McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord } from './contracts.js'
 import { IdempotencyConflictError, OptimisticConflictError, RecordNotFoundError } from './errors.js'
 
 export type PostgresOperationsSql = Sql<Record<string, never>>
@@ -16,6 +16,10 @@ type FollowUpOperationRow = {
   turn_id: string | null; response_json: unknown; error_json: unknown; lease_owner: string | null; lease_expires_at: Date | null;
   attempt_count: number; execution_id: string; provider_request_id: string; provider_state: FollowUpOperationRecord['providerState'];
   provider_started_at: Date | null; provider_completed_at: Date | null; created_at: Date; updated_at: Date; started_at: Date | null; completed_at: Date | null
+}
+type FollowUpAttachmentRow = {
+  id: string; operation_id: string; task_id: string; owner_user_id: string | null; path: string; name: string; mime_type: string;
+  size: number; sha256: string; content: Buffer; state: FollowUpAttachmentState; created_at: Date; updated_at: Date
 }
 
 const toIso = (value: Date | string | null | undefined) => value instanceof Date ? value.toISOString() : value ?? null
@@ -48,6 +52,11 @@ const followUpOperationFromRow = (row: FollowUpOperationRow): FollowUpOperationR
   executionId: row.execution_id, providerRequestId: row.provider_request_id, providerState: row.provider_state,
   providerStartedAt: toIso(row.provider_started_at), providerCompletedAt: toIso(row.provider_completed_at),
   createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(), startedAt: toIso(row.started_at), completedAt: toIso(row.completed_at),
+})
+const followUpAttachmentFromRow = (row: FollowUpAttachmentRow): FollowUpAttachmentRecord => ({
+  id: row.id, operationId: row.operation_id, taskId: row.task_id, ownerUserId: row.owner_user_id, path: row.path,
+  name: row.name, mimeType: row.mime_type, size: row.size, sha256: row.sha256, content: Buffer.from(row.content), state: row.state,
+  createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
 })
 
 const leaseValues = (record: RuntimeLeaseRecord) => ({
@@ -195,7 +204,7 @@ export class PostgresOperationsRepository {
     return rows.map(followUpOperationFromRow)
   }
 
-  async createFollowUpOperation(record: FollowUpOperationRecord): Promise<{ claimed: boolean; operation: FollowUpOperationRecord }> {
+  async createFollowUpOperation(record: FollowUpOperationRecord, attachments: FollowUpAttachmentRecord[] = []): Promise<{ claimed: boolean; operation: FollowUpOperationRecord }> {
     return this.sql.begin(async (tx) => {
       const existingRows = await tx<FollowUpOperationRow[]>`SELECT id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at FROM follow_up_operation WHERE task_id = ${record.taskId} AND idempotency_key = ${record.idempotencyKey} FOR UPDATE`
       const existing = existingRows[0]
@@ -210,6 +219,10 @@ export class PostgresOperationsRepository {
         RETURNING id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at
       `
       if (!rows[0]) throw new OptimisticConflictError(`Follow-up operation ${record.id} was not persisted`)
+      for (const attachment of attachments) await tx`
+        INSERT INTO follow_up_attachment(id, operation_id, task_id, owner_user_id, path, name, mime_type, size, sha256, content, state, created_at, updated_at)
+        VALUES (${attachment.id}, ${attachment.operationId}, ${attachment.taskId}, ${attachment.ownerUserId}, ${attachment.path}, ${attachment.name}, ${attachment.mimeType}, ${attachment.size}, ${attachment.sha256}, ${Buffer.from(attachment.content)}, ${attachment.state}, ${new Date(attachment.createdAt)}, ${new Date(attachment.updatedAt)})
+      `
       return { claimed: true, operation: followUpOperationFromRow(rows[0]) }
     })
   }
@@ -236,6 +249,32 @@ export class PostgresOperationsRepository {
       RETURNING id, task_id, owner_user_id, idempotency_key, request_hash, prompt, attachments_json, execution_mode, state, guidance_id, turn_id, response_json, error_json, lease_owner, lease_expires_at, attempt_count, execution_id, provider_request_id, provider_state, provider_started_at, provider_completed_at, created_at, updated_at, started_at, completed_at
     `
     return rows[0] ? followUpOperationFromRow(rows[0]) : undefined
+  }
+
+  async listFollowUpAttachments(operationId: string): Promise<FollowUpAttachmentRecord[]> {
+    const rows = await this.sql<FollowUpAttachmentRow[]>`SELECT id, operation_id, task_id, owner_user_id, path, name, mime_type, size, sha256, content, state, created_at, updated_at FROM follow_up_attachment WHERE operation_id = ${operationId} ORDER BY created_at ASC, id ASC`
+    return rows.map(followUpAttachmentFromRow)
+  }
+
+  async insertFollowUpAttachments(records: FollowUpAttachmentRecord[]): Promise<void> {
+    if (!records.length) return
+    await this.sql.begin(async (tx) => {
+      for (const record of records) await tx`
+        INSERT INTO follow_up_attachment(id, operation_id, task_id, owner_user_id, path, name, mime_type, size, sha256, content, state, created_at, updated_at)
+        VALUES (${record.id}, ${record.operationId}, ${record.taskId}, ${record.ownerUserId}, ${record.path}, ${record.name}, ${record.mimeType}, ${record.size}, ${record.sha256}, ${Buffer.from(record.content)}, ${record.state}, ${new Date(record.createdAt)}, ${new Date(record.updatedAt)})
+      `
+    })
+  }
+
+  async updateFollowUpAttachment(record: FollowUpAttachmentRecord, expectedUpdatedAt: string): Promise<void> {
+    const result = await this.sql`
+      UPDATE follow_up_attachment SET state = ${record.state}, path = ${record.path}, updated_at = ${new Date(record.updatedAt)}
+      WHERE id = ${record.id} AND updated_at = ${new Date(expectedUpdatedAt)}
+    `
+    if (result.count === 1) return
+    const existing = await this.sql<{ id: string }[]>`SELECT id FROM follow_up_attachment WHERE id = ${record.id}`
+    if (!existing[0]) throw new RecordNotFoundError(`Follow-up attachment ${record.id} does not exist`)
+    throw new OptimisticConflictError(`Follow-up attachment ${record.id} was modified concurrently`)
   }
 
   async insertLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number): Promise<void> {
