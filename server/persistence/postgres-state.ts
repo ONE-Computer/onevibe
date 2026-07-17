@@ -14,6 +14,16 @@ export type PostgresStateConfig = { readonly maxConnections?: number; readonly c
 export type PostgresMcpAuditRecord = { id: string; configId: string; operation: string; config: unknown; createdAt: string }
 
 const providerFor = (value: unknown, fallback: Task['provider']): Task['provider'] => value === 'demo' || value === 'claude_sdk' || value === 'codex' || value === 'agentcore' || value === 'onecomputer' || value === 'remote' ? value : fallback
+const recordJson = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+    } catch { return {} }
+  }
+  return {}
+}
 const messageFromRow = (row: PostgresChatMessage, task: Task): ChatMessage => {
   const content = row.content && typeof row.content === 'object' && !Array.isArray(row.content) ? row.content as { text?: unknown; provider?: unknown; updatedAt?: unknown } : {}
   return {
@@ -25,7 +35,7 @@ const messageFromRow = (row: PostgresChatMessage, task: Task): ChatMessage => {
 const eventFromRow = (row: PostgresRuntimeEventRow): RuntimeEvent => ({
   id: row.id, taskId: row.task_id, ...(row.run_id ? { runId: row.run_id } : {}), sequence: row.sequence, type: row.type as RuntimeEvent['type'], lane: row.lane as RuntimeEvent['lane'],
   ...(row.status ? { status: row.status as RuntimeEvent['status'] } : {}), ...(row.label ? { label: row.label } : {}), ...(row.content ? { content: row.content } : {}),
-  payload: row.payload_json && typeof row.payload_json === 'object' && !Array.isArray(row.payload_json) ? row.payload_json as Record<string, unknown> : {},
+  payload: recordJson(row.payload_json),
   createdAt: row.created_at.toISOString(), previousHash: row.previous_hash, eventHash: row.event_hash,
 })
 

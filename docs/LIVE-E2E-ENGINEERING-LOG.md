@@ -2,6 +2,13 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — authenticated two-process HTTP SSE proof
+
+- `npm run e2e:postgres-http-sse` started API A and API B with separate temporary cache roots, shared Postgres and Better Auth secret, and loopback OTP delivery. A session created on A was accepted by B; the demo task was created on A and the `Task tags updated` mutation was committed on B.
+- API A's authenticated SSE stream, opened with the task's pre-mutation cursor, received the event committed by B. Reconnecting with that same `Last-Event-ID` replayed the exact suffix event and did not return the cursor itself.
+- The proof initially failed because a Postgres JSONB runtime-event payload was returned as a string and decoded as `{}`. The defensive Postgres event projection decoder now parses object strings; the rerun passed.
+- Boundary: this is local two-process HTTP/SSE evidence. It does not select a production broker, prove provider execution, or close sandbox isolation, crash-safe workflow idempotency, or deployment operations.
+
 ## 2026-07-17 — concurrent follow-up idempotency proof
 
 - `npm run e2e:follow-up-attachment` ran against a fresh local API on port 4312. Two concurrent identical `POST /api/tasks/:id/messages` requests used the same idempotency key; both were accepted as `202` while the task completed exactly one follow-up turn with one staged attachment and one exact-turn artifact evidence record.

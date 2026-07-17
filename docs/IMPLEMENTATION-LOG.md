@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-17 — prove authenticated cross-process HTTP SSE
+
+- Added `npm run e2e:postgres-http-sse`, which starts two independent API processes with separate local caches, one shared migrated Postgres database, one shared Better Auth secret, and a loopback OTP delivery fixture. A session created on API A authenticates against API B; a demo task is created on A, a tag mutation is committed through B, and A's open SSE stream receives the durable event through the Postgres polling bridge.
+- The harness also reconnects with the pre-mutation `Last-Event-ID` and verifies suffix replay returns the same event ID. It runs without model/provider credentials and uses only the demo runtime.
+- The proof exposed and fixed a decoder defect where Postgres JSONB runtime-event payloads returned as strings were being reduced to `{}`. Payloads are now parsed defensively before projection.
+- Verification: `npm run check:e2e-harness`, `npm run lint`, and `DATABASE_URL=… npm run e2e:postgres-http-sse` passed. The CI PostgreSQL job now runs the same harness.
+- Boundary: this closes the authenticated HTTP multi-instance SSE acceptance slice, not broker/LISTEN-NOTIFY deployment tuning, crash-safe full workflow idempotency, provider execution, sandbox isolation, or production auth/deployment.
+
 ## 2026-07-17 — add bounded follow-up idempotency
 
 - Added an optional body `idempotencyKey` and standard `Idempotency-Key` header to `POST /api/tasks/:id/messages`. The server hashes the normalized prompt plus sanitized attachment metadata, decoded byte length, and byte digest; reusing a key with a different request returns `409` without staging a second input set.
