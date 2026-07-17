@@ -1,13 +1,16 @@
-import type { NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset } from './contracts.js'
+import type { McpConfigRecord, NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord } from './contracts.js'
+import { randomUUID } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import * as schema from '../db/schema.js'
 import type { ChatMessage, EventInput, Project, RuntimeEvent, Task, TaskSchedule } from '../types.js'
 import { PostgresChatRepository, type PostgresChatMessage, type PostgresRuntimeEventRow } from './postgres-chat.js'
+import { RecordNotFoundError } from './errors.js'
 import { PostgresMetadataRepository } from './postgres-metadata.js'
 import { PostgresOperationsRepository } from './postgres-operations.js'
 
 export type PostgresStateConfig = { readonly maxConnections?: number; readonly connectTimeoutSeconds?: number }
+export type PostgresMcpAuditRecord = { id: string; configId: string; operation: string; config: unknown; createdAt: string }
 
 const providerFor = (value: unknown, fallback: Task['provider']): Task['provider'] => value === 'demo' || value === 'claude_sdk' || value === 'codex' || value === 'agentcore' || value === 'onecomputer' || value === 'remote' ? value : fallback
 const messageFromRow = (row: PostgresChatMessage, task: Task): ChatMessage => {
@@ -26,6 +29,16 @@ const eventFromRow = (row: PostgresRuntimeEventRow): RuntimeEvent => ({
 })
 
 export type PostgresStateSnapshot = { projects: Project[]; tasks: Task[]; schedules: TaskSchedule[]; messages: Map<string, ChatMessage[]>; messageRevisions: Map<string, number>; events: Map<string, RuntimeEvent[]> }
+
+const requireActor = (actorUserId: string, resource: string) => {
+  if (!actorUserId.trim()) throw new Error(`${resource} actor is required`)
+}
+
+const requireOwner = (ownerUserId: string | null | undefined, actorUserId: string, resource: string) => {
+  requireActor(actorUserId, resource)
+  if (!ownerUserId) throw new Error(`${resource} requires an owner`)
+  if (ownerUserId !== actorUserId) throw new Error(`${resource} owner access required`)
+}
 
 export class PostgresStateCoordinator {
   readonly #sql: Sql<Record<string, never>>
@@ -51,6 +64,137 @@ export class PostgresStateCoordinator {
   #close: () => Promise<void>
 
   async close() { await this.#close() }
+
+  /**
+   * Operational methods below are intentionally thin, typed wrappers around
+   * PostgresOperationsRepository. The repository currently exposes separate
+   * SQL calls for a mutation and its audit row (and for organization creation
+   * plus its owner membership), so these wrappers do not claim a shared
+   * transaction boundary. Callers must treat those pairs as a staged proof
+   * until the repository is upgraded with transaction-aware operations.
+   */
+
+  async #requireOwnedConversation(conversationId: string, ownerUserId: string): Promise<void> {
+    requireActor(ownerUserId, 'Conversation')
+    const state = await this.#metadata.load(ownerUserId)
+    if (!state.tasks.some((task) => task.id === conversationId)) {
+      throw new RecordNotFoundError(`Conversation ${conversationId} does not exist for this owner`)
+    }
+  }
+
+  async #requireOrganizationMember(organizationId: string, actorUserId: string): Promise<OrganizationMemberRecord> {
+    requireActor(actorUserId, 'Organization')
+    const member = await this.#operations.findMember(organizationId, actorUserId)
+    if (!member) throw new RecordNotFoundError(`Organization ${organizationId} does not exist for this user`)
+    return member
+  }
+
+  async listMcpConfigs(ownerUserId: string): Promise<McpConfigRecord[]> {
+    requireActor(ownerUserId, 'MCP config')
+    return this.#operations.listMcpConfigs(ownerUserId)
+  }
+
+  async createMcpConfig(record: McpConfigRecord, actorUserId: string): Promise<McpConfigRecord> {
+    requireOwner(record.ownerUserId, actorUserId, 'MCP config')
+    await this.#operations.insertMcpConfig(record)
+    await this.#operations.appendMcpAudit({
+      id: `${record.id}:created`, configId: record.id, action: 'created', name: record.name,
+      command: record.command, argsJson: record.argsJson, createdAt: record.createdAt,
+    }, actorUserId)
+    return record
+  }
+
+  async listMcpAudit(configId: string, ownerUserId: string): Promise<PostgresMcpAuditRecord[]> {
+    const config = (await this.listMcpConfigs(ownerUserId)).find((candidate) => candidate.id === configId)
+    if (!config) throw new RecordNotFoundError(`MCP config ${configId} does not exist for this owner`)
+    return this.#operations.listMcpAudit(configId)
+  }
+
+  async deleteMcpConfig(configId: string, ownerUserId: string): Promise<boolean> {
+    const config = (await this.listMcpConfigs(ownerUserId)).find((candidate) => candidate.id === configId)
+    if (!config) return false
+    const deleted = await this.#operations.deleteMcpConfig(configId, ownerUserId)
+    if (!deleted) return false
+    await this.#operations.appendMcpAudit({
+      id: `${config.id}:deleted:${randomUUID()}`, configId: config.id, action: 'deleted', name: config.name,
+      command: config.command, argsJson: config.argsJson, createdAt: new Date().toISOString(),
+    }, ownerUserId)
+    return true
+  }
+
+  async listOrganizationsForUser(userId: string): Promise<OrganizationRecord[]> {
+    requireActor(userId, 'Organization')
+    return this.#operations.listOrganizationsForUser(userId)
+  }
+
+  async createOrganization(record: OrganizationRecord, ownerUserId: string): Promise<OrganizationRecord> {
+    requireActor(ownerUserId, 'Organization')
+    if (!await this.#operations.userExists(ownerUserId)) throw new RecordNotFoundError(`User ${ownerUserId} does not exist`)
+    await this.#operations.insertOrganization(record)
+    await this.#operations.insertMember({ organizationId: record.id, userId: ownerUserId, role: 'owner', createdAt: record.createdAt })
+    return record
+  }
+
+  async listOrganizationMembers(organizationId: string, actorUserId: string): Promise<OrganizationMemberRecord[]> {
+    await this.#requireOrganizationMember(organizationId, actorUserId)
+    return this.#operations.listMembers(organizationId)
+  }
+
+  async addOrganizationMember(organizationId: string, userId: string, actorUserId: string): Promise<OrganizationMemberRecord> {
+    const actor = await this.#requireOrganizationMember(organizationId, actorUserId)
+    if (actor.role !== 'owner') throw new Error('Organization owner access required')
+    requireActor(userId, 'Organization member')
+    if (!await this.#operations.userExists(userId)) throw new RecordNotFoundError(`User ${userId} does not exist`)
+    const member: OrganizationMemberRecord = { organizationId, userId, role: 'member', createdAt: new Date().toISOString() }
+    await this.#operations.insertMember(member)
+    return member
+  }
+
+  async removeOrganizationMember(organizationId: string, userId: string, actorUserId: string): Promise<{ organizationId: string; userId: string; removed: true }> {
+    const actor = await this.#requireOrganizationMember(organizationId, actorUserId)
+    if (actor.role !== 'owner') throw new Error('Organization owner access required')
+    if (userId === actorUserId) throw new Error('Organization owner cannot remove themselves')
+    if (!await this.#operations.deleteMember(organizationId, userId)) throw new RecordNotFoundError(`Organization member ${userId} does not exist`)
+    return { organizationId, userId, removed: true }
+  }
+
+  async listSkillInstallations(ownerUserId: string): Promise<SkillInstallationRecord[]> {
+    requireActor(ownerUserId, 'Skill')
+    return this.#operations.listSkills(ownerUserId)
+  }
+
+  async installSkillInstallation(record: SkillInstallationRecord, actorUserId: string): Promise<SkillInstallationRecord> {
+    requireOwner(record.ownerUserId, actorUserId, 'Skill')
+    await this.#operations.insertSkill(record)
+    return record
+  }
+
+  async removeSkillInstallation(skillId: string, ownerUserId: string): Promise<boolean> {
+    const visible = await this.listSkillInstallations(ownerUserId)
+    const skill = visible.find((candidate) => candidate.id === skillId)
+    if (!skill || skill.ownerUserId !== ownerUserId) return false
+    return this.#operations.deleteSkill(skillId, ownerUserId)
+  }
+
+  async listRuntimeLeases(conversationId: string, ownerUserId: string): Promise<RuntimeLeaseRecord[]> {
+    await this.#requireOwnedConversation(conversationId, ownerUserId)
+    return this.#operations.listLeases(conversationId)
+  }
+
+  async findActiveRuntimeLease(conversationId: string, ownerUserId: string): Promise<RuntimeLeaseRecord | undefined> {
+    await this.#requireOwnedConversation(conversationId, ownerUserId)
+    return this.#operations.findActiveLease(conversationId)
+  }
+
+  async insertRuntimeLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number, ownerUserId: string): Promise<void> {
+    await this.#requireOwnedConversation(record.conversationId, ownerUserId)
+    await this.#operations.insertLease(record, expectedPreviousGeneration)
+  }
+
+  async transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord, ownerUserId: string): Promise<void> {
+    await this.#requireOwnedConversation(next.conversationId, ownerUserId)
+    await this.#operations.transitionLease(id, expected, next)
+  }
 
   /**
    * Better Auth uses a dedicated reviewed Postgres client owned by this
