@@ -8,6 +8,12 @@
 - Browser evidence: [`local-home-20260717-token-foundation.jpg`](browser-screenshots/local-home-20260717-token-foundation.jpg) shows the connected local app retaining its truthful `Simulation only · no model call` and `No governed runtime configured` states after the CSS migration.
 - Verification: `npm run check` passed with 54 test files and 262 tests; managed deployment remains statically validated only.
 
+## 2026-07-17 — add pure tenant-theme schema and resolution boundary
+
+- Added `server/theme-config.ts` with a versioned bounded `TenantThemeConfig` schema, presentation-only fields, strict same-origin/HTTPS URLs, allow-listed sans-serif fonts, bounded content, and CSS injection rejection.
+- Added deterministic server-controlled resolution precedence: session/org scope, explicit deployment scope, validated host allow-list, then base theme. The resolver does not accept a browser-supplied tenant id as authority.
+- Added three tests covering defaults/presentation-only shape, hostile values, and precedence/fallback. No database table, admin mutation, remote asset loader, or browser-owned tenant persistence was added before its dependency gates.
+
 ## 2026-07-17 — add local Postgres release-safety controls
 
 - Added separate `/api/health/live` and `/api/health/ready` contracts. Readiness checks TaskStore initialization and, for Postgres, connectivity plus the exact reviewed migration-ledger count; stale/missing ledgers return `503`. Provider unavailability remains a runtime readiness state, not a false database failure.

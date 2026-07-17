@@ -133,8 +133,8 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ### P7-02 — Typed tenant configuration and safe resolution (P0 security foundation)
 
-- [ ] Add a versioned `TenantThemeConfig` schema with bounded tokens, brand assets, homepage content, navigation, feature flags, and compliance links.
-- [ ] Define tenant resolution order: authenticated session/org, explicit deployment environment, then validated host/subdomain; default to the base theme when unresolved.
+- [x] Add a versioned `TenantThemeConfig` schema with bounded tokens, brand assets, homepage content, navigation, feature flags, and compliance links. `server/theme-config.ts` rejects CSS injection primitives, unsafe URLs, unapproved fonts, and unbounded content.
+- [x] Define tenant resolution order: authenticated session/org, explicit deployment environment, then validated host/subdomain; default to the base theme when unresolved. The resolver accepts only server-derived scope and an operator-owned host allow-list.
 - [ ] Enforce tenant isolation on every read/write and reject cross-tenant admin access; preserve server-derived actor/org scope.
 - [ ] Keep theme configuration unable to override LiteLLM routes, runtime credentials, approval state, auth policy, sandbox boundaries, or evidence payloads.
 
