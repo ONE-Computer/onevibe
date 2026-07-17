@@ -2,6 +2,12 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — staged-file/task-metadata promotion recovery proof
+
+- `npm run e2e:follow-up-recovery` injected a process exit (`99`) after follow-up attachment bytes had been written to the private workspace but before the task attachment list was updated. A restarted API recovered the durable reservation, preserved the six-message transcript, materialized exactly two attachments, and replayed the same keyed request with HTTP `200`.
+- This closes the recoverability/idempotency proof for the current split promotion boundary. It does not claim one transaction across the database, filesystem, and task JSON; provider-side idempotency and production deployment controls remain open.
+- Browser reload smoke after the code change rendered the home route with `No governed runtime configured`, `Simulation only · no model call`, a disabled `Start task` control, and no console/UI failure observed. Screenshot: [`local-home-20260717-final-smoke.jpg`](browser-screenshots/local-home-20260717-final-smoke.jpg). This is truthful local UI evidence, not provider or production-isolation evidence.
+
 ## 2026-07-17 — execution lease heartbeat boundary
 
 - The active follow-up worker now renews its durable claim at one-third of the lease interval. Renewal is fenced by operation ID and worker owner in both SQLite and Postgres; a different worker cannot extend the claim.
@@ -20,7 +26,7 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 - After the provider-start crash, restart marks the task `failed` with an explicit unknown external outcome. Replaying the same keyed request returns `409`, while `POST /api/tasks/:id/messages/reconcile` with `acknowledge_unknown` returns `200` and `retried=false`. No automatic provider replay is performed.
 - The operation journal persists a stable execution ID, provider-request correlation ID, lease owner/expiry, attempt count, and provider state. These IDs are opaque correlation values; the local proof does not claim that LiteLLM or an upstream model provider deduplicates requests.
 - Browser smoke after this slice still showed the honest local unconfigured-runtime state; raw screenshot evidence is [`local-home-20260717-lease-recovery.jpg`](browser-screenshots/local-home-20260717-lease-recovery.jpg). The capture's unused black region is a browser-harness artifact and is not treated as a product visual pass.
-- Boundary: this is local SQLite failure-injection evidence. Postgres migration/runtime acceptance, provider-side idempotency, lease heartbeat/renewal, transactional attachment/task persistence, cloud sandbox attestation, and production deployment controls remain open.
+- Boundary: this is local SQLite failure-injection evidence. Postgres migration/runtime acceptance, provider-side idempotency, transactional attachment/task persistence, cloud sandbox attestation, and production deployment controls remain open.
 
 ## 2026-07-17 — follow-up operation crash recovery proof
 

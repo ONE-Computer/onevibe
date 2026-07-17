@@ -236,6 +236,10 @@ const stageFollowUpAttachments = async (taskId: string, input: FollowUpAttachmen
     }
     await store.writeWorkspaceBytes(taskId, attachment.path, decoded[index]!.bytes)
   }))
+  if (process.env.NODE_ENV !== 'production' && process.env.ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_ATTACHMENT_STAGE === 'true') {
+    setImmediate(() => process.exit(99))
+    await new Promise<void>(() => undefined)
+  }
   const additions = attachments.filter((attachment) => !existingPaths.has(attachment.path))
   if (additions.length) await store.updateTask(taskId, { attachments: [...task.attachments, ...additions] })
   return attachments

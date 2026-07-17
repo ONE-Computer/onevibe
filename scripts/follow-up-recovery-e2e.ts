@@ -25,9 +25,9 @@ const waitForHealth = async (child: ChildProcess) => {
   }
   throw new Error('API did not become ready')
 }
-const start = (crashAfterPrepared: boolean, crashAfterProviderStarted = false) => spawn(process.execPath, ['--import', 'tsx/esm', 'server/index.ts'], {
+const start = (crashAfterPrepared: boolean, crashAfterProviderStarted = false, crashAfterAttachmentStage = false) => spawn(process.execPath, ['--import', 'tsx/esm', 'server/index.ts'], {
   cwd: process.cwd(),
-  env: { ...process.env, NODE_ENV: 'development', ONEVIBE_API_HOST: '127.0.0.1', ONEVIBE_API_PORT: String(port), ONEVIBE_DATA_DIR: root, ...(crashAfterPrepared ? { ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PREPARED: 'true' } : {}), ...(crashAfterProviderStarted ? { ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PROVIDER_STARTED: 'true' } : {}) },
+  env: { ...process.env, NODE_ENV: 'development', ONEVIBE_API_HOST: '127.0.0.1', ONEVIBE_API_PORT: String(port), ONEVIBE_DATA_DIR: root, ...(crashAfterPrepared ? { ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PREPARED: 'true' } : {}), ...(crashAfterProviderStarted ? { ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_PROVIDER_STARTED: 'true' } : {}), ...(crashAfterAttachmentStage ? { ONEVIBE_TEST_CRASH_AFTER_FOLLOW_UP_ATTACHMENT_STAGE: 'true' } : {}) },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 const stop = async (child: ChildProcess) => {
@@ -97,6 +97,29 @@ try {
 
   await stop(second)
   second = undefined
+  second = start(false, false, true)
+  await waitForHealth(second)
+  const stageCrashKey = 'attachment-stage-recovery-proof'
+  const stageCrash = await fetch(`${baseUrl}/api/tasks/${taskId}/messages`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Recover the attachment after filesystem staging.', idempotencyKey: stageCrashKey, attachments: [{ name: 'staged.txt', mimeType: 'text/plain', dataBase64: Buffer.from('staged bytes').toString('base64') }] }),
+  }).catch(() => undefined)
+  assert.ok(stageCrash === undefined || [202, 500].includes(stageCrash.status))
+  const stageCrashExit = await new Promise<number | null>((resolve) => second!.once('exit', (code) => resolve(code)))
+  assert.equal(stageCrashExit, 99)
+  second = undefined
+  second = start(false)
+  await waitForHealth(second)
+  const stagedRecovered = await waitForTask(taskId, 6)
+  assert.equal(stagedRecovered.attachments.length, 2)
+  const stagedReplay = await fetch(`${baseUrl}/api/tasks/${taskId}/messages`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Recover the attachment after filesystem staging.', idempotencyKey: stageCrashKey, attachments: [{ name: 'staged.txt', mimeType: 'text/plain', dataBase64: Buffer.from('staged bytes').toString('base64') }] }),
+  })
+  assert.equal(stagedReplay.status, 200)
+
+  await stop(second)
+  second = undefined
   second = start(false, true)
   await waitForHealth(second)
   const providerStartedCrash = await fetch(`${baseUrl}/api/tasks/${taskId}/messages`, {
@@ -123,7 +146,7 @@ try {
   const acknowledgedBody = await acknowledged.json() as { retried?: boolean; status?: string }
   assert.equal(acknowledgedBody.status, 'acknowledged_unknown')
   assert.equal(acknowledgedBody.retried, false)
-  console.log(JSON.stringify({ taskId, crashedExit, recoveredMessages: recovered.messages.length, recoveredAttachments: recovered.attachments.length, replayStatus: replay.status, exactlyOneRecoveredFollowUp: true, providerUnknownCrashExit: unknownExit, providerUnknownTaskStatus: failedUnknown.status, providerUnknownReplayStatus: unknownReplay.status, providerUnknownAcknowledgedStatus: acknowledged.status, providerUnknownAutoRetry: false }))
+  console.log(JSON.stringify({ taskId, crashedExit, recoveredMessages: recovered.messages.length, recoveredAttachments: recovered.attachments.length, replayStatus: replay.status, attachmentStageCrashExit: stageCrashExit, attachmentStageRecoveredMessages: stagedRecovered.messages.length, attachmentStageRecoveredAttachments: stagedRecovered.attachments.length, attachmentStageReplayStatus: stagedReplay.status, exactlyOneRecoveredFollowUp: true, providerUnknownCrashExit: unknownExit, providerUnknownTaskStatus: failedUnknown.status, providerUnknownReplayStatus: unknownReplay.status, providerUnknownAcknowledgedStatus: acknowledged.status, providerUnknownAutoRetry: false }))
 } finally {
   if (first) await stop(first)
   if (second) await stop(second)

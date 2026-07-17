@@ -1,5 +1,11 @@
 # Implementation log
 
+## 2026-07-17 — recoverable staged-file/task-metadata promotion proof
+
+- Added a development-only crash injection immediately after durable follow-up attachment bytes are written and before task attachment metadata is updated. `npm run e2e:follow-up-recovery` restarts across this boundary, recovers reserved bytes from `follow_up_attachments`, materializes the deterministic private path, updates the task exactly once, and replays the same keyed request with HTTP `200`.
+- The failure-injection result was `attachmentStageCrashExit=99`, `attachmentStageRecoveredMessages=6`, `attachmentStageRecoveredAttachments=2`, and `attachmentStageReplayStatus=200`. The process exit is test-only and is not enabled in production.
+- Boundary: recovery is idempotent and durable, but filesystem bytes and task JSON metadata are still not committed in one cross-store transaction. Provider-side idempotency, production broker/deployment operations, and cloud sandbox attestation remain open.
+
 ## 2026-07-17 — follow-up lease heartbeat and renewal
 
 - Added atomic lease renewal for SQLite/Postgres keyed follow-up operations. Active provider runs renew their lease on a bounded heartbeat interval; a lost lease emits a fail-closed evidence event, aborts the local run, and preserves the provider-unknown reconciliation boundary.
@@ -21,7 +27,7 @@
 - Added explicit `POST /api/tasks/:id/messages/reconcile` acknowledgment for unknown provider outcomes. It records that the outcome was acknowledged and returns `retried: false`; it cannot authorize an automatic replay.
 - Added provider-unknown failure injection to `npm run e2e:follow-up-recovery`: preparation crash exits 97 and recovers one four-message follow-up; provider-start crash exits 98, restart fails the task, keyed replay returns 409, and explicit acknowledgment returns 200 without retry. Full local verification passed with 56 test files / 270 tests, lint, build, and `npm run db:check`.
 - Browser smoke after the contract change confirmed the local app still renders the truthful `No governed runtime configured` and `Simulation only · no model call` states; screenshot: [`local-home-20260717-lease-recovery.jpg`](browser-screenshots/local-home-20260717-lease-recovery.jpg). The full-page capture currently contains an unused black region from the browser harness and is retained as raw evidence, not a visual-quality claim.
-- Boundary: the relay/provider may still execute a request twice after a lost response because provider-side idempotency is not verified. Attachment/task metadata and bytes still require a transactional persistence boundary, and lease heartbeat/renewal plus production deployment controls remain open.
+- Boundary: the relay/provider may still execute a request twice after a lost response because provider-side idempotency is not verified. Attachment/task metadata and bytes still require a transactional persistence boundary; production deployment controls remain open.
 
 ## 2026-07-17 — durable follow-up operation journal and restart recovery
 
