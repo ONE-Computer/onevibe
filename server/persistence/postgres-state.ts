@@ -4,7 +4,7 @@ import postgres, { type Sql } from 'postgres'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import * as schema from '../db/schema.js'
 import type { ChatMessage, EventInput, Project, RuntimeEvent, Task, TaskSchedule } from '../types.js'
-import { PostgresChatRepository, type PostgresChatMessage, type PostgresRuntimeEventRow } from './postgres-chat.js'
+import { PostgresChatRepository, type AtomicNativeProjectionInput, type PostgresChatMessage, type PostgresRuntimeEventRow } from './postgres-chat.js'
 import { RecordNotFoundError } from './errors.js'
 import { PostgresMetadataRepository } from './postgres-metadata.js'
 import { PostgresOperationsRepository } from './postgres-operations.js'
@@ -238,6 +238,13 @@ export class PostgresStateCoordinator {
     return this.#chat.appendAssistantMessage({ conversationId: task.id, taskId: task.id, ownerUserId: task.ownerUserId, messageId, turnId, content: { text: '', provider: task.provider, updatedAt: createdAt.toISOString() }, createdAt })
   }
 
+  async appendStandaloneMessage(task: Task, messageId: string, role: ChatMessage['role'], content: unknown, status: ChatMessage['status'], createdAt = new Date()) {
+    if (!task.ownerUserId) throw new Error('Postgres conversations require an owner')
+    return messageFromRow(await this.#chat.appendStandaloneMessage({
+      conversationId: task.id, taskId: task.id, ownerUserId: task.ownerUserId, messageId, role, content, status, createdAt,
+    }), task)
+  }
+
   async appendAssistantDelta(task: Task, messageId: string, expectedRevision: number, delta: string, status: ChatMessage['status'] = 'streaming') {
     if (!task.ownerUserId) throw new Error('Postgres conversations require an owner')
     return this.#chat.appendAssistantDelta({ conversationId: task.id, taskId: task.id, ownerUserId: task.ownerUserId, messageId, expectedRevision, delta, status })
@@ -283,6 +290,13 @@ export class PostgresStateCoordinator {
     if (!task.ownerUserId) throw new Error('Postgres native events require an owner')
     if (record.conversationId !== task.id) throw new Error(`Native event ${record.id} is not bound to task conversation ${task.id}`)
     await this.#chat.appendNativeEvent(record, task.ownerUserId)
+  }
+
+  async ingestNativeEvent(task: Task, record: NativeEventRecord, projections: AtomicNativeProjectionInput[], offset?: NativeProjectionOffset) {
+    if (!task.ownerUserId) throw new Error('Postgres native events require an owner')
+    if (record.conversationId !== task.id) throw new Error(`Native event ${record.id} is not bound to task conversation ${task.id}`)
+    const result = await this.#chat.ingestNativeEventAtomic(record, task.ownerUserId, projections, offset)
+    return { ...result, events: result.events.map(eventFromRow) }
   }
 
   async appendNativeEventProjection(task: Task, record: NativeEventProjectionRecord) {

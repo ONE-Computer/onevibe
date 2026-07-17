@@ -1,5 +1,13 @@
 # Implementation log
 
+## 2026-07-17 — persist standalone messages and atomically ingest Postgres native events
+
+- Added a Postgres standalone-message insert that keeps `turn_id` nullable, preserves owner/task checks, and survives coordinator restart. This avoids manufacturing a fake turn for user-input broker messages.
+- Added an atomic native ingestion transaction covering replay detection, source-id/source-sequence conflict handling, the native envelope, runtime-event projections, projection links, and the monotonic projector offset. Hidden reasoning and credentials remain sanitized before the transaction; a replay returns no duplicate projections.
+- `TaskStore.ingestNativeEvent` now uses the atomic Postgres path, updates the local projection cache only after commit, and keeps the provider transcript/status updates on the existing durable message boundary. `listNativeEvents` is async and owner-bound in Postgres; the importer awaits it.
+- Verification: `npm run lint`, `npm run check:e2e-harness`, `npm test` (52 files / 259 tests), and disposable PostgreSQL 18 `npm run e2e:postgres-taskstore` passed. The proof reports `standaloneMessageRestartRecovery=true`, `nativeAtomicReplayAndConflict=true`, and `nativeRestartRecovery=true`.
+- Boundary: the production driver remains fail-closed. Workspace/project-file bytes, snapshots, previews, attachments, fork history, and the remaining synchronous read surface are not yet durable in Postgres/object storage.
+
 ## 2026-07-17 — route TaskStore operational surfaces through opt-in Postgres
 
 - Converted TaskStore MCP declarations, organization/member operations, skill-installation reads/writes, and runtime MCP projection to async methods with SQLite-compatible behavior preserved. The Postgres branch requires an owner and delegates to owner-checked `PostgresStateCoordinator` wrappers; it never falls back to SQLite or an in-memory cache.

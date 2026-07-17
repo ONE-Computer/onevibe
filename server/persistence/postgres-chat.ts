@@ -65,6 +65,17 @@ export type AppendAssistantMessageInput = {
   createdAt?: Date
 }
 
+export type AppendStandaloneMessageInput = {
+  conversationId: string
+  taskId: string
+  ownerUserId: string
+  messageId: string
+  role: 'user' | 'assistant' | 'system' | 'tool'
+  content: unknown
+  status: string
+  createdAt?: Date
+}
+
 export type AppendAssistantDeltaInput = {
   conversationId: string
   taskId: string
@@ -93,6 +104,26 @@ export type AppendRuntimeEventInput = {
   eventHash: string
   createdAt?: Date
 }
+
+export type AtomicNativeProjectionInput = {
+  runtimeEventId: string
+  projectionIndex: number
+  projectorVersion: number
+  projectedAt: Date
+  runId?: string
+  sequence: number
+  type: string
+  lane: string
+  status?: string
+  label?: string
+  content?: string
+  payload: Record<string, unknown>
+  previousHash: string
+  eventHash: string
+  createdAt: Date
+}
+
+export type AtomicNativeIngestResult = { replayed: boolean; nativeEventId: string; events: PostgresRuntimeEventRow[] }
 
 type ConversationRow = { id: string; owner_user_id: string; title: string | null; status: string; created_at: Date; updated_at: Date }
 type TurnRow = { id: string; task_id: string; client_request_id: string; ordinal: number; status: string }
@@ -309,6 +340,26 @@ export class PostgresChatRepository {
     })
   }
 
+  async appendStandaloneMessage(input: AppendStandaloneMessageInput): Promise<PostgresChatMessage> {
+    const now = input.createdAt ?? new Date()
+    return this.#sql.begin(async (tx) => {
+      await requireOwnerConversation(tx, input.conversationId, input.ownerUserId)
+      await requireOwnerTask(tx, input.taskId, input.conversationId, input.ownerUserId)
+      const sequenceRows = await tx<{ next_sequence: number }[]>`
+        SELECT COALESCE(MAX(sequence) + 1, 0)::int AS next_sequence FROM message WHERE task_id = ${input.taskId}
+      `
+      const sequence = sequenceRows[0]?.next_sequence ?? 0
+      const rows = await tx<MessageRow[]>`
+        INSERT INTO message (id, task_id, turn_id, sequence, role, content_json, revision, status, created_at)
+        VALUES (${input.messageId}, ${input.taskId}, NULL, ${sequence}, ${input.role}, ${JSON.stringify(input.content)}::jsonb, 0, ${input.status}, ${now})
+        RETURNING id, task_id, turn_id, sequence, role, content_json, provider_message_id, revision, status, created_at
+      `
+      const row = rows[0]
+      if (!row) throw new OptimisticConflictError(`Standalone message ${input.messageId} was not appended`)
+      return messageFromRow(row)
+    })
+  }
+
   async appendAssistantDelta(input: AppendAssistantDeltaInput): Promise<PostgresChatMessage> {
     return this.#sql.begin(async (tx) => {
       await requireOwnerConversation(tx, input.conversationId, input.ownerUserId)
@@ -472,6 +523,98 @@ export class PostgresChatRepository {
       if (isUniqueViolation(error)) throw new OptimisticConflictError(`Native event ${record.sourceEventId} conflicts with the current source cursor`)
       throw error
     }
+  }
+
+  /**
+   * Atomically append one native envelope, all runtime projections and their
+   * links, and the source offset. A replay of the same source event is a
+   * no-op; a source-id or source-sequence conflict aborts the transaction.
+   */
+  async ingestNativeEventAtomic(record: NativeEventRecord, ownerUserId: string, projections: AtomicNativeProjectionInput[], offset?: NativeProjectionOffset): Promise<AtomicNativeIngestResult> {
+    validateNativeCursor(record.sourceSequence)
+    parseNativePayload(record.payloadJson)
+    return this.#sql.begin(async (tx) => {
+      const taskId = await requireOwnerConversationTask(tx, record.conversationId, ownerUserId)
+      const existing = await tx<NativeEventRow[]>`
+        SELECT ne.id, ne.task_id, ne.run_id, ne.source, ne.source_event_id, ne.source_sequence,
+          ne.native_type, ne.payload_json, ne.payload_hash, ne.received_at
+        FROM native_event ne
+        WHERE ne.task_id = ${taskId} AND ne.run_id = ${record.runId} AND ne.source = ${record.source}
+          AND (ne.source_event_id = ${record.sourceEventId} OR ne.source_sequence = ${record.sourceSequence})
+        FOR UPDATE
+      `
+      if (existing[0]) {
+        if (existing[0].source_event_id !== record.sourceEventId || existing[0].payload_hash !== record.payloadHash) {
+          throw new OptimisticConflictError(`Native event ${record.sourceEventId} conflicts with the current source cursor`)
+        }
+        return { replayed: true, nativeEventId: existing[0].id, events: [] }
+      }
+
+      if (offset) {
+        const currentOffset = await tx<{ last_source_sequence: number }[]>`
+          SELECT last_source_sequence FROM native_projection_offset
+          WHERE task_id = ${taskId} AND run_id = ${offset.runId} AND source = ${offset.source} AND projector_version = ${offset.projectorVersion}
+          FOR UPDATE
+        `
+        if (currentOffset[0] && currentOffset[0].last_source_sequence >= record.sourceSequence) {
+          throw new OptimisticConflictError(`Native source sequence ${record.sourceSequence} is behind the durable projection offset`)
+        }
+      }
+
+      await tx`
+        INSERT INTO native_event (
+          id, task_id, run_id, source, source_event_id, source_sequence,
+          native_type, payload_json, payload_hash, received_at
+        ) VALUES (
+          ${record.id}, ${taskId}, ${record.runId}, ${record.source}, ${record.sourceEventId}, ${record.sourceSequence},
+          ${record.nativeType}, ${record.payloadJson}::jsonb, ${record.payloadHash}, ${new Date(record.receivedAt)}
+        )
+      `
+
+      const sequenceRows = await tx<{ next_sequence: number; previous_hash: string | null }[]>`
+        SELECT COALESCE(MAX(sequence) + 1, 0)::int AS next_sequence,
+          (ARRAY_AGG(event_hash ORDER BY sequence DESC))[1] AS previous_hash
+        FROM runtime_event WHERE task_id = ${taskId}
+      `
+      let sequence = sequenceRows[0]?.next_sequence ?? 0
+      let previousHash = sequenceRows[0]?.previous_hash ?? 'GENESIS'
+      const events: PostgresRuntimeEventRow[] = []
+      for (const projection of projections) {
+        if (!Number.isSafeInteger(projection.projectionIndex) || projection.projectionIndex < 0) throw new RangeError('Native event projection index is invalid')
+        if (!Number.isSafeInteger(projection.projectorVersion) || projection.projectorVersion < 0) throw new RangeError('Native event projector version is invalid')
+        if (projection.sequence !== sequence || projection.previousHash !== previousHash) {
+          throw new OptimisticConflictError(`Native runtime projection ${projection.runtimeEventId} has a stale evidence chain`)
+        }
+        const rows = await tx<PostgresRuntimeEventRow[]>`
+          INSERT INTO runtime_event (id, task_id, run_id, sequence, type, lane, status, label, content, payload_json, created_at, previous_hash, event_hash)
+          VALUES (${projection.runtimeEventId}, ${taskId}, ${projection.runId ?? record.runId}, ${projection.sequence}, ${projection.type}, ${projection.lane}, ${projection.status ?? null}, ${projection.label ?? null}, ${projection.content ?? null}, ${JSON.stringify(projection.payload)}::jsonb, ${projection.createdAt}, ${projection.previousHash}, ${projection.eventHash})
+          RETURNING id, task_id, run_id, sequence, type, lane, status, label, content, payload_json, created_at, previous_hash, event_hash
+        `
+        const row = rows[0]
+        if (!row) throw new OptimisticConflictError(`Native runtime projection ${projection.runtimeEventId} was not appended`)
+        await tx`
+          INSERT INTO native_event_projection (native_event_id, projection_index, runtime_event_id, projector_version, projected_at)
+          VALUES (${record.id}, ${projection.projectionIndex}, ${projection.runtimeEventId}, ${projection.projectorVersion}, ${projection.projectedAt})
+        `
+        events.push(row)
+        sequence += 1
+        previousHash = projection.eventHash
+      }
+
+      if (offset) {
+        await tx`
+          INSERT INTO native_projection_offset (task_id, run_id, source, projector_version, last_source_sequence, updated_at)
+          VALUES (${taskId}, ${offset.runId}, ${offset.source}, ${offset.projectorVersion}, ${offset.lastSourceSequence}, ${new Date(offset.updatedAt)})
+          ON CONFLICT (task_id, run_id, source, projector_version)
+          DO UPDATE SET last_source_sequence = EXCLUDED.last_source_sequence, updated_at = EXCLUDED.updated_at
+          WHERE EXCLUDED.last_source_sequence >= native_projection_offset.last_source_sequence
+        `
+      }
+      return { replayed: false, nativeEventId: record.id, events }
+    }).catch((error: unknown) => {
+      if (isUniqueViolation(error)) throw new OptimisticConflictError(`Native event ${record.sourceEventId} conflicts with the current source cursor`)
+      throw error
+    })
   }
 
   async appendNativeEventProjection(record: NativeEventProjectionRecord, conversationId: string, ownerUserId: string): Promise<void> {

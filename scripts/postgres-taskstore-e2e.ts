@@ -26,6 +26,17 @@ const main = async () => {
     await first.beginTurn(task.id, 'Hello from the durable TaskStore.', task.provider)
     await first.appendEvent(task.id, { type: 'assistant_text_delta', lane: 'transcript', content: 'Hello from Postgres.', payload: {} })
     await first.appendEvent(task.id, { type: 'run_completed', lane: 'control', status: 'completed', label: 'Turn completed', payload: {} })
+    await first.appendStandaloneMessage(task.id, 'assistant', 'A standalone durable message.')
+    await first.beginTurn(otherTask.id, 'Capture a native event.', otherTask.provider)
+    const nativeInput = {
+      source: 'onecomputer_sandbox' as const, sourceEventId: 'sandbox-event-0', sourceSequence: 0, nativeType: 'tool_result',
+      payload: { command: 'pwd', access_token: 'must-not-leak' },
+      projections: [{ type: 'tool_call_completed' as const, lane: 'activity' as const, label: 'Sandbox command completed', content: 'Workspace inspected.', payload: { tool: 'pwd' } }],
+    }
+    const native = await first.ingestNativeEvent(otherTask.id, nativeInput)
+    assert.equal(native.events.length, 1)
+    assert.equal((await first.ingestNativeEvent(otherTask.id, nativeInput)).events.length, 0)
+    await assert.rejects(() => first.ingestNativeEvent(otherTask.id, { ...nativeInput, payload: { command: 'ls', access_token: 'changed' } }), /conflicts with the current source cursor/)
     const mcp: McpConfigRecord = { id: `mcp_taskstore_${suffix}`, ownerUserId, name: 'TaskStore MCP', command: 'node', argsJson: JSON.stringify(['fixture.mjs']), createdAt: now.toISOString(), updatedAt: now.toISOString() }
     const createdMcp = await first.createMcpConfig({ name: mcp.name, command: mcp.command, args: ['fixture.mjs'] }, ownerUserId)
     mcp.id = createdMcp.id
@@ -69,7 +80,10 @@ const main = async () => {
       assert.equal(restored.status, 'pending')
       assert.equal(snapshot.messages.filter((message) => message.role === 'user').length, 1)
       assert.equal(snapshot.messages.find((message) => message.role === 'assistant')?.content, 'Hello from Postgres.')
+      assert.equal(snapshot.messages.length, 3)
       assert.equal(snapshot.events.length, 2)
+      assert.equal((await second.listNativeEvents(otherTask.id)).length, 1)
+      assert.equal((await second.snapshot(otherTask.id)).events.length, 1)
       assert.equal(second.verifyChain(task.id), true)
       assert.deepEqual(await second.getRetry(task.id, 'retry-1'), { state: 'completed', response: { status: 'queued', taskId: task.id } })
       assert.deepEqual((await second.listRuntimeLeases(task.id, ownerUserId)).map((candidate) => ({ status: candidate.status, generation: candidate.generation, providerSandboxId: candidate.providerSandboxId })), [{ status: 'ready', generation: 0, providerSandboxId: 'sandbox-taskstore' }])
@@ -85,7 +99,7 @@ const main = async () => {
       assert.equal(await second.deleteMcpConfig(mcp.id, ownerUserId), true)
       assert.equal(await second.removeSkillInstallation(skill.id, ownerUserId), true)
       await second.removeOrganizationMember(organizationId, otherUserId, ownerUserId)
-      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'opt-in core slice only; production driver selection remains fail-closed until the full async TaskStore surface is integrated' }, null, 2))
+      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, standaloneMessageRestartRecovery: true, nativeAtomicReplayAndConflict: true, nativeRestartRecovery: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'opt-in core slice only; production driver selection remains fail-closed until the full async TaskStore surface is integrated' }, null, 2))
     } finally {
       await second.close()
     }

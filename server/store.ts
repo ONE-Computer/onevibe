@@ -1007,6 +1007,65 @@ export class TaskStore {
     const runId = task.activeRunId
     if (!runId) throw new Error('Native events require an active durable turn')
     const normalized = normalizeNativeEvent(input)
+    if (this.postgresState) {
+      const nativeEventId = nativeEventIdFor(taskId, runId, normalized)
+      const existing = this.events.get(taskId) ?? []
+      const projected: Array<{
+        runtimeEventId: string
+        projectionIndex: number
+        projectorVersion: number
+        projectedAt: Date
+        runId?: string
+        sequence: number
+        type: EventInput['type']
+        lane: EventInput['lane']
+        status?: EventInput['status']
+        label?: string
+        content?: string
+        payload: Record<string, unknown>
+        previousHash: string
+        eventHash: string
+        createdAt: Date
+      }> = []
+      for (const [projectionIndex, projection] of normalized.projections.entries()) {
+        const presentation = panelFor(projection)
+        const derived = runtimeEventInputFor([...existing, ...projected.map((item) => ({ id: item.runtimeEventId, taskId, runId: item.runId, sequence: item.sequence, type: item.type, lane: item.lane, status: item.status, label: item.label, content: item.content, payload: item.payload, createdAt: item.createdAt.toISOString(), previousHash: item.previousHash, eventHash: item.eventHash }))], taskId, runId, {
+          ...projection,
+          payload: {
+            ...projection.payload,
+            ...(presentation ? { presentation } : {}),
+            nativeEventId,
+            nativeSource: normalized.source,
+            nativeType: normalized.nativeType,
+            nativeSourceEventId: normalized.sourceEventId,
+          },
+        })
+        projected.push({
+          runtimeEventId: derived.id, projectionIndex, projectorVersion: NATIVE_PROJECTOR_VERSION,
+          projectedAt: new Date(), runId: derived.runId, sequence: derived.sequence, type: derived.type, lane: derived.lane,
+          status: derived.status, label: derived.label, content: derived.content, payload: derived.payload,
+          previousHash: derived.previousHash, eventHash: derived.eventHash, createdAt: new Date(derived.createdAt),
+        })
+      }
+      const nativeRecord: NativeEventRecord = {
+        id: nativeEventId, conversationId: taskId, runId, source: normalized.source,
+        sourceEventId: normalized.sourceEventId, sourceSequence: normalized.sourceSequence,
+        nativeType: normalized.nativeType, payloadJson: normalized.payloadJson, payloadHash: normalized.payloadHash,
+        receivedAt: new Date().toISOString(),
+      }
+      const offset = projected.length ? { conversationId: taskId, runId, source: normalized.source, projectorVersion: NATIVE_PROJECTOR_VERSION, lastSourceSequence: normalized.sourceSequence, updatedAt: new Date().toISOString() } : undefined
+      const result = await this.postgresState.ingestNativeEvent(task, nativeRecord, projected, offset)
+      if (result.replayed) return { nativeEventId: result.nativeEventId, events: [] }
+      this.events.set(taskId, [...existing, ...result.events])
+      for (const event of result.events) {
+        if (event.type === 'assistant_text_delta' && event.content) await this.appendAssistantDelta(taskId, event.content)
+        if (event.type === 'run_completed') await this.finishTurn(taskId, 'completed')
+        if (event.type === 'run_failed') await this.finishTurn(taskId, 'failed')
+        if (event.type === 'run_cancelled') await this.finishTurn(taskId, 'cancelled')
+        this.emitter.emit(taskId, event)
+      }
+      return result
+    }
     let result: { nativeEventId: string; events: RuntimeEvent[] } | undefined
     for (let attempt = 0; attempt < 4 && !result; attempt += 1) {
       try {
@@ -1087,8 +1146,8 @@ export class TaskStore {
     return this.readEventsFromDatabase(taskId)
   }
 
-  listNativeEvents(taskId: string) {
-    if (this.postgresState) throw new Error('Postgres native-event reads require the async TaskStore backend; runtime driver selection remains disabled')
+  async listNativeEvents(taskId: string) {
+    if (this.postgresState) return this.postgresState.listNativeEvents(this.getTask(taskId))
     this.getTask(taskId)
     return this.requireUnitOfWork().run((repositories) => repositories.nativeEvents.listByConversation(taskId))
   }
@@ -1141,8 +1200,15 @@ export class TaskStore {
 
   async appendStandaloneMessage(taskId: string, role: ChatMessage['role'], content: string, status: ChatMessage['status'] = 'completed') {
     const now = new Date().toISOString()
-    const message: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId: `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`, role, content, status, provider: this.getTask(taskId).provider, createdAt: now, updatedAt: now }
-    const existing = this.readMessages(this.getTask(taskId))
+    const task = this.getTask(taskId)
+    const message: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId: `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`, role, content, status, provider: task.provider, createdAt: now, updatedAt: now }
+    if (this.postgresState) {
+      const persisted = await this.postgresState.appendStandaloneMessage(task, message.id, role, { text: content, provider: task.provider, updatedAt: now }, status, new Date(now))
+      const converted = { ...persisted, turnId: message.turnId }
+      this.messages.set(taskId, [...(this.messages.get(taskId) ?? []), converted])
+      return converted
+    }
+    const existing = this.readMessages(task)
     this.requireUnitOfWork().run((repositories) => repositories.messages.append({ ...this.toMessageRecord(message, existing.length), turnId: null }))
     existing.push(message)
     this.messages.set(taskId, existing)

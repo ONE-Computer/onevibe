@@ -53,7 +53,7 @@ const run = async () => {
   for (const { task } of taskRows) {
     counts.messages += store.listMessages(task.id, { limit: 200 }).messages.length
     counts.events += store.listEvents(task.id).length
-    counts.nativeEvents += store.listNativeEvents(task.id).length
+    counts.nativeEvents += (await store.listNativeEvents(task.id)).length
     counts.versions += (await store.listWorkspaceVersions(task.id)).length
   }
   if (options.dryRun) {
@@ -119,7 +119,7 @@ const run = async () => {
         if (messages.length) await tx.insert(schema.message).values(messages.map((message, sequence) => ({ id: message.id, taskId: task.id, turnId: message.turnId, sequence, role: message.role, contentJson: messageContent(message), revision: 0, status: message.status, createdAt: new Date(message.createdAt) }))).onConflictDoNothing()
         const events = store.listEvents(task.id)
         if (events.length) await tx.insert(schema.runtimeEvent).values(events.map((event) => ({ id: event.id, taskId: task.id, runId: event.runId ?? null, sequence: event.sequence, type: event.type, lane: event.lane, status: event.status ?? null, label: event.label ?? null, content: event.content ?? null, payloadJson: event.payload, createdAt: new Date(event.createdAt), previousHash: event.previousHash, eventHash: event.eventHash }))).onConflictDoNothing()
-        const nativeEvents = store.listNativeEvents(task.id)
+        const nativeEvents = await store.listNativeEvents(task.id)
         if (nativeEvents.length) await tx.insert(schema.nativeEvent).values(nativeEvents.map((event) => ({ id: event.id, taskId: task.id, runId: event.runId, source: event.source, sourceEventId: event.sourceEventId, sourceSequence: event.sourceSequence, nativeType: event.nativeType, payloadJson: JSON.parse(event.payloadJson), payloadHash: event.payloadHash, receivedAt: new Date(event.receivedAt) }))).onConflictDoNothing()
         const versions = await store.listWorkspaceVersions(task.id)
         if (versions.length) await tx.insert(schema.workspaceVersion).values(versions.map((version) => ({ id: version.id, taskId: task.id, label: version.label, fileCount: version.fileCount, evidenceHash: version.evidenceHash, createdAt: new Date(version.createdAt) }))).onConflictDoNothing()
