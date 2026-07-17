@@ -26,7 +26,7 @@ import { claudeProviderConfig } from './claude-provider-config.js'
 import { encodeRuntimeEventFrame, eventsAfterLastEventId, openReplayLiveHandoff } from './task-event-stream.js'
 import { awaitTurnSettlement, createTurnDeadline, resolveTurnTimeoutMs, TURN_CLEANUP_GRACE_MS, TurnTimeoutError } from './turn-deadline.js'
 import { writeDocumentReviewArtifacts } from './mode-artifacts.js'
-import { isInternalWorkspacePath } from './artifact-path.js'
+import { isInternalWorkspacePath, isPrivateWorkspacePath, normalizeWorkspacePath } from './artifact-path.js'
 import { serveStatic } from './static-files.js'
 import { AuthService } from './auth.js'
 import { resolvePersistenceConfig } from './persistence/driver-config.js'
@@ -246,7 +246,7 @@ const executeTask = (taskId: string, prompt: string, continuation: boolean, atta
         },
       })
     }
-    await store.beginTurn(task.id, prompt, task.provider)
+    await store.beginTurn(task.id, prompt, task.provider, retryKey)
     if (retryKey) await store.appendEvent(task.id, {
       type: 'activity_delta', lane: 'control', label: 'Retry attempt started',
       content: 'ONEVibe is retrying the failed or cancelled turn in the same governed conversation workspace.',
@@ -694,7 +694,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       }
       const attachments = await stageFollowUpAttachments(taskId, input.attachments, idempotencyKey)
       await store.updateTask(taskId, { status: 'pending' })
-      setTimeout(() => executeTask(taskId, input.prompt, true, attachments.map((attachment) => attachment.path)), 25)
+      setTimeout(() => executeTask(taskId, input.prompt, true, attachments.map((attachment) => attachment.path), idempotencyKey), 25)
       const accepted = { status: 'queued', taskId, ...(idempotencyKey ? { idempotencyKey } : {}) }
       if (idempotencyKey) await store.completeIdempotentOperation(operationScope, idempotencyKey, accepted)
       return json(response, 202, accepted)
@@ -861,7 +861,9 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'GET' && segments[3] === 'file') {
       const filePath = url.searchParams.get('path')
       if (!filePath) return json(response, 400, { error: 'Missing path' })
-      if (isInternalWorkspacePath(filePath)) return json(response, 404, { error: 'Internal runtime file is not user-visible' })
+      const task = store.getTask(taskId)
+      const privateAttachmentPaths = new Set(task.attachments.map((attachment) => normalizeWorkspacePath(attachment.path)))
+      if (isInternalWorkspacePath(filePath) || isPrivateWorkspacePath(filePath) || privateAttachmentPaths.has(normalizeWorkspacePath(filePath))) return json(response, 404, { error: 'Private runtime file is not user-visible' })
       if (url.searchParams.get('raw') === '1') {
         if (!/\.(?:png|jpe?g|gif|svg)$/i.test(filePath)) return json(response, 415, { error: 'Raw rendering is limited to image artifacts' })
         const bytes = await store.readWorkspaceBytes(taskId, filePath)
@@ -897,6 +899,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'PUT' && segments[3] === 'file') {
       const filePath = url.searchParams.get('path')
       if (!filePath) return json(response, 400, { error: 'Missing path' })
+      if (isInternalWorkspacePath(filePath) || isPrivateWorkspacePath(filePath) || store.getTask(taskId).attachments.some((attachment) => normalizeWorkspacePath(attachment.path) === normalizeWorkspacePath(filePath))) return json(response, 404, { error: 'Private runtime file is not editable' })
       if (!textFilePattern.test(filePath)) return json(response, 415, { error: 'Only recognized text artifacts can be edited' })
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before editing source' })
       const input = editFileInput.parse(await readBody(request))

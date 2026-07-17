@@ -7,7 +7,7 @@ import type Database from 'better-sqlite3'
 import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
 import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, OptimisticConflictError, PostgresStateCoordinator, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type UnitOfWork } from './persistence/index.js'
-import { isInternalWorkspacePath, portableArtifactKind } from './artifact-path.js'
+import { isInternalWorkspacePath, isPrivateWorkspacePath, normalizeWorkspacePath, portableArtifactKind } from './artifact-path.js'
 import type { McpConfig } from './runtime-adapter.js'
 
 const DEFAULT_DATA_ROOT = path.resolve(process.env.ONEVIBE_DATA_DIR ?? '.onevibe')
@@ -1257,50 +1257,68 @@ export class TaskStore {
     return this.requireUnitOfWork().run((repositories) => repositories.nativeEvents.listOffsets(taskId))
   }
 
-  async beginTurn(taskId: string, content: string, provider: Task['provider']) {
+  /**
+   * Reserve a durable turn for a provider execution.
+   *
+   * `clientRequestId` is intentionally separate from the generated turn id:
+   * an HTTP retry may arrive after the process has persisted the turn but
+   * before the provider has settled.  Both persistence drivers must return
+   * the original turn and leave its user/assistant messages untouched in that
+   * case.  The provider adapter remains outside this reservation boundary.
+   */
+  async beginTurn(taskId: string, content: string, provider: Task['provider'], clientRequestId?: string) {
     const now = new Date().toISOString()
     const turnId = `turn_${randomUUID().replaceAll('-', '').slice(0, 14)}`
+    const requestId = clientRequestId ?? turnId
     const task = this.getTask(taskId)
     const resetPlan = task.plan.some((step) => step.status !== 'pending')
     const existing = this.readMessages(task)
-    const userMessage: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'user', content, status: 'completed', provider, createdAt: now, updatedAt: now }
-    const assistantMessage: ChatMessage = { id: `message_${randomUUID().replaceAll('-', '')}`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider, createdAt: now, updatedAt: now }
+    const userMessage: ChatMessage = { id: `${turnId}:user`, taskId, turnId, role: 'user', content, status: 'completed', provider, createdAt: now, updatedAt: now }
+    const assistantMessage: ChatMessage = { id: `${turnId}:assistant`, taskId, turnId, role: 'assistant', content: '', status: 'streaming', provider, createdAt: now, updatedAt: now }
     const ordinal = existing.filter((message) => message.role === 'user').length
     if (this.postgresState) {
-      await this.postgresState.beginTurn(task, turnId, turnId, content, new Date(now))
-      const persistedAssistant = await this.postgresState.createAssistantPlaceholder(task, turnId, assistantMessage.id, new Date(now))
-      this.postgresMessageRevisions.set(persistedAssistant.id, persistedAssistant.revision)
+      const persistedTurn = await this.postgresState.beginTurn(task, turnId, requestId, content, new Date(now))
+      if (!persistedTurn.replayed) {
+        const persistedAssistant = await this.postgresState.createAssistantPlaceholder(task, persistedTurn.id, assistantMessage.id, new Date(now))
+        this.postgresMessageRevisions.set(persistedAssistant.id, persistedAssistant.revision)
+      }
       this.messages.set(taskId, await this.postgresState.listMessages(task))
-      this.activeTurns.set(taskId, turnId)
+      if (persistedTurn.replayed && persistedTurn.status !== 'running') return persistedTurn.id
+      this.activeTurns.set(taskId, persistedTurn.id)
       await this.updateTask(taskId, {
-        activeRunId: turnId,
-        ...(resetPlan ? { plan: task.plan.map((step) => ({ id: step.id, title: step.title, status: 'pending' as const })) } : {}),
+        activeRunId: persistedTurn.id,
+        ...(!persistedTurn.replayed && resetPlan ? { plan: task.plan.map((step) => ({ id: step.id, title: step.title, status: 'pending' as const })) } : {}),
       })
-      if (resetPlan) await this.appendEvent(taskId, {
+      if (!persistedTurn.replayed && resetPlan) await this.appendEvent(taskId, {
         type: 'activity_delta', lane: 'control', label: 'Plan reset for new run',
         content: 'The new turn has a fresh plan lifecycle. Prior run timing and completion remain preserved in the immutable evidence history.',
-        payload: { previousRunId: task.activeRunId, newRunId: turnId, planReset: true },
+        payload: { previousRunId: task.activeRunId, newRunId: persistedTurn.id, planReset: true },
       })
-      return turnId
+      return persistedTurn.id
     }
     this.requireUnitOfWork().run((repositories) => {
-      repositories.turns.insert({ id: turnId, conversationId: taskId, clientRequestId: turnId, ordinal, status: 'running', createdAt: now, startedAt: now, completedAt: null })
+      const replayed = repositories.turns.findByClientRequest(taskId, requestId)
+      if (replayed) return
+      repositories.turns.insert({ id: turnId, conversationId: taskId, clientRequestId: requestId, ordinal, status: 'running', createdAt: now, startedAt: now, completedAt: null })
       repositories.messages.append(this.toMessageRecord(userMessage, existing.length))
       repositories.messages.append(this.toMessageRecord(assistantMessage, existing.length + 1))
     })
-    existing.push(userMessage, assistantMessage)
-    this.messages.set(taskId, existing)
-    this.activeTurns.set(taskId, turnId)
+    const replayed = this.requireUnitOfWork().run((repositories) => repositories.turns.findByClientRequest(taskId, requestId))
+    if (!replayed) throw new Error(`Turn ${requestId} was not persisted`)
+    const replayedMessages = this.requireUnitOfWork().run((repositories) => repositories.messages.listByConversation(taskId, -1, 500).map((record) => this.fromMessageRecord(task, record)))
+    this.messages.set(taskId, replayedMessages)
+    if (replayed.id !== turnId && replayed.status !== 'running') return replayed.id
+    this.activeTurns.set(taskId, replayed.id)
     await this.updateTask(taskId, {
-      activeRunId: turnId,
-      ...(resetPlan ? { plan: task.plan.map((step) => ({ id: step.id, title: step.title, status: 'pending' as const })) } : {}),
+      activeRunId: replayed.id,
+      ...(replayed.id === turnId && resetPlan ? { plan: task.plan.map((step) => ({ id: step.id, title: step.title, status: 'pending' as const })) } : {}),
     })
-    if (resetPlan) await this.appendEvent(taskId, {
+    if (replayed.id === turnId && resetPlan) await this.appendEvent(taskId, {
       type: 'activity_delta', lane: 'control', label: 'Plan reset for new run',
       content: 'The new turn has a fresh plan lifecycle. Prior run timing and completion remain preserved in the immutable evidence history.',
-      payload: { previousRunId: task.activeRunId, newRunId: turnId, planReset: true },
+      payload: { previousRunId: task.activeRunId, newRunId: replayed.id, planReset: true },
     })
-    return turnId
+    return replayed.id
   }
 
   async appendStandaloneMessage(taskId: string, role: ChatMessage['role'], content: string, status: ChatMessage['status'] = 'completed') {
@@ -1491,7 +1509,9 @@ export class TaskStore {
   }
 
   async listPublicWorkspaceFiles(taskId: string): Promise<WorkspaceFile[]> {
-    return (await this.listWorkspaceFiles(taskId)).filter((file) => !isInternalWorkspacePath(file.path))
+    const task = this.getTask(taskId)
+    const privateAttachmentPaths = new Set(task.attachments.map((attachment) => normalizeWorkspacePath(attachment.path)))
+    return (await this.listWorkspaceFiles(taskId)).filter((file) => !isInternalWorkspacePath(file.path) && !isPrivateWorkspacePath(file.path) && !privateAttachmentPaths.has(normalizeWorkspacePath(file.path)))
   }
 
   async createWorkspaceVersion(taskId: string, label: string) {
@@ -1797,8 +1817,9 @@ export class TaskStore {
     const files = await this.listWorkspaceFiles(taskId)
     const entries: Record<string, Uint8Array> = {}
     const excludedWorkspaceFiles: string[] = []
+    const privateAttachmentPaths = new Set(task.attachments.map((attachment) => normalizeWorkspacePath(attachment.path)))
     for (const file of files) {
-      if (!portableArtifactKind(file.path)) { excludedWorkspaceFiles.push(file.path); continue }
+      if (!portableArtifactKind(file.path) || privateAttachmentPaths.has(normalizeWorkspacePath(file.path))) { excludedWorkspaceFiles.push(file.path); continue }
       entries[file.path] = await this.readWorkspaceBytes(taskId, file.path)
     }
     const project = this.getProject(task.projectId)

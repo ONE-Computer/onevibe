@@ -1,5 +1,19 @@
 # Implementation log
 
+## 2026-07-17 — make TaskStore turn reservation replay-safe
+
+- Added an explicit `clientRequestId` boundary to `TaskStore.beginTurn`. SQLite now checks the durable turn repository before inserting; Postgres consumes the repository's existing replay signal before creating the assistant placeholder.
+- Turn message IDs are deterministic within the reserved turn (`<turnId>:user` and `<turnId>:assistant`), so a process retry cannot append a second user/assistant pair. A replay of a terminal turn reloads history but does not reactivate the run or reset the plan.
+- Follow-up and retry execution paths now pass their request key into the turn reservation. The provider execution itself remains outside this reservation transaction; provider-side idempotency, attachment/task metadata atomicity, and crash recovery across the complete workflow remain open P4-02 work.
+- Verification: `server/store.test.ts` covers in-flight and terminal replay behavior; `npm run check` passed with 55 test files and 266 tests. Browser DOM smoke confirmed the local app still presents `No governed runtime configured` and `Simulation only · no model call`; screenshot: [`local-home-20260717-turn-replay.jpg`](browser-screenshots/local-home-20260717-turn-replay.jpg).
+
+## 2026-07-17 — close private attachment visibility leaks
+
+- Added shared path normalization/classification in `server/artifact-path.ts`. Conventional `inputs/` and `evidence/` paths are private, and attachment metadata is treated as private even when a malformed or legacy descriptor places it outside those directories.
+- Public task file listings, direct file reads, raw/download/excerpt access, source edits, and portable ZIP export now apply the same private-path policy. Export evidence records excluded workspace paths without exporting their bytes.
+- Updated the follow-up attachment E2E to prove the attachment remains durably evidenced while its bytes are absent from public files and direct file reads return `404`. This is an intentional privacy boundary, not data deletion.
+- Added path-classification coverage and misplaced-attachment export/listing coverage. Focused tests, build, and E2E harness typecheck pass; durable Postgres attachment-row cleanup and full attachment round trips remain open.
+
 ## 2026-07-17 — add canonical presentation tokens and managed release contract
 
 - Added `src/theme/default.css` as the sole raw presentation-literal source for the current light/dark baseline, UI font family, pixel radii, neutral asymmetric-radius options, and legacy effect values. `src/index.css` and `src/timeline.css` now consume variables without changing the browser baseline.

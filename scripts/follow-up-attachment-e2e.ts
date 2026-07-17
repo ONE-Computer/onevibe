@@ -11,6 +11,7 @@ type Snapshot = {
   id: string
   status: string
   attachments: Array<{ name: string; path: string; size: number; mimeType: string }>
+  files: Array<{ path: string; size: number }>
   messages: Array<{ turnId: string; role: string; content: string }>
   events: Array<{ runId?: string; type: string; payload: Record<string, unknown> }>
 }
@@ -54,6 +55,7 @@ const secondTurn = snapshot.messages.filter((message) => message.role === 'user'
 assert.ok(secondTurn)
 const evidence = snapshot.events.find((event) => event.runId === secondTurn && event.type === 'artifact_created' && event.payload.kind === 'task_input')
 assert.ok(evidence, 'The follow-up file must be evidenced on the second turn')
-const file = await request<{ content: string }>(`/api/tasks/${task.id}/file?path=${encodeURIComponent(attachment.path)}`)
-assert.equal(file.content, expectedContent)
-console.log(JSON.stringify({ taskId: task.id, messageCount: snapshot.messages.length, attachmentPath: attachment.path, attachmentBytes: attachment.size, turnId: secondTurn, evidenceBound: true, followUpIdempotency: true, concurrentStatuses: [firstFollowUp.status, replayFollowUp.status], conflictingKeyRejected: true }))
+assert.equal(snapshot.files.some((file) => file.path === attachment.path), false, 'Private attachment paths must not appear in public task files')
+const privateRead = await fetch(`${baseUrl}/api/tasks/${task.id}/file?path=${encodeURIComponent(attachment.path)}`)
+assert.equal(privateRead.status, 404, 'Private attachments must not be readable through the public file route')
+console.log(JSON.stringify({ taskId: task.id, messageCount: snapshot.messages.length, attachmentPath: attachment.path, attachmentBytes: attachment.size, turnId: secondTurn, evidenceBound: true, privateAttachmentNotExposed: true, followUpIdempotency: true, concurrentStatuses: [firstFollowUp.status, replayFollowUp.status], conflictingKeyRejected: true }))

@@ -2,6 +2,19 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — TaskStore turn replay boundary
+
+- A focused SQLite test now reserves one turn with a stable client request key, appends one assistant delta, replays the same request, and verifies the durable history remains exactly one user plus one assistant message. A terminal replay leaves `activeRunId` unset.
+- The same behavior is wired through the Postgres repository's existing unique `(task_id, client_request_id)` contract; the TaskStore skips the placeholder insert when the repository reports a replay.
+- Browser smoke at `http://127.0.0.1:5173/` remained truthful: `No governed runtime configured` and `Simulation only · no model call`. Visual evidence is `docs/browser-screenshots/local-home-20260717-turn-replay.jpg`.
+- Boundary: this is a durable turn/message reservation proof. It does not claim exactly-once provider execution, attachment/task metadata transactionality, provider-side idempotency, cloud sandbox recovery, or production deployment behavior.
+
+## 2026-07-17 — private attachment visibility proof
+
+- Centralized the private path policy across public file lists, direct reads/downloads/raw rendering, edits, and ZIP exports. An attachment descriptor outside `inputs/` is still private by metadata and is omitted from public surfaces.
+- `npm run e2e:follow-up-attachment` now verifies one exact-turn attachment evidence record, no attachment path in the public snapshot file list, and HTTP `404` from the direct file route. The attachment remains in the governed workspace for the runtime; this slice does not delete it.
+- Boundary: Postgres workspace-row cleanup after queued-guidance cancellation, durable attachment metadata/byte round trips, and crash-safe claim/stage/turn/provider recovery remain open.
+
 ## 2026-07-17 — Postgres release-safety and backup/restore proof
 
 - The API now separates liveness (`/api/health/live`) from readiness (`/api/health/ready`). Readiness returned `200` in the authenticated Postgres HTTP harness and includes application initialization plus the reviewed migration-ledger check. Compose and the container healthcheck use readiness.

@@ -260,6 +260,29 @@ describe('TaskStore', () => {
     expect(store.verifyChain(task.id)).toBe(true)
   })
 
+  it('reuses a durable turn and its message pair when the execution request is replayed', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-turn-replay-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Replay a governed execution request', 'demo')
+
+    const firstTurn = await store.beginTurn(task.id, 'The original request.', task.provider, 'client-request-replay-1')
+    await store.appendEvent(task.id, { type: 'assistant_text_delta', lane: 'transcript', content: 'First answer', payload: {} })
+    const replayedTurn = await store.beginTurn(task.id, 'A duplicate request must not append history.', task.provider, 'client-request-replay-1')
+
+    expect(replayedTurn).toBe(firstTurn)
+    expect(store.listMessages(task.id).messages).toHaveLength(2)
+    expect(store.listMessages(task.id).messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(store.listMessages(task.id).messages[0]?.content).toBe('The original request.')
+    expect(store.listMessages(task.id).messages[1]?.content).toBe('First answer')
+
+    await store.appendEvent(task.id, { type: 'run_completed', lane: 'control', status: 'completed', payload: {} })
+    expect(await store.beginTurn(task.id, 'A completed request replay.', task.provider, 'client-request-replay-1')).toBe(firstTurn)
+    expect(store.getTask(task.id).activeRunId).toBeUndefined()
+  })
+
   it.each(['running', 'waiting_for_user_input', 'waiting_for_approval'] as const)('reconciles a durable %s run after process restart', async (status) => {
     const root = await mkdtemp(path.join(tmpdir(), `onevibe-restart-${status}-`))
     temporaryRoots.push(root)
@@ -352,11 +375,15 @@ describe('TaskStore', () => {
     await store.updateProjectFile(project.id, projectPath, 'Project context two.', projectBefore.contentHash)
     await store.writeWorkspaceFile(task.id, 'inputs/private.txt', 'private input')
     await store.writeWorkspaceFile(task.id, 'evidence/frame.png', 'private evidence')
+    await store.writeWorkspaceFile(task.id, 'misplaced-private.txt', 'private attachment outside its conventional directory')
+    await store.updateTask(task.id, { attachments: [{ name: 'brief.txt', path: 'misplaced-private.txt', size: 52, mimeType: 'text/plain' }] })
     await store.appendEvent(task.id, { type: 'artifact_created', lane: 'artifact', payload: { path: 'index.html' } })
     const archive = unzipSync(await store.exportWorkspaceZip(task.id))
     expect(strFromU8(archive['index.html']!)).toContain('Portable')
     expect(archive['inputs/private.txt']).toBeUndefined()
     expect(archive['evidence/frame.png']).toBeUndefined()
+    expect(archive['misplaced-private.txt']).toBeUndefined()
+    expect((await store.listPublicWorkspaceFiles(task.id)).some((file) => file.path === 'misplaced-private.txt')).toBe(false)
     expect(strFromU8(archive[`project-knowledge/${projectPath}`]!)).toContain('Project context two.')
     expect(Object.keys(archive).some((entry) => entry.startsWith('project-knowledge/.history/'))).toBe(true)
     const evidence = JSON.parse(strFromU8(archive['ONEVIBE-EVIDENCE.json']!)) as { chainValid: boolean }
