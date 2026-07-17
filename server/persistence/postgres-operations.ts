@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
-import type { FollowUpAttachmentRecord, FollowUpAttachmentState, FollowUpOperationRecord, FollowUpOperationState, IdempotencyRecord, McpConfigAuditRecord, McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord, TenantThemeConfigRecord } from './contracts.js'
+import type { FollowUpAttachmentRecord, FollowUpAttachmentState, FollowUpOperationRecord, FollowUpOperationState, IdempotencyRecord, McpConfigAuditRecord, McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord, TenantThemeAuditSummary, TenantThemeConfigRecord } from './contracts.js'
 import { IdempotencyConflictError, OptimisticConflictError, RecordNotFoundError, ThemeVersionConflictError } from './errors.js'
 
 export type PostgresOperationsSql = Sql<Record<string, never>>
@@ -163,6 +163,27 @@ export class PostgresOperationsRepository {
       ORDER BY updated_at DESC, tenant_id ASC
     `
     return rows.map(tenantThemeFromRow)
+  }
+
+  async summarizeTenantThemeAuditForOrganizations(organizationIds: string[]): Promise<TenantThemeAuditSummary> {
+    if (!organizationIds.length) return { tenantCount: 0, eventCount: 0, latestOperation: null, latestAt: null }
+    const counts = await this.sql<{ tenant_count: number; event_count: number }[]>`
+      SELECT
+        (SELECT COUNT(*)::int FROM tenant_theme_config WHERE org_id IN ${this.sql(organizationIds)}) AS tenant_count,
+        (SELECT COUNT(*)::int FROM tenant_theme_config_event WHERE org_id IN ${this.sql(organizationIds)}) AS event_count
+    `
+    const latest = await this.sql<{ operation: string; created_at: Date }[]>`
+      SELECT operation, created_at FROM tenant_theme_config_event
+      WHERE org_id IN ${this.sql(organizationIds)}
+      ORDER BY created_at DESC, id DESC LIMIT 1
+    `
+    const latestOperation = latest[0]?.operation
+    return {
+      tenantCount: counts[0]?.tenant_count ?? 0,
+      eventCount: counts[0]?.event_count ?? 0,
+      latestOperation: latestOperation === 'created' || latestOperation === 'updated' || latestOperation === 'reset' ? latestOperation : null,
+      latestAt: latest[0]?.created_at?.toISOString() ?? null,
+    }
   }
 
   async putTenantTheme(tenantId: string, organizationId: string | undefined, configJson: string, actorUserId: string, expectedVersion: number): Promise<TenantThemeConfigRecord> {

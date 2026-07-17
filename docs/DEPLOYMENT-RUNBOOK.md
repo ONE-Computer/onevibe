@@ -33,6 +33,7 @@ This runbook describes the currently testable Postgres-backed deployment contrac
    ```
 
 6. Verify diagnostics from an authenticated operator session. It must report `persistence.active=postgres`, `runtimeSwitchReady=true`, `directFirstPartyAllowed=false`, and no secret values.
+7. Confirm the diagnostics `theme.audit` counters are numeric and contain no theme content or actor identifiers. A zero count is valid for a newly provisioned organization; a non-zero count must be explainable by the append-only theme event table.
 
 ## Backup and restore drill
 
@@ -55,6 +56,13 @@ Managed production operations still require encrypted snapshots/PITR, retention,
 - Promote the new image only after migration and readiness checks pass.
 - On application failure, roll back to the previous immutable image while preserving the forward-compatible schema. If data must be restored, stop writes, select an approved backup, restore into a controlled database, verify fingerprints/health, and record the incident.
 - `SIGTERM` stops accepting new HTTP connections, waits briefly for existing connections, closes the TaskStore database handles, and exits. Long-lived SSE clients are bounded by the shutdown grace period.
+
+### Theme rollout and rollback
+
+- Theme configuration changes are versioned Postgres rows plus append-only audit events. Save/reset operations use optimistic versions; a stale writer must receive `theme_version_conflict` and must not overwrite a newer configuration.
+- Do not roll back theme data by deleting event rows or editing JSON in place. Roll back the application image first; if a presentation configuration must be reverted, use the owner-scoped Reset action or a new reviewed version so the audit history remains intact.
+- Deployment-time packages are not active runtime plugins. Before any future package runtime is enabled, the release must verify the operator-selected package name/version/integrity pin, static-build registry, CSP, slot fallback/error boundary, package isolation, and rollback image. Invalid package verification must fail readiness rather than silently selecting customer-controlled code.
+- Invalidate browser/theme caches only after the versioned server response is committed. Never cache a tenant response under a shared key or expose a tenant selector in the browser.
 
 ## Managed deployment
 

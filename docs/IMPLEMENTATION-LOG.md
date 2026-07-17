@@ -8,6 +8,11 @@
 - Focused package tests (6/6), lint, production build, and E2E harness typecheck passed. Full `npm run check` passed with 60 test files / 282 tests.
 - Browser smoke against `http://127.0.0.1:5173/?view=homepage` confirmed one `.app-shell`, the Homepage route, and no horizontal overflow. Screenshot evidence is [`local-home-20260717-package-boundary.jpg`](browser-screenshots/local-home-20260717-package-boundary.jpg); the constrained browser capture repeats the side rail, so it is retained as route/boundary evidence and not a visual-design pass.
 
+## 2026-07-17 — owner-scoped theme audit diagnostics
+
+- Added a metadata-only `theme.audit` diagnostics projection for authenticated Postgres owners: tenant count, event count, latest operation, and latest event time. It never returns theme JSON, actor IDs, uploaded bytes, package contents, or secrets; local SQLite reports theme persistence as unavailable.
+- Extended `npm run e2e:postgres-auth-http` to assert the real persisted sequence `created → updated → reset`, owner scope, and the bounded diagnostics projection. No new migration was required.
+
 ## 2026-07-17 — reference profiles and executable theme acceptance gate
 
 - Added three fixture-only profiles (`reference-institutional`, `reference-financial`, and `reference-philanthropic`) with safe content, WCAG-passing navigation/page color pairs, no customer credentials/assets, and the sans-serif-only font contract.

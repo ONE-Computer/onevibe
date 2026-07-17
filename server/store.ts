@@ -589,6 +589,12 @@ export class TaskStore {
     return this.postgresState.listTenantThemesForUser(ownerUserId)
   }
 
+  async summarizeTenantThemeAudit(ownerUserId: string): Promise<import('./persistence/contracts.js').TenantThemeAuditSummary> {
+    if (!this.postgresState) return { tenantCount: 0, eventCount: 0, latestOperation: null, latestAt: null }
+    if (!ownerUserId) throw new Error('Tenant theme diagnostics require an owner')
+    return this.postgresState.summarizeTenantThemeAuditForUser(ownerUserId)
+  }
+
   async getTenantTheme(tenantId: string, ownerUserId: string): Promise<TenantThemeConfigRecord> {
     if (!this.postgresState) throw new Error('Tenant theme persistence requires Postgres')
     if (!ownerUserId) throw new Error('Tenant theme reads require an owner')

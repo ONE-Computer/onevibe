@@ -586,6 +586,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const mcpConfigs = actorUserId ? await store.listMcpConfigs(actorUserId) : []
     const mcpChecks = await Promise.all(mcpConfigs.map(async (config) => ({ name: config.name, ...(await probeMcpConfig({ ...config, env: {} })) })))
     const healthyMcpCount = mcpChecks.filter((check) => check.status === 'online').length
+    const themeAudit = actorUserId ? await store.summarizeTenantThemeAudit(actorUserId) : { tenantCount: 0, eventCount: 0, latestOperation: null, latestAt: null }
     return json(response, 200, {
       modelBoundary: { name: 'LiteLLM', configured: claudeConfigured, directFirstPartyAllowed: false, detail: claudeConfigured ? 'Model traffic is configured to traverse the server-controlled LiteLLM relay.' : 'Configure the server-controlled LiteLLM relay; direct first-party model credentials are not accepted.' },
       auth: { enabled: Boolean(authService?.isEnabled), sessionScoped: Boolean(actorUserId), productionReady: false, detail: authService?.isEnabled ? 'Local user scope is active; Postgres/org/production acceptance remains open.' : 'Authentication is disabled in local mode.' },
@@ -593,6 +594,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
       runtime: { providers: readiness.providers, defaultProvider: readiness.defaultProvider },
       sandbox: { configured: oneComputerConfigured, ...(reachable !== undefined ? { reachable } : {}), boundary: oneComputerConfigured ? 'development ONEComputer adapter' : 'host-process local runtime', detail: oneComputerConfigured ? (reachable ? 'ONEComputer health probe is reachable; production attestation remains open.' : 'ONEComputer is configured but the health probe is unreachable.') : 'No isolated sandbox is configured.' },
       mcp: { configuredCount: mcpConfigs.length, healthyCount: healthyMcpCount, checks: mcpChecks, secretValuesAccepted: false, detail: mcpConfigs.length ? `${healthyMcpCount}/${mcpConfigs.length} configured MCP servers returned a tool catalog.` : 'No MCP declarations are configured.' },
+      theme: { persistent: persistenceConfig.active === 'postgres', audit: themeAudit, detail: persistenceConfig.active === 'postgres' ? 'Theme audit counters are owner-scoped and contain no theme content or actor identifiers.' : 'Theme persistence is unavailable in local SQLite mode.' },
       readiness: await store.readiness(),
     })
   }

@@ -1,4 +1,4 @@
-import type { FollowUpAttachmentRecord, FollowUpOperationRecord, McpConfigRecord, NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord, TenantThemeConfigRecord } from './contracts.js'
+import type { FollowUpAttachmentRecord, FollowUpOperationRecord, McpConfigRecord, NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseFence, RuntimeLeaseRecord, SkillInstallationRecord, TenantThemeAuditSummary, TenantThemeConfigRecord } from './contracts.js'
 import { randomUUID } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -195,6 +195,15 @@ export class PostgresStateCoordinator {
       return member?.role === 'owner' ? organization.id : undefined
     }))).filter((organizationId): organizationId is string => Boolean(organizationId))
     return this.#operations.listTenantThemesForOrganizations(ownedOrganizations)
+  }
+
+  async summarizeTenantThemeAuditForUser(actorUserId: string): Promise<TenantThemeAuditSummary> {
+    const organizations = await this.#operations.listOrganizationsForUser(actorUserId)
+    const ownedOrganizations = (await Promise.all(organizations.map(async (organization) => {
+      const member = await this.#operations.findMember(organization.id, actorUserId)
+      return member?.role === 'owner' ? organization.id : undefined
+    }))).filter((organizationId): organizationId is string => Boolean(organizationId))
+    return this.#operations.summarizeTenantThemeAuditForOrganizations(ownedOrganizations)
   }
 
   async getTenantTheme(tenantId: string, actorUserId: string): Promise<TenantThemeConfigRecord> {

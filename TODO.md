@@ -178,8 +178,8 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 ### P7-09 — Release evidence and operations (P1 before production)
 
 - [x] Add `npm run e2e:themes` covering base-theme fallback, tenant isolation, safe token rejection, owner authorization, save/reset, typed content escaping, asset-boundary checks, and restart persistence by delegating to the authenticated Postgres HTTP proof. Disposable Postgres acceptance passed on 2026-07-17 with three reference profiles, versions 1→3, three audit events, owner/member `404`/`403`, and direct-first-party blocked.
-- [ ] Add theme audit events to diagnostics and Linear evidence without storing raw secrets, uploaded bytes, or untrusted HTML.
-- [ ] Document cache invalidation, rollout/rollback, migration, package provenance, asset retention, and incident response in the deployment runbook.
+- [x] Add owner-scoped theme audit counters/latest operation to diagnostics and Linear evidence without returning raw secrets, uploaded bytes, actor IDs, or untrusted HTML. `npm run e2e:postgres-auth-http` asserts the Postgres path.
+- [x] Document cache invalidation, rollout/rollback, migration, package provenance, asset retention, and incident response boundaries in the deployment runbook. Managed deployment/PITR/retention remains open.
 
 ---
 

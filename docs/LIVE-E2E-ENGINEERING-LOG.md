@@ -7,6 +7,11 @@
 - Browser smoke confirmed the local Homepage route was reachable with one app shell and no horizontal overflow. Screenshot `docs/browser-screenshots/local-home-20260717-package-boundary.jpg` is retained as raw route evidence; duplicate rails in the constrained capture are a browser-capture artifact and do not count as UI parity evidence.
 - Static-build/CSP/slot fallback/rollback integration remains intentionally open; the current proof must not be read as a claim that theme packages are active in the React runtime.
 
+## 2026-07-17 — theme audit diagnostics acceptance
+
+- `npm run e2e:postgres-auth-http` now asserts `theme.audit` after a seeded theme plus update/reset: one owner-visible tenant, three events, latest operation `reset`, and an ISO timestamp. The response is metadata-only and remains owner-scoped.
+- This closes the local diagnostics/documentation slice of P7-09. Managed deployment, PITR/retention, incident automation, and full visual/runtime/artifact invariance remain open.
+
 ## 2026-07-17 — executable theme acceptance against disposable Postgres
 
 - `npm run e2e:themes` passed with three fixture-only profiles and static checks for base fallback, server-controlled scope precedence, contrast, sans-serif enforcement, typed-content markup boundaries, reduced motion, and credential-free bounded asset loading.

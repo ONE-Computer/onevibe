@@ -182,6 +182,13 @@ export interface TenantThemeConfigRecord {
   updatedAt: string
 }
 
+export interface TenantThemeAuditSummary {
+  tenantCount: number
+  eventCount: number
+  latestOperation: 'created' | 'updated' | 'reset' | null
+  latestAt: string | null
+}
+
 export interface SkillInstallationRecord {
   id: string
   ownerUserId: string | null
