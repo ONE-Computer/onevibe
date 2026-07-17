@@ -69,7 +69,7 @@ try {
   console.log(JSON.stringify({
     provider: 'Postgres repository vertical slice', conversationId, taskId, turnReplay: replayedTurn.replayed,
     messageCount: messages.length, runtimeEventCount: (await repository.listRuntimeEvents(conversationId, ownerUserId)).length,
-    ownerIsolation: true, limitation: 'not yet wired into the running TaskStore or DATABASE_URL runtime switch',
+    ownerIsolation: true, limitation: 'isolated repository proof; the running HTTP contract still requires authenticated multi-instance acceptance',
   }, null, 2))
 } finally {
   await close()

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import postgres from 'postgres'
 import type { McpConfigRecord, OrganizationMemberRecord, OrganizationRecord, RuntimeLeaseRecord, SkillInstallationRecord } from '../server/persistence/contracts.js'
+import type { RuntimeEvent } from '../server/types.js'
 import { TaskStore } from '../server/store.js'
 
 const databaseUrl = process.env.DATABASE_URL?.trim()
@@ -132,7 +133,39 @@ const main = async () => {
       assert.equal(fork.parentTaskId, task.id)
       assert.equal((await second.snapshot(fork.id)).messages.length, 3)
       assert.equal(await second.readWorkspaceFile(fork.id, 'README.md'), '# Durable workspace\n')
-      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, projectFileRestartRecovery: true, projectRevisionRestore: true, workspaceBytesRestartRecovery: true, workspaceVersionRestore: true, workspaceForkCopy: true, interruptedTaskReconciliation: true, standaloneMessageRestartRecovery: true, nativeAtomicReplayAndConflict: true, nativeRestartRecovery: true, forkHistoryAtomic: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'Postgres is opt-in; project revisions are durable; remaining workflow idempotency, cross-instance live SSE, import/export byte round trips, and production deployment controls remain open' }, null, 2))
+      const concurrentA = new TaskStore(`/tmp/onevibe-postgres-concurrent-a-${suffix}`, { driver: 'postgres', databaseUrl })
+      const concurrentB = new TaskStore(`/tmp/onevibe-postgres-concurrent-b-${suffix}`, { driver: 'postgres', databaseUrl })
+      try {
+        await Promise.all([concurrentA.initialize(), concurrentB.initialize()])
+        const concurrentEvents = await Promise.all([
+          concurrentA.appendEvent(task.id, { type: 'activity_delta', lane: 'activity', label: 'Concurrent writer A', payload: {} }),
+          concurrentB.appendEvent(task.id, { type: 'activity_delta', lane: 'activity', label: 'Concurrent writer B', payload: {} }),
+        ])
+        assert.deepEqual(new Set(concurrentEvents.map((event) => event.sequence)).size, 2)
+        await concurrentA.refreshPostgresState(ownerUserId)
+        const concurrentSnapshot = await concurrentA.snapshot(task.id)
+        const concurrentLabels = concurrentSnapshot.events.filter((event) => event.label?.startsWith('Concurrent writer')).map((event) => event.label).sort()
+        assert.deepEqual(concurrentLabels, ['Concurrent writer A', 'Concurrent writer B'])
+        assert.equal(concurrentA.verifyChain(task.id), true)
+        const crossInstanceLive = new Promise<RuntimeEvent>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('cross-instance event polling timed out')), 2_000)
+          const unsubscribe = concurrentA.subscribe(task.id, (event) => {
+            if (event.label !== 'Cross-instance writer') return
+            clearTimeout(timeout)
+            unsubscribe()
+            resolve(event)
+          })
+          void concurrentB.appendEvent(task.id, { type: 'activity_delta', lane: 'activity', label: 'Cross-instance writer', payload: {} }).catch((error: unknown) => {
+            clearTimeout(timeout)
+            unsubscribe()
+            reject(error)
+          })
+        })
+        assert.equal((await crossInstanceLive).label, 'Cross-instance writer')
+      } finally {
+        await Promise.all([concurrentA.close(), concurrentB.close()])
+      }
+      console.log(JSON.stringify({ driver: 'postgres', taskStore: true, projectFileRestartRecovery: true, projectRevisionRestore: true, workspaceBytesRestartRecovery: true, workspaceVersionRestore: true, workspaceForkCopy: true, interruptedTaskReconciliation: true, standaloneMessageRestartRecovery: true, nativeAtomicReplayAndConflict: true, nativeRestartRecovery: true, forkHistoryAtomic: true, concurrentEventAllocation: true, mcpOwnerIsolation: true, skillOwnerIsolation: true, organizationOwnerIsolation: true, leaseAllocation: true, leaseTransition: true, leaseRestartRecovery: true, leaseOwnerFencing: true, messageCount: snapshot.messages.length, eventCount: snapshot.events.length, retryRecovery: true, limitation: 'Postgres is opt-in; project revisions and legacy workspace/project/native import are durable; private attachment export policy/round trips, workflow idempotency, cross-instance live SSE, and production deployment controls remain open' }, null, 2))
     } finally {
       await second.close()
     }

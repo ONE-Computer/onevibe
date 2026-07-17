@@ -345,9 +345,9 @@ export class PostgresStateCoordinator {
     await this.#chat.finishTurn(task.id, task.id, task.ownerUserId, turnId, status, completedAt, error)
   }
 
-  async appendEvent(task: Task, event: { id: string; runId?: string; sequence?: number; type: EventInput['type']; lane: EventInput['lane']; status?: EventInput['status']; label?: string; content?: string; payload: Record<string, unknown>; createdAt: Date; previousHash: string; eventHash: string }) {
+  async appendEvent(task: Task, event: { id?: string; runId?: string; sequence?: number; type: EventInput['type']; lane: EventInput['lane']; status?: EventInput['status']; label?: string; content?: string; payload: Record<string, unknown>; createdAt: Date; previousHash?: string; eventHash?: string }) {
     if (!task.ownerUserId) throw new Error('Postgres conversations require an owner')
-    const row = await this.#chat.appendRuntimeEvent({ conversationId: task.id, taskId: task.id, ownerUserId: task.ownerUserId, eventId: event.id, runId: event.runId, type: event.type, lane: event.lane, status: event.status, label: event.label, content: event.content, payload: event.payload, previousHash: event.previousHash, eventHash: event.eventHash, createdAt: event.createdAt })
+    const row = await this.#chat.appendRuntimeEvent({ conversationId: task.id, taskId: task.id, ownerUserId: task.ownerUserId, runId: event.runId, type: event.type, lane: event.lane, status: event.status, label: event.label, content: event.content, payload: event.payload, createdAt: event.createdAt })
     return eventFromRow(row)
   }
 

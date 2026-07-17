@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import postgres, { type Sql, type TransactionSql } from 'postgres'
 import type { NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset } from './contracts.js'
 import { RecordNotFoundError, OptimisticConflictError } from './errors.js'
@@ -92,7 +93,8 @@ export type AppendRuntimeEventInput = {
   conversationId: string
   taskId: string
   ownerUserId: string
-  eventId: string
+  /** Legacy callers may supply these; the Postgres transaction deliberately ignores them. */
+  eventId?: string
   runId?: string
   type: string
   lane: string
@@ -100,8 +102,8 @@ export type AppendRuntimeEventInput = {
   label?: string
   content?: string
   payload: Record<string, unknown>
-  previousHash: string
-  eventHash: string
+  previousHash?: string
+  eventHash?: string
   createdAt?: Date
 }
 
@@ -335,6 +337,9 @@ export class PostgresChatRepository {
     return this.#sql.begin(async (tx) => {
       await requireOwnerConversation(tx, input.conversationId, input.ownerUserId)
       await requireOwnerTask(tx, input.taskId, input.conversationId, input.ownerUserId)
+      // Serialize event allocation across TaskStore instances. The in-memory
+      // event cache is only a read projection; it cannot allocate identities.
+      await tx`SELECT id FROM conversation WHERE id = ${input.conversationId} AND owner_user_id = ${input.ownerUserId} FOR UPDATE`
       const sequenceRows = await tx<{ next_sequence: number }[]>`
         SELECT COALESCE(MAX(sequence) + 1, 0)::int AS next_sequence FROM message WHERE task_id = ${input.taskId}
       `
@@ -468,13 +473,33 @@ export class PostgresChatRepository {
         SELECT COALESCE(MAX(sequence) + 1, 0)::int AS next_sequence FROM runtime_event WHERE task_id = ${input.taskId}
       `
       const sequence = sequenceRows[0]?.next_sequence ?? 0
+      const previousRows = await tx<{ event_hash: string }[]>`
+        SELECT event_hash FROM runtime_event WHERE task_id = ${input.taskId} ORDER BY sequence DESC LIMIT 1
+      `
+      const previousHash = previousRows[0]?.event_hash ?? 'GENESIS'
+      const createdAt = now.toISOString()
+      const unsigned = {
+        taskId: input.taskId,
+        ...(input.runId ? { runId: input.runId } : {}),
+        sequence,
+        type: input.type,
+        lane: input.lane,
+        status: input.status,
+        label: input.label,
+        content: input.content,
+        payload: input.payload,
+        createdAt,
+        previousHash,
+      }
+      const eventHash = createHash('sha256').update(JSON.stringify(unsigned)).digest('hex')
+      const eventId = `${input.taskId}:event:${sequence}`
       const rows = await tx<PostgresRuntimeEventRow[]>`
         INSERT INTO runtime_event (id, task_id, run_id, sequence, type, lane, status, label, content, payload_json, created_at, previous_hash, event_hash)
-        VALUES (${input.eventId}, ${input.taskId}, ${input.runId ?? null}, ${sequence}, ${input.type}, ${input.lane}, ${input.status ?? null}, ${input.label ?? null}, ${input.content ?? null}, ${JSON.stringify(input.payload)}::jsonb, ${now}, ${input.previousHash}, ${input.eventHash})
+        VALUES (${eventId}, ${input.taskId}, ${input.runId ?? null}, ${sequence}, ${input.type}, ${input.lane}, ${input.status ?? null}, ${input.label ?? null}, ${input.content ?? null}, ${JSON.stringify(input.payload)}::jsonb, ${now}, ${previousHash}, ${eventHash})
         RETURNING id, task_id, run_id, sequence, type, lane, status, label, content, payload_json, created_at, previous_hash, event_hash
       `
       const row = rows[0]
-      if (!row) throw new OptimisticConflictError(`Runtime event ${input.eventId} was not appended`)
+      if (!row) throw new OptimisticConflictError(`Runtime event ${eventId} was not appended`)
       return row
     })
   }

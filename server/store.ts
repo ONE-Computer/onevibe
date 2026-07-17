@@ -1046,9 +1046,8 @@ export class TaskStore {
     if (this.postgresState) {
       const presentation = panelFor(input)
       const projectedInput = { ...input, payload: { ...input.payload, ...(presentation ? { presentation } : {}) } }
-      const derived = runtimeEventInputFor(this.events.get(taskId) ?? [], taskId, runId, projectedInput)
-      const event = await this.postgresState.appendEvent(this.getTask(taskId), { ...derived, createdAt: new Date(derived.createdAt) })
-      this.events.set(taskId, [...(this.events.get(taskId) ?? []), event])
+      const event = await this.postgresState.appendEvent(this.getTask(taskId), { ...projectedInput, runId, createdAt: new Date() })
+      this.events.set(taskId, [...(this.events.get(taskId) ?? []).filter((candidate) => candidate.id !== event.id), event].sort((a, b) => a.sequence - b.sequence))
       if (input.type === 'assistant_text_delta' && input.content) await this.appendAssistantDelta(taskId, input.content)
       if (input.type === 'run_completed') await this.finishTurn(taskId, 'completed')
       if (input.type === 'run_failed') await this.finishTurn(taskId, 'failed')
@@ -1377,7 +1376,36 @@ export class TaskStore {
 
   subscribe(taskId: string, listener: (event: RuntimeEvent) => void) {
     this.emitter.on(taskId, listener)
-    return () => this.emitter.off(taskId, listener)
+    let closed = false
+    let lastSequence = this.events.get(taskId)?.at(-1)?.sequence ?? -1
+    let polling = false
+    const poll = async () => {
+      if (closed || polling || !this.postgresState) return
+      const task = this.tasks.get(taskId)
+      if (!task?.ownerUserId) return
+      polling = true
+      try {
+        const durable = await this.postgresState.listEvents(task)
+        const pending = durable.filter((event) => event.sequence > lastSequence).sort((a, b) => a.sequence - b.sequence)
+        this.events.set(taskId, durable)
+        for (const event of pending) {
+          lastSequence = event.sequence
+          listener(event)
+        }
+      } catch {
+        // The in-process emitter remains the low-latency path. A transient
+        // poll failure is retried on the next interval and never leaks DB data.
+      } finally {
+        polling = false
+      }
+    }
+    const poller = this.postgresState ? setInterval(() => { void poll() }, 250) : undefined
+    return () => {
+      if (closed) return
+      closed = true
+      if (poller) clearInterval(poller)
+      this.emitter.off(taskId, listener)
+    }
   }
 
   workspacePath(taskId: string, relativePath = '') {
