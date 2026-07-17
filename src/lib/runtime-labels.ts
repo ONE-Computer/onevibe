@@ -7,6 +7,7 @@ const labels: Record<Task['provider'], string> = {
   agentcore: 'AWS AgentCore · LiteLLM route',
   onecomputer: 'ONEComputer sandbox',
   remote: 'Remote runtime',
+  a2a: 'A2A Agent',
 }
 
 export const providerLabel = (provider: Task['provider']) => labels[provider]

@@ -157,7 +157,7 @@ export type Task = {
   organizationId?: string
   title: string
   prompt: string
-  provider: 'demo' | 'claude_sdk' | 'codex' | 'agentcore' | 'onecomputer' | 'remote'
+  provider: 'demo' | 'claude_sdk' | 'codex' | 'agentcore' | 'onecomputer' | 'remote' | 'a2a'
   mode: TaskMode
   skills: TaskSkill[]
   tags: string[]
