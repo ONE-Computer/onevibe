@@ -26,6 +26,7 @@
 - This is not a production switch: `TaskStore` remains SQLite-backed, the full repository surface is not yet async, and `DATABASE_URL` still fails closed. No model traffic is involved; the LiteLLM-only routing rule is unchanged.
 - The composed `PostgresStateCoordinator` now has a disposable restart proof (`npm run e2e:postgres-state`) covering metadata reload, durable user/assistant messages, runtime-event append, and turn completion across a coordinator restart. This is an integration seam, not the active driver: the running `TaskStore` remains SQLite-backed until its complete synchronous/async surface, transaction boundaries, idempotency, and runtime selection are migrated.
 - Commit `c9e155b` extends that proof to owner-scoped native envelopes, projection links, monotonic projector offsets, replay/conflict handling, and restart recovery. The methods mirror the durable SQLite native-event contract, but native ingestion is still not a single cross-repository Postgres transaction and `TaskStore` remains SQLite-backed.
+- The coordinator now owns one shared raw postgres-js client for chat, metadata, and operations, plus a separate Drizzle client for Better Auth. This separation is deliberate: Drizzle mutates date/JSON serializers on the client it receives, and sharing that client caused raw repository Date parameters to fail. The corrected disposable `npm run e2e:postgres-state` proof passes again.
 
 ## 2026-07-17 — extend the Postgres target contract for durable identity and audit
 

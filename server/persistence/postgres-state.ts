@@ -1,8 +1,11 @@
 import type { NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset } from './contracts.js'
+import postgres, { type Sql } from 'postgres'
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import * as schema from '../db/schema.js'
 import type { ChatMessage, EventInput, Project, RuntimeEvent, Task, TaskSchedule } from '../types.js'
-import { createPostgresChatRepository, type PostgresChatRepository, type PostgresChatMessage, type PostgresRuntimeEventRow } from './postgres-chat.js'
-import { createPostgresMetadataRepository, type PostgresMetadataRepository } from './postgres-metadata.js'
-import { createPostgresOperationsRepository, type PostgresOperationsRepository } from './postgres-operations.js'
+import { PostgresChatRepository, type PostgresChatMessage, type PostgresRuntimeEventRow } from './postgres-chat.js'
+import { PostgresMetadataRepository } from './postgres-metadata.js'
+import { PostgresOperationsRepository } from './postgres-operations.js'
 
 export type PostgresStateConfig = { readonly maxConnections?: number; readonly connectTimeoutSeconds?: number }
 
@@ -25,23 +28,36 @@ const eventFromRow = (row: PostgresRuntimeEventRow): RuntimeEvent => ({
 export type PostgresStateSnapshot = { projects: Project[]; tasks: Task[]; schedules: TaskSchedule[]; messages: Map<string, ChatMessage[]>; events: Map<string, RuntimeEvent[]> }
 
 export class PostgresStateCoordinator {
+  readonly #sql: Sql<Record<string, never>>
+  readonly #authSql: Sql<Record<string, never>>
+  readonly #database: PostgresJsDatabase<typeof schema>
   readonly #chat: PostgresChatRepository
   readonly #metadata: PostgresMetadataRepository
   readonly #operations: PostgresOperationsRepository
 
   constructor(databaseUrl: string, config: PostgresStateConfig = {}) {
-    const chat = createPostgresChatRepository(databaseUrl, config)
-    const metadata = createPostgresMetadataRepository(databaseUrl, config)
-    const operations = createPostgresOperationsRepository(databaseUrl, config)
-    this.#chat = chat.repository
-    this.#metadata = metadata.repository
-    this.#operations = operations.repository
-    this.#close = async () => { await chat.close(); await metadata.close(); await operations.close() }
+    this.#sql = postgres(databaseUrl, { max: config.maxConnections ?? 8, connect_timeout: config.connectTimeoutSeconds ?? 5, prepare: false }) as Sql<Record<string, never>>
+    // Drizzle mutates the client's date/json serializers when it is
+    // constructed. Keep Better Auth on a dedicated client so the raw
+    // repository SQL retains postgres-js's normal Date serialization.
+    this.#authSql = postgres(databaseUrl, { max: 2, connect_timeout: config.connectTimeoutSeconds ?? 5, prepare: false }) as Sql<Record<string, never>>
+    this.#database = drizzle(this.#authSql, { schema })
+    this.#chat = new PostgresChatRepository(this.#sql)
+    this.#metadata = new PostgresMetadataRepository(this.#sql)
+    this.#operations = new PostgresOperationsRepository(this.#sql)
+    this.#close = async () => { await Promise.all([this.#sql.end({ timeout: 5 }), this.#authSql.end({ timeout: 5 })]) }
   }
 
   #close: () => Promise<void>
 
   async close() { await this.#close() }
+
+  /**
+   * Better Auth uses a dedicated reviewed Postgres client owned by this
+   * coordinator because the Drizzle adapter mutates driver serializers.
+   * Callers must not close this handle independently.
+   */
+  databaseHandle(): PostgresJsDatabase<typeof schema> { return this.#database }
 
   async load(ownerUserId?: string): Promise<PostgresStateSnapshot> {
     const metadata = await this.#metadata.load(ownerUserId)

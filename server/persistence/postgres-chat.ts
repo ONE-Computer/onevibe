@@ -2,7 +2,7 @@ import postgres, { type Sql, type TransactionSql } from 'postgres'
 import type { NativeEventProjectionRecord, NativeEventRecord, NativeProjectionOffset } from './contracts.js'
 import { RecordNotFoundError, OptimisticConflictError } from './errors.js'
 
-type ChatSql = Sql<Record<string, never>>
+export type PostgresChatSql = Sql<Record<string, never>>
 type ChatTransaction = TransactionSql<Record<string, never>>
 
 export type PostgresChatConfig = {
@@ -166,7 +166,7 @@ const turnFromRow = (row: TurnRow, replayed: boolean): PostgresChatTurn => ({
   replayed,
 })
 
-const requireOwnerConversation = async (sql: ChatSql | ChatTransaction, conversationId: string, ownerUserId: string): Promise<ConversationRow> => {
+const requireOwnerConversation = async (sql: PostgresChatSql | ChatTransaction, conversationId: string, ownerUserId: string): Promise<ConversationRow> => {
   const rows = await sql<ConversationRow[]>`
     SELECT id, owner_user_id, title, status, created_at, updated_at
     FROM conversation
@@ -178,7 +178,7 @@ const requireOwnerConversation = async (sql: ChatSql | ChatTransaction, conversa
   return conversation
 }
 
-const requireOwnerTask = async (sql: ChatSql | ChatTransaction, taskId: string, conversationId: string, ownerUserId: string) => {
+const requireOwnerTask = async (sql: PostgresChatSql | ChatTransaction, taskId: string, conversationId: string, ownerUserId: string) => {
   const rows = await sql<{ id: string }[]>`
     SELECT id
     FROM task
@@ -188,7 +188,7 @@ const requireOwnerTask = async (sql: ChatSql | ChatTransaction, taskId: string, 
   if (!rows[0]) throw new RecordNotFoundError(`Task ${taskId} does not belong to this owner conversation`)
 }
 
-const requireOwnerConversationTask = async (sql: ChatSql | ChatTransaction, conversationId: string, ownerUserId: string): Promise<string> => {
+const requireOwnerConversationTask = async (sql: PostgresChatSql | ChatTransaction, conversationId: string, ownerUserId: string): Promise<string> => {
   const rows = await sql<{ id: string }[]>`
     SELECT t.id
     FROM task t
@@ -215,9 +215,9 @@ const messageFromRow = (row: MessageRow): PostgresChatMessage => ({
 })
 
 export class PostgresChatRepository {
-  readonly #sql: ChatSql
+  readonly #sql: PostgresChatSql
 
-  constructor(sql: ChatSql) {
+  constructor(sql: PostgresChatSql) {
     this.#sql = sql
   }
 
@@ -531,5 +531,5 @@ export class PostgresChatRepository {
 
 export const createPostgresChatRepository = (databaseUrl: string, config: PostgresChatConfig = {}) => {
   const sql = postgres(databaseUrl, { max: config.maxConnections ?? 4, connect_timeout: config.connectTimeoutSeconds ?? 5, prepare: false })
-  return { repository: new PostgresChatRepository(sql as ChatSql), close: () => sql.end({ timeout: 5 }) }
+  return { repository: new PostgresChatRepository(sql as PostgresChatSql), close: () => sql.end({ timeout: 5 }) }
 }
