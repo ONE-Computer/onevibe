@@ -1,5 +1,14 @@
 # ONEVibe Changelog
 
+---
+
+## [Unreleased]
+
+### Tests
+- `server/theme-package.test.ts`: added slot-fallback, no-package-selected null, missing-manifest throw, and caller-catch rollback simulation tests. Gate: 315 tests / 63 files ✓
+
+---
+
 All notable changes to ONEVibe are documented here.
 Format: `## [version] — date` · sections: Added / Changed / Fixed / Security / Tests / Docs
 
