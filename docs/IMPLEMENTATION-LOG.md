@@ -1,10 +1,14 @@
 # Implementation log
 
+## 2026-07-17 — protected LiteLLM document and skills golden acceptance
+
+- The full `npm run e2e:golden` flow passed through the server-controlled LiteLLM relay using explicit router alias `claude-sonnet-5` and the documented 15-minute turn deadline (`ONEVIBE_TURN_TIMEOUT_MS=900000`). Task `task_93c3a98da5964b` selected and materialized `document`/`security_review` skills, completed two durable Claude turns, emitted 5 live SSE frames and 86 suffix-replayed frames, preserved `README.md`, verified the evidence chain, recovered the transcript/session after API restart, recovered server-side search, and proved a distinct isolated task. Boundary: `executionBoundary=host_process`; no ONEComputer, microVM, OpenVTC, or production egress claim.
+- Earlier 60–120s runs timed out while the provider was still executing governed tools. Those were diagnostic deadline probes below the product default, not evidence of a missing-terminal bug. The timeout remains fail-closed and no synthetic artifact fallback was added.
+
 ## 2026-07-17 — protected LiteLLM chat acceptance rerun
 
 - `npm run e2e:chat` passed against the protected local LiteLLM relay with the explicit router alias `claude-sonnet-5` (the handover bundle's raw `LITELLM_MODEL` alias is not accepted by this router). The run proved two durable chat turns, 8 live SSE frames, 35 suffix-replayed frames, a bounded Bash evidence call, restart recovery, a valid evidence chain, and idempotent failure/retry recovery. Boundary: `executionBoundary=host_process`; no ONEComputer, microVM, OpenVTC, or production egress claim.
-- The broader `npm run e2e:golden` document-mode flow was also attempted with a 60-second turn deadline and timed out before terminal completion after provider stream events. It is not recorded as passing; document-mode provider latency/termination remains an acceptance gap.
-- A focused diagnostic task (`task_728f380252044d`) reproduced the same boundary with a 90-second deadline: the durable plan advanced through `scope`, `workspace`, and `build`; governed `set_task_plan`, `Bash`, and `Read` calls completed; assistant text continued streaming; no terminal result arrived before `run_failed` with `failureReason=turn_timeout`. The adapter's timeout/fail-closed behavior is working, but document-mode completion remains P1-10.
+- Earlier bounded document probes (60s and 90s) timed out after governed tool calls; those runs remain useful evidence that short deadlines fail closed, but they are superseded by the passing product-deadline golden run above.
 
 ## 2026-07-17 — recoverable staged-file/task-metadata promotion proof
 

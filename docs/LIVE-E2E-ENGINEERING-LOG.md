@@ -2,11 +2,15 @@
 
 This is the durable failure-and-evidence log for the backend POC. It records observed facts and fixes so future agents do not repeat the same experiments.
 
+## 2026-07-17 — protected LiteLLM document and skills golden acceptance
+
+- The full `npm run e2e:golden` flow passed with explicit router alias `claude-sonnet-5` and the documented 15-minute turn deadline. Task `task_93c3a98da5964b` materialized the selected skills, completed two Claude turns, produced 5 live and 86 suffix-replayed SSE frames, preserved the README artifact, verified evidence, recovered after API restart, recovered server-side search, and proved separate-task identity/isolation.
+- Boundary: this is a protected host-process local proof. It does not prove ONEComputer/microVM/OpenVTC isolation or production egress controls.
+
 ## 2026-07-17 — protected LiteLLM chat acceptance rerun
 
 - `npm run e2e:chat` passed with the explicit `claude-sonnet-5` router alias: 2 durable chat turns, 8 live SSE frames, 35 suffix-replayed frames, one bounded Bash call, restart recovery, valid evidence, and failure/retry recovery. This is host-process local provider evidence only.
-- The document-mode `npm run e2e:golden` attempt was bounded to a 60-second turn deadline and failed closed with `failureReason=turn_timeout` after provider stream events without a terminal result. The router was reachable and the model alias was valid; document-mode completion latency/termination remains open and must not be represented as a passing artifact gate.
-- Diagnostic task `task_728f380252044d` reproduced the boundary at 90 seconds: `scope` and `workspace` completed, `build` began, governed `set_task_plan`, `Bash`, and `Read` calls completed, assistant text continued streaming, and the run failed closed with `failureReason=turn_timeout` before `verify`/`deliver`. This is tracked as P1-10; no document artifact fallback was added.
+- Earlier 60s/90s document probes failed closed with `failureReason=turn_timeout` while the provider was still executing governed tools. They were below the documented product deadline; no document artifact fallback was added.
 
 ## 2026-07-17 — staged-file/task-metadata promotion recovery proof
 
