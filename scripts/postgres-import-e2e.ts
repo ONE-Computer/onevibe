@@ -36,12 +36,13 @@ const main = async () => {
     const projectFile = projectWithFile.files[0]!
     const before = await source.readProjectFile(project.id, projectFile.path)
     await source.updateProjectFile(project.id, projectFile.path, 'Imported project context v2.', before.contentHash)
-    const task = await source.createTask('Import durable bytes', 'demo', 'document', project.id, undefined, [], [], [], ownerUserId)
+    const attachment = { name: 'private.txt', path: 'inputs/01-private.txt', size: Buffer.byteLength('private input'), mimeType: 'text/plain' }
+    const task = await source.createTask('Import durable bytes', 'demo', 'document', project.id, undefined, [], [attachment], [], ownerUserId)
     await source.writeWorkspaceFile(task.id, 'README.md', '# Imported workspace\n')
     await source.writeWorkspaceBytes(task.id, 'data.bin', Buffer.from([0, 1, 2, 255]))
     const version = await source.createWorkspaceVersion(task.id, 'Import snapshot')
     assert.ok(version)
-    await source.writeWorkspaceFile(task.id, 'inputs/private.txt', 'private input')
+    await source.writeWorkspaceFile(task.id, attachment.path, 'private input')
     await source.beginTurn(task.id, 'Import native trace', 'demo')
     await source.ingestNativeEvent(task.id, {
       source: 'claude_agent_sdk', sourceEventId: 'sdk-import-0', sourceSequence: 0, nativeType: 'tool_use',
@@ -60,7 +61,7 @@ const main = async () => {
       assert.equal(await imported.readWorkspaceFile(task.id, 'README.md'), '# Imported workspace\n')
       assert.deepEqual([...await imported.readWorkspaceBytes(task.id, 'data.bin')], [0, 1, 2, 255])
     assert.equal((await imported.listWorkspaceVersions(task.id)).length, 1)
-      assert.equal(await imported.readWorkspaceFile(task.id, 'inputs/private.txt'), 'private input')
+      assert.equal(await imported.readWorkspaceFile(task.id, attachment.path), 'private input')
       assert.equal((await imported.readProjectFile(project.id, projectFile.path, ownerUserId)).content, 'Imported project context v2.')
       assert.equal(imported.listProjectFileVersions(project.id, projectFile.path, ownerUserId).length, 1)
       assert.equal((await imported.listNativeEvents(task.id)).length, 1)

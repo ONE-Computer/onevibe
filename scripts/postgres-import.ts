@@ -55,6 +55,12 @@ const run = async () => {
     counts.events += store.listEvents(task.id).length
     counts.nativeEvents += (await store.listNativeEvents(task.id)).length
     counts.versions += (await store.listWorkspaceVersions(task.id)).length
+    const workspaceFiles = new Map((await store.listWorkspaceFiles(task.id)).map((file) => [file.path, file]))
+    for (const attachment of task.attachments) {
+      const file = workspaceFiles.get(attachment.path)
+      if (!file) throw new Error(`Task ${task.id} attachment ${attachment.path} is missing from the legacy workspace`)
+      if (file.size !== attachment.size) throw new Error(`Task ${task.id} attachment ${attachment.path} size metadata does not match workspace bytes`)
+    }
   }
   if (options.dryRun) {
     console.log(JSON.stringify({ dryRun: true, dataRoot: options.dataRoot, owners: [...owners], counts }, null, 2))
