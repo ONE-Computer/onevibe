@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Added
+- Streaming cursor (`src/components/AssistantThread.tsx`, `src/index.css`): blinking caret (`.streaming-cursor`) rendered at the end of the actively-streaming assistant text part, replacing the always-on bottom typing dots while text streams; respects `prefers-reduced-motion`
+
 ### Changed
 - Add CSS motion tokens (`--duration-instant/fast/normal/slow`, `--ease-standard/decelerate/accelerate/spring`) to `:root` in `src/index.css`
 - Microanimations on sidebar nav items (translateX + spring), task rows (scale hover), buttons (scale active), running status dot (pulse), send button (lift on hover)

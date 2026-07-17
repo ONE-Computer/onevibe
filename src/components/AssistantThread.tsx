@@ -85,10 +85,10 @@ const AssistantMessage = () => {
   return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb" aria-hidden="true">O</div><div className="aui-assistant-message-body"><header><small>{running ? 'Writing…' : timestamp(createdAt)}</small>{running && <span className="aui-live-label"><i /> Live</span>}</header><WorkingTrace /><MessagePrimitive.GroupedParts groupBy={groupPartByType({ 'tool-call': ['group-tool'] })}>{({ part, children }) => {
     if (part.type === 'group-tool') return <ToolGroup count={part.indices.length} active={part.status.type === 'running'}>{children}</ToolGroup>
     if (part.type === 'tool-call') return <ToolCallCard {...part} />
-    if (part.type === 'text') return <MarkdownText />
+    if (part.type === 'text') return <><MarkdownText />{part.status?.type === 'running' && <span className="streaming-cursor" aria-hidden="true" />}</>
     if (part.type === 'indicator') return <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>
     return null
-  }}</MessagePrimitive.GroupedParts><MessagePrimitive.Error><div className="aui-message-error"><TriangleAlert size={14} /><ErrorPrimitive.Message /></div></MessagePrimitive.Error><ArtifactCards artifacts={artifacts} />{running && <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>}<MessageActions /></div></MessagePrimitive.Root>
+  }}</MessagePrimitive.GroupedParts><MessagePrimitive.Error><div className="aui-message-error"><TriangleAlert size={14} /><ErrorPrimitive.Message /></div></MessagePrimitive.Error><ArtifactCards artifacts={artifacts} /><MessageActions /></div></MessagePrimitive.Root>
 }
 
 type MessageRow = { id: string; role: 'user' | 'assistant' | 'system' }
