@@ -1,5 +1,11 @@
 # ONEVibe live E2E engineering log
 
+## 2026-07-17 — deployment-time ThemePackage manifest boundary
+
+- Focused package tests pass for bounded manifest parsing, exact operator allow-list selection, host-owned route IDs, relative-path rejection, token-default schema reuse, external integrity pin enforcement, symlink-safe resolution, and SHA-256 tamper detection.
+- `loadThemePackageManifest` has no tenant/request-controlled import path and performs no extension-code execution. The package name, root, manifest, version, and digests are deployment inputs only; a package cannot self-attest its own integrity.
+- Static-build/CSP/slot fallback/rollback integration remains intentionally open; the current proof must not be read as a claim that theme packages are active in the React runtime.
+
 ## 2026-07-17 — executable theme acceptance against disposable Postgres
 
 - `npm run e2e:themes` passed with three fixture-only profiles and static checks for base fallback, server-controlled scope precedence, contrast, sans-serif enforcement, typed-content markup boundaries, reduced motion, and credential-free bounded asset loading.

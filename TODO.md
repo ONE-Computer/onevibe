@@ -171,8 +171,8 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ### P7-08 — Tier 3 deployment-time extension package (P2, after P7-02/P7-04)
 
-- [ ] Define and document a versioned `ThemePackage` contract for page overrides, named slots, routes, CSS, and token defaults.
-- [ ] Load only packages from `ONEVIBE_ALLOWED_THEME_PACKAGES`, verify package version/integrity at deployment, and fail closed on invalid exports.
+- [x] Define and document a versioned `ThemePackage` manifest contract for an operator-pinned entry artifact, host-owned slots/routes, and token defaults in `docs/THEME-PACKAGE-CONTRACT.md`; CSS, arbitrary paths, and runtime imports are explicitly excluded.
+- [x] Add a fail-closed manifest loader using `ONEVIBE_ALLOWED_THEME_PACKAGES`, operator-only selection/version/integrity/root/manifest paths, semver, bounded regular files, symlink-safe relative paths, and SHA-256 checks. It deliberately stops before executing extension code.
 - [ ] Add slot fallback, package isolation, static-build, CSP, and rollback tests; package code must not receive raw secrets or become an approval authority.
 
 ### P7-09 — Release evidence and operations (P1 before production)
