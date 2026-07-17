@@ -13,6 +13,12 @@
 - Added a metadata-only `theme.audit` diagnostics projection for authenticated Postgres owners: tenant count, event count, latest operation, and latest event time. It never returns theme JSON, actor IDs, uploaded bytes, package contents, or secrets; local SQLite reports theme persistence as unavailable.
 - Extended `npm run e2e:postgres-auth-http` to assert the real persisted sequence `created → updated → reset`, owner scope, and the bounded diagnostics projection. No new migration was required.
 
+## 2026-07-17 — fixture-only theme preview boundary
+
+- Added `server/theme-reference-profiles.ts` and focused tests for exact, checked-in `reference-*` profiles. Non-production `ONEVIBE_TENANT_ID` preview responses are explicitly `persistent=false` and `previewOnly=true`; arbitrary IDs and production configuration fail closed to the base theme.
+- The fixture loader is read-only and is not connected to mutation routes, runtime selection, credentials, approvals, evidence, or sandbox policy. This enables visual QA without simulating a durable tenant save.
+- Browser smoke through a dedicated fixture API/web pair rendered the institutional profile with `data-tenant-theme=reference-institutional`, the configured hero/feature content, one app shell, and no horizontal overflow at the default viewport. Explicit desktop/mobile screenshot capture timed out in the browser backend and was not recorded as visual evidence.
+
 ## 2026-07-17 — reference profiles and executable theme acceptance gate
 
 - Added three fixture-only profiles (`reference-institutional`, `reference-financial`, and `reference-philanthropic`) with safe content, WCAG-passing navigation/page color pairs, no customer credentials/assets, and the sans-serif-only font contract.

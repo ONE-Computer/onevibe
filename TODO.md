@@ -166,6 +166,7 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 ### P7-07 — Reference tenant profiles and acceptance matrix (P2)
 
 - [x] Add non-production, fixture-only reference profiles for institutional, financial, and philanthropic visual systems, with no customer credentials or proprietary assets. `docs/fixtures/themes/reference-profiles.json` is schema-validated and uses the sans-serif-only contract.
+- [x] Add a read-only, exact-ID fixture preview path via `ONEVIBE_TENANT_ID=reference-*`; it is disabled in production, returns `persistent: false`/`previewOnly: true`, and cannot select mutations, runtime policy, credentials, approvals, or sandbox behavior.
 - [ ] Verify base theme plus each profile at desktop/mobile sizes, light/dark modes, keyboard navigation, reduced motion, WCAG contrast, and no-overflow conditions.
 - [ ] Verify that theme changes do not alter runtime readiness, LiteLLM routing, task ownership, approval authority, evidence chain, or artifact behavior.
 

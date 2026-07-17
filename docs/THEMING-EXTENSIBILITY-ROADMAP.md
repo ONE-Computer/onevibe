@@ -8,7 +8,7 @@
 
 This is planning material, not evidence that the feature exists. The implementation backlog is P7-01 through P7-09 in `TODO.md`.
 
-Current local evidence now covers P7-03/P7-04 persistence and runtime projection, P7-05/P7-06 owner-scoped Appearance/Homepage controls, P7-07 fixture profiles, P7-09 `npm run e2e:themes`, owner-scoped theme audit counters in diagnostics, and the P7-08 manifest-only package contract. The P7-08 loader verifies operator-selected artifacts but intentionally does not execute package code until static-build, CSP, slot isolation, and rollback controls are implemented.
+Current local evidence now covers P7-03/P7-04 persistence and runtime projection, P7-05/P7-06 owner-scoped Appearance/Homepage controls, P7-07 fixture profiles plus an exact-ID non-production preview loader, P7-09 `npm run e2e:themes`, owner-scoped theme audit counters in diagnostics, and the P7-08 manifest-only package contract. The P7-08 loader verifies operator-selected artifacts but intentionally does not execute package code until static-build, CSP, slot isolation, and rollback controls are implemented.
 
 ## Decisions and constraints
 

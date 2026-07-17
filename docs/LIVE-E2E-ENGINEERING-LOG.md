@@ -12,6 +12,12 @@
 - `npm run e2e:postgres-auth-http` now asserts `theme.audit` after a seeded theme plus update/reset: one owner-visible tenant, three events, latest operation `reset`, and an ISO timestamp. The response is metadata-only and remains owner-scoped.
 - This closes the local diagnostics/documentation slice of P7-09. Managed deployment, PITR/retention, incident automation, and full visual/runtime/artifact invariance remain open.
 
+## 2026-07-17 — read-only reference theme preview
+
+- Added exact-ID non-production preview support for the three checked-in reference profiles. The server returns `source=fixture`, `persistent=false`, and `previewOnly=true`; production ignores `ONEVIBE_TENANT_ID` and arbitrary/customer IDs resolve to the base theme.
+- Focused loader tests pass. Browser screenshots for each fixture, mobile/desktop, light/dark, keyboard, and reduced-motion remain required before P7-07 can be closed.
+- Dedicated local fixture API/web smoke rendered the institutional profile and verified the theme data attribute, configured headline, one app shell, and no-overflow behavior. The explicit desktop/mobile screenshot attempt timed out in the browser backend; no screenshot is claimed from that attempt.
+
 ## 2026-07-17 — executable theme acceptance against disposable Postgres
 
 - `npm run e2e:themes` passed with three fixture-only profiles and static checks for base fallback, server-controlled scope precedence, contrast, sans-serif enforcement, typed-content markup boundaries, reduced motion, and credential-free bounded asset loading.

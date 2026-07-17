@@ -34,6 +34,7 @@ import { resolvePersistenceConfig } from './persistence/driver-config.js'
 import { probeMcpConfig } from './mcp-facade.js'
 import { IdempotencyConflictError, OptimisticConflictError, RecordNotFoundError, ThemeVersionConflictError } from './persistence/errors.js'
 import { baseTenantThemeConfig, tenantThemeConfigSchema, type TenantThemeConfig } from './theme-config.js'
+import { loadReferenceThemeProfile } from './theme-reference-profiles.js'
 
 const PORT = Number(process.env.ONEVIBE_API_PORT ?? 4311)
 const HOST = process.env.ONEVIBE_API_HOST ?? '127.0.0.1'
@@ -599,6 +600,8 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     })
   }
   if (request.method === 'GET' && url.pathname === '/api/theme/current') {
+    const referenceTheme = await loadReferenceThemeProfile(process.env.ONEVIBE_TENANT_ID)
+    if (referenceTheme) return json(response, 200, { tenantId: referenceTheme.tenantId, config: referenceTheme, source: 'fixture', persistent: false, previewOnly: true })
     const selectedTenantId = process.env.ONEVIBE_THEME_TENANT_ID?.trim()
     if (!selectedTenantId || persistenceConfig.active !== 'postgres') return json(response, 200, { config: baseTenantThemeConfig(), source: 'base', persistent: false })
     if (!actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })

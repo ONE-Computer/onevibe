@@ -63,6 +63,7 @@ Managed production operations still require encrypted snapshots/PITR, retention,
 - Do not roll back theme data by deleting event rows or editing JSON in place. Roll back the application image first; if a presentation configuration must be reverted, use the owner-scoped Reset action or a new reviewed version so the audit history remains intact.
 - Deployment-time packages are not active runtime plugins. Before any future package runtime is enabled, the release must verify the operator-selected package name/version/integrity pin, static-build registry, CSP, slot fallback/error boundary, package isolation, and rollback image. Invalid package verification must fail readiness rather than silently selecting customer-controlled code.
 - Invalidate browser/theme caches only after the versioned server response is committed. Never cache a tenant response under a shared key or expose a tenant selector in the browser.
+- `ONEVIBE_TENANT_ID` is a local visual-QA fixture switch only. Never set it in production; production ignores it by contract. Do not use it as a substitute for authenticated Postgres tenant resolution.
 
 ## Managed deployment
 
