@@ -300,7 +300,7 @@ export class TaskStore {
     return { ready: Boolean(this.database && this.unitOfWork), driver: 'sqlite' as const, detail: 'SQLite TaskStore is initialized.' }
   }
 
-  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = [], attachments: TaskAttachment[] = [], skills: TaskSkill[] = [], ownerUserId?: string): Promise<Task> {
+  async createTask(prompt: string, provider: Task['provider'], mode: TaskMode = 'general', projectId = 'project_onevibe', scheduleId?: string, references: string[] = [], attachments: TaskAttachment[] = [], skills: TaskSkill[] = [], ownerUserId?: string, model?: string): Promise<Task> {
     const project = this.getProject(projectId, ownerUserId)
     const now = new Date().toISOString()
     const id = `task_${randomUUID().replaceAll('-', '').slice(0, 14)}`
@@ -311,6 +311,7 @@ export class TaskStore {
       title: prompt.length > 56 ? `${prompt.slice(0, 53).trim()}…` : prompt,
       prompt,
       provider,
+      ...(model ? { model } : {}),
       mode,
       skills,
       tags: [],
@@ -1891,7 +1892,7 @@ export class TaskStore {
     if (boundary < 0) throw new Error('The selected message is not part of this conversation')
     if (sourceMessages[boundary]?.role !== 'user') throw new Error('Conversation branches must start from a user message')
 
-    const fork = await this.createTask(newPrompt, source.provider, source.mode, source.projectId, undefined, source.references, source.attachments, source.skills, source.ownerUserId)
+    const fork = await this.createTask(newPrompt, source.provider, source.mode, source.projectId, undefined, source.references, source.attachments, source.skills, source.ownerUserId, source.model)
     const forkedAt = new Date().toISOString()
     await this.updateTask(fork.id, { parentTaskId: source.id, forkedFromMessageId: fromMessageId, forkedAt })
     await this.copyWorkspace(source.id, fork.id)

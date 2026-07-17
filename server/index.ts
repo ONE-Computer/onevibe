@@ -15,6 +15,7 @@ import { fetchMarketplaceSkill, loadMarketplaceCatalog, publicMarketplaceEntry }
 import { RemoteRuntimeAdapter } from './remote-runner.js'
 import { A2aRuntimeAdapter } from './a2a-adapter.js'
 import { KimiRuntimeAdapter } from './kimi-runner.js'
+import { describeModel } from './model-registry.js'
 import type { RuntimeAdapter } from './runtime-adapter.js'
 import { TaskStore } from './store.js'
 import { UserInputBroker } from './user-input-broker.js'
@@ -180,6 +181,7 @@ const createTaskInput = z.object({
   references: z.array(referenceUrl).max(8).default([]),
   attachments: z.array(taskAttachment).max(4).default([]),
   skills: z.array(taskSkill).max(4).default([]),
+  model: z.string().trim().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,119}$/).optional(),
 })
 const createProjectInput = z.object({ name: z.string().trim().min(2).max(100), context: z.string().trim().max(8_000).default(''), organizationId: z.string().regex(/^org_[a-z0-9]+$/).optional() })
 const updateProjectInput = z.object({ context: z.string().trim().max(8_000) })
@@ -663,6 +665,25 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     await store.reconcileExpiredApprovals(actorUserId)
     return json(response, 200, { tasks: store.listTasks(actorUserId) })
   }
+  if (request.method === 'GET' && url.pathname === '/api/models') {
+    const litellmUrl = (process.env.ONEVIBE_LITELLM_URL ?? 'http://127.0.0.1:4100').trim().replace(/\/+$/, '')
+    const apiKey = process.env.ONEVIBE_LITELLM_API_KEY ?? ''
+    try {
+      const relay = await fetch(`${litellmUrl}/v1/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(5_000),
+      })
+      if (!relay.ok) return json(response, 503, { error: 'Model registry unavailable' })
+      const data = await relay.json() as { data?: Array<{ id?: unknown }> }
+      const models = (Array.isArray(data.data) ? data.data : [])
+        .map((entry) => typeof entry?.id === 'string' ? entry.id : null)
+        .filter((id): id is string => Boolean(id))
+        .map((id) => describeModel(id))
+      return json(response, 200, { models })
+    } catch {
+      return json(response, 503, { error: 'Model registry unavailable' })
+    }
+  }
   if (request.method === 'GET' && url.pathname === '/api/skills') return json(response, 200, { skills: await skillCatalog(actorUserId) })
   if (request.method === 'POST' && url.pathname === '/api/skills/install') {
     const input = z.object({ skillId: taskSkill }).parse(await readBody(request))
@@ -842,7 +863,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const totalAttachmentBytes = normalizedAttachments.reduce((total, attachment) => total + attachment.bytes.byteLength, 0)
     if (totalAttachmentBytes > 1_000_000) throw new RangeError('Task attachments exceed the 1 MiB total limit')
     const attachments = normalizedAttachments.map((attachment, index) => ({ name: attachment.name, path: `inputs/${String(index + 1).padStart(2, '0')}-${attachment.name}`, size: attachment.bytes.byteLength, mimeType: attachment.mimeType }))
-    const task = await store.createTask(input.prompt, provider, input.mode, projectId, undefined, input.references, attachments, requestedSkills, actorUserId)
+    const task = await store.createTask(input.prompt, provider, input.mode, projectId, undefined, input.references, attachments, requestedSkills, actorUserId, input.model)
     await Promise.all(attachments.map((attachment, index) => store.writeWorkspaceBytes(task.id, attachment.path, normalizedAttachments[index]!.bytes)))
     setTimeout(() => executeTask(task.id, input.prompt, false), 25)
     return json(response, 201, task)
@@ -1009,7 +1030,7 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'POST' && segments[3] === 'copy') {
       const source = store.getTask(taskId)
       if (activeRuns.has(taskId)) return json(response, 409, { error: 'Stop the active task before copying it' })
-      const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode, source.projectId, undefined, source.references, [], source.skills, source.ownerUserId)
+      const copied = await store.createTask(`${source.title} — copy`, source.provider, source.mode, source.projectId, undefined, source.references, [], source.skills, source.ownerUserId, source.model)
       const fileCount = await store.copyWorkspace(source.id, copied.id)
       const sourceHead = store.listEvents(source.id).at(-1)?.eventHash ?? 'GENESIS'
       await store.updateTask(copied.id, {

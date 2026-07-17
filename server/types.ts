@@ -158,6 +158,7 @@ export type Task = {
   title: string
   prompt: string
   provider: 'demo' | 'claude_sdk' | 'codex' | 'agentcore' | 'onecomputer' | 'remote' | 'a2a' | 'kimi'
+  model?: string
   mode: TaskMode
   skills: TaskSkill[]
   tags: string[]

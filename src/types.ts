@@ -62,6 +62,7 @@ export type Task = {
   title: string
   prompt: string
   provider: 'demo' | 'claude_sdk' | 'codex' | 'agentcore' | 'onecomputer' | 'remote' | 'a2a' | 'kimi'
+  model?: string
   mode: TaskMode
   skills: TaskSkill[]
   tags: string[]
@@ -126,3 +127,4 @@ export type TenantThemeConfig = {
 export type TenantThemeResponse = { tenantId?: string; config: TenantThemeConfig; source: 'base' | 'tenant'; persistent: boolean; customized?: boolean; version?: number; updatedAt?: string }
 export type TenantThemeSummary = { tenantId: string; organizationId: string; version: number; updatedAt: string }
 export type RuntimeDiagnostics = { modelBoundary: { name: 'LiteLLM'; configured: boolean; directFirstPartyAllowed: false; detail: string }; auth: { enabled: boolean; sessionScoped: boolean; productionReady: false; detail: string }; persistence: { active: 'sqlite'; postgresContract: boolean; runtimeSwitchReady: false; detail: string }; runtime: { providers: RuntimeProviderState[]; defaultProvider?: Task['provider'] }; sandbox: { configured: boolean; reachable?: boolean; boundary: string; detail: string }; mcp: { configuredCount: number; healthyCount: number; checks: Array<{ name: string; status: 'online' | 'offline'; detail: string; toolCount?: number; latencyMs?: number }>; secretValuesAccepted: false; detail: string } }
+export type ModelInfo = { id: string; label: string; provider: string; contextK: number | null; tags: string[] }

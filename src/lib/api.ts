@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, Organization, OrganizationMember, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, TenantThemeConfig, TenantThemeResponse, TenantThemeSummary, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, ModelInfo, Organization, OrganizationMember, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, TenantThemeConfig, TenantThemeResponse, TenantThemeSummary, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 export type SkillCatalogEntry = SkillInstallation
 export type SkillOption = Pick<SkillCatalogEntry, 'id' | 'title' | 'summary' | 'source' | 'installed' | 'contentUrl'> & { selectable?: boolean }
@@ -98,12 +98,14 @@ export const createMcpConfig = async (input: Pick<RuntimeMcpConfig, 'name' | 'co
 }))
 export const deleteMcpConfig = async (id: string) => parse<{ id: string; deleted: true }>(await fetch(`/api/mcp/${encodeURIComponent(id)}`, { method: 'DELETE' }))
 
-export const createTask = async (prompt: string, provider: Task['provider'], mode: TaskMode, projectId = 'project_onevibe', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = []) =>
+export const createTask = async (prompt: string, provider: Task['provider'], mode: TaskMode, projectId = 'project_onevibe', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = [], model?: string) =>
   parse<Task>(await fetch('/api/tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, provider, mode, projectId, references, attachments, skills }),
+    body: JSON.stringify({ prompt, provider, mode, projectId, references, attachments, skills, ...(model ? { model } : {}) }),
   }))
+
+export const listModels = async () => parse<{ models: ModelInfo[] }>(await fetch('/api/models'))
 
 export const listProjects = async () => parse<{ projects: Project[] }>(await fetch('/api/projects'))
 export const createProject = async (name: string, context: string) => parse<Project>(await fetch('/api/projects', {

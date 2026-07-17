@@ -136,10 +136,10 @@ export default function App() {
   }, [queryClient, snapshot, updateTasksCache, upsertConversationCache])
 
   const preferredProvider: Task['provider'] = runtime?.defaultProvider ?? (['claude_sdk', 'onecomputer', 'remote'] as const).map((id) => runtime?.providers.find((candidate) => candidate.id === id && candidate.available)?.id).find((id): id is Task['provider'] => Boolean(id)) ?? 'demo'
-  const startTask = async (prompt: string, provider: Task['provider'] = preferredProvider, mode: TaskMode = 'chat', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = selectedSkills) => {
+  const startTask = async (prompt: string, provider: Task['provider'] = preferredProvider, mode: TaskMode = 'chat', references: string[] = [], attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = [], skills: TaskSkill[] = selectedSkills, model?: string) => {
     setCreating(true)
     try {
-      const task = await createTask(prompt, provider, mode, activeProjectId, references, attachments, skills)
+      const task = await createTask(prompt, provider, mode, activeProjectId, references, attachments, skills, model)
       updateTasksCache((current) => [task, ...current.filter((candidate) => candidate.id !== task.id)])
       upsertConversationCache(conversationSummaryFromTask(task))
       setActiveTaskId(task.id)

@@ -107,7 +107,7 @@ export class CodexRuntimeAdapter extends RuntimeAdapterBase {
     const provider = claudeProviderConfig()
     const endpoint = process.env.ONEVIBE_LITELLM_URL?.trim().replace(/\/+$/, '')
     const key = process.env.ONEVIBE_LITELLM_API_KEY?.trim()
-    const model = process.env.ONEVIBE_CODEX_MODEL?.trim() || provider.model
+    const model = context.task.model ?? (process.env.ONEVIBE_CODEX_MODEL?.trim() || provider.model)
     if (!provider.configured || provider.transport !== 'litellm' || !endpoint || !key) throw new Error('Codex-compatible runtime requires the server-controlled LiteLLM relay.')
     const workspace = context.workingDir ?? context.store.workspacePath(context.task.id)
     await mkdir(workspace, { recursive: true })

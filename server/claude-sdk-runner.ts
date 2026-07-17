@@ -114,7 +114,7 @@ export class ClaudeSdkRuntimeAdapter extends RuntimeAdapterBase {
 
   protected async execute({ task, store, signal, prompt, continuation, executionId, providerRequestId, requestUserInput }: LegacyRuntimeContext) {
     signal.throwIfAborted()
-    const provider = claudeProviderConfig()
+    const provider = claudeProviderConfig(task.model ? { ...process.env, ONEVIBE_LITELLM_MODEL: task.model } : process.env)
     const runLimits = resolveClaudeRunLimits(provider.transport)
     if (!provider.configured) throw new Error('Claude SDK provider is not configured.')
     const workspace = store.workspacePath(task.id)

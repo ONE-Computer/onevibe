@@ -1,10 +1,13 @@
-import { AppWindow, ArrowUp, BarChart3, Bot, ChevronDown, Cloud, FileText, Gamepad2, Globe2, Link2, Monitor, Palette, Paperclip, Presentation, Search, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { AppWindow, ArrowUp, BarChart3, Bot, Check, ChevronDown, Cloud, Cpu, FileText, Gamepad2, Globe2, Link2, Monitor, Palette, Paperclip, Presentation, Search, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import type { RuntimeCapability, RuntimeReadiness, Task, TaskAttachment, TaskMode, TaskSkill } from '../types'
+import { listModels } from '../lib/api'
+import { useComposerStore } from '../lib/stores'
 
 type DraftAttachment = Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string; size: number }
-type Props = { compact?: boolean; busy?: boolean; queueable?: boolean; skills?: TaskSkill[]; runtime?: RuntimeReadiness; initialProvider?: Task['provider']; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[]) => Promise<void> }
+type Props = { compact?: boolean; busy?: boolean; queueable?: boolean; skills?: TaskSkill[]; runtime?: RuntimeReadiness; initialProvider?: Task['provider']; onSubmit: (prompt: string, provider: Task['provider'], mode: TaskMode, references?: string[], attachments?: DraftAttachment[], skills?: TaskSkill[], model?: string) => Promise<void> }
 
 const modeCatalog: Array<{ id: TaskMode; label: string; detail: string; icon: typeof Bot }> = [
   { id: 'chat', label: 'Chat', detail: 'Questions and conversation', icon: Bot },
@@ -39,6 +42,10 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
   const [referencesOpen, setReferencesOpen] = useState(false)
   const [modePickerOpen, setModePickerOpen] = useState(false)
   const [providerPickerOpen, setProviderPickerOpen] = useState(false)
+  const [modelPickerOpen, setModelPickerOpen] = useState(false)
+  const preferredModel = useComposerStore((state) => state.preferredModel)
+  const setPreferredModel = useComposerStore((state) => state.setPreferredModel)
+  const modelsQuery = useQuery({ queryKey: ['models'], queryFn: listModels, staleTime: 60_000, retry: false, refetchOnWindowFocus: false })
   const [attachments, setAttachments] = useState<DraftAttachment[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -67,6 +74,9 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
     return candidate.available && suggestion?.compatible !== false
   })
   const selectedProviderCanRun = selectedProvider.available && selectedSuggestion?.compatible !== false
+  const models = modelsQuery.data?.models ?? []
+  const selectedModel = models.find((candidate) => candidate.id === preferredModel)
+  const modelProviders = [...new Set(models.map((candidate) => candidate.provider))]
 
   useEffect(() => {
     if (providerTouched || !runtime) return
@@ -82,7 +92,7 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
   const submit = async () => {
     const value = prompt.trim()
     if (!value || busy || !runtime || !selectedProviderCanRun) return
-    await onSubmit(value, provider, mode, references, attachments, skills)
+    await onSubmit(value, provider, mode, references, attachments, skills, preferredModel)
     setPrompt('')
     setReferences([])
     setReferenceDraft('')
@@ -114,6 +124,7 @@ export const PromptComposer = ({ compact = false, busy = false, queueable = fals
           <span className="composer-divider" />
           {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={modePickerOpen} onClick={() => setModePickerOpen((value) => !value)}><Monitor size={15} /> {selectedMode.label} <ChevronDown size={13} /></button>{modePickerOpen && <motion.div className="mode-catalog" role="menu" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}>{modeCatalog.map((candidate) => { const Icon = candidate.icon; return <button key={candidate.id} role="menuitem" className={candidate.id === mode ? 'selected' : ''} onClick={() => { setMode(candidate.id); setModePickerOpen(false) }}><Icon size={15} /><span><strong>{candidate.label}</strong><small>{candidate.detail}</small></span>{candidate.id === mode && <ShieldCheck size={13} />}</button> })}</motion.div>}</div>}
           {!compact && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={providerPickerOpen} onClick={() => setProviderPickerOpen((value) => !value)}><span className={`runtime-dot ${selectedProviderCanRun ? 'ready' : 'unavailable'}`} />{provider === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}{selectedProvider.label} <ChevronDown size={13} /></button>{providerPickerOpen && <motion.div className="mode-catalog provider-catalog" role="menu" aria-label={`Choose a runtime for ${selectedMode.label} mode`} initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}><header><strong>Choose runtime</strong><small>{selectedMode.label} · suggestions are advisory</small></header>{rankedProviders.map((candidate) => { const suggestion = suggestionByProvider.get(candidate.id); const compatible = suggestion?.compatible !== false; const selectable = candidate.available && compatible; const recommended = candidate.id === recommendedProvider?.id; return <button key={candidate.id} role="menuitem" className={`${candidate.id === provider ? 'selected ' : ''}${!selectable ? 'incompatible' : ''}`} disabled={!selectable} onClick={() => { setProvider(candidate.id); setProviderTouched(true); setProviderPickerOpen(false) }}><span className={`runtime-dot ${selectable ? 'ready' : 'unavailable'}`} />{candidate.id === 'demo' ? <Sparkles size={15} /> : <Cloud size={15} />}<span className="provider-option-copy"><strong>{candidate.label}{recommended && <em className="recommended-badge">Recommended</em>}</strong><small>{candidate.boundary}</small><span className="provider-capability-list">{candidate.capabilities.map((capability) => <em key={capability}>{capabilityLabels[capability]}</em>)}</span><small className="provider-reason">{selectable ? suggestion?.reason ?? candidate.detail : suggestion?.reason ?? candidate.detail}</small></span>{candidate.id === provider && <ShieldCheck size={13} />}</button> })}</motion.div>}</div>}
+          {!compact && models.length > 0 && <div className="picker-wrap"><button className="mode-button" aria-haspopup="menu" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((value) => !value)}><Cpu size={15} /> {selectedModel?.label ?? preferredModel ?? 'Auto model'} <ChevronDown size={13} /></button>{modelPickerOpen && <motion.div className="mode-catalog model-picker-popover" role="menu" aria-label="Choose a model" initial={{ opacity: 0, y: 6, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }}><header><strong>Choose model</strong><small>Served by the governed LiteLLM relay</small></header><button role="menuitem" className={!preferredModel ? 'selected' : ''} onClick={() => { setPreferredModel(undefined); setModelPickerOpen(false) }}><span className="model-picker-item-copy"><strong>Server default</strong><small>Use the relay-configured model</small></span>{!preferredModel && <Check size={13} />}</button>{modelProviders.map((group) => <div key={group} className="model-picker-group" role="presentation"><span className="model-picker-group-label">{group}</span>{models.filter((candidate) => candidate.provider === group).map((model) => <button key={model.id} role="menuitem" className={model.id === preferredModel ? 'selected' : ''} data-selected={model.id === preferredModel ? '' : undefined} onClick={() => { setPreferredModel(model.id); setModelPickerOpen(false) }}><span className="model-picker-item-copy"><strong>{model.label}</strong><span className="model-picker-meta">{model.tags.map((tag) => <em key={tag} className={`model-tag${tag === 'recommended' ? ' recommended' : ''}`}>{tag}</em>)}{model.contextK !== null && <small>{model.contextK}k ctx</small>}</span></span>{model.id === preferredModel && <Check size={13} />}</button>)}</div>)}</motion.div>}</div>}
         </div>
         <div className="composer-right">
           <button className="send-button" disabled={!prompt.trim() || busy || !runtime || !selectedProviderCanRun} onClick={() => void submit()} aria-label={queueable ? 'Queue guidance for next turn' : 'Start task'}><ArrowUp size={17} /></button>

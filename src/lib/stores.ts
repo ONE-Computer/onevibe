@@ -29,6 +29,15 @@ const initialSkills = (): TaskSkill[] => {
   }
 }
 
+const initialPreferredModel = (): string | undefined => {
+  if (typeof window === 'undefined') return undefined
+  try {
+    return window.localStorage.getItem('onevibe.selected-model') ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
 type UiStore = {
   view: AppView
   activeTaskId: string | null
@@ -62,14 +71,23 @@ export const useUiStore = create<UiStore>((set) => ({
 type ComposerStore = {
   selectedSkills: TaskSkill[]
   creating: boolean
+  preferredModel?: string
   setSelectedSkills: (skills: TaskSkill[] | ((current: TaskSkill[]) => TaskSkill[])) => void
   setCreating: (creating: boolean) => void
+  setPreferredModel: (model: string | undefined) => void
 }
 
 export const useComposerStore = create<ComposerStore>((set) => ({
-  selectedSkills: initialSkills(), creating: false,
+  selectedSkills: initialSkills(), creating: false, preferredModel: initialPreferredModel(),
   setSelectedSkills: (skills) => set((state) => ({ selectedSkills: typeof skills === 'function' ? skills(state.selectedSkills) : skills })),
   setCreating: (creating) => set({ creating }),
+  setPreferredModel: (model) => {
+    try {
+      if (model) window.localStorage.setItem('onevibe.selected-model', model)
+      else window.localStorage.removeItem('onevibe.selected-model')
+    } catch { /* localStorage may be unavailable; selection stays in memory */ }
+    set({ preferredModel: model })
+  },
 }))
 
 type SessionStore = {
