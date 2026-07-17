@@ -347,27 +347,41 @@ export class TaskStore {
     }
   }
 
-  async findActiveRuntimeLease(conversationId: string) {
-    if (this.postgresState) throw new Error('Postgres runtime leases are not integrated into the opt-in TaskStore core slice')
-    this.getTask(conversationId)
+  async findActiveRuntimeLease(conversationId: string, ownerUserId?: string) {
+    const task = this.getTask(conversationId, ownerUserId)
+    if (this.postgresState) {
+      if (!task.ownerUserId) throw new Error('Postgres runtime leases require an owner')
+      return this.postgresState.findActiveRuntimeLease(conversationId, task.ownerUserId)
+    }
     return this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.findActiveByConversation(conversationId))
   }
 
-  async listRuntimeLeases(conversationId: string) {
-    if (this.postgresState) throw new Error('Postgres runtime leases are not integrated into the opt-in TaskStore core slice')
-    this.getTask(conversationId)
+  async listRuntimeLeases(conversationId: string, ownerUserId?: string) {
+    const task = this.getTask(conversationId, ownerUserId)
+    if (this.postgresState) {
+      if (!task.ownerUserId) throw new Error('Postgres runtime leases require an owner')
+      return this.postgresState.listRuntimeLeases(conversationId, task.ownerUserId)
+    }
     return this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.listByConversation(conversationId))
   }
 
-  async insertRuntimeLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number) {
-    if (this.postgresState) throw new Error('Postgres runtime leases are not integrated into the opt-in TaskStore core slice')
-    this.getTask(record.conversationId)
+  async insertRuntimeLease(record: RuntimeLeaseRecord, expectedPreviousGeneration: number, ownerUserId?: string) {
+    const task = this.getTask(record.conversationId, ownerUserId)
+    if (this.postgresState) {
+      if (!task.ownerUserId) throw new Error('Postgres runtime leases require an owner')
+      await this.postgresState.insertRuntimeLease(record, expectedPreviousGeneration, task.ownerUserId)
+      return
+    }
     this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.insert(record, expectedPreviousGeneration))
   }
 
-  async transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord) {
-    if (this.postgresState) throw new Error('Postgres runtime leases are not integrated into the opt-in TaskStore core slice')
-    this.getTask(next.conversationId)
+  async transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord, ownerUserId?: string) {
+    const task = this.getTask(next.conversationId, ownerUserId)
+    if (this.postgresState) {
+      if (!task.ownerUserId) throw new Error('Postgres runtime leases require an owner')
+      await this.postgresState.transitionRuntimeLease(id, expected, next, task.ownerUserId)
+      return
+    }
     this.requireUnitOfWork().run((repositories) => repositories.runtimeLeases.transition(id, expected, next))
   }
 

@@ -80,7 +80,7 @@ describe('RuntimeLeaseService', () => {
 
     await expect(service.acquire(task.id)).rejects.toThrow('provider timeout')
     const unknown = await store.findActiveRuntimeLease(task.id)
-    expect(unknown).toBeDefined()
+    if (!unknown) throw new Error('Expected an unknown runtime lease')
     vi.mocked(client.listSandboxes).mockResolvedValue([{ id: 'sandbox-recovered', allocationIdempotencyKey: unknown.allocationIdempotencyKey }])
 
     const recovered = await service.reconcileUnknown(task.id)

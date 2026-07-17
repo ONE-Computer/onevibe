@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-07-17 — integrate opt-in Postgres runtime leases into TaskStore
+
+- Added owner-checked `PostgresStateCoordinator` wrappers for MCP declarations/audit, organizations/members, skill installations, and generation-fenced runtime leases. The wrappers deliberately document that mutation-plus-audit and organization-plus-owner-membership remain separate repository calls until transaction-aware operations are added.
+- The opt-in `TaskStore(..., { driver: 'postgres', databaseUrl })` now routes its asynchronous lease methods through those coordinator wrappers. SQLite callers retain the existing repository path; production driver selection and `DATABASE_URL` startup behavior remain fail-closed.
+- Extended `npm run e2e:postgres-taskstore` with lease allocation, transition, restart recovery, and wrong-owner/conversation fencing. The disposable PostgreSQL 18 proof reports `leaseAllocation=true`, `leaseTransition=true`, `leaseRestartRecovery=true`, and `leaseOwnerFencing=true`.
+- Verification: `npm run check`, `npm run db:check`, `npm run e2e:postgres-operations`, `npm run e2e:postgres-state`, and `npm run e2e:postgres-taskstore` passed against a fresh PostgreSQL 18 container. Browser evidence was attempted separately but the in-app browser URL policy blocked the localhost reload; no screenshot is claimed.
+
 ## 2026-07-17 — prove owner-scoped Postgres metadata persistence
 
 - Added `server/persistence/postgres-metadata.ts` for owner-scoped project/task/schedule persistence. Task creation transactionally verifies the project owner, creates the durable conversation identity, and inserts the task; project/task/schedule updates use timestamp optimistic-concurrency checks.

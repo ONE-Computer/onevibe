@@ -193,6 +193,8 @@ export class PostgresStateCoordinator {
 
   async transitionRuntimeLease(id: string, expected: RuntimeLeaseFence, next: RuntimeLeaseRecord, ownerUserId: string): Promise<void> {
     await this.#requireOwnedConversation(next.conversationId, ownerUserId)
+    const ownedLease = (await this.#operations.listLeases(next.conversationId)).find((lease) => lease.id === id)
+    if (!ownedLease) throw new RecordNotFoundError(`Runtime lease ${id} does not exist for this owner conversation`)
     await this.#operations.transitionLease(id, expected, next)
   }
 

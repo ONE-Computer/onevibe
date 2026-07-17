@@ -4,6 +4,9 @@ This is the durable failure-and-evidence log for the backend POC. It records obs
 
 ## 2026-07-17 — Postgres native-event and browser verification pass
 
+- A fresh disposable PostgreSQL 18 run applied the full reviewed migration ledger and passed `npm run e2e:postgres-operations`, `npm run e2e:postgres-state`, and `npm run e2e:postgres-taskstore`. The coordinator proof covered MCP audit retention/owner isolation, organization membership, skill restart recovery, and lease transition/restart/owner fencing. The TaskStore proof now covers project/task/chat/event-chain/retry recovery plus lease allocation and transition after closing and reopening the store.
+- Browser QA was retried with the local API on port 4311 and Vite on port 5173. The existing in-app browser tab was claimable, but `tab.reload()` was rejected by Browser Use's localhost URL policy. No browser screenshot or UI acceptance claim is made; the exact desktop/mobile screenshot gate remains open.
+
 - Commit `c9e155b` added owner-scoped native envelope lookup/list/append, projection links, projector offsets, cursor/monotonicity validation, and replay/conflict coverage to the Postgres repository surface.
 - A fresh disposable PostgreSQL 18 run passed `npm run e2e:postgres-chat` and `npm run e2e:postgres-state`: one owner-scoped native event, one projection link, offset sequence `0`, restart recovery, and owner isolation. `npm run check` also passed with 52 test files / 259 tests, build, harness typecheck, and `npm run db:check`.
 - The running application still rejects `DATABASE_URL` and remains SQLite-backed. The coordinator now shares one raw repository pool but native ingestion is not yet one cross-repository transaction; these are explicit P4-01/P4-02 blockers.
