@@ -1143,6 +1143,23 @@ button.model-selector *{color:inherit}
 .priority-chip[data-priority=high]{color:var(--amber);background:color-mix(in srgb,var(--amber) 12%,transparent)}
 .priority-chip[data-priority=medium]{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .priority-chip[data-priority=low]{color:var(--text-faint);background:var(--surface-hover)}
+button.priority-chip{display:inline-flex;align-items:center;gap:3px;cursor:pointer}
+.priority-chip-none{color:var(--text-faint);background:var(--surface-hover)}
+.status-chip{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:600;letter-spacing:.04em;padding:1px 6px;border-radius:var(--radius-4px);line-height:1.4;cursor:pointer;background:var(--surface-hover);color:var(--text-muted)}
+.status-chip>i{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+.status-chip[data-status=in_progress]{color:var(--accent)}
+.status-chip[data-status=done]{color:var(--green)}
+.status-chip[data-status=blocked]{color:var(--amber)}
+.status-chip[data-status=cancelled]{color:var(--red)}
+.chip-picker{position:relative;display:inline-flex}
+.chip-picker-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:40;min-width:120px;display:grid;gap:1px;padding:4px;border:1px solid var(--border-subtle);border-radius:var(--radius-8px);background:var(--surface-raised)}
+.chip-picker-option{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:var(--radius-4px);background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer;text-align:left;white-space:nowrap}
+.chip-picker-option:hover{background:var(--surface-hover);color:var(--text-primary)}
+.chip-picker-option>i{width:6px;height:6px;border-radius:50%;background:var(--text-muted);flex-shrink:0}
+.chip-picker-option>i[data-status=in_progress]{background:var(--accent)}
+.chip-picker-option>i[data-status=done]{background:var(--green)}
+.chip-picker-option>i[data-status=blocked]{background:var(--amber)}
+.chip-picker-option>i[data-status=cancelled]{background:var(--red)}
 .label-chip{font-size:9px;padding:1px 6px;border-radius:var(--radius-4px);background:var(--surface-hover);color:var(--text-muted);line-height:1.4}
 
 /* P12-04: epic breadcrumb chip + epic filter pills */
