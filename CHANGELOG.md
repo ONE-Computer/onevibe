@@ -26,6 +26,7 @@
 
 ### Docs
 - `docs/AUTONOMOUS-ROADMAP.md`: autonomous 7-day sprint roadmap (ONEVibe × ONEComputer × OpenVTI platform vision, honest what-is-real audit, sprint sequencing) — source of truth for autonomous planning while the product owner is away
+- `docs/ONECOMPUTER-MIDDLEWARE-CONTRACT.md` (P11-12): versioned HTTP contract between ONEVibe and the ONEComputer middleware — five endpoints (`GET /onevibe/capabilities`, `POST /onevibe/connector/authorize`, `POST /onevibe/sandbox/run`, `POST /onevibe/approval/webhook`, `GET /onevibe/audit/stream` SSE) with TypeScript schemas, common error shape, sequence diagrams, real `VtiTrustTaskType` mappings from `vti-consent-service.ts`, fail-closed rules, and an honest status table (no `/onevibe/*` routes exist upstream yet)
 - `.kimi-code/`: Kimi Code standing instructions (`AGENTS.md`) and sprint-resume skill now versioned with the repo
 
 ---
