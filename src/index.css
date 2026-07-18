@@ -1138,7 +1138,7 @@ button.model-selector *{color:inherit}
 
 /* P12-03: agent assignment */
 .agent-chip{display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:1px 6px;border-radius:var(--radius-4px);background:var(--surface-hover);color:var(--text-muted);line-height:1.4;text-transform:none}
-.agent-live{font-size:9px;font-weight:600;color:var(--red)}
+.agent-live{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:600;color:var(--red)}
 .active-now-strip{margin:0 0 16px}
 .active-now-strip>header{display:flex;align-items:center;gap:6px;padding:0 4px 8px;color:var(--text-faint);font-size:11px;font-weight:500;letter-spacing:.02em}
 .active-now-strip>header svg{color:var(--red)}
@@ -1148,6 +1148,22 @@ button.model-selector *{color:inherit}
 .active-now-chip strong{font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .active-now-dot{width:6px;height:6px;border-radius:50%;background:var(--red);flex-shrink:0}
 @media(prefers-reduced-motion:no-preference){.active-now-dot{animation:pulse-dot 2s ease-in-out infinite}}
+.task-agent-control{display:grid;gap:7px;margin-top:10px;padding:10px;border:1px solid var(--border-subtle);border-radius:var(--radius-8px);background:var(--surface-panel)}
+.task-agent-control header{display:flex;align-items:start;justify-content:space-between;gap:8px}
+.task-agent-control header>div{display:grid;gap:3px}
+.task-agent-control span,.task-agent-control em{color:var(--text-faint);font:8px var(--font-ui);font-style:normal;letter-spacing:.06em;text-transform:uppercase}
+.task-agent-control strong{color:var(--text-secondary);font-size:10px}
+.task-agent-control p{margin:0;color:var(--danger);font-size:8px}
+.agent-picker{display:flex;flex-wrap:wrap;gap:6px}
+.agent-picker button{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border-subtle);border-radius:var(--radius-8px);background:transparent;color:var(--text-muted);padding:4px 8px;font-size:11px;cursor:pointer}
+.agent-picker button:hover{border-color:var(--accent-border)}
+.agent-picker button.active{border-color:var(--accent-border);background:var(--accent-soft);color:var(--accent)}
+.agent-picker button:disabled{opacity:.5;cursor:default}
+.board-filters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.board-filters select{border:1px solid var(--border-subtle);border-radius:var(--radius-8px);background:var(--surface-raised);color:var(--text-muted);padding:5px 8px;font-size:11px;outline:0;cursor:pointer}
+.board-filters select:focus{border-color:var(--accent-border)}
+.active-now-strip.board-active-now{margin:16px 0 0}
+.active-now-elapsed{font-size:10px;color:var(--text-faint);font-variant-numeric:tabular-nums}
 /* P12-01: project board view */
 .board-view{padding:24px;max-width:1200px;margin:0 auto}
 .board-view-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}

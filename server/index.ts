@@ -222,7 +222,9 @@ const forkTaskInput = z.object({ fromMessageId: z.string().regex(/^message_[a-f0
 const retryInput = z.object({ idempotencyKey: z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/), provider: runtimeProviderInput.optional() })
 const moveTaskProjectInput = z.object({ projectId: z.string().regex(/^project_[a-z0-9]+$/) })
 const updateTaskTagsInput = z.object({ tags: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/)).max(8) })
-const assignTaskAgentInput = z.object({ assignedAgent: z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9._-]{0,63}$/).nullable() })
+// Comma-separated assignee ids so a task can be assigned to an agent, a human, or both (e.g. "codex,human").
+const assigneeIdSegment = '[a-z0-9][a-z0-9._-]{0,63}'
+const assignTaskAgentInput = z.object({ assignedAgent: z.string().trim().min(1).max(280).regex(new RegExp(`^${assigneeIdSegment}(,${assigneeIdSegment}){0,7}$`)).nullable() })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const restoreProjectFileInput = z.object({ expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
