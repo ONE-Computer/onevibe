@@ -385,3 +385,26 @@ export const evidenceItemId = (items: ComputerItem[], eventId: string | null) =>
   const item = eventId ? items.find((candidate) => candidate.id === eventId || candidate.relatedEventIds?.includes(eventId)) : undefined
   return item?.eventHash ? item.id : undefined
 }
+
+export type TransportState = {
+  index: number
+  total: number
+  progress: number
+  atStart: boolean
+  atLive: boolean
+  canPlay: boolean
+}
+
+/**
+ * The DVR scrubber treats the visible evidence list as a timeline with a
+ * playhead. Progress is normalized so an empty list reads as parked and a
+ * single frame as complete, and "live" always means the newest visible event.
+ */
+export const transportStateFor = (selected: number, total: number): TransportState => {
+  const index = total > 0 ? Math.max(0, Math.min(total - 1, selected)) : 0
+  const progress = total > 1 ? index / (total - 1) : total === 1 ? 1 : 0
+  const atStart = index <= 0
+  const atLive = total > 0 && index >= total - 1
+  const canPlay = total > 1 && index < total - 1
+  return { index, total, progress, atStart, atLive, canPlay }
+}

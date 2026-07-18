@@ -45,6 +45,8 @@ export type EventType =
   | 'artifact_created'
   | 'artifact_updated'
   | 'runtime_fallback_available'
+  | 'milestone_set'
+  | 'milestone_complete'
   | 'run_completed'
   | 'run_failed'
   | 'run_cancelled'
@@ -113,6 +115,10 @@ export type RuntimeEvent = {
   previousHash: string
   eventHash: string
 }
+
+export type MilestoneDescriptor = { id: string; label: string }
+export type MilestoneSetPayload = { milestones: MilestoneDescriptor[] }
+export type MilestoneCompletePayload = { id: string }
 
 export type WorkspaceFile = {
   path: string

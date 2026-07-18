@@ -33,6 +33,10 @@ export type RuntimeEvent = {
   eventHash: string
 }
 
+export type MilestoneDescriptor = { id: string; label: string }
+export type MilestoneSetPayload = { milestones: MilestoneDescriptor[] }
+export type MilestoneCompletePayload = { id: string }
+
 export type PlanStep = { id: string; title: string; status: 'pending' | 'running' | 'completed' | 'blocked'; startedAt?: string; completedAt?: string }
 export type WorkspaceFile = { path: string; size: number; updatedAt: string }
 export type LibraryItem = { task: Task; files: WorkspaceFile[] }

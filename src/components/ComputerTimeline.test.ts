@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, isRailToolGroup, matchesRailQuery, presentationItems, railCardTypeFor, railRowsFor, railStatusFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, toolCallGroupsFor, virtualRailRows, visualEvidenceStateFor, type ComputerItem, type RailRow, type RailToolGroup } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, isRailToolGroup, matchesRailQuery, presentationItems, railCardTypeFor, railRowsFor, railStatusFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, toolCallGroupsFor, transportStateFor, virtualRailRows, visualEvidenceStateFor, type ComputerItem, type RailRow, type RailToolGroup } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -316,5 +316,29 @@ describe('Computer timeline checkpoint rail', () => {
     const collapsed = railRowsFor([first, group, artifact], new Set([group.id]))
     expect(collapsed.map((row) => row.type)).toEqual(['run', 'item', 'group', 'run', 'item'])
     expect(collapsed.some((row) => row.type === 'item' && row.depth === 1)).toBe(false)
+  })
+})
+
+describe('Computer timeline transport scrubber', () => {
+  it('reports an empty timeline as parked with no playback', () => {
+    expect(transportStateFor(0, 0)).toEqual({ index: 0, total: 0, progress: 0, atStart: true, atLive: false, canPlay: false })
+  })
+  it('treats a single frame as fully played and live', () => {
+    expect(transportStateFor(0, 1)).toEqual({ index: 0, total: 1, progress: 1, atStart: true, atLive: true, canPlay: false })
+  })
+  it('clamps out-of-range playheads into the visible window', () => {
+    expect(transportStateFor(-4, 3).index).toBe(0)
+    expect(transportStateFor(9, 3).index).toBe(2)
+  })
+  it('normalizes progress across the timeline', () => {
+    expect(transportStateFor(0, 3).progress).toBe(0)
+    expect(transportStateFor(1, 3).progress).toBe(0.5)
+    expect(transportStateFor(2, 3).progress).toBe(1)
+  })
+  it('flags live only on the newest visible event', () => {
+    expect(transportStateFor(1, 3).atLive).toBe(false)
+    expect(transportStateFor(2, 3).atLive).toBe(true)
+    expect(transportStateFor(0, 3).canPlay).toBe(true)
+    expect(transportStateFor(2, 3).canPlay).toBe(false)
   })
 })

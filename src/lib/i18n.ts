@@ -102,11 +102,23 @@ const en = {
   closePanel: 'Close panel',
   // Tool group
   toolCalls: '{count} tool calls',
+  // Milestones (P9-26)
+  taskProgress: 'Task progress',
+  milestoneUnderstand: 'Understanding request',
+  milestoneGather: 'Gathering information',
+  milestoneDraft: 'Drafting response',
+  milestoneFinalize: 'Finalizing',
   // Shared
   cancel: 'Cancel',
   close: 'Close',
   version: 'Version',
   loading: 'Loading…',
+  jumpToStart: 'Jump to start',
+  jumpToLive: 'Jump to live',
+  live: 'Live',
+  pause: 'Pause',
+  play: 'Play',
+  replayScrubber: 'Replay timeline',
 } as const
 
 const zh: Record<keyof typeof en, string> = {
@@ -201,10 +213,21 @@ const zh: Record<keyof typeof en, string> = {
   openReasoningTrace: '打开推理轨迹',
   closePanel: '关闭面板',
   toolCalls: '{count} 次工具调用',
+  taskProgress: '任务进度',
+  milestoneUnderstand: '理解请求',
+  milestoneGather: '收集信息',
+  milestoneDraft: '起草回复',
+  milestoneFinalize: '收尾整理',
   cancel: '取消',
   close: '关闭',
   version: '版本',
   loading: '加载中…',
+  jumpToStart: '跳到开始',
+  jumpToLive: '跳到实时',
+  live: '实时',
+  pause: '暂停',
+  play: '播放',
+  replayScrubber: '时间轴',
 }
 
 const dictionaries: Record<Locale, Record<I18nKey, string>> = { en, zh }

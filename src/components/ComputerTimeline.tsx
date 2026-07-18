@@ -1,7 +1,8 @@
-import { ArrowLeft, ArrowRight, BrainCircuit, CheckCircle2, ChevronDown, ChevronRight, Eye, FileCode2, Pause, Play, Presentation, Radio, ShieldCheck, TerminalSquare, Wrench } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BrainCircuit, CheckCircle2, ChevronDown, ChevronRight, Eye, FileCode2, Pause, Play, Presentation, Radio, ShieldCheck, SkipBack, TerminalSquare, Wrench } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { PresentationPanel, TaskSnapshot } from '../types'
-import { artifactRailItems, causalVisualItemsFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, railRowsFor, railStatusFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, toolCallGroupsFor, virtualRailRows, visualEvidenceStateFor, type ComputerItem, type RailToolGroup } from './computer-timeline-activity'
+import { t, type Locale } from '../lib/i18n'
+import { artifactRailItems, causalVisualItemsFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, railRowsFor, railStatusFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, toolCallGroupsFor, transportStateFor, virtualRailRows, visualEvidenceStateFor, type ComputerItem, type RailToolGroup } from './computer-timeline-activity'
 
 const iconFor = (item: ComputerItem) => item.kind === 'terminal' ? <TerminalSquare size={13} /> : item.kind === 'screenshot' ? <Eye size={13} /> : item.kind === 'preview' ? <Radio size={13} /> : item.kind === 'slide' ? <Presentation size={13} /> : item.kind === 'approval' ? <ShieldCheck size={13} /> : <FileCode2 size={13} />
 const withCacheBust = (uri: string, value: number) => `${uri}${uri.includes('?') ? '&' : '?'}v=${value}`
@@ -44,6 +45,8 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   const [railViewportHeight, setRailViewportHeight] = useState(360)
   const [artifactExcerpt, setArtifactExcerpt] = useState<{ path: string; content: string; truncated: boolean }>()
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set())
+  const [playing, setPlaying] = useState(false)
+  const locale: Locale = (() => { try { return localStorage.getItem('onevibe_locale') === 'zh' ? 'zh' : 'en' } catch { return 'en' } })()
   const previousFilter = useRef(`${filter}:${runFilter}`)
   const restoredReplayTask = useRef<string | undefined>(undefined)
   const railScrollRef = useRef<HTMLDivElement>(null)
@@ -56,6 +59,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   const lastItemId = visibleItems.at(-1)?.id
   const selected = Math.max(0, visibleItems.findIndex((item) => item.id === selectedId))
   const settled = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled'
+  const transport = useMemo(() => transportStateFor(selected, visibleItems.length), [selected, visibleItems.length])
   const defaultItem = useMemo(() => defaultComputerItem(visibleItems, settled, task.mode), [visibleItems, settled, task.mode])
   const replayFrames = useMemo(() => filterItemsByRun(railItems, runFilter).filter((item) => item.kind === 'screenshot' && !item.live), [railItems, runFilter])
   const comparison = useMemo(() => comparisonRunId && runFilter !== 'all' && comparisonRunId !== runFilter ? { baseline: summarizeRunEvidence(railItems, comparisonRunId), candidate: summarizeRunEvidence(railItems, runFilter), artifacts: compareRunArtifacts(railItems, comparisonRunId, runFilter) } : undefined, [comparisonRunId, railItems, runFilter])
@@ -161,10 +165,30 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
     }, reducedMotion ? 2_400 : 1_250)
     return () => window.clearTimeout(timer)
   }, [filter, items, persistEvidenceReference, replaying, selected])
-  const move = (next: number) => { const index = Math.max(0, Math.min(visibleItems.length - 1, next)); setReplaying(false); setFollow(false); setSelectedId(visibleItems[index]?.id); persistEvidenceReference(visibleItems[index]) }
-  const resumeLive = () => { const index = visibleItems.length - 1; setReplaying(false); setFollow(true); setNewActivity(0); setSelectedId(visibleItems[index]?.id); persistEvidenceReference(visibleItems[index]) }
+  useEffect(() => {
+    if (!playing) return
+    if (visibleItems.length < 2 || selected >= visibleItems.length - 1) { setPlaying(false); if (visibleItems.length > 1 && !settled) resumeLive(); return }
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const timer = window.setTimeout(() => {
+      const next = visibleItems[selected + 1]
+      setFollow(false)
+      setSelectedId(next?.id)
+      persistEvidenceReference(next)
+    }, reducedMotion ? 2_400 : 1_250)
+    return () => window.clearTimeout(timer)
+  }, [playing, selected, visibleItems, persistEvidenceReference, settled])
+  const move = (next: number) => { const index = Math.max(0, Math.min(visibleItems.length - 1, next)); setPlaying(false); setReplaying(false); setFollow(false); setSelectedId(visibleItems[index]?.id); persistEvidenceReference(visibleItems[index]) }
+  const resumeLive = () => { const index = visibleItems.length - 1; setPlaying(false); setReplaying(false); setFollow(true); setNewActivity(0); setSelectedId(visibleItems[index]?.id); persistEvidenceReference(visibleItems[index]) }
+  const togglePlay = () => {
+    if (playing) { setPlaying(false); return }
+    if (visibleItems.length < 2) return
+    setReplaying(false)
+    if (selected >= visibleItems.length - 1) { setFollow(false); setSelectedId(visibleItems[0]?.id); persistEvidenceReference(visibleItems[0]) }
+    setPlaying(true)
+  }
   const toggleGroup = (id: string) => setCollapsedGroups((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })
   const toggleReplay = () => {
+    setPlaying(false)
     if (replaying) { setReplaying(false); return }
     if (replayFrames.length < 2) return
     setFilter('screenshot')
@@ -177,6 +201,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   const inspectVisual = (eventId: string) => {
     const index = railItems.findIndex((item) => item.id === eventId)
     if (index < 0) return
+    setPlaying(false)
     setReplaying(false)
     setFilter('all')
     setFollow(false)
@@ -195,7 +220,8 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   if (!allItems.length) return <div className="workspace-placeholder"><Wrench size={20} /><strong>No computer activity yet</strong><span>Commands, screenshots, files, and previews will appear here as the agent works.</span></div>
   return <div className="computer-timeline" onKeyDown={onTimelineKeyDown} tabIndex={0} aria-label="Agent computer artifact timeline">
     <aside className="computer-history"><div className="computer-history-heading"><span>Artifact rail</span><div>{replayFrames.length > 1 && <button className={replaying ? 'active' : ''} onClick={toggleReplay} aria-label={replaying ? 'Pause visual evidence replay' : 'Replay visual evidence'} title={replaying ? 'Pause replay' : 'Replay visual evidence'}>{replaying ? <Pause size={10} /> : <Play size={10} />} {replaying ? 'Pause' : 'Replay'}</button>}<button className={follow ? 'active' : ''} onClick={resumeLive} aria-label="Resume live follow"><Radio size={10} /> {follow ? 'Live' : newActivity ? `${newActivity} new` : 'Resume'}</button></div></div><div className="computer-filters">{(['all', 'terminal', 'screenshot', 'file', 'preview', 'slide', 'approval', 'diff'] as const).filter((kind) => kind === 'all' || railItems.some((item) => item.kind === kind)).map((kind) => <button key={kind} className={filter === kind ? 'active' : ''} onClick={() => { setReplaying(false); setFilter(kind) }}>{kind === 'all' ? 'All' : kind}</button>)}{runIds.length > 1 && <><select value={runFilter} onChange={(event) => { setReplaying(false); setComparisonRunId(''); setRunFilter(event.target.value) }} aria-label="Filter artifact evidence by run"><option value="all">All runs</option>{runIds.map((runId) => <option key={runId} value={runId}>{runLabel(runId, runIds)}</option>)}</select>{runFilter !== 'all' && <select value={comparisonRunId} onChange={(event) => setComparisonRunId(event.target.value)} aria-label="Compare selected run against another run"><option value="">Compare…</option>{runIds.filter((runId) => runId !== runFilter).map((runId) => <option key={runId} value={runId}>vs {runLabel(runId, runIds)}</option>)}</select>}</>}</div>{comparison && <div className="computer-run-comparison"><strong>{runLabel(comparison.candidate.runId, runIds)} vs {runLabel(comparison.baseline.runId, runIds)}</strong><span>{comparison.candidate.toolCards} tools · {comparison.candidate.visualFrames} frames · {comparison.candidate.deliverables} deliverables</span><small>{comparison.candidate.cards - comparison.baseline.cards >= 0 ? '+' : ''}{comparison.candidate.cards - comparison.baseline.cards} evidence cards · {formatDuration(comparison.candidate.durationMs) ?? 'single event'} vs {formatDuration(comparison.baseline.durationMs) ?? 'single event'}</small>{(comparison.artifacts.added.length > 0 || comparison.artifacts.removed.length > 0) && <small className="computer-run-artifact-delta">{comparison.artifacts.added.length ? `+ ${comparison.artifacts.added.join(', ')}` : ''}{comparison.artifacts.added.length && comparison.artifacts.removed.length ? ' · ' : ''}{comparison.artifacts.removed.length ? `− ${comparison.artifacts.removed.join(', ')}` : ''}{comparison.artifacts.truncated ? ' · more' : ''}</small>}</div>}<label className="computer-rail-search"><span>Find evidence</span><input value={railQuery} onChange={(event) => { setReplaying(false); setRailQuery(event.target.value) }} placeholder="Command, artifact, run…" aria-label="Find projected task evidence" /></label>{visibleItems.length > 0 && <div className="computer-rail-stepper"><button onClick={() => move(selected - 1)} disabled={selected <= 0} aria-label="Previous checkpoint"><ArrowLeft size={11} /></button><span><b>{selected + 1} / {visibleItems.length}</b><em>{active ? new Date(active.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}</em></span><button onClick={() => move(selected + 1)} disabled={selected >= visibleItems.length - 1} aria-label="Next checkpoint"><ArrowRight size={11} /></button></div>}<div className="computer-rail-scroll" ref={railScrollRef} onScroll={(event) => setRailScrollTop(event.currentTarget.scrollTop)}>{rows.length ? <div className="computer-rail-virtual" style={{ height: visibleWindow.total }}><div style={{ transform: `translateY(${visibleWindow.offsets[visibleWindow.start] ?? 0}px)` }}>{rows.slice(visibleWindow.start, visibleWindow.end).map((row) => { if (row.type === 'run') return <div key={row.id} className="computer-rail-run">{runLabel(row.runId, runIds)}</div>; if (row.type === 'group') return <ToolGroupRow key={row.id} group={row.group} collapsed={collapsedGroups.has(row.id)} onToggle={toggleGroup} />; return <ArtifactRailEntry key={row.id} item={row.item} depth={row.depth} index={itemIndexById.get(row.item.id) ?? 0} selected={row.item.id === active?.id} total={visibleItems.length} events={task.events} onMove={move} /> })}</div></div> : <p className="computer-rail-empty">No projected evidence matches this search.</p>}</div></aside>
-    <section className="computer-stage"><header><button disabled={selected === 0} onClick={() => move(selected - 1)} aria-label="Previous timeline event"><ArrowLeft size={13} /></button><button disabled={selected >= visibleItems.length - 1} onClick={() => move(selected + 1)} aria-label="Next timeline event"><ArrowRight size={13} /></button><div><strong>{active?.title}</strong><span>{active?.detail}</span></div><em>{active?.runId ? `${runLabel(active.runId, runIds)} · ` : ''}{active?.sequence ? `#${active.sequence} · ` : ''}{visibleItems.length ? selected + 1 : 0} / {visibleItems.length}{filter !== 'all' && ` · ${filter}`}{active?.eventHash && <code title="Immutable evidence hash">{active.eventHash.slice(0, 8)}</code>}{replaying ? <b>replaying</b> : !follow && !settled && <b>paused</b>}</em></header>
+    <section className="computer-stage"><header><div className="computer-transport"><button type="button" disabled={transport.atStart} onClick={() => move(0)} aria-label={t('jumpToStart', locale)} title={t('jumpToStart', locale)}><SkipBack size={12} /></button><button type="button" disabled={visibleItems.length < 2} onClick={togglePlay} aria-label={playing ? t('pause', locale) : t('play', locale)} title={playing ? t('pause', locale) : t('play', locale)}>{playing ? <Pause size={12} /> : <Play size={12} />}</button><input type="range" min={0} max={Math.max(visibleItems.length - 1, 0)} value={transport.index} onChange={(event) => move(Number(event.target.value))} aria-label={t('replayScrubber', locale)} /><button type="button" className="computer-live" data-active={transport.atLive} onClick={resumeLive} aria-label={t('live', locale)} title={t('jumpToLive', locale)}><i className="computer-live-dot" aria-hidden="true" />{t('live', locale)}</button></div><div><strong>{active?.title}</strong><span>{active?.detail}</span></div><em>{active?.runId ? `${runLabel(active.runId, runIds)} · ` : ''}{active?.sequence ? `#${active.sequence} · ` : ''}{visibleItems.length ? selected + 1 : 0} / {visibleItems.length}{filter !== 'all' && ` · ${filter}`}{active?.eventHash && <code title="Immutable evidence hash">{active.eventHash.slice(0, 8)}</code>}{replaying ? <b>replaying</b> : !follow && !settled && <b>paused</b>}</em></header>
+      {!transport.atLive && visibleItems.length > 0 && <button type="button" className="computer-jump-live" onClick={resumeLive}>{t('jumpToLive', locale)}</button>}
       {active?.kind === 'screenshot' && active.uri && <div className="computer-visual"><img src={withCacheBust(active.uri, frame)} alt={active.title} /></div>}
       {active?.kind === 'preview' && active.uri && <iframe title={active.title} sandbox="allow-scripts" src={active.uri} />}
       {active?.kind === 'slide' && <div className="computer-file"><Presentation size={28} /><strong>{active.detail ?? active.title}</strong><span>Deck evidence is preserved. Open the Files tab to download the PPTX or PDF, or inspect the rendered viewer.</span></div>}

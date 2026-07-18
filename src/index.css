@@ -1020,3 +1020,27 @@ button.model-selector *{color:inherit}
   .aui-thinking-window{transition:grid-template-rows .26s var(--ease-panel)}
   .aui-thinking.live .aui-thinking-label i{animation:pulse-dot 2s ease-in-out infinite}
 }
+
+/* Task milestone progress strip in the side panel (P9-26). Same collapse
+   mechanics as the tool group: grid-template-rows, inert content, motion
+   only when the user allows it. */
+.milestone-progress{margin:0 0 12px;border:1px solid var(--border-subtle);border-radius:var(--radius-10px);background:var(--surface-raised);overflow:hidden}
+.milestone-progress-header{display:flex;align-items:center;gap:6px;width:100%;padding:9px 11px;border:0;background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer}
+.milestone-progress-header span{flex:1;text-align:left;font-weight:600;color:var(--text-primary)}
+.milestone-progress-header em{font:10px var(--font-ui);font-style:normal;color:var(--text-faint)}
+.milestone-progress-header svg{color:var(--text-faint)}
+.milestone-progress.open .milestone-progress-header svg{transform:rotate(180deg)}
+.milestone-progress-window{display:grid;grid-template-rows:0fr}
+.milestone-progress.open .milestone-progress-window{grid-template-rows:1fr}
+.milestone-progress-window-inner{min-height:0;overflow:hidden}
+.milestone-progress-list{display:grid;gap:2px;margin:0;padding:0 11px 10px;list-style:none}
+.milestone-progress-list li{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px;color:var(--text-faint)}
+.milestone-progress-icon{display:grid;place-items:center;width:16px;height:16px;color:var(--text-faint)}
+.milestone-progress-list li.active{color:var(--text-primary)}
+.milestone-progress-list li.active .milestone-progress-icon{color:var(--accent)}
+.milestone-progress-list li.done{color:var(--text-muted)}
+.milestone-progress-list li.done .milestone-progress-icon{color:var(--green)}
+@media(prefers-reduced-motion:no-preference){
+  .milestone-progress-window{transition:grid-template-rows .26s var(--ease-panel)}
+  .milestone-progress-header svg{transition:transform .2s var(--ease-panel)}
+}
