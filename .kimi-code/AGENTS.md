@@ -41,9 +41,19 @@ git commit -m "subject\n\nBody. Gate: N tests / M files ✓"
 - i18n strings must be type-safe: `keyof typeof en`.
 - Do NOT modify server code during frontend-only sprints.
 
-## VM/Infrastructure constraints
-- All sandbox installs (Daytona, e2b, Kasm), Docker provisioning, and server-side infra testing must run on the Azure VM: `ssh azureuser@23.102.117.5 -i /Users/ttwj/.ssh/1783255163_678688`
-- Never test server-side infra on the local Mac — it is not a representative environment.
+## VM/Infrastructure constraints — HARD RULE
+
+The local Mac has insufficient RAM for Docker workloads and Linux tooling works poorly on it. The following work MUST run on the Azure VM — never locally:
+
+- **P4-01** auth (Better Auth + Postgres production delivery)
+- **P4-02/03/04** database, containerisation, docker-compose.prod.yml validation
+- **P8-*** all sandbox installs and adapter testing (Daytona, e2b, Docker devcontainer)
+- **P9-01/02** Daytona/e2b OSS installs on Azure
+- Any `docker compose up`, `docker build`, Postgres/Redis integration test
+
+Azure VM: `ssh azureuser@23.102.117.5 -i /Users/ttwj/.ssh/1783255163_678688`
+
+For these tasks: SSH in, do all work there, copy back only docs/evidence. Never attempt Docker or Postgres on the local Mac.
 
 ## Swarm mode guidance
 Use `AgentSwarm` or parallel `Agent` dispatches for independent outcomes (e.g. Outcome A and Outcome B touch different files — run them in parallel). Always run `npm run check` in the main agent after all sub-agents complete. Phrase self-directed work as outcomes, not steps.
