@@ -124,4 +124,5 @@ OVERALL: ~73% → ~82%
 | 2026-07-18 swarm activated | ad20cae P11-12, e650b9d P11-11, 53ee665 AGENTS, 3ab4ba8 design study | ✅ 343 | Swarm+auto enabled via prompts API — 5 sub-agents dispatched (P10-03, P11-05, P4-04, P9-15, P9-16) |
 | 2026-07-18 check-in 3 (context resumed) | LiteLLM 27 routes confirmed incl kimi-for-coding direct | ✅ 343 | Kimi swarm active: 4 sub-agents (3 running, 1 completed). Audit correction: condition_match is partial, not always-true. P10-03 scope updated. |
 | 2026-07-18 design study: Perplexity Computer | PERPLEXITY-COMPUTER-DESIGN-STUDY.md created + 6 screenshots saved | ✅ 343 | Correction: Perplexity DOES have a right rail (narrow, persistent: artefacts+usage). Manus right rail = Manus-style live workspace panel is the gold standard for P9-15. P9-19 (StepTrace) confirmed as #1 priority. |
+| 2026-07-18 design study: Manus Computer | MANUS-COMPUTER-DESIGN-STUDY.md + 7 screenshots + P9-25/26/27 added to TODO | ✅ 343 | Key Manus patterns: live agent desktop (P9-15 revised), DVR scrubber (P9-25), task milestones (P9-26), task completion + follow-up suggestions (P9-27). P9 backlog now P9-15 through P9-27. |
 
