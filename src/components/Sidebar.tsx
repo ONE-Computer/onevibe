@@ -1,4 +1,4 @@
-import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileEdit, FileText, FolderKanban, FolderOpen, Gamepad2, Globe2, Library, MonitorCog, Palette, Pencil, Plus, Presentation, Search, Sparkles, X, Zap } from 'lucide-react'
+import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileEdit, FileText, FolderKanban, FolderOpen, Gamepad2, Globe2, LayoutKanban, Library, MonitorCog, Palette, Pencil, Plus, Presentation, Search, Sparkles, X, Zap } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationSummary, Project, ProjectFileVersion, TaskMode } from '../types'
@@ -11,7 +11,7 @@ import type { Locale } from '../lib/i18n'
 import { t } from '../lib/i18n'
 
 type Props = {
-  view: 'agent' | 'schedules' | 'skills' | 'library' | 'computers' | 'appearance' | 'homepage' | 'artefacts' | 'capabilities'
+  view: 'agent' | 'schedules' | 'skills' | 'library' | 'computers' | 'appearance' | 'homepage' | 'artefacts' | 'capabilities' | 'board'
   conversations: ConversationSummary[]
   activeTaskId: string | null
   onNewTask: () => void
@@ -33,6 +33,7 @@ type Props = {
   onOpenLibrary: () => void
   onOpenSchedules: () => void
   onOpenComputers: () => void
+  onOpenBoard: () => void
   onOpenAppearance: () => void
   onOpenHomepage: () => void
   onOpenArtefacts: () => void
@@ -83,7 +84,7 @@ const bucketFor = (iso: string, now: number): 'Today' | 'Yesterday' | 'This week
   return 'Older'
 }
 
-export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, onOpenAppearance, onOpenHomepage, onOpenArtefacts, onOpenCapabilities, skillCount, user, onSignOut, locale = 'en' }: Props) => {
+export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, onOpenBoard, onOpenAppearance, onOpenHomepage, onOpenArtefacts, onOpenCapabilities, skillCount, user, onSignOut, locale = 'en' }: Props) => {
   const { config } = useTenantTheme()
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
@@ -146,6 +147,7 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
       <button className={`nav-item ${view === 'schedules' ? 'active' : ''}`} onClick={onOpenSchedules}><Clock3 size={16} /> {t('scheduled', locale)}</button>
       <button className={`nav-item ${view === 'library' ? 'active' : ''}`} onClick={onOpenLibrary}><Library size={16} /> {t('library', locale)}</button>
       <button className={`nav-item ${view === 'computers' ? 'active' : ''}`} onClick={onOpenComputers}><MonitorCog size={16} /> {t('computers', locale)}</button>
+      <button className={`nav-item ${view === 'board' ? 'active' : ''}`} onClick={onOpenBoard}><LayoutKanban size={16} /> {t('board', locale)}</button>
       <button className={`nav-item ${view === 'appearance' ? 'active' : ''}`} onClick={onOpenAppearance}><Palette size={16} /> {t('appearance', locale)}</button>
       <button className={`nav-item ${view === 'homepage' ? 'active' : ''}`} onClick={onOpenHomepage}><FileEdit size={16} /> Homepage</button>
       <button className={`nav-item ${view === 'artefacts' ? 'active' : ''}`} onClick={onOpenArtefacts}><FolderOpen size={16} /> Artefacts</button>

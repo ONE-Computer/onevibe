@@ -6,6 +6,7 @@ const en = {
   skills: 'Skills',
   library: 'Library',
   computers: 'Computers',
+  board: 'Board',
   appearance: 'Appearance',
   scheduled: 'Scheduled',
   // Home
@@ -126,6 +127,7 @@ const zh: Record<keyof typeof en, string> = {
   skills: '技能',
   library: '资料库',
   computers: '运行环境',
+  board: '看板',
   appearance: '外观设置',
   scheduled: '定时任务',
   greetingMorning: '早上好。',
