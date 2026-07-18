@@ -286,6 +286,8 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 - [ ] **P9-14** Surface connector consent status in ONEVibe — when a connector is connected but consent has not been granted to a specific agent, show a "Consent required" state in the Connections tab. Users can pre-approve agents for connectors they regularly use.
 
+- [ ] **P9-15** Contextual right panel (thinking trace / diff / subagent detail) — Add a slide-in right panel to the task view (alongside the existing stage/computer panel). The panel opens contextually: thinking blocks expand into it (keeping the chat stream clean), file diffs from edit tool calls open in it, subagent drilldown navigates into it. During streaming, show a live 5-line scrolling window in the chat; after completion auto-collapse to a teaser paragraph with "Open in panel" affordance. Inspired by Kimi Code Web's SidePanel pattern (source: https://github.com/MoonshotAI/kimi-code/tree/main/apps/kimi-web/src). Implementation notes: use CSS `grid-template-rows: 0fr/1fr` for collapse (not max-height), use `inert` attribute on collapsed content (removes from a11y tree automatically), panel width ~360px, 0.26s ease-out open/close.
+
 ### ONEComputer as cyber governance engine
 
 - [ ] **P9-10** Live activity feed in ONEVibe — ONEVibe subscribes to ONEComputer's audit event stream for the current user's sandboxes. The execution trace panel shows not just agent steps but also governed gateway events: "Jira read · allowed", "Outlook send · held for approval", "SharePoint delete · blocked by policy". This is the end-user view of the CISO console.
