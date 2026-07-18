@@ -36,6 +36,20 @@ The platform is **not** three products. It is one platform with three concerns. 
 
 ---
 
+## Phase 17 — ONEVibe as the world's best intranet: AI-powered super-app for every employee
+> Added 2026-07-18. Business objective: replace SharePoint/Confluence/fragmented intranets with a single AI-native super-app every employee actually uses. Model: WeChat mini-programs × Salesforce Experience Builder × Framer AI. Key structural fixes over SharePoint: task-based nav (not IT storage hierarchy), semantic search with typo tolerance, role-based defaults with user override, AI vibe-to-build for any widget.
+
+| Section | Items | What it unlocks |
+|---|---|---|
+| P17-A Portal canvas + vibe builder (P17-01/02/03/04) | 4 items | Drag-drop canvas, NL vibe builder, persona defaults, brand theming — 5 inputs, done |
+| P17-B Navigation + search (P17-05/06/07) | 3 items | Task-based nav, unified semantic search, content freshness / no digital landfill |
+| P17-C Employee personalisation (P17-08/09/10) | 3 items | Widget gallery, personal vibe, mobile-first portal for frontline workers |
+| P17-D Knowledge base + announcements (P17-11/12) | 2 items | AI-powered policy Q&A, targeted announcements with read receipts |
+| P17-E Integrations + extensibility (P17-13/14/15) | 3 items | Connected data widgets, custom mini-app vibe (no-code), mini-app marketplace |
+| P17-F Sign-off (P17-16) | 1 item | vs. SharePoint/Confluence/Viva comparison doc |
+
+**Total: 16 items. The admin who "just vibes" is the north star.**
+
 ## Phase 16 — Vertical mini-apps: governed AI workflows for knowledge-work sectors
 > Added 2026-07-18. Business objective: unlock AI adoption in Accounting/Audit, Law, Finance/IB, Compliance — sectors blocked not by AI capability but by missing human-in-the-loop controls. Model: WeChat/Alipay mini-programs for enterprise B2B. Key insight: **the audit trail IS the product** — every sector's human-in-the-loop requirement is legally attached to a named individual with personal liability.
 
