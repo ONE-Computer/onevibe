@@ -65,6 +65,27 @@ describe('TaskStore', () => {
     await expect(store.createProject('Missing owner workspace', '', undefined, organization.id)).rejects.toThrow('require an owner')
   })
 
+  it('assigns and clears an agent on a task across restarts', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-task-agent-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Agent-assigned task', 'demo')
+
+    const assigned = await store.updateTask(task.id, { assignedAgent: 'claude' })
+    expect(assigned.assignedAgent).toBe('claude')
+    expect(store.getTask(task.id).assignedAgent).toBe('claude')
+
+    const reopened = new TaskStore(root)
+    await reopened.initialize()
+    expect(reopened.getTask(task.id).assignedAgent).toBe('claude')
+
+    const cleared = await reopened.updateTask(task.id, { assignedAgent: undefined })
+    expect(cleared.assignedAgent).toBeUndefined()
+    expect(reopened.getTask(task.id).assignedAgent).toBeUndefined()
+  })
+
   it('persists governed MCP declarations without accepting secret material', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-mcp-config-'))
     temporaryRoots.push(root)

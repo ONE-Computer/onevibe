@@ -76,6 +76,7 @@ export type Task = {
   tags: string[]
   priority?: TaskPriority | null
   labels?: string[]
+  assignedAgent?: string
   queuedGuidance: Array<{ id: string; prompt: string; attachmentPaths: string[]; createdAt: string }>
   projectId: string
   parentTaskId?: string

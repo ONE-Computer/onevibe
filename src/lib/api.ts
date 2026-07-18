@@ -175,6 +175,9 @@ export const moveTaskToProject = async (taskId: string, projectId: string) =>
 export const updateTaskTags = async (taskId: string, tags: string[]) =>
   parse<Task>(await fetch(`/api/tasks/${taskId}/tags`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tags }) }))
 
+export const assignTaskAgent = async (taskId: string, assignedAgent: string | null) =>
+  parse<Task>(await fetch(`/api/tasks/${taskId}/agent`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedAgent }) }))
+
 export const sendFollowUp = async (taskId: string, prompt: string, attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) =>
   parse<{ status: string; taskId: string }>(await fetch(`/api/tasks/${taskId}/messages`, {
     method: 'POST',

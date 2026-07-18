@@ -15,6 +15,7 @@ const en = {
   greetingEvening: 'Good evening.',
   greetingLate: 'Working late.',
   composerPlaceholder: 'How can I help you today?',
+  activeNow: 'Active now',
   // Actions
   startTask: 'Start task',
   saveChanges: 'Save changes',
@@ -135,6 +136,7 @@ const zh: Record<keyof typeof en, string> = {
   greetingEvening: '晚上好。',
   greetingLate: '还在加班。',
   composerPlaceholder: '今天有什么我可以帮你的？',
+  activeNow: '正在进行',
   startTask: '开始任务',
   saveChanges: '保存更改',
   saving: '保存中…',

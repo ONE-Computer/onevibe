@@ -24,7 +24,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { ThemeProvider } from './components/ThemeProvider'
 import { useTask } from './hooks/useTask'
 import { useLocale } from './hooks/useLocale'
-import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, installSkill, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, listTenantThemes, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, removeSkill, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags } from './lib/api'
+import { addProjectFile, assignTaskAgent, cancelQueuedGuidance, cancelTask, createMcpConfig, createProject, createSchedule, createTask, deleteMcpConfig, deleteSchedule, fallbackSkillCatalog, forkTask, getRuntimeReadiness, installSkill, isBackendOfflineError, listConversations, listLibrary, listMcpConfigs, listProjects, listSchedules, listSkills, listTasks, listTenantThemes, moveTaskToProject, normalizeSelectedSkillIds, removeLibraryItem, removeProjectFile, removeSkill, requestShare, restoreProjectFileVersion, retryTask, runScheduleNow, sendFollowUp, setScheduleEnabled, updateProjectContext, updateProjectFile, updateTaskTags } from './lib/api'
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
 import { getAuthSession, signOut as signOutAuth } from './lib/auth'
 import { providerLabel, statusLabel } from './lib/runtime-labels'
@@ -217,6 +217,14 @@ export default function App() {
       await Promise.all([refreshSnapshot(), queryClient.invalidateQueries({ queryKey: ['library'] })])
     },
   })
+  const assignAgentMutation = useMutation({
+    mutationFn: ({ taskId, assignedAgent }: { taskId: string; assignedAgent: string | null }) => assignTaskAgent(taskId, assignedAgent),
+    onSuccess: async (task) => {
+      updateTasksCache((current) => current.map((candidate) => candidate.id === task.id ? task : candidate))
+      upsertConversationCache(conversationSummaryFromTask(task))
+      await refreshSnapshot()
+    },
+  })
   const followUpMutation = useMutation({
     mutationFn: ({ taskId, prompt, attachments }: { taskId: string; prompt: string; attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> }) => sendFollowUp(taskId, prompt, attachments),
   })
@@ -280,6 +288,9 @@ export default function App() {
   }
   const setTaskTags = async (taskId: string, tags: string[]) => {
     try { await updateTaskTagsMutation.mutateAsync({ taskId, tags }) } catch (reason) { reportError(reason, 'Unable to update task tags') }
+  }
+  const assignAgent = async (taskId: string, assignedAgent: string | null) => {
+    try { await assignAgentMutation.mutateAsync({ taskId, assignedAgent }) } catch (reason) { reportError(reason, 'Unable to assign agent') }
   }
   const restoreProjectFile = async (projectId: string, filePath: string, versionId: string, expectedHash: string) => {
     const result = await restoreProjectFileVersion(projectId, filePath, versionId, expectedHash)
@@ -405,7 +416,7 @@ export default function App() {
           {view === 'skills' ? <motion.section key="skills" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><SkillsLibrary catalog={skillCatalog} selected={selectedSkills} onToggle={toggleSkill} onInstall={installMarketplaceSkill} onRemove={removeMarketplaceSkill} /></motion.section> : view === 'library' ? <motion.section key="library" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Library items={library} projects={projects} onOpenTask={navigateToTask} onRemove={hideLibraryItem} /></motion.section> : view === 'computers' ? <motion.section key="computers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Computers tasks={tasks} onOpenTask={navigateToTask} runtime={runtime} mcpConfigs={mcpConfigs} onCreateMcpConfig={addMcpConfig} onDeleteMcpConfig={removeMcpConfig} locale={locale} /></motion.section> : view === 'schedules' ? <motion.section key="schedules" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Schedules schedules={schedules} activeProjectId={activeProjectId} onCreate={addSchedule} onToggle={toggleSchedule} onRunNow={runSchedule} onDelete={removeSchedule} runtime={runtime} /></motion.section> : view === 'appearance' ? <motion.section key="appearance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Appearance summaries={themeAdminQuery.data?.themes ?? []} persistent={themeAdminQuery.data?.persistent ?? false} onChanged={() => { void queryClient.invalidateQueries({ queryKey: ['theme'] }) }} /></motion.section> : view === 'homepage' ? <motion.section key="homepage" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><HomepageEditor summaries={themeAdminQuery.data?.themes ?? []} persistent={themeAdminQuery.data?.persistent ?? false} onChanged={() => { void queryClient.invalidateQueries({ queryKey: ['theme'] }) }} /></motion.section> : view === 'artefacts' ? <motion.section key="artefacts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Artefacts items={library} onOpenTask={navigateToTask} /></motion.section> : view === 'capabilities' ? <motion.section key="capabilities" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><Capabilities providers={runtime?.providers ?? []} mcpConfigs={mcpConfigs} catalog={skillCatalog} /></motion.section> : view === 'board' ? <motion.section key="board" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><BoardView tasks={tasks} projects={projects} onOpenTask={navigateToTask} /></motion.section> : !activeTaskId ? (
             <motion.section key="home" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="home-view">
               <div className="home-content">
-                <HomeHero name={authState?.session?.user.name?.trim() || authState?.session?.user.email.split('@')[0] || 'there'} recentConversations={conversations} onSelectTask={navigateToTask} locale={locale} />
+                <HomeHero name={authState?.session?.user.name?.trim() || authState?.session?.user.email.split('@')[0] || 'there'} recentConversations={conversations} activeTasks={tasks.filter((task) => task.status === 'running' && task.assignedAgent)} onSelectTask={navigateToTask} locale={locale} />
                 {runtime && !runtime.providers.some((candidate) => candidate.available && candidate.id !== 'demo') && <div className="setup-banner" role="status"><TriangleAlert size={14} /><span><strong>No governed runtime configured</strong><small>Set the protected ONEVIBE_LITELLM_URL and ONEVIBE_LITELLM_API_KEY, or configure a governed sandbox runtime.</small></span></div>}
                 <PromptComposer busy={creating} skills={selectedSkills} runtime={runtime} initialProvider={preferredProvider} onSubmit={startTask} />
                 <CapabilityCards locale={locale} onStart={(prompt) => void startTask(prompt)} />
@@ -429,7 +440,7 @@ export default function App() {
                   </div>
                   <Suspense fallback={null}><SidePanel locale={locale} events={snapshot.events} /></Suspense>
                   </div>
-                  <div className="workspace-pane"><div className="mobile-inspector-bar"><span><Monitor size={13} /> Computer inspector</span><button type="button" onClick={() => setMobileInspectorOpen(false)}>Back to conversation</button></div><Workspace task={snapshot} projects={projects} runtime={runtime} onMoveProject={moveTaskProject} onUpdateTags={setTaskTags} /></div>
+                  <div className="workspace-pane"><div className="mobile-inspector-bar"><span><Monitor size={13} /> Computer inspector</span><button type="button" onClick={() => setMobileInspectorOpen(false)}>Back to conversation</button></div><Workspace task={snapshot} projects={projects} runtime={runtime} onMoveProject={moveTaskProject} onUpdateTags={setTaskTags} onAssignAgent={assignAgent} /></div>
                 </>
               )}
             </motion.section>

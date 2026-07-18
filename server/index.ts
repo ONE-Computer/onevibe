@@ -222,6 +222,7 @@ const forkTaskInput = z.object({ fromMessageId: z.string().regex(/^message_[a-f0
 const retryInput = z.object({ idempotencyKey: z.string().regex(/^[a-zA-Z0-9._:-]{8,120}$/), provider: runtimeProviderInput.optional() })
 const moveTaskProjectInput = z.object({ projectId: z.string().regex(/^project_[a-z0-9]+$/) })
 const updateTaskTagsInput = z.object({ tags: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/)).max(8) })
+const assignTaskAgentInput = z.object({ assignedAgent: z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9._-]{0,63}$/).nullable() })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const restoreProjectFileInput = z.object({ expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
@@ -927,6 +928,10 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'PATCH' && segments[3] === 'tags') {
       const input = updateTaskTagsInput.parse(await readBody(request))
       return json(response, 200, await store.updateTaskTags(taskId, input.tags, actorUserId))
+    }
+    if (request.method === 'PATCH' && segments[3] === 'agent') {
+      const input = assignTaskAgentInput.parse(await readBody(request))
+      return json(response, 200, await store.updateTask(taskId, { assignedAgent: input.assignedAgent ?? undefined }))
     }
     if (request.method === 'POST' && segments[3] === 'messages' && segments[4] === 'reconcile') {
       const input = followUpReconcileInput.parse(await readBody(request))

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AppWindow, ArrowUpRight, BarChart3, Bot, CheckCircle2, ChevronRight, Clock3, FileText, Gamepad2, Globe2, Info, Loader, Palette, Presentation, Search, Sparkles, TriangleAlert } from 'lucide-react'
+import { AppWindow, ArrowUpRight, BarChart3, Bot, CheckCircle2, ChevronRight, Clock3, FileText, Gamepad2, Globe2, Info, Loader, Palette, Presentation, Search, Sparkles, TriangleAlert, Zap } from 'lucide-react'
 import { useTenantTheme } from '../hooks/useTenantTheme'
-import type { ConversationSummary, TaskMode } from '../types'
+import type { ConversationSummary, Task, TaskMode } from '../types'
 import type { Locale } from '../lib/i18n'
 import { t } from '../lib/i18n'
 
 type Props = {
   name?: string
   recentConversations?: ConversationSummary[]
+  activeTasks?: Task[]
   onSelectTask?: (taskId: string) => void
   locale?: Locale
 }
@@ -56,7 +57,7 @@ const relativeShort = (iso: string, now: number): string => {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export const HomeHero = ({ name = 'there', recentConversations = [], onSelectTask, locale = 'en' }: Props) => {
+export const HomeHero = ({ name = 'there', recentConversations = [], activeTasks = [], onSelectTask, locale = 'en' }: Props) => {
   const { config } = useTenantTheme()
   const [now, setNow] = useState(Date.now())
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(id) }, [])
@@ -75,6 +76,16 @@ export const HomeHero = ({ name = 'there', recentConversations = [], onSelectTas
     <div className="home-hero-heading"><h1>{home?.heroHeadline || heading}</h1></div>
     {home?.heroSubheadline && <p className="tenant-hero-subheadline">{home.heroSubheadline}</p>}
     {cards.length > 0 && <div className="tenant-feature-grid">{cards.map((card) => <article key={`${card.title}:${card.description}`}><span className={`tenant-feature-icon ${card.accent}`}><CheckCircle2 size={14} /></span><div><strong>{card.title}</strong><p>{card.description}</p></div></article>)}</div>}
+    {activeTasks.length > 0 && onSelectTask && <div className="active-now-strip">
+      <header><Zap size={12} /> {t('activeNow', locale)}</header>
+      <div className="active-now-chips">
+        {activeTasks.map((task) => <button key={task.id} type="button" className="active-now-chip" onClick={() => onSelectTask(task.id)}>
+          <i className="active-now-dot" />
+          <strong>{task.title}</strong>
+          <span className="agent-chip"><Bot size={9} /> {task.assignedAgent}</span>
+        </button>)}
+      </div>
+    </div>}
     {recent.length > 0 && onSelectTask && <div className="home-hero-recent">
       <div className="home-hero-recent-block">
         <header><Clock3 size={12} /> Recent</header>

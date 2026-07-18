@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Kanban, List } from 'lucide-react'
+import { Bot, Kanban, List } from 'lucide-react'
 import type { Project, RunStatus, Task } from '../types'
 import { statusLabel } from '../lib/runtime-labels'
 
@@ -77,6 +77,8 @@ export const BoardView = ({ tasks, projects = [], onOpenTask }: Props) => {
                     <span className="board-card-top">
                       <i className="board-status-dot" data-column={column.id} />
                       {task.priority && <span className="priority-chip" data-priority={task.priority}>{task.priority}</span>}
+                      {task.assignedAgent && <span className="agent-chip"><Bot size={9} /> {task.assignedAgent}</span>}
+                      {task.assignedAgent && task.status === 'running' && <span className="agent-live">● live</span>}
                     </span>
                     <span className="board-card-title">{task.title}</span>
                     <span className="board-card-meta">
