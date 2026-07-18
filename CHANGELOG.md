@@ -33,6 +33,7 @@
 
 ### Fixed
 - Follow-up composer refresh (`src/App.tsx`): `followUpMutation` now mirrors `retryMutation` with an `onSuccess` that awaits `Promise.all([refreshSnapshot(), refreshTasks()])` — after sending a follow-up the conversation snapshot and task list update immediately instead of waiting for the next poll interval
+- Board contained scroll (UI-01/UI-06, `src/index.css`, `src/components/BoardView.tsx`): `.board-view` is now a fixed-height flex column (`calc(100vh - 64px)`, `60px` topbar ≤960px) with `overflow:hidden` — kanban columns scroll independently (`grid-auto-rows:minmax(0,1fr)`, per-column `overflow-y:auto`) instead of body-scrolling the page; the stale `max-width:1200px` is removed so the board fills the available width; list mode renders inside a `.board-list-scroll` region so it cannot clip under the contained layout
 
 ### Tests
 - `server/theme-package.test.ts`: added slot-fallback, no-package-selected null, missing-manifest throw, and caller-catch rollback simulation tests. Gate: 315 tests / 63 files ✓

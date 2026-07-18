@@ -127,7 +127,8 @@ export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask }: P
           })}
         </div>
       ) : (
-        <table className="board-table">
+        <div className="board-list-scroll">
+          <table className="board-table">
           <thead><tr>
             <th onClick={() => toggleSort('title')}>Title{sortMark('title')}</th>
             <th onClick={() => toggleSort('priority')}>Priority{sortMark('priority')}</th>
@@ -144,7 +145,8 @@ export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask }: P
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
       {activeRuns.length > 0 && (
         <div className="active-now-strip board-active-now">
