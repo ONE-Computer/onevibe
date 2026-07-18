@@ -1108,9 +1108,13 @@ button.model-selector *{color:inherit}
 /* P9-21: Capabilities page */
 .capabilities-view{padding:var(--layout-view-pad-top) var(--layout-view-pad-x) var(--layout-view-pad-bottom);max-width:var(--layout-content-max);margin:0 auto}
 @media(max-width:640px){.appearance-view,.homepage-editor-view,.artefacts-view,.capabilities-view{padding:34px 20px}}
+/* UI-04: unified eyebrow label above view h1s */
+.view-eyebrow{display:block;font:500 10px var(--font-ui);text-transform:uppercase;letter-spacing:.10em;color:var(--text-faint);margin-bottom:6px}
 /* UI-03: short-content views fill the viewport below the topbar (64px / 60px <=960px) so no dark void shows under empty states */
 .appearance-view,.homepage-editor-view,.capabilities-view{min-height:calc(100vh - 64px);display:flex;flex-direction:column}
 @media(max-width:960px){.appearance-view,.homepage-editor-view,.capabilities-view{min-height:calc(100vh - 60px)}}
+/* UI-04: unified h1 eyebrow label across nav views */
+.view-eyebrow{display:block;font:500 10px var(--font-ui);text-transform:uppercase;letter-spacing:.10em;color:var(--text-faint);margin-bottom:6px}
 .capabilities-view header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px}
 .capabilities-view header div{flex:1}
 .capabilities-view header h1{font:600 22px var(--font-ui);margin:4px 0 6px}
