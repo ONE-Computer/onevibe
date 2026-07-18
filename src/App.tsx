@@ -227,6 +227,9 @@ export default function App() {
   })
   const followUpMutation = useMutation({
     mutationFn: ({ taskId, prompt, attachments }: { taskId: string; prompt: string; attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> }) => sendFollowUp(taskId, prompt, attachments),
+    onSuccess: async () => {
+      await Promise.all([refreshSnapshot(), refreshTasks()])
+    },
   })
   const branchMutation = useMutation({
     mutationFn: ({ taskId, fromMessageId, newPrompt }: { taskId: string; fromMessageId: string; newPrompt: string }) => forkTask(taskId, fromMessageId, newPrompt),

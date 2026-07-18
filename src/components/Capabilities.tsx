@@ -34,7 +34,7 @@ export const Capabilities = ({ providers, mcpConfigs, catalog }: Props) => {
   return <section className="capabilities-view">
     <header>
       <div>
-        <span className="task-kicker">What the agent can do</span>
+        <span className="view-eyebrow">What the agent can do</span>
         <h1>Capabilities</h1>
         <p>Connected runtimes, tools, and the skills available for your agent to use.</p>
       </div>

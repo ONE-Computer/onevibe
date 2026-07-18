@@ -72,7 +72,7 @@ export const Artefacts = ({ items, onOpenTask }: Props) => {
     return <section className="artefacts-view">
       <header>
         <div>
-          <span className="task-kicker">Output files</span>
+          <span className="view-eyebrow">Output files</span>
           <h1>Artefacts</h1>
           <p>Files and documents produced by completed tasks, collected in one place.</p>
         </div>
@@ -89,7 +89,7 @@ export const Artefacts = ({ items, onOpenTask }: Props) => {
   return <section className="artefacts-view">
     <header>
       <div>
-        <span className="task-kicker">Output files</span>
+        <span className="view-eyebrow">Output files</span>
         <h1>Artefacts</h1>
         <p>Files and documents produced by completed tasks, collected in one place.</p>
       </div>

@@ -30,7 +30,7 @@ export const Schedules = ({ schedules, activeProjectId, onCreate, onToggle, onRu
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to create schedule') }
   }
   return <section className="schedules-view">
-    <header><div><span className="task-kicker">Automation</span><h1>Scheduled work</h1><p>Every run becomes a normal project task with the same evidence, policy, and approval boundaries.</p></div><CalendarClock size={28} /></header>
+    <header><div><span className="view-eyebrow">Automation</span><h1>Scheduled work</h1><p>Every run becomes a normal project task with the same evidence, policy, and approval boundaries.</p></div><CalendarClock size={28} /></header>
     <form className="schedule-create" onSubmit={(event) => { event.preventDefault(); void submit() }}>
       <input aria-label="Schedule name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Schedule name" maxLength={100} />
       <textarea aria-label="Scheduled task prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="What should ONEVibe do?" maxLength={8000} />
