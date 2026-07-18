@@ -8,10 +8,13 @@ whenToUse: At sprint start, after context compaction, or when deciding whether t
 
 ## Role split
 
-| Role | Agent | Responsibilities |
-|---|---|---|
-| PM / BA / QA / Roadmap | Claude Sonnet | Write briefs, fix gate failures, commit docs, implement when Kimi is unreliable |
-| Tech lead / Implementer | Kimi K3 | Write production code, run gate, commit features |
+| Role | Agent | Session ID | Responsibilities |
+|---|---|---|---|
+| PM / BA / QA / Roadmap | Claude Sonnet | — | Write briefs, fix gate failures, commit docs only |
+| Tech lead / Implementer | Kimi K3 Session A | `session_c90ce2bb-90a4-4e42-aadf-b3a451542df1` | Write production code, run gate, commit features |
+| QA Engineer | Kimi K3 Session B | `session_d95dd0b3-3796-43ae-8ac6-0fe1779ea43e` | Boot dev server, visual browser verification, PASS/FAIL verdict, screenshot to `docs/browser-screenshots/` |
+
+**Two-session workflow:** Session A implements → commits → Claude briefs Session B → Session B QAs in browser → logs PASS/FAIL to roadmap → Claude sends next brief to Session A.
 
 ## Brief format (what Kimi needs)
 
