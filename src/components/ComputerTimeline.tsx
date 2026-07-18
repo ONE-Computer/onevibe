@@ -1,10 +1,9 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, Eye, FileCode2, Pause, Play, Presentation, Radio, ShieldCheck, TerminalSquare, Wrench } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BrainCircuit, CheckCircle2, ChevronDown, ChevronRight, Eye, FileCode2, Pause, Play, Presentation, Radio, ShieldCheck, TerminalSquare, Wrench } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { PresentationPanel, TaskSnapshot } from '../types'
-import { artifactRailItems, causalVisualItemsFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, virtualRailRange, visualEvidenceStateFor, type ComputerItem } from './computer-timeline-activity'
+import { artifactRailItems, causalVisualItemsFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, railRowsFor, railStatusFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, toolCallGroupsFor, virtualRailRows, visualEvidenceStateFor, type ComputerItem, type RailToolGroup } from './computer-timeline-activity'
 
 const iconFor = (item: ComputerItem) => item.kind === 'terminal' ? <TerminalSquare size={13} /> : item.kind === 'screenshot' ? <Eye size={13} /> : item.kind === 'preview' ? <Radio size={13} /> : item.kind === 'slide' ? <Presentation size={13} /> : item.kind === 'approval' ? <ShieldCheck size={13} /> : <FileCode2 size={13} />
-const RAIL_ROW_HEIGHT = 68
 const withCacheBust = (uri: string, value: number) => `${uri}${uri.includes('?') ? '&' : '?'}v=${value}`
 const isBrowserEvidence = (value: unknown): value is { tool: string; url?: string } => Boolean(value) && typeof value === 'object' && typeof (value as { tool?: unknown }).tool === 'string' && (typeof (value as { url?: unknown }).url === 'string' || (value as { url?: unknown }).url === undefined)
 const previewableArtifactPath = (item: ComputerItem | undefined) => {
@@ -12,12 +11,19 @@ const previewableArtifactPath = (item: ComputerItem | undefined) => {
   return /\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|ya?ml|toml|xml|svg|gitignore|prettierrc)$/i.test(item.detail) ? item.detail : undefined
 }
 
-const ArtifactRailEntry = ({ item, previousRunId, runIds, index, selected, total, events, onMove }: { item: ComputerItem; previousRunId?: string; runIds: string[]; index: number; selected: boolean; total: number; events: TaskSnapshot['events']; onMove: (index: number) => void }) => {
+const ArtifactRailEntry = ({ item, depth, index, selected, total, events, onMove }: { item: ComputerItem; depth: 0 | 1; index: number; selected: boolean; total: number; events: TaskSnapshot['events']; onMove: (index: number) => void }) => {
   const activity = item.kind === 'terminal' ? terminalActivityFor(item, events) : undefined
   const elapsed = formatDuration(activity?.durationMs)
   const title = activity?.command ? `CLI command · ${item.title}` : item.title
   const cardType = railCardTypeFor(item)
-  return <div className="computer-rail-entry" data-rail-type={cardType}>{item.runId && item.runId !== previousRunId && <div className="computer-run-marker">{runLabel(item.runId, runIds)}</div>}<button className={selected ? 'selected' : ''} aria-current={selected ? 'true' : undefined} onClick={() => onMove(index)} aria-label={`${cardType} evidence: ${title}, event ${index + 1} of ${total}`}><span>{iconFor(item)}</span><div><small className="computer-card-type">{cardType}</small><strong>{title}</strong>{item.activityPreview && <code title={item.activityPreview}>{item.activityPreview}</code>}{item.relatedEventIds?.length ? <small className={activity?.failed ? 'computer-pair-status failed' : 'computer-pair-status'}>{activity?.failed ? 'failed' : `complete${elapsed ? ` · ${elapsed}` : ''}`}</small> : <small>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</small>}</div>{item.kind === 'screenshot' && item.uri && !item.live && <img className="computer-rail-thumbnail" src={item.uri} alt={title} loading="lazy" />}</button></div>
+  const status = railStatusFor(item, events)
+  return <div className="computer-rail-entry" data-rail-type={cardType} data-depth={depth} data-status={status}><button className={selected ? 'selected' : ''} aria-current={selected ? 'true' : undefined} onClick={() => onMove(index)} aria-label={`${cardType} step: ${title}, step ${index + 1} of ${total}, status ${status}`} title={item.activityPreview ?? item.detail ?? title}><i className="computer-status-dot" aria-hidden="true" /><span className="computer-step-icon">{iconFor(item)}</span><strong>{title}</strong><em className="computer-latency-badge">{elapsed ?? ''}</em><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</time></button></div>
+}
+
+const ToolGroupRow = ({ group, collapsed, onToggle }: { group: RailToolGroup; collapsed: boolean; onToggle: (id: string) => void }) => {
+  const duration = formatDuration(group.durationMs)
+  const status = group.failedCount ? 'failed' : group.pendingCount ? 'pending' : 'completed'
+  return <div className="computer-rail-group" data-status={status}><button aria-expanded={!collapsed} onClick={() => onToggle(group.id)} aria-label={`${collapsed ? 'Expand' : 'Collapse'} LLM turn with ${group.items.length} tool calls`}>{collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}<BrainCircuit size={12} /><strong>LLM turn</strong><em className="computer-latency-badge">{group.items.length} calls{duration ? ` · ${duration}` : ''}</em>{group.failedCount > 0 && <em className="computer-group-failed">{group.failedCount} failed</em>}</button></div>
 }
 
 export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
@@ -37,28 +43,33 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   const [railScrollTop, setRailScrollTop] = useState(0)
   const [railViewportHeight, setRailViewportHeight] = useState(360)
   const [artifactExcerpt, setArtifactExcerpt] = useState<{ path: string; content: string; truncated: boolean }>()
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set())
   const previousFilter = useRef(`${filter}:${runFilter}`)
   const restoredReplayTask = useRef<string | undefined>(undefined)
   const railScrollRef = useRef<HTMLDivElement>(null)
-  const itemKey = items.map((item) => item.id).join('|')
-  const lastItemId = items.at(-1)?.id
-  const selected = Math.max(0, items.findIndex((item) => item.id === selectedId))
+  const entries = useMemo(() => toolCallGroupsFor(items, task.events), [items, task.events])
+  const rows = useMemo(() => railRowsFor(entries, collapsedGroups), [entries, collapsedGroups])
+  const visibleItems = useMemo(() => rows.flatMap((row) => row.type === 'item' ? [row.item] : []), [rows])
+  const itemIndexById = useMemo(() => new Map(visibleItems.map((item, index) => [item.id, index])), [visibleItems])
+  const visibleWindow = useMemo(() => virtualRailRows(rows, railScrollTop, railViewportHeight), [rows, railScrollTop, railViewportHeight])
+  const itemKey = visibleItems.map((item) => item.id).join('|')
+  const lastItemId = visibleItems.at(-1)?.id
+  const selected = Math.max(0, visibleItems.findIndex((item) => item.id === selectedId))
   const settled = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled'
-  const defaultItem = useMemo(() => defaultComputerItem(items, settled, task.mode), [items, settled, task.mode])
+  const defaultItem = useMemo(() => defaultComputerItem(visibleItems, settled, task.mode), [visibleItems, settled, task.mode])
   const replayFrames = useMemo(() => filterItemsByRun(railItems, runFilter).filter((item) => item.kind === 'screenshot' && !item.live), [railItems, runFilter])
-  const visibleRange = virtualRailRange(items.length, railScrollTop, railViewportHeight, RAIL_ROW_HEIGHT)
   const comparison = useMemo(() => comparisonRunId && runFilter !== 'all' && comparisonRunId !== runFilter ? { baseline: summarizeRunEvidence(railItems, comparisonRunId), candidate: summarizeRunEvidence(railItems, runFilter), artifacts: compareRunArtifacts(railItems, comparisonRunId, runFilter) } : undefined, [comparisonRunId, railItems, runFilter])
-  useEffect(() => { setFollow(task.status === 'running' || task.status === 'waiting_for_approval' || task.status === 'waiting_for_user_input'); setNewActivity(0); setReplaying(false); setSelectedId(undefined); setFilter('all'); setRunFilter('all'); setComparisonRunId(''); setRailQuery('') }, [task.id, task.status])
+  useEffect(() => { setFollow(task.status === 'running' || task.status === 'waiting_for_approval' || task.status === 'waiting_for_user_input'); setNewActivity(0); setReplaying(false); setSelectedId(undefined); setFilter('all'); setRunFilter('all'); setComparisonRunId(''); setRailQuery(''); setCollapsedGroups(new Set()) }, [task.id, task.status])
   useEffect(() => {
     const filterKey = `${filter}:${runFilter}`
     if (previousFilter.current !== filterKey) { setFollow(false); setNewActivity(0); previousFilter.current = filterKey }
-    if (follow && items.length) setSelectedId(items.at(-1)?.id)
-    else if (defaultItem && !items.some((item) => item.id === selectedId)) setSelectedId(defaultItem.id)
-  }, [defaultItem, filter, follow, items, runFilter, selectedId])
+    if (follow && visibleItems.length) setSelectedId(visibleItems.at(-1)?.id)
+    else if (defaultItem && !visibleItems.some((item) => item.id === selectedId)) setSelectedId(defaultItem.id)
+  }, [defaultItem, filter, follow, visibleItems, runFilter, selectedId])
   useEffect(() => {
-    if (follow && items.length) { setSelectedId(lastItemId); setNewActivity(0); return }
-    setNewActivity((current) => Math.max(current, Math.max(0, items.length - selected - 1)))
-  }, [follow, items.length, itemKey, lastItemId, selected])
+    if (follow && visibleItems.length) { setSelectedId(lastItemId); setNewActivity(0); return }
+    setNewActivity((current) => Math.max(current, Math.max(0, visibleItems.length - selected - 1)))
+  }, [follow, visibleItems.length, itemKey, lastItemId, selected])
   useEffect(() => {
     if (restoredReplayTask.current === task.id) return
     const params = new URLSearchParams(window.location.search)
@@ -75,7 +86,7 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
     }
     restoredReplayTask.current = task.id
   }, [railItems, runIds, task.id])
-  const active = items[Math.min(selected, Math.max(items.length - 1, 0))]
+  const active = visibleItems[Math.min(selected, Math.max(visibleItems.length - 1, 0))]
   const artifactPath = previewableArtifactPath(active)
   const terminalActivity = active?.kind === 'terminal' ? terminalActivityFor(active, task.events) : undefined
   const relatedVisuals = active?.kind === 'terminal' ? causalVisualItemsFor([active.id, ...(active.relatedEventIds ?? [])], allItems) : []
@@ -99,10 +110,13 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   useEffect(() => {
     const element = railScrollRef.current
     if (!element || !active?.id) return
-    const top = selected * RAIL_ROW_HEIGHT
-    const bottom = top + RAIL_ROW_HEIGHT
-    if (top < element.scrollTop || bottom > element.scrollTop + element.clientHeight) element.scrollTo({ top: Math.max(0, top - Math.floor(element.clientHeight / 2) + Math.floor(RAIL_ROW_HEIGHT / 2)), behavior: 'auto' })
-  }, [active?.id, filter, selected])
+    const rowIndex = rows.findIndex((row) => row.id === active.id)
+    if (rowIndex < 0) return
+    const top = visibleWindow.offsets[rowIndex]
+    const height = rowIndex + 1 < rows.length ? visibleWindow.offsets[rowIndex + 1] - top : visibleWindow.total - top
+    const bottom = top + height
+    if (top < element.scrollTop || bottom > element.scrollTop + element.clientHeight) element.scrollTo({ top: Math.max(0, top - Math.floor(element.clientHeight / 2) + Math.floor(height / 2)), behavior: 'auto' })
+  }, [active?.id, filter, rows, visibleWindow])
   useEffect(() => {
     const element = railScrollRef.current
     if (!element) return
@@ -147,8 +161,9 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
     }, reducedMotion ? 2_400 : 1_250)
     return () => window.clearTimeout(timer)
   }, [filter, items, persistEvidenceReference, replaying, selected])
-  const move = (next: number) => { const index = Math.max(0, Math.min(items.length - 1, next)); setReplaying(false); setFollow(false); setSelectedId(items[index]?.id); persistEvidenceReference(items[index]) }
-  const resumeLive = () => { const index = items.length - 1; setReplaying(false); setFollow(true); setNewActivity(0); setSelectedId(items[index]?.id); persistEvidenceReference(items[index]) }
+  const move = (next: number) => { const index = Math.max(0, Math.min(visibleItems.length - 1, next)); setReplaying(false); setFollow(false); setSelectedId(visibleItems[index]?.id); persistEvidenceReference(visibleItems[index]) }
+  const resumeLive = () => { const index = visibleItems.length - 1; setReplaying(false); setFollow(true); setNewActivity(0); setSelectedId(visibleItems[index]?.id); persistEvidenceReference(visibleItems[index]) }
+  const toggleGroup = (id: string) => setCollapsedGroups((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })
   const toggleReplay = () => {
     if (replaying) { setReplaying(false); return }
     if (replayFrames.length < 2) return
@@ -179,8 +194,8 @@ export const ComputerTimeline = ({ task }: { task: TaskSnapshot }) => {
   }
   if (!allItems.length) return <div className="workspace-placeholder"><Wrench size={20} /><strong>No computer activity yet</strong><span>Commands, screenshots, files, and previews will appear here as the agent works.</span></div>
   return <div className="computer-timeline" onKeyDown={onTimelineKeyDown} tabIndex={0} aria-label="Agent computer artifact timeline">
-    <aside className="computer-history"><div className="computer-history-heading"><span>Artifact rail</span><div>{replayFrames.length > 1 && <button className={replaying ? 'active' : ''} onClick={toggleReplay} aria-label={replaying ? 'Pause visual evidence replay' : 'Replay visual evidence'} title={replaying ? 'Pause replay' : 'Replay visual evidence'}>{replaying ? <Pause size={10} /> : <Play size={10} />} {replaying ? 'Pause' : 'Replay'}</button>}<button className={follow ? 'active' : ''} onClick={resumeLive} aria-label="Resume live follow"><Radio size={10} /> {follow ? 'Live' : newActivity ? `${newActivity} new` : 'Resume'}</button></div></div><div className="computer-filters">{(['all', 'terminal', 'screenshot', 'file', 'preview', 'slide', 'approval', 'diff'] as const).filter((kind) => kind === 'all' || railItems.some((item) => item.kind === kind)).map((kind) => <button key={kind} className={filter === kind ? 'active' : ''} onClick={() => { setReplaying(false); setFilter(kind) }}>{kind === 'all' ? 'All' : kind}</button>)}{runIds.length > 1 && <><select value={runFilter} onChange={(event) => { setReplaying(false); setComparisonRunId(''); setRunFilter(event.target.value) }} aria-label="Filter artifact evidence by run"><option value="all">All runs</option>{runIds.map((runId) => <option key={runId} value={runId}>{runLabel(runId, runIds)}</option>)}</select>{runFilter !== 'all' && <select value={comparisonRunId} onChange={(event) => setComparisonRunId(event.target.value)} aria-label="Compare selected run against another run"><option value="">Compare…</option>{runIds.filter((runId) => runId !== runFilter).map((runId) => <option key={runId} value={runId}>vs {runLabel(runId, runIds)}</option>)}</select>}</>}</div>{comparison && <div className="computer-run-comparison"><strong>{runLabel(comparison.candidate.runId, runIds)} vs {runLabel(comparison.baseline.runId, runIds)}</strong><span>{comparison.candidate.toolCards} tools · {comparison.candidate.visualFrames} frames · {comparison.candidate.deliverables} deliverables</span><small>{comparison.candidate.cards - comparison.baseline.cards >= 0 ? '+' : ''}{comparison.candidate.cards - comparison.baseline.cards} evidence cards · {formatDuration(comparison.candidate.durationMs) ?? 'single event'} vs {formatDuration(comparison.baseline.durationMs) ?? 'single event'}</small>{(comparison.artifacts.added.length > 0 || comparison.artifacts.removed.length > 0) && <small className="computer-run-artifact-delta">{comparison.artifacts.added.length ? `+ ${comparison.artifacts.added.join(', ')}` : ''}{comparison.artifacts.added.length && comparison.artifacts.removed.length ? ' · ' : ''}{comparison.artifacts.removed.length ? `− ${comparison.artifacts.removed.join(', ')}` : ''}{comparison.artifacts.truncated ? ' · more' : ''}</small>}</div>}<label className="computer-rail-search"><span>Find evidence</span><input value={railQuery} onChange={(event) => { setReplaying(false); setRailQuery(event.target.value) }} placeholder="Command, artifact, run…" aria-label="Find projected task evidence" /></label>{items.length > 0 && <label className="computer-rail-scrubber"><span><b>Scrub evidence</b><em>{selected + 1} / {items.length}{active ? ` · ${new Date(active.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}</em></span><input type="range" min="0" max={Math.max(items.length - 1, 0)} value={selected} disabled={items.length < 2} onChange={(event) => move(Number(event.target.value))} aria-label="Scrub chronological task evidence" /></label>}<div className="computer-rail-scroll" ref={railScrollRef} onScroll={(event) => setRailScrollTop(event.currentTarget.scrollTop)}>{items.length ? <div className="computer-rail-virtual" style={{ height: items.length * RAIL_ROW_HEIGHT }}><div style={{ transform: `translateY(${visibleRange.start * RAIL_ROW_HEIGHT}px)` }}>{items.slice(visibleRange.start, visibleRange.end).map((item, offset) => { const index = visibleRange.start + offset; return <ArtifactRailEntry key={item.id} item={item} previousRunId={items[index - 1]?.runId} runIds={runIds} index={index} selected={index === selected} total={items.length} events={task.events} onMove={move} /> })}</div></div> : <p className="computer-rail-empty">No projected evidence matches this search.</p>}</div></aside>
-    <section className="computer-stage"><header><button disabled={selected === 0} onClick={() => move(selected - 1)} aria-label="Previous timeline event"><ArrowLeft size={13} /></button><button disabled={selected >= items.length - 1} onClick={() => move(selected + 1)} aria-label="Next timeline event"><ArrowRight size={13} /></button><div><strong>{active?.title}</strong><span>{active?.detail}</span></div><em>{active?.runId ? `${runLabel(active.runId, runIds)} · ` : ''}{active?.sequence ? `#${active.sequence} · ` : ''}{selected + 1} / {items.length}{filter !== 'all' && ` · ${filter}`}{active?.eventHash && <code title="Immutable evidence hash">{active.eventHash.slice(0, 8)}</code>}{replaying ? <b>replaying</b> : !follow && !settled && <b>paused</b>}</em></header>
+    <aside className="computer-history"><div className="computer-history-heading"><span>Artifact rail</span><div>{replayFrames.length > 1 && <button className={replaying ? 'active' : ''} onClick={toggleReplay} aria-label={replaying ? 'Pause visual evidence replay' : 'Replay visual evidence'} title={replaying ? 'Pause replay' : 'Replay visual evidence'}>{replaying ? <Pause size={10} /> : <Play size={10} />} {replaying ? 'Pause' : 'Replay'}</button>}<button className={follow ? 'active' : ''} onClick={resumeLive} aria-label="Resume live follow"><Radio size={10} /> {follow ? 'Live' : newActivity ? `${newActivity} new` : 'Resume'}</button></div></div><div className="computer-filters">{(['all', 'terminal', 'screenshot', 'file', 'preview', 'slide', 'approval', 'diff'] as const).filter((kind) => kind === 'all' || railItems.some((item) => item.kind === kind)).map((kind) => <button key={kind} className={filter === kind ? 'active' : ''} onClick={() => { setReplaying(false); setFilter(kind) }}>{kind === 'all' ? 'All' : kind}</button>)}{runIds.length > 1 && <><select value={runFilter} onChange={(event) => { setReplaying(false); setComparisonRunId(''); setRunFilter(event.target.value) }} aria-label="Filter artifact evidence by run"><option value="all">All runs</option>{runIds.map((runId) => <option key={runId} value={runId}>{runLabel(runId, runIds)}</option>)}</select>{runFilter !== 'all' && <select value={comparisonRunId} onChange={(event) => setComparisonRunId(event.target.value)} aria-label="Compare selected run against another run"><option value="">Compare…</option>{runIds.filter((runId) => runId !== runFilter).map((runId) => <option key={runId} value={runId}>vs {runLabel(runId, runIds)}</option>)}</select>}</>}</div>{comparison && <div className="computer-run-comparison"><strong>{runLabel(comparison.candidate.runId, runIds)} vs {runLabel(comparison.baseline.runId, runIds)}</strong><span>{comparison.candidate.toolCards} tools · {comparison.candidate.visualFrames} frames · {comparison.candidate.deliverables} deliverables</span><small>{comparison.candidate.cards - comparison.baseline.cards >= 0 ? '+' : ''}{comparison.candidate.cards - comparison.baseline.cards} evidence cards · {formatDuration(comparison.candidate.durationMs) ?? 'single event'} vs {formatDuration(comparison.baseline.durationMs) ?? 'single event'}</small>{(comparison.artifacts.added.length > 0 || comparison.artifacts.removed.length > 0) && <small className="computer-run-artifact-delta">{comparison.artifacts.added.length ? `+ ${comparison.artifacts.added.join(', ')}` : ''}{comparison.artifacts.added.length && comparison.artifacts.removed.length ? ' · ' : ''}{comparison.artifacts.removed.length ? `− ${comparison.artifacts.removed.join(', ')}` : ''}{comparison.artifacts.truncated ? ' · more' : ''}</small>}</div>}<label className="computer-rail-search"><span>Find evidence</span><input value={railQuery} onChange={(event) => { setReplaying(false); setRailQuery(event.target.value) }} placeholder="Command, artifact, run…" aria-label="Find projected task evidence" /></label>{visibleItems.length > 0 && <div className="computer-rail-stepper"><button onClick={() => move(selected - 1)} disabled={selected <= 0} aria-label="Previous checkpoint"><ArrowLeft size={11} /></button><span><b>{selected + 1} / {visibleItems.length}</b><em>{active ? new Date(active.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}</em></span><button onClick={() => move(selected + 1)} disabled={selected >= visibleItems.length - 1} aria-label="Next checkpoint"><ArrowRight size={11} /></button></div>}<div className="computer-rail-scroll" ref={railScrollRef} onScroll={(event) => setRailScrollTop(event.currentTarget.scrollTop)}>{rows.length ? <div className="computer-rail-virtual" style={{ height: visibleWindow.total }}><div style={{ transform: `translateY(${visibleWindow.offsets[visibleWindow.start] ?? 0}px)` }}>{rows.slice(visibleWindow.start, visibleWindow.end).map((row) => { if (row.type === 'run') return <div key={row.id} className="computer-rail-run">{runLabel(row.runId, runIds)}</div>; if (row.type === 'group') return <ToolGroupRow key={row.id} group={row.group} collapsed={collapsedGroups.has(row.id)} onToggle={toggleGroup} />; return <ArtifactRailEntry key={row.id} item={row.item} depth={row.depth} index={itemIndexById.get(row.item.id) ?? 0} selected={row.item.id === active?.id} total={visibleItems.length} events={task.events} onMove={move} /> })}</div></div> : <p className="computer-rail-empty">No projected evidence matches this search.</p>}</div></aside>
+    <section className="computer-stage"><header><button disabled={selected === 0} onClick={() => move(selected - 1)} aria-label="Previous timeline event"><ArrowLeft size={13} /></button><button disabled={selected >= visibleItems.length - 1} onClick={() => move(selected + 1)} aria-label="Next timeline event"><ArrowRight size={13} /></button><div><strong>{active?.title}</strong><span>{active?.detail}</span></div><em>{active?.runId ? `${runLabel(active.runId, runIds)} · ` : ''}{active?.sequence ? `#${active.sequence} · ` : ''}{visibleItems.length ? selected + 1 : 0} / {visibleItems.length}{filter !== 'all' && ` · ${filter}`}{active?.eventHash && <code title="Immutable evidence hash">{active.eventHash.slice(0, 8)}</code>}{replaying ? <b>replaying</b> : !follow && !settled && <b>paused</b>}</em></header>
       {active?.kind === 'screenshot' && active.uri && <div className="computer-visual"><img src={withCacheBust(active.uri, frame)} alt={active.title} /></div>}
       {active?.kind === 'preview' && active.uri && <iframe title={active.title} sandbox="allow-scripts" src={active.uri} />}
       {active?.kind === 'slide' && <div className="computer-file"><Presentation size={28} /><strong>{active.detail ?? active.title}</strong><span>Deck evidence is preserved. Open the Files tab to download the PPTX or PDF, or inspect the rendered viewer.</span></div>}

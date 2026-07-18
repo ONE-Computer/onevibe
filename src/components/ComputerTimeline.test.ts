@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, matchesRailQuery, presentationItems, railCardTypeFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, virtualRailRange, visualEvidenceStateFor, type ComputerItem } from './computer-timeline-activity'
+import { activityPreviewFor, artifactRailItems, causalVisualItemsFor, commandFor, compareRunArtifacts, defaultComputerItem, evidenceItemId, filterItemsByRun, formatDuration, formatInspectable, isRailToolGroup, matchesRailQuery, presentationItems, railCardTypeFor, railRowsFor, railStatusFor, runIdsFor, runLabel, summarizeRunEvidence, terminalActivityFor, timelineNavigationAllowedFor, toolCallGroupsFor, virtualRailRows, visualEvidenceStateFor, type ComputerItem, type RailRow, type RailToolGroup } from './computer-timeline-activity'
 import type { RuntimeEvent } from '../types'
 
 const event = (id: string, type: string, payload: Record<string, unknown>, content?: string): RuntimeEvent => ({
@@ -140,8 +140,25 @@ describe('Computer timeline terminal inspection', () => {
   })
 
   it('windows a long rail while retaining an overscan buffer for smooth scrolling', () => {
-    expect(virtualRailRange(10_000, 68 * 500, 340)).toEqual({ start: 488, end: 517 })
-    expect(virtualRailRange(3, 0, 340)).toEqual({ start: 0, end: 3 })
+    const rows: RailRow[] = Array.from({ length: 10_000 }, (_, index) => ({
+      type: 'item', id: `item-${index}`, depth: 0,
+      item: { id: `item-${index}`, kind: 'terminal', title: `Step ${index}`, createdAt: '2026-07-16T00:00:00.000Z' },
+    }))
+    const view = virtualRailRows(rows, 44 * 500, 340)
+    expect({ start: view.start, end: view.end, offsets: view.offsets.length, total: view.total }).toEqual({ start: 490, end: 518, offsets: 10_000, total: 440_000 })
+    expect(virtualRailRows(rows.slice(0, 3), 0, 340)).toMatchObject({ start: 0, end: 3, total: 132 })
+  })
+
+  it('measures mixed run divider, group header, and item row heights', () => {
+    const grouped = (id: string): ComputerItem => ({ id, kind: 'terminal', title: `Tool ${id}`, createdAt: '2026-07-16T00:00:00.000Z' })
+    const group: RailToolGroup = { id: 'turn-a', items: [grouped('a'), grouped('b')], failedCount: 0, pendingCount: 0 }
+    const rows: RailRow[] = [
+      { type: 'run', id: 'run-run-a-0', runId: 'run-a' },
+      { type: 'group', id: group.id, group },
+      { type: 'item', id: 'a', item: grouped('a'), depth: 1 },
+      { type: 'item', id: 'b', item: grouped('b'), depth: 1 },
+    ]
+    expect(virtualRailRows(rows, 24, 44)).toMatchObject({ start: 0, end: 4, total: 144 })
   })
 
   it('reserves arrow and home/end controls for the rail without stealing editable-field navigation', () => {
@@ -204,5 +221,100 @@ describe('Computer timeline terminal inspection', () => {
   it('uses chronological turn labels for legacy runs and short IDs for persisted runs', () => {
     expect(runLabel('legacy-run-start-one', ['legacy-run-start-one', 'legacy-run-start-two'])).toBe('Turn 1')
     expect(runLabel('persisted-abcdef', [])).toBe('Run abcdef')
+  })
+})
+
+describe('Computer timeline checkpoint rail', () => {
+  const tool = (id: string, runId = 'run-a', createdAt = '2026-07-16T00:00:00.000Z'): ComputerItem => ({
+    id, kind: 'terminal', eventType: 'tool_call_started', title: `Tool ${id}`, createdAt, runId, payload: { toolUseId: id },
+  })
+
+  it('keeps an approval pending until its immutable resolution event exists', () => {
+    const requested: ComputerItem = { id: 'approval-event', kind: 'approval', eventType: 'approval_requested', title: 'Approval required', createdAt: '2026-07-16T00:00:00.000Z', payload: { approvalId: 'approval-1' } }
+    expect(railStatusFor(requested, [])).toBe('pending')
+    expect(railStatusFor(requested, [event('resolution', 'approval_resolved', { approvalId: 'approval-1', decision: 'approved' })])).toBe('completed')
+    expect(railStatusFor(requested, [event('resolution', 'approval_resolved', { approvalId: 'approval-1', decision: 'denied' })])).toBe('failed')
+    expect(railStatusFor(requested, [event('resolution', 'approval_resolved', { approvalId: 'approval-1', state: 'expired', walletDecision: false })])).toBe('skipped')
+  })
+
+  it('reads an approval resolution card from its own payload', () => {
+    const resolved = (payload: Record<string, unknown>): ComputerItem => ({ id: 'resolution', kind: 'approval', eventType: 'approval_resolved', title: 'Approval resolved', createdAt: '2026-07-16T00:00:01.000Z', payload })
+    expect(railStatusFor(resolved({ approvalId: 'approval-1', decision: 'approved' }), [])).toBe('completed')
+    expect(railStatusFor(resolved({ approvalId: 'approval-1', state: 'expired', walletDecision: false }), [])).toBe('skipped')
+  })
+
+  it('derives tool call status from the paired terminal result, never from optimism', () => {
+    const started = event('tool-start', 'tool_call_started', { toolUseId: 'tool-1' })
+    const finished = event('tool-finish', 'tool_call_completed', { toolUseId: 'tool-1' }, 'Done')
+    finished.createdAt = '2026-07-16T00:00:01.200Z'
+    const startItem: ComputerItem = { id: started.id, kind: 'terminal', eventType: 'tool_call_started', title: 'Bash', createdAt: started.createdAt, payload: started.payload }
+    expect(railStatusFor(startItem, [started])).toBe('pending')
+    expect(railStatusFor(startItem, [started, finished])).toBe('completed')
+    expect(railStatusFor({ ...startItem, relatedEventIds: [finished.id] }, [])).toBe('completed')
+    const orphan: ComputerItem = { id: 'orphan', kind: 'terminal', eventType: 'tool_call_completed', title: 'Recovered', createdAt: '2026-07-16T00:00:02.000Z', payload: { toolUseId: 'gone' } }
+    expect(railStatusFor(orphan, [])).toBe('completed')
+    expect(railStatusFor({ ...orphan, payload: { toolUseId: 'gone', isError: true } }, [])).toBe('failed')
+  })
+
+  it('marks live surfaces pending and recorded evidence completed', () => {
+    const frame: ComputerItem = { id: 'frame', kind: 'screenshot', title: 'X11 frame', createdAt: '2026-07-16T00:00:00.000Z' }
+    expect(railStatusFor(frame, [])).toBe('completed')
+    expect(railStatusFor({ ...frame, live: true }, [])).toBe('pending')
+  })
+
+  it('groups consecutive tool calls of one LLM turn with truthful aggregates', () => {
+    const items = [
+      tool('t1', 'run-a', '2026-07-16T00:00:00.000Z'),
+      { ...tool('t2', 'run-a', '2026-07-16T00:00:01.000Z'), payload: { toolUseId: 't2', isError: true } },
+      tool('t3', 'run-a', '2026-07-16T00:00:02.500Z'),
+    ]
+    const entries = toolCallGroupsFor(items, [])
+    expect(entries).toHaveLength(1)
+    const [group] = entries
+    expect(isRailToolGroup(group)).toBe(true)
+    if (isRailToolGroup(group)) {
+      expect(group.id).toBe('turn-t1')
+      expect(group.items.map((item) => item.id)).toEqual(['t1', 't2', 't3'])
+      expect(group.failedCount).toBe(1)
+      expect(group.pendingCount).toBe(2)
+      expect(group.durationMs).toBe(2_500)
+    }
+  })
+
+  it('starts a new group when assistant text evidence separates two tool calls', () => {
+    const events = [
+      event('t1', 'tool_call_started', { toolUseId: 't1' }),
+      event('delta', 'assistant_text_delta', {}),
+      event('t2', 'tool_call_started', { toolUseId: 't2' }),
+      event('t3', 'tool_call_started', { toolUseId: 't3' }),
+    ]
+    const entries = toolCallGroupsFor([tool('t1'), tool('t2'), tool('t3')], events)
+    expect(entries).toHaveLength(2)
+    expect(isRailToolGroup(entries[0])).toBe(false)
+    expect(isRailToolGroup(entries[1])).toBe(true)
+    if (!isRailToolGroup(entries[0])) expect(entries[0].id).toBe('t1')
+    if (isRailToolGroup(entries[1])) expect(entries[1].items.map((item) => item.id)).toEqual(['t2', 't3'])
+  })
+
+  it('never groups across run boundaries, non-tool evidence, or live surfaces', () => {
+    expect(toolCallGroupsFor([tool('t1')], []).map((entry) => entry.id)).toEqual(['t1'])
+    const acrossRuns = toolCallGroupsFor([tool('t1', 'run-a'), tool('t2', 'run-b')], [])
+    expect(acrossRuns.every((entry) => !isRailToolGroup(entry))).toBe(true)
+    const frame: ComputerItem = { id: 'frame', kind: 'screenshot', title: 'X11', createdAt: '2026-07-16T00:00:01.000Z', runId: 'run-a' }
+    expect(toolCallGroupsFor([tool('t1'), frame, tool('t2')], []).map((entry) => entry.id)).toEqual(['t1', 'frame', 't2'])
+    const live: ComputerItem = { ...tool('live-call'), live: true }
+    expect(toolCallGroupsFor([tool('t1'), live, tool('t2')], []).every((entry) => !isRailToolGroup(entry))).toBe(true)
+  })
+
+  it('flattens entries into run dividers, group headers, and collapsible item rows', () => {
+    const first = tool('t1', 'run-a')
+    const group: RailToolGroup = { id: 'turn-t2', items: [tool('t2', 'run-a'), tool('t3', 'run-a')], failedCount: 0, pendingCount: 2 }
+    const artifact: ComputerItem = { id: 'artifact', kind: 'file', title: 'README.md', createdAt: '2026-07-16T00:00:03.000Z', runId: 'run-b' }
+    const rows = railRowsFor([first, group, artifact], new Set())
+    expect(rows.map((row) => row.type)).toEqual(['run', 'item', 'group', 'item', 'item', 'run', 'item'])
+    expect(rows.flatMap((row) => row.type === 'item' ? [row.depth] : [])).toEqual([0, 1, 1, 0])
+    const collapsed = railRowsFor([first, group, artifact], new Set([group.id]))
+    expect(collapsed.map((row) => row.type)).toEqual(['run', 'item', 'group', 'run', 'item'])
+    expect(collapsed.some((row) => row.type === 'item' && row.depth === 1)).toBe(false)
   })
 })

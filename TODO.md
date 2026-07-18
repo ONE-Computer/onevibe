@@ -1,10 +1,10 @@
 # ONEVibe — Cloud Workspace Transformation TODO
 
-> **What ONEVibe is**: A cloud-native AI workspace that is a **provider-neutral meta-layer** above agent harnesses. Users pick which harness runs their task — Claude Agent SDK, OpenAI Codex, AWS Bedrock AgentCore, OpenCode, or any future runtime. ONEVibe provides everything above the harness: conversation history, artifact storage, workspace files, approval governance, MCP routing, team management, and a professional UI. The harness is a pluggable detail. ONEVibe is not.
+> **What ONEVibe is**: The **Cowork frontend** — the end-user face of the ONEComputer governed AI platform. Users open ONEVibe, pick a task, connect their tools (Jira, GitHub, Outlook, Google Drive, Slack…), and an agent runs it inside an ONEComputer-managed sandbox. ONEVibe provides everything the user sees and touches: conversation, artifacts, connector management, approval cards, and the execution trace. ONEComputer is the invisible infrastructure beneath: MITM gateway, connector broker, VTI identity, CISO console, policy enforcement. Neither product works without the other; they are one platform with two faces.
 >
-> **What ONEVibe is not**: A wrapper around a single SDK. OpenWork locked onto OpenCode. We do not lock onto anything. Harnesses will always improve. Our users must be free to use the best one at any time.
+> **What ONEVibe is not**: A wrapper around a single SDK, and not a standalone product. The connectors, governance, sandbox isolation, and audit trail all live in ONEComputer. ONEVibe surfaces them in a way a non-technical user can act on. The harness (Claude SDK, Codex, AgentCore) is a pluggable detail; the governance layer is not.
 >
-> **The abstraction that matters**: `server/runtime-adapter.ts` — the `RuntimeAdapter` interface. Every harness is an implementation. Strengthen this boundary. Never leak harness-specific concepts into the UI or data model.
+> **The two abstractions that matter**: `server/runtime-adapter.ts` (harness boundary — every AI runtime is an implementation) and `ONECOMPUTER_URL` (governance boundary — all connector calls, approvals, sandbox execution, and audit trail live behind this endpoint). Never leak harness-specific or connector-specific concepts into the UI data model.
 >
 > **Current state**: The local-first foundation is substantially implemented: backend-offline recovery, truthful simulation labelling, durable SSE replay/reconnect, LiteLLM-only routing, provider-neutral runtime lifecycle, runtime health/routing, task workspaces, durable guidance queueing, assistant-ui conversation rendering, owner-scoped local auth, bounded MCP health/facade controls, and the initial skill marketplace boundary are in place. Remaining release blockers are live provider acceptance, Postgres/runtime deployment, sandbox attestation, production MCP secret brokering/external health attestation, document/provider/browser evidence, and the remaining professional-UI gates. See `HANDOVER.md` and `plan/00-gap-analysis.md`.
 >
@@ -66,6 +66,7 @@ Reference: `plan/03-runtime-routing.md`
 
 ## Phase 4 — Cloud infrastructure
 **Target: `https://onevibe.yourdomain.com` — deployed, authenticated, persistent, multi-user.**
+**Platform philosophy: Docker-first, cloud-agnostic.** The deployment unit is a `docker-compose.yml` (or equivalent Compose-compatible stack) that runs identically on any host: Azure Container Apps, AWS ECS, GCP Cloud Run, Hetzner VPS, bare-metal, or a developer's laptop. No cloud SDK, no proprietary managed-service client code inside the app itself. Cloud-specific wiring (ACR, ACA, ACS email) lives in CI/deploy scripts only — never in application code. All secrets injected as environment variables; the app never calls a secret manager SDK directly.
 Reference: `plan/04-cloud-infrastructure.md`
 
 - [ ] **P4-01** Add auth — feature-gated Better Auth + hashed email-OTP foundation, real delivery webhook, session middleware, login UI, expanded local cross-user route negative coverage, matching Postgres auth-handle wiring, and `npm run e2e:postgres-auth-http` authenticated Postgres owner-scope proof are implemented; keep open until production delivery, org-backed policy, and exhaustive authenticated Postgres route/deployment acceptance are complete
@@ -73,8 +74,8 @@ Reference: `plan/04-cloud-infrastructure.md`
 - [ ] **P4-03** Containerise — current non-root multi-stage `Dockerfile`, hardened Compose image, explicit operator-controlled Postgres/auth environment contract, separate liveness/readiness health endpoints, graceful SIGTERM TaskStore shutdown, `.env.example`, reviewed migration/backup/restore/rollback runbook, Fly.io release contract with migration-first `release_command`, and GitHub Actions build/non-root/read-only/Postgres backup smoke gates are implemented; keep open until production secret delivery, managed deployment, PITR/retention, and rollout/rollback controls are exercised
 
 P4-02 progress note: Postgres is now a controlled opt-in server driver with matching Better Auth handle wiring, authenticated owner-scope rejection, and a real running-server proof. The disposable PostgreSQL 18 acceptance on 2026-07-17 passed `e2e:postgres-http`, `e2e:postgres-auth-http`, two-process authenticated `e2e:postgres-http-sse` live delivery plus suffix replay, repository/TaskStore restart and lease proofs, tenant-theme transaction/audit/owner-boundary acceptance, and backup/restore byte/hash verification across fourteen reviewed migrations. The broader proofs cover standalone messages, atomic native projections, transaction-backed fork history, workspace byte/version restore/compare/copy recovery, current project-file update/restart recovery, durable project revision restore, interrupted-task reconciliation, a real legacy import of workspace/project/native bytes plus projection metadata, bounded duplicate follow-up acceptance with deterministic keyed attachment paths, replay-safe TaskStore turn reservation on SQLite/Postgres, private attachment exclusion from public files/direct reads/edits/portable export, and a durable follow-up operation journal with controlled crash recovery. A repeated client request now reuses the durable turn/message pair and does not reactivate a terminal turn; a crash after operation preparation resumes exactly one demo follow-up after restart, while an operation already claimed for provider execution is marked failed rather than automatically replayed. Remaining blockers are the non-atomic attachment/task promotion boundary, provider-side idempotency, production broker/deployment tuning, reference seed/import validation, and production migration/deployment controls.
-- [ ] **P4-04** Deploy to Railway or Fly.io — `fly.toml` and release instructions are now present; keep open until a real managed app, secret injection, migration release, readiness check, and rollback are exercised
-- [ ] **P4-05** Add cloud sandbox — integrate **e2b.dev** (`@e2b/code-interpreter`) as the default `sandboxed` execution backend; surface sandbox preview URL in workspace iframe; `E2bRuntimeAdapter` wraps e2b and implements the full `RuntimeAdapter` interface
+- [ ] **P4-04** Docker-first production stack — produce `docker-compose.prod.yml` (app + postgres + optional smtp relay) that is the canonical deploy artifact. Works on any Docker host. CI builds the image, pushes to any OCI registry (ACR, ECR, GHCR, or self-hosted), and a single `docker compose up -d` deploys it. Include: migration-first entrypoint, health checks, restart policy, named volumes for Postgres data and workspace files, `.env.example` with every required var documented. Azure-specific notes (ACA, ACR, ACS email) live in `docs/AZURE-DEPLOY-NOTES.md` as an optional overlay, not in the main stack.
+- [ ] **P4-05** Sandbox backends — moved to Phase 8 (ONEComputer meta-sandbox harness). See P8 below.
 - [ ] **P4-06** Add multi-tenancy scaffolding — local user ownership now scopes tasks, projects, schedules, conversations, MCP declarations, and task routes; migration v9 adds local `organizations`/`organization_members` records behind the shared repository/transaction boundary, with owner/member HTTP routes and explicit owner-only mutations; the authenticated two-user HTTP harness covers conversation, Library, search, task, project, file, schedule, MCP, and organization boundaries and proves membership visibility does not widen task access; keep open until the Postgres repository switch, org-backed policy/data authorization, and migration/import are complete
 - [x] **P4-07** Resolve dependency audit gate — the five moderate Better Auth/Drizzle Kit/esbuild advisories are resolved by pinning the vulnerable transitive `@esbuild-kit/core-utils` esbuild dependency to patched `0.25.12`; `npm audit --omit=dev --audit-level=moderate` returns zero vulnerabilities, `npm run db:check` remains green, and CI now enforces the production-tree audit. The override must be revalidated whenever Drizzle Kit or Better Auth changes.
 
@@ -97,6 +98,27 @@ Reference: `plan/05-ui-overhaul.md`
 - [x] **P5-11** Fix accessibility — all semantic `<time>` elements now carry `dateTime`, byte labels use the shared `readableBytes` helper, generated images have alt text, and the activity/file surfaces retain accessible labels. No `<time>` element exists in `index.html`; the null-guard is therefore not applicable.
 - [x] **P5-12** Fix working trace — added a disclosure chevron, keeps the trace open while running, and replaces hard truncation with an accessible Show more detail disclosure
 - [x] **P5-13** Finish composer UX — disable the fifth skill toggle with an explanatory tooltip; the duplicate typing indicator and `waiting_for_user_input` running-state defect are closed under P2-09
+- [x] **P5-14** Overhaul execution trace / scrubbing UX — the current `<input type="range">` slider in the artifact rail is the wrong interaction model for a discrete-step agent system. Replace it with a **checkpoint list + detail panel** pattern (industry standard: AgentOps waterfall, LangSmith checkpoints, Langfuse trace tree). Done: scrubber and "Scrub evidence" label removed; the rail is now a virtualized checkpoint list (status dot, type icon, label, timestamp, latency badge) with a ← n / m → stepper, consecutive tool calls grouped under collapsible LLM-turn headers, and the right-hand stage as the selected-step detail pane; filter bar, run comparison, search, and Replay/Live unchanged.
+
+  **Design principles (from research into Manus, Kimi, AgentOps, LangSmith, Langfuse):**
+  - Agents are discrete-step systems, not continuous media. The correct primitive is a **clickable checkpoint list**, not a drag slider. Every step is a named, labeled object — not a position on a range.
+  - **Left list, right detail** is the dominant pattern. Left rail shows the chronological step list with type icon, label, and timestamp. Clicking a step populates the right/main panel with its full detail (input, output, latency, token count, status).
+  - **Visual hierarchy mirrors execution hierarchy.** Tool calls nest under the LLM turn that triggered them. Sub-steps indent under parent steps. A flat log with no nesting is the #1 complaint across all tools.
+  - **Per-step metadata visible inline** on the list row: latency badge, token count (where available), status dot (success / error / pending). No need to click in just to see if a step failed.
+  - **Causality visible.** You can see which step caused which child. Collapsible groups for tool-call clusters keep the list scannable without hiding data.
+  - **Type differentiation.** LLM turn ≠ tool call ≠ error ≠ artifact ≠ user input ≠ approval request. Each type gets a distinct icon and colour token. Currently all events look the same.
+  - **No drag scrubber.** A range input is the wrong affordance — it implies continuous media. Remove it. Step-through navigation (← →) or click-to-select is the right model.
+  - **Replay = re-select.** Clicking any past checkpoint re-renders the detail panel at that point in time. "Play" means auto-advancing through checkpoints at a fixed interval (useful for demos), not scrubbing a timeline bar.
+
+  **Concrete implementation guidance for Kimi:**
+  1. Replace `.computer-rail-scrubber input[type=range]` with a step counter + prev/next arrow buttons (`←  3 / 12  →`).
+  2. Restructure `.computer-rail-entry` to show: type icon (colour-coded) · step label · timestamp · latency badge — all on one 44px row.
+  3. Add an expandable detail pane (below the list or in a right panel) that renders the selected step's full content: tool input/output, artifact preview, approval prompt, etc.
+  4. Group consecutive tool calls under their parent LLM turn with an indent and a collapse toggle.
+  5. Add a status dot to each row: green (completed) / red (failed) / yellow (approval pending) / grey (skipped).
+  6. Keep the filter bar (All / terminal / screenshot / file / etc.) — it is genuinely useful.
+  7. Keep the run comparison dropdown — also useful.
+  8. Remove the "Scrub evidence" label and range input entirely.
 
 ---
 
@@ -183,6 +205,175 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 - [x] Add `npm run e2e:themes` covering base-theme fallback, tenant isolation, safe token rejection, owner authorization, save/reset, typed content escaping, asset-boundary checks, and restart persistence by delegating to the authenticated Postgres HTTP proof. Disposable Postgres acceptance passed on 2026-07-17 with three reference profiles, versions 1→3, three audit events, owner/member `404`/`403`, and direct-first-party blocked.
 - [x] Add owner-scoped theme audit counters/latest operation to diagnostics and Linear evidence without returning raw secrets, uploaded bytes, actor IDs, or untrusted HTML. `npm run e2e:postgres-auth-http` asserts the Postgres path.
 - [x] Document cache invalidation, rollout/rollback, migration, package provenance, asset retention, and incident response boundaries in the deployment runbook. Managed deployment/PITR/retention remains open.
+
+---
+
+## Phase 8 — ONEComputer meta-sandbox harness + VTI identity layer
+**Target: ONEComputer is the universal sandboxing layer for ONEVibe, with every sandbox carrying a cryptographically-verifiable identity backed by OpenVTI/VTC. Agents run inside ONEComputer-managed sandboxes. Their traffic through the MITM gateway carries a W3C VC proving who the sandbox is, what community it belongs to, and what it is authorised to do — creating a tamper-evident audit trail per agent execution.**
+
+**Why ONEComputer, not direct e2b/Daytona:** ONEVibe's `RuntimeAdapter` interface abstracts harnesses. ONEComputer is the next level up — it abstracts the *sandbox* itself and owns sandbox credentials, so you can swap Daytona for e2b without touching ONEVibe.
+
+**Why OpenVTI/VTC here:** The ONEComputer gateway already has `vti_signer.rs` (W3C VC injection via affinidi TDK) and `identity_injection.rs` (VP header embedding). The VTI stack provides: VTA for sandbox key custody and DID issuance; VTC for community membership and policy; `vta-mcp` for exposing VTA capabilities to any MCP-speaking agent host. Sandboxes should enrol as `ai-agent` devices in the VTA — their gateway token then carries a signed VC (`vtiVerified=true`) and the condition_match policy can enforce that a sandbox must prove community membership before any outbound call is allowed through.
+
+**OSS-first principle:** self-hosted Daytona, e2b OSS, and Docker devcontainers are all runnable on Azure. SaaS tiers are drop-in env-var swaps once the OSS path is proven.
+
+**Phase 9 feeds into this phase:** Kimi's Azure installation benchmarks (P9) become the acceptance evidence for each adapter here. Don't implement an adapter until P9 has produced a working install of that backend.
+
+### Sandbox infrastructure (adapters)
+
+- [ ] **P8-01** Design ONEComputer `SandboxAdapter` interface — `create(spec) → SandboxHandle`, `exec(handle, cmd) → stream`, `getPreviewUrl(handle) → string`, `getFiles(handle, path) → FileTree`, `destroy(handle)`. Spec carries: image/template, resource limits, workspace mount, env vars (secret refs only). Document in `ONECOMPUTER-SANDBOX-CONTRACT.md`. Include VTI device-enrolment hook: on `create`, the adapter calls VTA to register the sandbox as an `ai-agent` device and stores the credential in the SandboxHandle.
+
+- [ ] **P8-02** Implement Daytona OSS adapter — `DaytonaSandboxAdapter` wraps the Daytona OSS API (`github.com/daytonaio/daytona`). Accept: create workspace → exec command → stream stdout → destroy. Target: self-hosted on Azure, no Daytona Cloud dependency. Blocked on P9-01.
+
+- [ ] **P8-03** Implement e2b OSS adapter — `E2bSandboxAdapter` wraps the e2b self-hosted runtime (`github.com/e2b-dev/infra`) behind the same interface. SaaS tier (`e2b.dev`) is a drop-in swap via `E2B_BASE_URL`. Blocked on P9-02.
+
+- [ ] **P8-04** Implement Docker-native devcontainer adapter — spin up a Docker-in-Docker or ACA job per task. Lowest external dependency; works with zero third-party SaaS. Available on Azure immediately.
+
+- [ ] **P8-05** ONEComputer broker endpoint — `POST /api/sandbox/run` routes to the right `SandboxAdapter`, streams results as SSE. ONEVibe never imports Daytona/e2b SDKs directly.
+
+- [ ] **P8-06** Wire ONEVibe `SandboxedRuntimeAdapter` — `server/sandbox-runner.ts` POSTs to ONEComputer's broker, streams SSE into the durable event ledger, exposes `'sandboxed'` capability.
+
+- [ ] **P8-07** Sandbox health in Computers view — per-backend status (reachable / active count / last used) via ONEComputer health endpoint; never calls sandbox API directly from ONEVibe.
+
+- [ ] **P8-08** Azure deployment for sandbox sidecar — ACA revision with Daytona OSS sidecar, Azure File Share volume, managed identity for ACR pull, Key Vault refs for sandbox credentials. `azure-deploy/sandbox-sidecar.md`.
+
+### VTI/VTC identity layer (sandbox trust)
+
+- [ ] **P8-09** Sandbox device identity via VTA — on `SandboxAdapter.create()`, call the VTA API to enrol the new sandbox as an `ai-agent` device (using the `--enroll` flow from `vta-mcp`). Store the issued device DID + credential in the SandboxHandle. On `destroy()`, call `device disable` to revoke. This gives every sandbox a cryptographic identity that can be audited and revoked independently of the process.
+
+- [ ] **P8-10** Gateway VC injection for sandbox traffic — extend `identity_injection.rs` to embed the sandbox's device credential (from SandboxHandle) as the `verifiableCredential` in the VP header injected into every outbound HTTP request. `condition_match.rs` (currently always-true stub — see AUDIT.md) must be fixed to actually evaluate community-membership assertions from the VC before forwarding. This closes the biggest security gap in the ONEComputer gateway.
+
+- [ ] **P8-11** `vta-mcp` sidecar for sandbox agents — each sandbox that runs a Claude Code / agent host gets `vta-mcp` available as an MCP server (via the session mode). The agent can then call `sign`, `vault_get`, `issue_vp` tools to prove its identity to third-party services. Document the wiring in `docs/SANDBOX-VTI-IDENTITY.md`.
+
+- [ ] **P8-12** VTC community policy for sandbox actions — define a VTC community whose members are registered ONEComputer sandbox instances. Outbound calls to sensitive domains (graph.microsoft.com, cloud APIs) require the sandbox to present a valid community membership VC — enforced by `condition_match.rs`. This is the first real use of `condition_match` since it has been an always-true stub.
+
+---
+
+## Phase 9 — OSS sandbox installs, connector bridge, and ONEVibe as Cowork frontend
+**The strategic reframe:** ONEVibe is the **Cowork frontend** — the end-user face of the ONEComputer platform. ONEComputer is the **governed cyber infrastructure layer** beneath it: MITM gateway, connector broker, approval engine, VTI identity, CISO console, policy enforcement. A user opens ONEVibe, picks a task, and the agent runs inside ONEComputer — with every outbound connector call governed, every approval routed through the right manager, and every action leaving a signed audit trail via VTI.
+
+**The connector inventory ONEComputer already has** (from `packages/api/src/apps/`): Google Workspace full suite (Gmail, Drive, Calendar, Docs, Sheets, Slides, Meet, Forms, Photos, Tasks, Admin, Classroom, Search Console, Analytics, YouTube), Microsoft (Outlook mail/calendar, Graph), Atlassian (Jira, Confluence), Notion, Trello, Monday, GitHub, GitLab, Docker, Vercel, Cloudflare, Fly.io, AWS, Supabase, MongoDB Atlas, Dropbox, Vertex AI, Datadog, LinkedIn, Zoom, HubSpot, Affinity, Resend, Telegram, Granola, Todoist + personal connectors (Gmail, Outlook, Calendar, Drive, Notes, WhatsApp/Telegram exports). All are governed through the ONEComputer MITM gateway with VTI-signed step-up approval for write/destructive operations.
+
+**The missing piece:** ONEVibe currently has no connector awareness. It talks to agents but cannot surface "this agent wants to read your Jira" or "approval required: Outlook send." Phase 9 wires those two products together.
+
+### Sandbox backends (parallel Kimi workstream)
+
+- [ ] **P9-01** Install Daytona OSS on Azure VM (23.102.117.5) — self-hosted `github.com/daytonaio/daytona`. Verify: create workspace → exec shell command → stream stdout. Write `docs/SANDBOX-INSTALL-DAYTONA.md`.
+
+- [ ] **P9-02** Install e2b OSS on Azure VM — `github.com/e2b-dev/infra`. If full infra is not Azure-feasible (Firecracker/nested-virt), document why and assess the Desktop/lightweight tier. Write `docs/SANDBOX-INSTALL-E2B.md`.
+
+- [ ] **P9-03** Benchmark Kasm (baseline) + Daytona + e2b — cold-start latency, exec round-trip, idle memory, max concurrent on 4-vCPU. Write `docs/SANDBOX-BENCHMARKS.md` with a comparison table and recommended default.
+
+- [ ] **P9-04** Update P8 adapter priority from benchmark findings.
+
+### Connector bridge: ONEComputer → ONEVibe
+
+- [ ] **P9-05** Connector discovery endpoint — ONEComputer exposes `GET /api/connectors` returning the full registry (id, name, category, icon, auth-status, governed/not). ONEVibe polls this and renders the connector list in a new Connections tab in the Computers view.
+
+- [ ] **P9-06** ONEVibe connector OAuth flow — when a user clicks a connector (GitHub, Jira, Outlook, etc.), ONEVibe opens the ONEComputer OAuth consent flow in a popup/redirect. After consent, the credential is held by ONEComputer's secret store — never in ONEVibe. ONEVibe stores only the `connectionId`.
+
+- [ ] **P9-07** Connector context in runtime tasks — when a task runs in a sandbox, ONEVibe passes the user's active `connectionIds` to ONEComputer's broker. The agent inside the sandbox can call those connectors via the governed gateway; ONEVibe surfaces connector usage in the execution trace (e.g. "Read 3 Jira tickets · Drafted Outlook email · Awaiting approval").
+
+- [ ] **P9-08** Approval notifications in ONEVibe — when ONEComputer's gateway holds a request (step-up approval required), it calls back to ONEVibe via webhook. ONEVibe shows an inline approval card in the active task view: action description, risk label, Approve / Deny buttons. Decision is relayed back to ONEComputer which releases or drops the held request. This is the UX equivalent of the ONEComputer approval console, surfaced directly in the cowork flow.
+
+- [ ] **P9-09** Connector catalogue in ONEVibe home — a Connections section on the home screen shows the user's active connectors with status, last-used, and a "+ Connect" button for the full catalogue. Think Zapier's app list, but governed.
+
+### VTI/VTC connector interoperability (new Phase 10)
+
+> See Phase 10 below for the full spec. Items here reference it.
+
+- [ ] **P9-13** Wire VTI consent envelopes for all OAuth connectors — currently `vti-consent-service.ts` only covers personal connectors (Gmail, Outlook, Drive, Notes). All 48 OAuth connectors need a `consent/request` + `auth/step-up/approve-request` envelope so the VTC step-up gate fires for write operations on any connector, not just personal ones.
+
+- [ ] **P9-14** Surface connector consent status in ONEVibe — when a connector is connected but consent has not been granted to a specific agent, show a "Consent required" state in the Connections tab. Users can pre-approve agents for connectors they regularly use.
+
+### ONEComputer as cyber governance engine
+
+- [ ] **P9-10** Live activity feed in ONEVibe — ONEVibe subscribes to ONEComputer's audit event stream for the current user's sandboxes. The execution trace panel shows not just agent steps but also governed gateway events: "Jira read · allowed", "Outlook send · held for approval", "SharePoint delete · blocked by policy". This is the end-user view of the CISO console.
+
+- [ ] **P9-11** Policy visibility in ONEVibe — a read-only Policy tab in the Computers view shows the org-level and user-level governance rules that apply to the current user (sourced from ONEComputer's policy engine). Users can see why an action was blocked; managers can see the rules they set. No policy mutation from ONEVibe — that stays in the ONEComputer CISO console.
+
+- [ ] **P9-12** VTI identity badge in ONEVibe task view — each task that ran in a governed sandbox shows a "Verified execution" badge with the sandbox DID, the VTC community it belongs to, and a link to the audit trail. This is the end-user face of P8-09 (VTA device enrolment) — making VTI/VTC legible to a non-technical user.
+
+---
+
+## Phase 10 — VTI/VTC connector interoperability
+**The problem:** ONEComputer has 48+ OAuth connectors (GitHub, Jira, Google Workspace, Outlook, Slack, AWS, Vercel, etc.) that are OAuth-ready but not VTI-governed. Tokens flow through the gateway but:
+1. No VTI `consent/request` envelope is produced — the agent just gets the token
+2. No `auth/step-up/approve-request` fires before write operations
+3. `condition_match::matches()` in the Rust gateway is an always-true stub — no community-membership check on any connector call
+4. The VTC community has no representation of which agent is allowed to call which connector on behalf of which user
+
+**The vision:** every connector call an agent makes is a verifiable action. The user consented via VTC (`consent/decision` signed with their key). The manager approved the step-up (`auth/step-up/approve-response` signed with their key). The gateway verified both proofs before forwarding. The audit trail is a chain of signed VTI trust tasks — portable, tamper-evident, exportable for compliance. This is what makes ONEComputer a real cyber governance engine, not just a proxy.
+
+**Current state (honest):** `vti-consent-service.ts` is real and well-designed (builds signed `VtiTrustTaskEnvelope` structs, `failClosedIfUnavailable: true`). `personal-connector-broker-service.ts` wires it for personal connectors only. `authorizePersonalConnectorRetrievalWithVtiConsent` exists but is only called from workflow fixtures, not the live retrieval path. `condition_match::matches()` in Rust is an always-true stub. The seam is ready; the plumbing is not connected.
+
+### Foundation
+
+- [ ] **P10-01** Audit connector VTI coverage — for each of the 48 connectors, document: has `app-permissions` definition (hostPattern/pathPattern/method)? is VTI consent wired? is write step-up wired? Which ops require approval? Produce `docs/CONNECTOR-VTI-AUDIT.md` as the source of truth.
+
+- [ ] **P10-02** Wire `authorizePersonalConnectorRetrievalWithVtiConsent` into the live retrieval path — currently called only from workflow fixtures. It must fire on every real connector retrieval through the broker. This closes the most critical gap: the consent gate exists but is bypassed in production. Write an integration test that proves a retrieval without a valid consent decision returns `consent_required`.
+
+- [ ] **P10-03** Fix `condition_match::matches()` in the Rust gateway — currently returns `true` unconditionally (`apps/gateway/src/condition_match.rs`). Implement at minimum: check that the request's injected VC has `vtiVerified=true`, the issuer DID matches the gateway's own DID, and the credential subject contains a valid `connectorId` claim. Fail closed (deny) when the VC is absent or invalid. This is the most impactful single security fix in the entire codebase.
+
+- [ ] **P10-04** Extend VTI consent envelopes to all OAuth connectors — `vti-consent-service.ts` currently builds envelopes only for personal connectors. Add a `buildConnectorConsentEnvelope(connector, agent, operation, user)` function that works for any `AppDefinition`. Wire it into the OAuth connector retrieval path so every connector call produces a signed consent record.
+
+### Per-connector VTI permission maps
+
+- [ ] **P10-05** Complete `app-permissions` definitions for top-10 enterprise connectors — GitHub, Jira, Confluence, Notion, Google Drive, Gmail, Outlook, Slack (if added), AWS, Vercel. Each definition maps specific API operations to `hostPattern`/`pathPattern`/`method` tuples and marks which ops are `read` vs `write` vs `destructive`. These feed `condition_match` enforcement and the ONEVibe connector permission UI.
+
+- [ ] **P10-06** VTI risk classification per connector operation — extend `AppPermissionDefinition` with a `riskLevel: 'low' | 'medium' | 'high' | 'critical'` field per operation group. `critical` ops (delete, send external email, push to main, deploy) always require VTC step-up approval regardless of user preference. `high` ops require approval unless the user has pre-approved the agent. `medium`/`low` are auto-approved with consent. This is the policy model that makes the governance layer useful rather than just a checkbox.
+
+- [ ] **P10-07** VTC community membership assertion for connector access — a sandbox agent calling a connector must hold a valid VTC community membership VC proving it belongs to the organisation's ONEComputer sandbox community. `condition_match.rs` must verify this claim (using the VC injected by `identity_injection.rs`) before forwarding. No membership VC = request denied. This is the real enforcement of P8-12.
+
+### VTI credential portability
+
+- [ ] **P10-08** Connector consent VC export — users can download a signed `consent/decision` VC for any connector grant as a portable W3C Verifiable Credential. This makes the consent record usable outside ONEComputer (e.g. for compliance audits, external relying parties, or data portability). `GET /api/connectors/:id/consent-vc` returns the signed envelope.
+
+- [ ] **P10-09** `vta-mcp` connector tool bridge — expose connector operations as VTA MCP tools via `vta-mcp`. An agent running inside a sandbox can call `vta_call("connector/github/get_issue", { issue: "ONV-42" })` and the VTA enforces the consent/step-up check before the call reaches the ONEComputer gateway. This means sandbox agents can use connectors without the agent ever holding an OAuth token — the VTA is the credential broker. Requires P8-11 (vta-mcp sidecar in sandbox).
+
+- [ ] **P10-10** ONEVibe connector consent history — in the Connections tab, each connected app shows a scrollable list of past consent grants: agent, operation, approved by, timestamp, VC hash. Clicking a row shows the full signed `VtiTrustTaskEnvelope`. This is the end-user view of the VTI audit trail.
+
+---
+
+## Phase 11 — ONEComputer as hardened ONEVibe middleware
+**The problem today:** ONEComputer and ONEVibe are two separate products with no runtime connection. ONEVibe has `ONECOMPUTER_URL` as a planned env var but nothing calls it. ONEComputer has a full web dashboard, approval engine, sandbox lifecycle, audit log, and VTI signing layer — but ONEVibe cannot see any of it. This phase wires the two together at the infrastructure level so that ONEVibe is genuinely backed by ONEComputer's governance engine, not just co-located with it.
+
+**The 5 middleware contracts that must exist:**
+1. **Health/discovery** — ONEVibe asks ONEComputer "what are you capable of?" and routes accordingly
+2. **Connector brokerage** — ONEVibe says "this task needs GitHub + Jira" and ONEComputer brokers credential release under VTI consent
+3. **Sandbox execution** — ONEVibe says "run this agent" and ONEComputer provisions the sandbox, injects the VTA device identity, and streams events back
+4. **Approval relay** — ONEComputer holds a request and pushes an approval card to ONEVibe; the user acts in ONEVibe; ONEComputer receives the decision and releases/drops the request
+5. **Audit feed** — ONEVibe subscribes to ONEComputer's audit stream and renders governance events inline in the task view
+
+### Middleware contracts
+
+- [ ] **P11-01** `GET /api/middleware/capabilities` — ONEComputer endpoint that returns: connector catalogue (id, name, auth-status per user), sandbox backends (Kasm/Daytona/e2b, reachable/count), VTI status (key loaded, community enrolled), approval queue depth, gateway health. ONEVibe calls this on startup and caches with a 30s TTL. Drives the Computers view "ONEComputer" section.
+
+- [ ] **P11-02** `POST /api/middleware/connector/authorize` — ONEVibe sends `{ userId, agentId, connectorId, operations[], taskId }`. ONEComputer checks: (a) is there an OAuth credential for this user+connector? (b) is there a valid VTI consent grant for this agent+connector+operations? If both yes: returns a short-lived opaque `sessionToken` the agent can use to call the connector through the gateway. If no credential: returns `{ action: 'oauth_required', authUrl }`. If no consent: returns `{ action: 'consent_required', consentRequest: VtiTrustTaskEnvelope }`.
+
+- [ ] **P11-03** `POST /api/middleware/sandbox/run` — ONEVibe sends `{ adapter, spec, agentId, connectorSessionTokens[], taskId }`. ONEComputer provisions the sandbox (Kasm/Daytona/e2b), enrols it as a VTA device, injects the session tokens as governed env vars, and streams `RuntimeEvent`-shaped SSE back to ONEVibe. This replaces ONEVibe's existing local adapter for sandboxed runtimes.
+
+- [ ] **P11-04** Approval webhook — ONEComputer calls `POST {ONEVIBE_WEBHOOK_URL}/api/webhooks/approval` when the gateway holds a request requiring step-up. Payload: `{ approvalId, sandboxId, taskId, action, riskLevel, connectorId, requestDigest, vtcConsentEnvelope }`. ONEVibe renders an inline approval card in the active task view. User taps Approve/Deny. ONEVibe calls `POST /api/middleware/approval/:id/decision` on ONEComputer. HMAC-signed webhook with replay protection.
+
+- [ ] **P11-05** Audit event stream — ONEComputer exposes `GET /api/middleware/audit/stream?taskId=...` as an SSE endpoint. ONEVibe subscribes per active task and projects governance events (connector call allowed/blocked, approval requested/resolved, sandbox created/destroyed) into the execution trace alongside agent events. This is the same data the CISO console shows, scoped to the current task and user.
+
+### Gateway hardening (direct ONEComputer improvements)
+
+- [ ] **P11-06** Fix `condition_match::matches()` — the #1 security gap. Implement the real evaluation: parse the injected VP from the request header, call `vti_signer::verify_trust_task_proof()` on the embedded VC, check `vtiVerified=true`, verify issuer DID matches `ONECLI_GATEWAY_PUBLIC_URL`, verify credential subject `connectorId` matches the request target host/path. Return `false` (deny) on any failure. Add a cargo integration test with a known-bad VC that proves deny fires.
+
+- [ ] **P11-07** Replace cloud stubs with Azure Key Vault — the 13 `cloud/` files are one-line stubs. Wire the `cloud` feature flag to Azure Key Vault (via the `azure_key_vault` crate or `azure-identity` + REST calls) replacing `aws-sdk-kms`. `cloud/crypto.rs` should use AKV for gateway signing key storage. `cloud/cache.rs` should use Azure Cache for Redis. Document the env vars in `docs/AZURE-GATEWAY-CONFIG.md`.
+
+- [ ] **P11-08** Gateway observability — wire `cloud/telemetry.rs` stub to Azure Monitor / Application Insights via `opentelemetry-sdk` + the OTLP exporter. Every gateway decision (allow/deny, approval hold, VC verify pass/fail) emits a span with: `connectorId`, `agentDid`, `decision`, `vtiVerified`, `latencyMs`. This is the data the CISO console needs to be live rather than seeded.
+
+- [ ] **P11-09** Approval flow end-to-end — wire the full `auth/step-up/approve-request` → `auth/step-up/approve-response` → `auth/step-up/verify-actor` chain in production code (not just workflow fixtures). The gateway holds the HTTP request, emits the `VtiTrustTaskEnvelope` to the VTC transport, receives the signed response, calls `verify_trust_task_proof()` on it, and releases/drops the held request. Write an integration test that drives the whole loop with a real (dev) VTA.
+
+- [ ] **P11-10** Gateway request idempotency — currently a held approval request can be double-released if two approval responses arrive within the same TTL window (a replay attack or network retry). Wire the `approvalId` into a Redis/DB idempotency key: first release wins, subsequent attempts return `409 Already decided`. This closes the replay attack surface on approval responses.
+
+### ONEVibe middleware client
+
+- [ ] **P11-11** `server/onecomputer-client.ts` — a typed client in ONEVibe's API server that wraps all five middleware contracts (P11-01 through P11-05). Configured via `ONECOMPUTER_URL` + `ONECOMPUTER_HMAC_SECRET`. Gracefully degrades: if `ONECOMPUTER_URL` is unset, ONEVibe runs in standalone mode (local adapters, no connector brokerage, no governance events). Never import ONEComputer types directly — only the contract shapes defined in `ONECOMPUTER-MIDDLEWARE-CONTRACT.md`.
+
+- [ ] **P11-12** `ONECOMPUTER-MIDDLEWARE-CONTRACT.md` — the versioned API contract document. Every endpoint, request/response shape, error codes, webhook payload, and SSE event type. Semantic versioning on the contract. ONEVibe depends on the contract version, not the ONEComputer implementation. This is the document both teams build against.
 
 ---
 

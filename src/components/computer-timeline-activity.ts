@@ -74,11 +74,28 @@ export const formatDuration = (milliseconds: number | undefined) => {
 /** Do not steal caret, select-menu, or editable-content navigation from the reviewer. */
 export const timelineNavigationAllowedFor = (tagName: string | undefined, isContentEditable = false) => !isContentEditable && !['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName?.toUpperCase() ?? '')
 
-export const virtualRailRange = (count: number, scrollTop: number, viewportHeight: number, rowHeight = 68, overscan = 12) => {
-  if (count <= 0) return { start: 0, end: 0 }
-  const visibleStart = Math.floor(Math.max(0, scrollTop) / rowHeight)
-  const visibleEnd = Math.ceil((Math.max(0, scrollTop) + Math.max(rowHeight, viewportHeight)) / rowHeight)
-  return { start: Math.max(0, visibleStart - overscan), end: Math.min(count, visibleEnd + overscan) }
+export const RAIL_ROW_HEIGHTS = { run: 24, group: 32, item: 44 } as const
+
+export type RailRow =
+  | { type: 'run'; id: string; runId: string }
+  | { type: 'group'; id: string; group: RailToolGroup }
+  | { type: 'item'; id: string; item: ComputerItem; depth: 0 | 1 }
+
+export const railRowHeight = (row: RailRow) => RAIL_ROW_HEIGHTS[row.type]
+
+/** Window a mixed-height checkpoint rail, retaining an overscan buffer for smooth scrolling. */
+export const virtualRailRows = (rows: RailRow[], scrollTop: number, viewportHeight: number, overscan = 10) => {
+  const offsets: number[] = []
+  let total = 0
+  for (const row of rows) { offsets.push(total); total += railRowHeight(row) }
+  if (!rows.length) return { start: 0, end: 0, offsets, total }
+  const top = Math.max(0, scrollTop)
+  const bottom = top + Math.max(viewportHeight, RAIL_ROW_HEIGHTS.item)
+  let start = 0
+  while (start < rows.length - 1 && offsets[start + 1] <= top) start += 1
+  let end = start
+  while (end < rows.length && offsets[end] < bottom) end += 1
+  return { start: Math.max(0, start - overscan), end: Math.min(rows.length, end + overscan), offsets, total }
 }
 
 export const matchesRailQuery = (item: ComputerItem, query: string) => {
@@ -221,6 +238,114 @@ export const terminalActivityFor = (item: ComputerItem, events: RuntimeEvent[]) 
     workspaceLabel: command ? 'Sandbox workspace' : undefined,
     durationMs: elapsed !== undefined && Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : undefined,
   }
+}
+
+export type RailStatus = 'completed' | 'failed' | 'pending' | 'skipped'
+
+const approvalResolutionStatus = (payload: Record<string, unknown>): RailStatus => {
+  if (payload.state === 'expired') return 'skipped'
+  return payload.decision === 'approved' || payload.walletDecision === true ? 'completed' : 'failed'
+}
+
+/**
+ * One truthful status per checkpoint row, derived from the immutable event
+ * ledger: an approval is pending until its `approval_resolved` event exists,
+ * a tool call is pending until its paired terminal result is recorded.
+ */
+export const railStatusFor = (item: ComputerItem, events: RuntimeEvent[]): RailStatus => {
+  if (item.kind === 'approval') {
+    if (item.eventType === 'approval_resolved') return approvalResolutionStatus(item.payload ?? {})
+    const approvalId = typeof item.payload?.approvalId === 'string' ? item.payload.approvalId : undefined
+    const resolution = approvalId ? events.find((event) => event.type === 'approval_resolved' && event.payload.approvalId === approvalId) : undefined
+    return resolution ? approvalResolutionStatus(resolution.payload) : 'pending'
+  }
+  if (item.kind === 'terminal') {
+    const activity = terminalActivityFor(item, events)
+    if (activity.failed) return 'failed'
+    if (item.eventType === 'tool_call_completed' || item.relatedEventIds?.length) return 'completed'
+    return activity.durationMs !== undefined ? 'completed' : 'pending'
+  }
+  return item.live ? 'pending' : 'completed'
+}
+
+export type RailToolGroup = {
+  id: string
+  items: ComputerItem[]
+  failedCount: number
+  pendingCount: number
+  durationMs?: number
+}
+
+export const isRailToolGroup = (entry: ComputerItem | RailToolGroup): entry is RailToolGroup => Array.isArray((entry as RailToolGroup).items)
+
+/**
+ * Groups consecutive tool calls that belong to one LLM turn. The event
+ * stream has no explicit turn marker, so a turn boundary is derived from the
+ * ledger: an `assistant_text_delta` event recorded between two consecutive
+ * terminal rail items (or a run change) starts a new turn. Groups never
+ * reorder, fold, or hide evidence — collapsing is a display-only state.
+ */
+export const toolCallGroupsFor = (items: ComputerItem[], events: RuntimeEvent[]): Array<ComputerItem | RailToolGroup> => {
+  let turn = 0
+  const turnIndexByEventId = new Map<string, number>()
+  for (const event of events) {
+    if (event.type === 'assistant_text_delta') turn += 1
+    turnIndexByEventId.set(event.id, turn)
+  }
+  const entries: Array<ComputerItem | RailToolGroup> = []
+  let buffer: ComputerItem[] = []
+  const flush = () => {
+    if (buffer.length >= 2) {
+      const statuses = buffer.map((item) => railStatusFor(item, events))
+      const first = Date.parse(buffer[0].createdAt)
+      const last = Date.parse(buffer.at(-1)?.createdAt ?? '')
+      entries.push({
+        id: `turn-${buffer[0].id}`,
+        items: [...buffer],
+        failedCount: statuses.filter((status) => status === 'failed').length,
+        pendingCount: statuses.filter((status) => status === 'pending').length,
+        durationMs: Number.isFinite(first) && Number.isFinite(last) && last >= first ? last - first : undefined,
+      })
+    } else entries.push(...buffer)
+    buffer = []
+  }
+  let previous: ComputerItem | undefined
+  for (const item of items) {
+    if (item.kind !== 'terminal' || item.live) {
+      flush()
+      entries.push(item)
+    } else {
+      if (previous && buffer.length) {
+        const previousTurn = turnIndexByEventId.get(previous.id)
+        const itemTurn = turnIndexByEventId.get(item.id)
+        if (item.runId !== previous.runId || (previousTurn !== undefined && itemTurn !== undefined && itemTurn !== previousTurn)) flush()
+      }
+      buffer.push(item)
+    }
+    previous = item
+  }
+  flush()
+  return entries
+}
+
+/**
+ * Flattens grouped entries into fixed-height rail rows: a run divider when
+ * the run changes, a group header per LLM turn, and item rows whose children
+ * hide while their group is collapsed.
+ */
+export const railRowsFor = (entries: Array<ComputerItem | RailToolGroup>, collapsed: ReadonlySet<string>): RailRow[] => {
+  const rows: RailRow[] = []
+  let previousRunId: string | undefined
+  for (const entry of entries) {
+    const runId = isRailToolGroup(entry) ? entry.items[0]?.runId : entry.runId
+    if (runId && runId !== previousRunId) rows.push({ type: 'run', id: `run-${runId}-${rows.length}`, runId })
+    previousRunId = runId ?? previousRunId
+    if (isRailToolGroup(entry)) {
+      rows.push({ type: 'group', id: entry.id, group: entry })
+      if (!collapsed.has(entry.id)) for (const item of entry.items) rows.push({ type: 'item', id: item.id, item, depth: 1 })
+    } else rows.push({ type: 'item', id: entry.id, item: entry, depth: 0 })
+  }
+  return rows
 }
 
 /**
