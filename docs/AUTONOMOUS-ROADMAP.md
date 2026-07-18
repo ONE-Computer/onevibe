@@ -136,4 +136,5 @@ OVERALL: ~73% → ~82%
 | 2026-07-18 QA gap identified | 3cc1ca1 skills update | ✅ 371/69 | User flagged: Kimi was only running `npm run check` (compilation) not verifying features in the browser before committing. Skills updated: all brief templates now require `npm run dev → browser verify → kill server → commit`. QA addendum sent to Kimi for P12-01/02 in-flight work. |
 | 2026-07-18 check-in 7 (30-min cron) | No new feature commits — Kimi actively running | ✅ 371/69 | Kimi busy=true, main_turn_active=true. Working on P12-01/02 brief (task priority/labels + board view). No action needed. |
 | 2026-07-18 P12-02 landed + dual-session QA activated | 60436af P12-02 (priority chips + labels) | ✅ 371/69 | Session A shipped P12-02. User set up Session B (d95dd0b3) as dedicated QA engineer. Two-session architecture locked in: A=coding, B=visual QA. Session B briefed to QA P12-02 now. Skills + memory updated. |
+| 2026-07-18 check-in 8 (30-min cron) | 4b2ece4 P12-01 (kanban board + list toggle) | ✅ 371/69 | Session A busy=true (likely P12-03 agent assignment). Session B busy=true (QA-ing P12-02). P12-01 shipped. No intervention needed. |
 
