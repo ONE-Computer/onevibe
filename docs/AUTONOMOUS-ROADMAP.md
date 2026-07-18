@@ -36,6 +36,22 @@ The platform is **not** three products. It is one platform with three concerns. 
 
 ---
 
+## Phase 16 — Vertical mini-apps: governed AI workflows for knowledge-work sectors
+> Added 2026-07-18. Business objective: unlock AI adoption in Accounting/Audit, Law, Finance/IB, Compliance — sectors blocked not by AI capability but by missing human-in-the-loop controls. Model: WeChat/Alipay mini-programs for enterprise B2B. Key insight: **the audit trail IS the product** — every sector's human-in-the-loop requirement is legally attached to a named individual with personal liability.
+
+**White space:** No existing tool combines cross-team kanban + AI agent execution + named approval cards + shared audit trail across org boundaries. Harvey has no workflow. Workiva has no AI agents. GRC platforms have no AI layer. ONEVibe can be all three.
+
+| Section | Items | What it unlocks |
+|---|---|---|
+| P16-0 Mini-app platform (P16-01/02/03) | Foundation | Auth contract, data isolation, audit event bus, WorkflowAgent template |
+| P16-A Legal (P16-04/05/06) | 3 items | Redlining, court filing certification, conflict check |
+| P16-B Accounting/Audit (P16-07/08/09) | 3 items | Workpaper review chain, EQR gate, SOX 302/906 certification |
+| P16-C Finance/IB (P16-10/11/12) | 3 items | Deal kanban, credit committee, FINRA-supervised comms |
+| P16-D Compliance/RegTech (P16-13/14/15) | 3 items | SAR decisions, policy exceptions, KYC re-certification |
+| P16-E Cross-vertical (P16-16/17/18) | 3 items | Multi-org workspaces, regulator export, workflow template library |
+
+**Total: 18 items across 6 sections**
+
 ## Phase 15 — OpenCowork feature parity
 > Added 2026-07-18. Reference: AIDotNet/OpenCowork (563★, Apache-2.0, Electron+React19). Study → gap → implement → screenshot evidence per item.
 

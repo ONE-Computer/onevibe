@@ -521,6 +521,68 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ---
 
+## Phase 16 — Vertical mini-apps: governed AI workflows for knowledge-work sectors
+**Business objective: ONEVibe becomes the horizontal platform for AI adoption in sectors where AI has historically been blocked — not by capability, but by missing human-in-the-loop controls, audit trails, and multi-party governance. The sectors with the highest AI potential and the lowest current adoption are Accounting/Audit, Law, Finance/IB, and Compliance. Every one of them is blocked by the same missing layer: named human sign-off with an immutable timestamp, at the right point in the workflow. ONEVibe's governance stack (VTI identity, approval cards, CISO audit console) is exactly that layer. The task is to wrap it in vertical-specific workflow UX.**
+**Model: WeChat/Alipay mini-programs for enterprise B2B. Each vertical ships as an extensible mini-app that embeds inside ONEVibe — sharing its IAM (SSO/SAML), permission model, data namespace, and audit trail. The host platform owns the compliance perimeter. Individual mini-apps are domain-specific but never create a shadow audit trail.**
+**Key insight from research: the audit trail IS the product. Every sector's human-in-the-loop requirement is legally attached to a named individual. The platform must capture: who reviewed, at what timestamp, what version, what their explicit approval was, and what they saw when they approved. This is the approval card as a compliance artefact.**
+**White space: no existing tool combines cross-team kanban (visible to multiple parties), AI agent execution with monitoring, named approval cards with immutable timestamps, and a shared audit trail across org boundaries. Harvey has no workflow. Workiva has no AI agents. GRC platforms have no AI layer. ONEVibe can be all three.**
+
+### P16-0 — Mini-app platform foundation
+- [ ] **P16-01** Mini-app host contract — define the extensibility API that all vertical mini-apps share: (1) **Auth contract**: ONEVibe issues scoped JWT to the mini-app encoding user identity, org, role, and data entitlements — the mini-app never manages auth itself; (2) **Data isolation contract**: each mini-app operates within a tenant + module namespace, cross-module data access requires explicit grants; (3) **Audit event bus**: every action in a mini-app emits a structured event to ONEVibe's audit log — the host owns the immutable trail; (4) **Approval card protocol**: mini-apps can request a named human approval via a standard `POST /api/approvals` call — the approval is rendered as an ONEVibe card, timestamped, signed with VTI, and stored as a compliance artefact. Document in `docs/MINI-APP-CONTRACT.md`.
+
+- [ ] **P16-02** Mini-app shell component — a `MiniAppShell` React component that hosts any vertical module: title bar with breadcrumb (`ONEVibe › [Vertical] › [Workflow]`), permission boundary indicator, audit trail sidebar (collapsible: last 10 events with timestamps and actor), and an approval queue strip at the top when pending approvals exist for this session. This is the chrome every mini-app inherits. No vertical implements its own nav or auth.
+
+- [ ] **P16-03** Workflow agent template — a server-side `WorkflowAgent` class that wraps any `RuntimeAdapter` with workflow-specific behaviour: step definitions, required approvals per step, who can approve each step (role-based), blocking logic (step N cannot start until step N-1 has a signed approval), and receipt generation (VTI-signed record of each approval event). This is what makes an AI agent safe for regulated workflows — it cannot proceed past a gate without the signed approval artefact.
+
+### P16-A — Legal mini-app
+**Target users: law firm associates, partners, in-house counsel. Biggest pain: multi-party contract redlining, court filing certification, engagement letter sign-off.**
+**Gap vs Harvey AI: Harvey has no cross-party kanban, no structured attorney sign-off card, no shared audit trail visible to client. ONEVibe adds the governance layer Harvey is missing.**
+
+- [ ] **P16-04** Contract redlining workflow — a mini-app for multi-party contract negotiation. A matter is a project on the ONEVibe board. Each round of redlines is a task assigned to an agent (`redline-agent`). The agent proposes changes; a responsible attorney reviews the diff in a side-by-side view (original left, proposed right, tracked changes highlighted). The attorney approves each position change individually — each approval is timestamped, signed with the attorney's VTI identity, and immutably stored. When all positions are approved, the agent sends the revised document to the counterparty. No draft leaves the firm without a named attorney approval. Write `docs/LEGAL-REDLINING-WORKFLOW.md`.
+
+- [ ] **P16-05** Court filing certification workflow — before any court filing is submitted, the mini-app requires: (1) agent drafts the document; (2) responsible attorney reviews the full text in an inline viewer; (3) attorney clicks "Certify under FRCP Rule 11" — this creates a signed VTI artefact recording: attorney DID, document hash, timestamp, certification statement. The filing cannot be submitted without this artefact. The artefact is stored as evidence in the task. Write `docs/LEGAL-FILING-WORKFLOW.md`.
+
+- [ ] **P16-06** Conflict check and matter opening — when a new matter is opened, the mini-app runs a conflict check agent (searches existing matters and client lists), surfaces potential conflicts, and requires a partner to review and clear each flag before the matter opens. The clearance is a signed approval card. No matter opens without a cleared conflict record.
+
+### P16-B — Accounting / Audit mini-app
+**Target users: audit associates, seniors, managers, engagement partners, Engagement Quality Reviewers (EQRs). Biggest pain: tiered workpaper review chain, EQR sign-off, management rep letter, SOX certification.**
+**Gap vs Workiva: Workiva is strong on document approvals but has no AI agent layer and no real-time task board. ONEVibe adds agents + monitoring.**
+
+- [ ] **P16-07** Tiered workpaper review workflow — each workpaper is a task on the audit kanban board. An AI agent prepares the workpaper and initial commentary. It then moves to the review queue: senior → manager → partner, each level requiring a dated sign-off with review notes. The agent can address review comments automatically (e.g. "recalculate the ratio per the manager's note") but cannot advance the workpaper to the next stage without the current reviewer's signed approval. The board shows the full audit file as a kanban: Prepared / Senior Review / Manager Review / Partner Review / EQR / Signed Off. Write `docs/AUDIT-WORKPAPER-WORKFLOW.md`.
+
+- [ ] **P16-08** Engagement Quality Review (EQR) gate — the final stage before an audit opinion is issued. The EQR is a named partner who has not been involved in the engagement. The mini-app presents the EQR with: a summary of significant judgments, the workpaper evidence for each, and any open issues. The EQR must individually review and sign off each significant judgment. The audit opinion cannot be released until all EQR sign-offs are recorded. Each sign-off is a VTI-signed artefact. Write `docs/AUDIT-EQR-WORKFLOW.md`.
+
+- [ ] **P16-09** SOX 302/906 certification workflow — for public company clients. The agent assembles the internal controls evidence package (ICFR documentation, testing results, deficiency summaries). The CFO and CEO review in the mini-app and click "Certify under SOX Section 302/906." The certification creates a signed artefact including: executive DID, evidence package hash, timestamp, and the statutory certification statement. False certification risk is surfaced explicitly at the point of signing — the UI shows the criminal penalty text. Write `docs/AUDIT-SOX-WORKFLOW.md`.
+
+### P16-C — Finance / Investment Banking mini-app
+**Target users: analysts, associates, VPs, MDs, credit officers, fairness opinion committees. Biggest pain: credit memo approval chain, pitch book sign-off, FINRA-supervised communications.**
+**Gap vs existing tools: no tool covers the deal approval chain (credit memo → credit committee → term sheet → commitment letter) with agent-assisted drafting + named human sign-off + counterparty collaboration.**
+
+- [ ] **P16-10** Deal workflow kanban — a deal is a project. Stages: Origination → Due Diligence → Credit/IC Approval → Term Sheet → Commitment Letter → Closing. Each stage is a column on the board. Tasks within each stage can be assigned to AI agents (research, drafting, modelling) or humans (review, negotiation, sign-off). The board is visible to the deal team — no more email threads to track who has reviewed what. Write `docs/IB-DEAL-WORKFLOW.md`.
+
+- [ ] **P16-11** Credit memo and credit committee workflow — the agent drafts the credit memo from deal data and diligence artefacts. A named credit officer reviews, annotates, and submits it to the credit committee queue. Credit committee members each record their vote (approve / approve with conditions / decline) as signed approval cards. The commitment letter cannot be issued until a quorum of credit committee approvals is recorded. OCC SR 11-7 model risk validation step is built in: if the credit memo uses an AI risk score, a model risk manager must validate the model before the memo is submitted. Write `docs/IB-CREDIT-WORKFLOW.md`.
+
+- [ ] **P16-12** FINRA-supervised communications workflow — all client-facing communications (pitch materials, research notes, marketing emails) must be approved by a registered principal before distribution. The agent drafts the communication; the registered principal reviews it in the mini-app and clicks "Principal Approval — FINRA Rule 3110." The approval is signed, timestamped, and stored. The communication cannot be sent without the approval artefact. FINRA exam requests for these records can be fulfilled by exporting the artefact log. Write `docs/IB-FINRA-WORKFLOW.md`.
+
+### P16-D — Compliance / RegTech mini-app
+**Target users: CCOs, compliance analysts, BSA officers, AML teams, DPO, GRC managers. Biggest pain: SAR decisions, KYC re-certification, policy exception approvals, regulatory filings.**
+**Gap vs existing tools: ComplyAdvantage flags for review but has no integrated sign-off workflow. GRC platforms have no AI agent layer. ONEVibe connects the AI screening to the human sign-off in one place.**
+
+- [ ] **P16-13** SAR decision workflow — the AML monitoring agent flags a suspicious transaction and produces a preliminary SAR filing recommendation with supporting evidence. A named compliance officer reviews the recommendation, the underlying transaction data, and the agent's reasoning. They click "Authorize SAR Filing" or "Decline to File with documented basis." Both decisions are signed artefacts. The filing cannot be submitted or suppressed without the compliance officer's signed decision. Civil penalty exposure ($1M/violation) is displayed at the decision point. Write `docs/COMPLIANCE-SAR-WORKFLOW.md`.
+
+- [ ] **P16-14** Policy exception approval workflow — when a transaction or client activity triggers a policy exception, the agent documents the exception basis and routes it to the named compliance officer. The officer reviews, approves or denies, and records the basis in writing — all within the mini-app. The exception record is a signed artefact. Regulatory examiners can query the exception log by date range, policy, and approving officer. Write `docs/COMPLIANCE-EXCEPTION-WORKFLOW.md`.
+
+- [ ] **P16-15** KYC/CDD re-certification workflow — the agent identifies high-risk customers due for periodic re-certification, pulls the updated risk signals, and prepares a re-certification package. A compliance officer reviews the updated risk profile and clicks "Re-certify" or "Escalate." The re-certification is a signed artefact. The customer record is not updated until the sign-off is recorded. FinCEN CDD rule compliance is the explicit framing. Write `docs/COMPLIANCE-KYC-WORKFLOW.md`.
+
+### P16-E — Cross-vertical infrastructure
+- [ ] **P16-16** Multi-party workspace — extend ONEVibe's project model to support cross-org collaboration: an audit firm and its client share a workspace with scoped visibility (auditors see everything; client sees only their deliverables and their own sign-off queue). Each party authenticates with their own SSO. The audit trail records which org each action came from. This is the first ONEVibe feature that spans organisational boundaries — the foundation for the platform network effect.
+
+- [ ] **P16-17** Compliance artefact export — a single "Export for regulators" action on any workflow produces a structured package: all approval artefacts (VTI-signed), the document versions they approved, the agent's reasoning log, and a manifest with timestamps and actor DIDs. Format: PDF/A (for human reviewers) + JSON-LD (for machine ingestion). FINRA, PCAOB, SEC, and FinCEN examiner requests are answered by running this export. Write `docs/COMPLIANCE-ARTEFACT-EXPORT.md`.
+
+- [ ] **P16-18** Vertical workflow template library — a curated library of pre-built workflow templates for each sector (Audit EQR, FINRA principal approval, credit committee, SAR decision, etc.). New firms onboard by selecting a template and configuring: approver roles, escalation paths, deadline rules, and notification channels. The template defines the approval card sequence; the `WorkflowAgent` enforces it. Write `docs/WORKFLOW-TEMPLATE-LIBRARY.md`.
+
+---
+
 ## Ongoing
 
 - [ ] **ONG-01** All 50 UX issues from `plan/00-gap-analysis.md` — track each to resolution
