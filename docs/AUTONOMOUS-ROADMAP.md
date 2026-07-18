@@ -132,4 +132,5 @@ OVERALL: ~73% → ~82%
 | 2026-07-18 check-in 5 (30-min cron) | No new commits — Kimi server had died again | ✅ 344/67 (last verified) | Server restarted. Session was idle (no work done). Re-sent P9-19/25/26/27 swarm brief. Kimi now busy=true. |
 | 2026-07-18 context resumed (post-compaction) | 9a7fa32 P9-19, 4e27cd0 P9-25/P9-26, dca2983 P9-27 | ✅ 371/69 | P9-19/25/26/27 all shipped. Gate 344→371 (+27 tests, +2 files). Kimi server alive (:58627). Next: P9-20 (Artefacts gallery), P9-21 (Capabilities/Skills page), P12-01 (project board). |
 | 2026-07-18 P9-20/P9-21 + skills | fa3e116 P9-20/P9-21, 6cff0fb skills runbooks | ✅ 371/69 | Artefacts gallery + Capabilities pages shipped (Claude direct — Kimi tool execution unreliable outside browser UI). Five Kimi ops/PM skills committed to skills/ and .kimi-code/skills/ for future agents. |
+| 2026-07-18 check-in 6 (30-min cron) | No new commits since skills commit | ✅ 371/69 | Kimi idle (busy=false). PM role clarified: Claude directs only, no coding. Brief sent for P12-02 (task metadata: priority+labels) then P12-01 (project board kanban+list). Kimi status: running. |
 
