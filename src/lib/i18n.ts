@@ -95,6 +95,11 @@ const en = {
   capAutomatePrompt: "Automate a repetitive workflow end-to-end — I'll describe what to do",
   // Errors
   unableToLoad: 'Unable to load',
+  // Reasoning panel
+  thinking: 'Thinking…',
+  reasoningTrace: 'Reasoning trace',
+  openReasoningTrace: 'Open reasoning trace',
+  closePanel: 'Close panel',
   // Shared
   cancel: 'Cancel',
   close: 'Close',
@@ -189,6 +194,10 @@ const zh: Record<keyof typeof en, string> = {
   capAutomateDesc: '端到端托管重复性工作流',
   capAutomatePrompt: '自动化一个重复性工作流——我会描述具体要做什么',
   unableToLoad: '加载失败',
+  thinking: '思考中…',
+  reasoningTrace: '推理轨迹',
+  openReasoningTrace: '打开推理轨迹',
+  closePanel: '关闭面板',
   cancel: '取消',
   close: '关闭',
   version: '版本',

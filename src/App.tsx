@@ -25,11 +25,12 @@ import { addProjectFile, cancelQueuedGuidance, cancelTask, createMcpConfig, crea
 import { conversationSummaryFromTask, upsertConversation } from './lib/conversation-summary'
 import { getAuthSession, signOut as signOutAuth } from './lib/auth'
 import { providerLabel, statusLabel } from './lib/runtime-labels'
-import { useComposerStore, useSessionStore, useUiStore, viewFromLocation, type AppView } from './lib/stores'
+import { useComposerStore, useSessionStore, useSidePanelStore, useUiStore, viewFromLocation, type AppView } from './lib/stores'
 import type { ConversationSummary, LibraryItem, Project, RuntimeMcpConfig, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill } from './types'
 import './index.css'
 
 const AssistantThread = lazy(() => import('./components/AssistantThread').then((module) => ({ default: module.AssistantThread })))
+const SidePanel = lazy(() => import('./components/SidePanel').then((module) => ({ default: module.SidePanel })))
 const canStopTask = (status: Task['status']) => status === 'running' || status === 'pending' || status === 'waiting_for_user_input' || status === 'waiting_for_approval'
 const persistSelectedSkills = (skills: TaskSkill[]) => {
   try { window.localStorage.setItem('onevibe.selected-skill-ids', JSON.stringify(skills)) } catch { /* Storage is optional. */ }
@@ -99,6 +100,8 @@ export default function App() {
   }, [conversationsHasNextPage, conversationsIsFetchingNextPage, fetchMoreConversations])
 
   useEffect(() => { if (tasksError) reportError(tasksError, 'Unable to load tasks') }, [tasksError])
+  // The reasoning panel is scoped to one conversation; switching tasks closes it.
+  useEffect(() => { useSidePanelStore.getState().closePanel() }, [activeTaskId])
   useEffect(() => { void refreshAuth() }, [refreshAuth])
   useEffect(() => { if (conversationsError) reportError(conversationsError, 'Unable to load conversations') }, [conversationsError])
   useEffect(() => {
@@ -409,6 +412,7 @@ export default function App() {
             <motion.section key="task" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`task-view ${mobileInspectorOpen ? 'mobile-inspector-open' : ''}`}>
               {!snapshot ? <div className="loading-state"><span className="loader" /> Loading task…</div> : (
                 <>
+                  <div className="chat-column">
                   <div className="conversation-pane">
                     <div className="conversation-header">
                       <div><span className="task-kicker">{projects.find((project) => project.id === snapshot.projectId)?.name ?? 'Project workspace'} · {snapshot.mode === 'chat' ? 'Conversation' : providerLabel(snapshot.provider)}</span><h2>{snapshot.title}</h2>{(snapshot.skills.length > 0 || snapshot.queuedGuidance.length > 0 || snapshot.references.length > 0 || snapshot.attachments.length > 0) && <div className="task-configuration">{snapshot.skills.map((skill) => <span key={skill}><Sparkles size={10} /> {skill.replaceAll('_', ' ')}</span>)}{snapshot.references.length > 0 && <span title="User-supplied website references are untrusted context"><Link2 size={10} /> {snapshot.references.length} reference{snapshot.references.length === 1 ? '' : 's'}</span>}{snapshot.attachments.length > 0 && <span title="Local attachments are staged as untrusted task input"><Paperclip size={10} /> {snapshot.attachments.length} file{snapshot.attachments.length === 1 ? '' : 's'}</span>}{snapshot.queuedGuidance.length > 0 && <span className="queued-guidance"><ShieldCheck size={10} /> {snapshot.queuedGuidance.length} guidance queued</span>}</div>}</div>
@@ -417,8 +421,10 @@ export default function App() {
                     {error && <div className="stream-warning"><span>{error}</span><button type="button" onClick={retryConnection}>Retry connection</button></div>}
                     {snapshot.provider === 'demo' && <div className="demo-mode-banner" role="status"><div><Sparkles size={14} /><span><strong>Simulation only</strong><small>No model call is made in this task. Use a configured LiteLLM-backed runtime for real provider execution.</small></span></div>{preferredProvider !== 'demo' && <button type="button" onClick={() => navigateToTask(null)}>Start a new governed task</button>}</div>}
                     <TaskTimeline task={snapshot} events={snapshot.events} />
-                    <Suspense fallback={<div className="aui-thread-loading">Loading durable conversation…</div>}><AssistantThread task={snapshot} busy={creating || followUpMutation.isPending || branchMutation.isPending || retryMutation.isPending || Boolean(snapshot.inputRequest)} onSubmit={continueTask} onSwitchRuntime={(provider) => retryCurrentTask(snapshot.id, provider)} onEditMessage={(messageId, newPrompt) => branchFromMessage(snapshot.id, messageId, newPrompt)} /></Suspense>
+                    <Suspense fallback={<div className="aui-thread-loading">Loading durable conversation…</div>}><AssistantThread task={snapshot} busy={creating || followUpMutation.isPending || branchMutation.isPending || retryMutation.isPending || Boolean(snapshot.inputRequest)} onSubmit={continueTask} onSwitchRuntime={(provider) => retryCurrentTask(snapshot.id, provider)} onEditMessage={(messageId, newPrompt) => branchFromMessage(snapshot.id, messageId, newPrompt)} locale={locale} /></Suspense>
                     {snapshot.queuedGuidance.length > 0 && <section className="guidance-queue"><header><div><ShieldCheck size={13} /><strong>Queued guidance</strong></div><span>Applies after this provider turn</span></header>{snapshot.queuedGuidance.map((guidance, index) => { const removing = cancelGuidanceMutation.isPending && cancelGuidanceMutation.variables?.guidanceId === guidance.id; return <article key={guidance.id}><div><span>Next {index + 1}</span><p>{guidance.prompt}</p></div><button type="button" disabled={removing} onClick={() => void retractQueuedGuidance(snapshot.id, guidance.id)} aria-label={`Remove queued guidance ${index + 1}`} title={removing ? 'Removing queued guidance…' : 'Remove before it reaches the provider'}>{removing ? <LoaderCircle className="spin" size={13} /> : <X size={13} />}</button></article>})}<footer>Removing a message keeps only cancellation metadata in the evidence ledger.</footer></section>}
+                  </div>
+                  <Suspense fallback={null}><SidePanel locale={locale} /></Suspense>
                   </div>
                   <div className="workspace-pane"><div className="mobile-inspector-bar"><span><Monitor size={13} /> Computer inspector</span><button type="button" onClick={() => setMobileInspectorOpen(false)}>Back to conversation</button></div><Workspace task={snapshot} projects={projects} runtime={runtime} onMoveProject={moveTaskProject} onUpdateTags={setTaskTags} /></div>
                 </>

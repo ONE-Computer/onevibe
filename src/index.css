@@ -38,7 +38,7 @@
   --overlay-topbar:var(--theme-effect-7ae6b8debe22);--overlay-composer:var(--theme-effect-a80132a605db);--grid-line:var(--theme-effect-bb50cd6943d7);--shadow:0 28px 80px var(--theme-effect-844ffb311d3c);--shadow-soft:0 22px 70px var(--theme-effect-2d55e9cc1bc1);
   --bg:var(--surface-canvas);--panel:var(--surface-panel);--panel-2:var(--surface-raised);--panel-3:var(--surface-hover);--line:var(--border-default);--line-soft:var(--border-subtle);--text:var(--text-primary);--muted:var(--text-muted);--faint:var(--text-faint);--green:var(--accent);--green-2:var(--accent-strong);--green-soft:var(--accent-soft);--amber:var(--warning);--red:var(--danger);
   --duration-instant:80ms;--duration-fast:150ms;--duration-normal:250ms;--duration-slow:400ms;
-  --ease-standard:cubic-bezier(0.4,0,0.2,1);--ease-decelerate:cubic-bezier(0,0,0.2,1);--ease-accelerate:cubic-bezier(0.4,0,1,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1)
+  --ease-standard:cubic-bezier(0.4,0,0.2,1);--ease-decelerate:cubic-bezier(0,0,0.2,1);--ease-accelerate:cubic-bezier(0.4,0,1,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1);--ease-panel:cubic-bezier(0.16,1,0.3,1)
 }
 [data-theme=light]{
   --surface-canvas:var(--theme-color-f1cc32ddab36);--surface-sidebar:var(--theme-color-0e47e17b5416);--surface-panel:var(--theme-color-e08de713877c);--surface-raised:var(--theme-color-430164f892bf);--surface-hover:var(--theme-color-36115b85905b);--surface-inset:var(--theme-color-af2cdc236b52);--surface-code:var(--theme-color-dee37dc3f696);
@@ -989,3 +989,33 @@ button.model-selector *{color:inherit}
 .model-tag{border:1px solid var(--border-subtle);border-radius:var(--radius-999px);background:var(--surface-raised);color:var(--text-muted);padding:2px 5px;font:7px var(--font-ui);font-style:normal;letter-spacing:.02em}
 .model-tag.recommended{border-color:var(--accent-border);background:var(--accent-soft);color:var(--accent)}
 @media(max-width:600px){.model-picker-popover{grid-template-columns:1fr}}
+
+/* Contextual side panel + thinking blocks (P9-15). The panel lives inside the
+   conversation column so the chat shrinks around it; the thinking window
+   animates via grid-template-rows and honors reduced motion. */
+.chat-column{display:flex;min-width:0;height:100%;overflow:hidden}
+.chat-column>.conversation-pane{flex:1 1 auto;min-width:0}
+.side-panel{flex:0 0 auto;width:0;overflow:hidden}
+.side-panel.open{width:360px}
+.side-panel-inner{width:360px;height:100%;display:flex;flex-direction:column;border-left:1px solid var(--border-subtle);background:var(--surface-panel)}
+.side-panel-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border-subtle)}
+.side-panel-header strong{font-size:11px;color:var(--text-primary);letter-spacing:-.01em}
+.side-panel-body{flex:1;min-height:0;overflow:auto;padding:14px;color:var(--text-secondary);font-size:12px;line-height:1.6;scrollbar-width:thin}
+.aui-thinking{margin:8px 0}
+.aui-thinking-label{display:flex;align-items:center;gap:6px;color:var(--text-faint);font:9px var(--font-ui);text-transform:uppercase;letter-spacing:.06em}
+.aui-thinking-label i{width:5px;height:5px;border-radius:50%;background:var(--accent)}
+.aui-thinking-window{display:grid;grid-template-rows:0fr}
+.aui-thinking.live .aui-thinking-window{grid-template-rows:1fr}
+.aui-thinking-window-inner{min-height:0;overflow:hidden}
+.aui-thinking-live{display:flex;flex-direction:column;justify-content:flex-end;max-height:calc(5 * 1.55em);margin:6px 0 0;overflow:hidden;color:var(--text-faint);font-size:11px;line-height:1.55;white-space:pre-wrap;-webkit-mask-image:linear-gradient(transparent,black 40%);mask-image:linear-gradient(transparent,black 40%)}
+.aui-thinking-teaser{display:grid;gap:3px;width:100%;margin-top:6px;padding:8px 10px;border:1px solid var(--border-subtle);border-radius:var(--radius-8px);background:transparent;color:var(--text-muted);text-align:left;cursor:pointer}
+.aui-thinking-teaser:hover{border-color:var(--accent-border);background:var(--accent-soft);color:var(--accent)}
+.aui-thinking-teaser span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.aui-thinking-teaser em{color:var(--text-faint);font:8px var(--font-ui);font-style:normal;text-transform:uppercase;letter-spacing:.06em}
+.aui-thinking-teaser:hover em{color:var(--accent)}
+@media(max-width:600px){.side-panel.open{width:100%}.side-panel-inner{width:100%}}
+@media(prefers-reduced-motion:no-preference){
+  .side-panel{transition:width .26s var(--ease-panel)}
+  .aui-thinking-window{transition:grid-template-rows .26s var(--ease-panel)}
+  .aui-thinking.live .aui-thinking-label i{animation:pulse-dot 2s ease-in-out infinite}
+}

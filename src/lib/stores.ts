@@ -101,3 +101,17 @@ export const useSessionStore = create<SessionStore>((set) => ({
   authLoading: true,
   setAuthState: (authState) => set({ authState }), setAuthLoading: (authLoading) => set({ authLoading }),
 }))
+
+export type SidePanelContent = { kind: 'reasoning'; messageId: string; text: string }
+
+type SidePanelStore = {
+  content: SidePanelContent | null
+  openPanel: (content: SidePanelContent) => void
+  closePanel: () => void
+}
+
+export const useSidePanelStore = create<SidePanelStore>((set) => ({
+  content: null,
+  openPanel: (content) => set({ content }),
+  closePanel: () => set({ content: null }),
+}))

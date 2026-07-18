@@ -24,6 +24,8 @@ import { projectAssistantToolCalls } from '../lib/assistant-tool-projection'
 import { providerLabel } from '../lib/runtime-labels'
 import type { AssistantArtifact, AssistantTraceItem } from '../lib/assistant-tool-projection'
 import { readableBytes } from '../lib/format'
+import { t, type Locale } from '../lib/i18n'
+import { useSidePanelStore } from '../lib/stores'
 import { MarkdownText } from './MarkdownText'
 
 const timestamp = (value?: Date) => value?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ?? ''
@@ -93,7 +95,19 @@ const WorkingTrace = () => {
 
 const ToolGroup = ({ children, count, active }: { children: ReactNode; count: number; active: boolean }) => <details className="aui-tool-group" open={active || undefined}><summary><span><ShieldCheck size={11} /> Tool activity</span><em>{count} call{count === 1 ? '' : 's'}</em></summary><div className="aui-tool-group-content">{children}</div></details>
 
-const AssistantMessage = () => {
+// Provider reasoning streams into a five-line live window; once the message
+// settles, the window collapses into a teaser that opens the full trace in
+// the side panel. Hidden chain-of-thought is never fabricated here: the block
+// renders only when the runtime emits a reasoning part.
+const ThinkingBlock = ({ text, streaming, locale }: { text: string; streaming: boolean; locale: Locale }) => {
+  const messageId = useAuiState((state) => state.message.id)
+  const openPanel = useSidePanelStore((state) => state.openPanel)
+  if (!text.trim()) return null
+  const teaser = text.split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean).at(-1) ?? ''
+  return <div className={`aui-thinking${streaming ? ' live' : ''}`}><div className="aui-thinking-label"><i />{t('thinking', locale)}</div><div className="aui-thinking-window"><div className="aui-thinking-window-inner" inert={!streaming || undefined}>{streaming && <p className="aui-thinking-live">{text}</p>}</div></div>{!streaming && <button type="button" className="aui-thinking-teaser" onClick={() => openPanel({ kind: 'reasoning', messageId, text })}><span>{teaser}</span><em>{t('openReasoningTrace', locale)}</em></button>}</div>
+}
+
+const AssistantMessage = ({ locale = 'en' }: { locale?: Locale }) => {
   const createdAt = useAuiState((state) => state.message.createdAt)
   const running = useAuiState((state) => state.message.status?.type === 'running')
   const { stalled } = unstable_useMessageStallDetection({ thresholdMs: 15_000 })
@@ -102,6 +116,7 @@ const AssistantMessage = () => {
     if (part.type === 'group-tool') return <ToolGroup count={part.indices.length} active={part.status.type === 'running'}>{children}</ToolGroup>
     if (part.type === 'tool-call') return <ToolCallCard {...part} />
     if (part.type === 'text') return <><MarkdownText />{part.status?.type === 'running' && <span className="streaming-cursor" aria-hidden="true" />}</>
+    if (part.type === 'reasoning') return <ThinkingBlock text={part.text} streaming={running} locale={locale} />
     if (part.type === 'indicator') return <span className="typing-indicator" aria-label="ONEVibe is writing"><i /><i /><i /></span>
     return null
   }}</MessagePrimitive.GroupedParts><MessagePrimitive.Error><div className="aui-message-error"><TriangleAlert size={14} /><ErrorPrimitive.Message /></div></MessagePrimitive.Error><ArtifactCards artifacts={artifacts} /><MessageActions /><BranchNav /></div></MessagePrimitive.Root>
@@ -165,7 +180,7 @@ const VirtualizedMessages: FC<{ taskId: string; components: MessageComponents }>
   return <ThreadPrimitive.Viewport className="aui-thread-scroll" ref={scrollRef} autoScroll scrollToBottomOnRunStart><div className="aui-thread-content" ref={contentRef} style={{ paddingTop, paddingBottom }}>{virtualItems.map((item) => <div key={item.key} ref={virtualizer.measureElement} data-index={item.index} className="aui-thread-turn">{turns[item.index]?.messageIds.map((messageId) => <ThreadPrimitive.Unstable_MessageById key={messageId} messageId={messageId} components={components} />)}</div>)} </div><ThreadPrimitive.ScrollToBottom className="aui-thread-jump" aria-label="Scroll to latest activity" title="Scroll to latest activity"><ArrowDown size={14} /></ThreadPrimitive.ScrollToBottom></ThreadPrimitive.Viewport>
 }
 
-type Props = { task: TaskSnapshot; busy: boolean; onSubmit: (prompt: string, attachments?: DraftFollowUpAttachment[]) => Promise<void>; onSwitchRuntime: (provider: TaskSnapshot['provider']) => Promise<void>; onEditMessage: ForkMessage }
+type Props = { task: TaskSnapshot; busy: boolean; onSubmit: (prompt: string, attachments?: DraftFollowUpAttachment[]) => Promise<void>; onSwitchRuntime: (provider: TaskSnapshot['provider']) => Promise<void>; onEditMessage: ForkMessage; locale?: Locale }
 
 const fallbackProviderFor = (task: TaskSnapshot): TaskSnapshot['provider'] | undefined => {
   const knownProviders = new Set<TaskSnapshot['provider']>(['demo', 'claude_sdk', 'codex', 'agentcore', 'onecomputer', 'remote'])
@@ -177,7 +192,7 @@ const fallbackProviderFor = (task: TaskSnapshot): TaskSnapshot['provider'] | und
   return undefined
 }
 
-export const AssistantThread = ({ task, busy, onSubmit, onSwitchRuntime, onEditMessage }: Props) => {
+export const AssistantThread = ({ task, busy, onSubmit, onSwitchRuntime, onEditMessage, locale = 'en' }: Props) => {
   const [attachments, setAttachments] = useState<DraftFollowUpAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
@@ -188,8 +203,8 @@ export const AssistantThread = ({ task, busy, onSubmit, onSwitchRuntime, onEditM
       const messageId = useAuiState((state) => state.message.id)
       return <UserMessage content={messageContent.get(messageId) ?? ''} onEdit={onEditMessage} />
     },
-    AssistantMessage,
-  }), [messageContent, onEditMessage])
+    AssistantMessage: () => <AssistantMessage locale={locale} />,
+  }), [messageContent, onEditMessage, locale])
   const fallbackProvider = useMemo(() => fallbackProviderFor(task), [task])
   const send = useCallback(async (message: AppendMessage) => {
     const prompt = message.content.filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text').map((part) => part.text).join('\n').trim()
