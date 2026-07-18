@@ -21,7 +21,7 @@ import {
 import type { TaskSnapshot } from '../types'
 import { toAssistantMessage } from '../lib/assistant-message'
 import { projectAssistantToolCalls } from '../lib/assistant-tool-projection'
-import { providerLabel } from '../lib/runtime-labels'
+import { providerLabel, stepLabel } from '../lib/runtime-labels'
 import type { AssistantArtifact, AssistantTraceItem } from '../lib/assistant-tool-projection'
 import { readableBytes } from '../lib/format'
 import { t, type Locale } from '../lib/i18n'
@@ -69,7 +69,7 @@ const ToolCallCard = ({ toolName, args, result, isError, timing }: ToolCallMessa
   const outcome = result && typeof result === 'object' ? result as { summary?: string } : undefined
   const running = result === undefined
   const elapsed = timing?.completedAt && timing.startedAt ? `${Math.max(0, (timing.completedAt - timing.startedAt) / 1000).toFixed(1)}s` : undefined
-  return <div className={`aui-tool-call ${running ? 'running' : isError ? 'failed' : 'completed'}`}><span>{running ? <LoaderCircle size={14} /> : isError ? <TriangleAlert size={14} /> : <CheckCircle2 size={14} />}</span><div><strong>{toolName}</strong><small>{details.browserTool ? 'Browser in sandbox' : details.executionRoute?.replaceAll('_', ' ') ?? 'Secure runtime'}{details.inputKeys?.length ? ` · ${details.inputKeys.join(', ')}` : ''}</small>{outcome?.summary && <p>{outcome.summary}</p>}</div><em>{running ? 'Running' : isError ? 'Failed' : elapsed ?? 'Done'}</em></div>
+  return <div className={`aui-tool-call ${running ? 'running' : isError ? 'failed' : 'completed'}`}><span>{running ? <LoaderCircle size={14} /> : isError ? <TriangleAlert size={14} /> : <CheckCircle2 size={14} />}</span><div><strong>{stepLabel(toolName)}</strong><small>{details.browserTool ? 'Browser in sandbox' : details.executionRoute?.replaceAll('_', ' ') ?? 'Secure runtime'}{details.inputKeys?.length ? ` · ${details.inputKeys.join(', ')}` : ''}</small>{outcome?.summary && <p>{outcome.summary}</p>}</div><em>{running ? 'Running' : isError ? 'Failed' : elapsed ?? 'Done'}</em></div>
 }
 
 const ArtifactCards = ({ artifacts }: { artifacts: AssistantArtifact[] }) => artifacts.length ? <div className="aui-artifacts">{artifacts.map((artifact) => {
