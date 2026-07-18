@@ -1044,3 +1044,70 @@ button.model-selector *{color:inherit}
   .milestone-progress-window{transition:grid-template-rows .26s var(--ease-panel)}
   .milestone-progress-header svg{transition:transform .2s var(--ease-panel)}
 }
+
+/* P9-27: Task completion banner */
+.aui-task-complete{margin:12px 0;padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius-10px);background:var(--surface)}
+.aui-task-complete-header{display:flex;align-items:center;gap:6px;color:var(--green);font:600 13px var(--font-ui);margin-bottom:10px}
+.aui-task-files{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:10px}
+.aui-task-file-card{display:flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius-6px);background:var(--surface-hover);font-size:12px}
+.aui-task-file-card small{color:var(--text-muted)}
+.aui-task-files-link{background:none;border:none;padding:4px 0;font-size:12px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.aui-task-suggestions{display:flex;flex-wrap:wrap;gap:6px}
+.aui-task-suggestion{padding:5px 12px;border:1px solid var(--border);border-radius:var(--radius-16px);background:var(--surface-hover);font-size:12px;cursor:pointer;color:var(--text)}
+.aui-task-suggestion:hover{background:var(--surface-active);border-color:var(--accent)}
+.aui-files-modal-backdrop{position:fixed;inset:0;background:color-mix(in srgb,black 55%,transparent);display:flex;align-items:center;justify-content:center;z-index:200}
+.aui-files-modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-12px);width:520px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+.aui-files-modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
+.aui-files-modal-header strong{font:600 14px var(--font-ui)}
+.aui-files-modal-header button{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px}
+.aui-files-modal-tabs{display:flex;gap:2px;padding:8px 12px;border-bottom:1px solid var(--border)}
+.aui-files-modal-tabs button{padding:4px 10px;border:none;border-radius:var(--radius-6px);font-size:12px;cursor:pointer;background:none;color:var(--text-muted)}
+.aui-files-modal-tabs button.active{background:var(--surface-hover);color:var(--text)}
+.aui-files-modal-list{list-style:none;margin:0;padding:8px 12px;overflow-y:auto;flex:1}
+.aui-files-modal-list li{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border)}
+.aui-files-modal-list li:last-child{border-bottom:none}
+.aui-file-name{flex:1;font-size:12px;font-family:var(--font-mono)}
+.aui-files-modal-list small{color:var(--text-muted);font-size:11px}
+.aui-files-empty{color:var(--text-muted);font-size:12px;text-align:center;padding:16px 0}
+
+/* P9-20: Artefacts gallery */
+.artefacts-view{padding:28px 32px;max-width:900px;margin:0 auto}
+.artefacts-view header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:16px}
+.artefacts-view header div{flex:1}
+.artefacts-view header h1{font:600 22px var(--font-ui);margin:4px 0 6px}
+.artefacts-view header p{color:var(--text-muted);font-size:13px;margin:0;line-height:1.5}
+.artefacts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;margin-top:16px}
+.artefact-card{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-8px);background:var(--surface)}
+.artefact-icon{flex-shrink:0;color:var(--text-muted);width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:var(--surface-hover);border-radius:var(--radius-6px)}
+.artefact-info{flex:1;min-width:0}
+.artefact-filename{display:block;font:500 13px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.artefact-path{display:block;font:12px var(--font-mono);color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.artefact-meta{display:block;font-size:11px;color:var(--text-muted);margin-top:2px}
+.artefact-task-link{background:none;border:none;padding:0;font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.artefact-task-link:hover{opacity:.8}
+.artefact-actions{flex-shrink:0}
+.artefact-download{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-6px);color:var(--text-muted);text-decoration:none}
+.artefact-download:hover{background:var(--surface-hover);color:var(--text)}
+
+/* P9-21: Capabilities page */
+.capabilities-view{padding:28px 32px;max-width:900px;margin:0 auto}
+.capabilities-view header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px}
+.capabilities-view header div{flex:1}
+.capabilities-view header h1{font:600 22px var(--font-ui);margin:4px 0 6px}
+.capabilities-view header p{color:var(--text-muted);font-size:13px;margin:0;line-height:1.5}
+.capabilities-section{margin-bottom:32px}
+.capabilities-section h2{display:flex;align-items:center;gap:6px;font:600 15px var(--font-ui);margin:0 0 4px;color:var(--text)}
+.capabilities-section-desc{font-size:13px;color:var(--text-muted);margin:0 0 12px;line-height:1.5}
+.capabilities-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.capability-card{padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius-8px);background:var(--surface)}
+.capability-card.unavailable{opacity:.55}
+.capability-card-header{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.capability-card-header strong{font:500 13px var(--font-ui)}
+.capability-status-ok{color:var(--green)}
+.capability-status-err{color:var(--text-muted)}
+.capability-card-desc{font-size:12px;color:var(--text-muted);margin:0 0 8px;line-height:1.5}
+.capability-tags{display:flex;flex-wrap:wrap;gap:4px}
+.capability-tags span{font-size:10px;padding:2px 6px;background:var(--surface-hover);border-radius:var(--radius-4px);color:var(--text-muted);text-transform:capitalize}
+.capability-card-footer{margin-top:8px}
+.capability-run-btn{padding:4px 12px;border-radius:var(--radius-6px);background:var(--accent);color:var(--accent-ink);border:none;font:500 12px var(--font-ui);cursor:not-allowed;opacity:.45}
+.capabilities-empty{font-size:13px;color:var(--text-muted);grid-column:1/-1}

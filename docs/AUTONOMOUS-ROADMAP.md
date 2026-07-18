@@ -130,4 +130,5 @@ OVERALL: ~73% → ~82%
 | 2026-07-18 context resumed + Kimi server restarted | Kimi server was stopped, restarted, P9-19/25/26/27 brief re-sent | ✅ 344/67 | Kimi swarm running on P9-19 (StepTrace), P9-25 (DVR scrubber), P9-26 (task milestones), P9-27 (task completion). Gate green. Symphony design study committed. |
 | 2026-07-18 check-in 4 (30-min cron) | No new commits — swarm still running | ✅ 344/67 (last verified) | Kimi busy=true, main_turn_active=true. P9-19/25/26/27 in progress. No action needed. |
 | 2026-07-18 check-in 5 (30-min cron) | No new commits — Kimi server had died again | ✅ 344/67 (last verified) | Server restarted. Session was idle (no work done). Re-sent P9-19/25/26/27 swarm brief. Kimi now busy=true. |
+| 2026-07-18 context resumed (post-compaction) | 9a7fa32 P9-19, 4e27cd0 P9-25/P9-26, dca2983 P9-27 | ✅ 371/69 | P9-19/25/26/27 all shipped. Gate 344→371 (+27 tests, +2 files). Kimi server alive (:58627). Next: P9-20 (Artefacts gallery), P9-21 (Capabilities/Skills page), P12-01 (project board). |
 

@@ -1,4 +1,4 @@
-import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileEdit, FileText, FolderKanban, Gamepad2, Globe2, Library, MonitorCog, Palette, Pencil, Plus, Presentation, Search, Sparkles, X } from 'lucide-react'
+import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileEdit, FileText, FolderKanban, FolderOpen, Gamepad2, Globe2, Library, MonitorCog, Palette, Pencil, Plus, Presentation, Search, Sparkles, X, Zap } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationSummary, Project, ProjectFileVersion, TaskMode } from '../types'
@@ -11,7 +11,7 @@ import type { Locale } from '../lib/i18n'
 import { t } from '../lib/i18n'
 
 type Props = {
-  view: 'agent' | 'schedules' | 'skills' | 'library' | 'computers' | 'appearance' | 'homepage'
+  view: 'agent' | 'schedules' | 'skills' | 'library' | 'computers' | 'appearance' | 'homepage' | 'artefacts' | 'capabilities'
   conversations: ConversationSummary[]
   activeTaskId: string | null
   onNewTask: () => void
@@ -35,6 +35,8 @@ type Props = {
   onOpenComputers: () => void
   onOpenAppearance: () => void
   onOpenHomepage: () => void
+  onOpenArtefacts: () => void
+  onOpenCapabilities: () => void
   skillCount: number
   user?: AuthUser
   onSignOut: () => Promise<void>
@@ -81,7 +83,7 @@ const bucketFor = (iso: string, now: number): 'Today' | 'Yesterday' | 'This week
   return 'Older'
 }
 
-export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, onOpenAppearance, onOpenHomepage, skillCount, user, onSignOut, locale = 'en' }: Props) => {
+export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, onOpenAppearance, onOpenHomepage, onOpenArtefacts, onOpenCapabilities, skillCount, user, onSignOut, locale = 'en' }: Props) => {
   const { config } = useTenantTheme()
   const [query, setQuery] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
@@ -146,6 +148,8 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
       <button className={`nav-item ${view === 'computers' ? 'active' : ''}`} onClick={onOpenComputers}><MonitorCog size={16} /> {t('computers', locale)}</button>
       <button className={`nav-item ${view === 'appearance' ? 'active' : ''}`} onClick={onOpenAppearance}><Palette size={16} /> {t('appearance', locale)}</button>
       <button className={`nav-item ${view === 'homepage' ? 'active' : ''}`} onClick={onOpenHomepage}><FileEdit size={16} /> Homepage</button>
+      <button className={`nav-item ${view === 'artefacts' ? 'active' : ''}`} onClick={onOpenArtefacts}><FolderOpen size={16} /> Artefacts</button>
+      <button className={`nav-item ${view === 'capabilities' ? 'active' : ''}`} onClick={onOpenCapabilities}><Zap size={16} /> Capabilities</button>
       {config?.navigation?.items?.map((item) => <a key={`${item.label}:${item.href}`} className="nav-item tenant-nav-link" href={item.href} target={item.external ? '_blank' : undefined} rel={item.external ? 'noreferrer' : undefined}>{item.label}</a>)}
     </nav>
     <div className="nav-section-label"><span>Projects</span><button aria-label="Create project" onClick={() => setCreatingProject((value) => !value)}><Plus size={13} /></button></div>

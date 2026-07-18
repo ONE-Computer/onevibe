@@ -3,12 +3,12 @@ import { fallbackSkillCatalog, normalizeSelectedSkillIds } from './api'
 import type { AuthSessionState } from './auth'
 import type { TaskSkill } from '../types'
 
-export type AppView = 'agent' | 'schedules' | 'skills' | 'library' | 'computers' | 'appearance' | 'homepage'
+export type AppView = 'agent' | 'schedules' | 'skills' | 'library' | 'computers' | 'appearance' | 'homepage' | 'artefacts' | 'capabilities'
 
 export const viewFromLocation = (): AppView => {
   if (typeof window === 'undefined') return 'agent'
   const value = new URLSearchParams(window.location.search).get('view')
-  return value === 'schedules' || value === 'skills' || value === 'library' || value === 'computers' || value === 'appearance' || value === 'homepage' ? value : 'agent'
+  return value === 'schedules' || value === 'skills' || value === 'library' || value === 'computers' || value === 'appearance' || value === 'homepage' || value === 'artefacts' || value === 'capabilities' ? value : 'agent'
 }
 
 const taskFromLocation = () => typeof window === 'undefined' ? null : window.location.pathname.match(/^\/tasks\/([^/]+)$/)?.[1] ?? null
