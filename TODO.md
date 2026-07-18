@@ -630,6 +630,54 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ---
 
+## Phase 18 — ONEVibe Mobile: the world's most secure corporate super-app + supercharged Okta
+**Business objective: a beautiful, powerful, admin-customisable mobile app that is also the org's authenticator, identity wallet, and approval device. Think Okta Verify meets the company intranet — but with the security foundations of a hardware-rooted VTI identity stack, not a shared-secret OTP generator. Every employee carries it. Every agent action can require it for approval. Every connector auth flows through it.**
+
+**What already exists in `verifiable-trust-infrastructure/vta-mobile-core` (real, not stubs):**
+- **UniFFI cross-platform engine** — single Rust codebase compiles to iOS xcframework + Android AAR. Both platforms call identical APIs.
+- **Secure Enclave / StrongBox key custody** — private keys never leave the hardware security module. The signing key is identified by its `did:key`, never a raw pubkey. Biometric gate (Face ID / fingerprint) is enforced at the enclave level, not the app level.
+- **WebAuthn / passkey assertions via DID document** — `vti-webauthn` verifies FIDO2 assertions where the credential's public key is resolved from a DID Document `verificationMethod`, not a server-side credential registry. The DID document is the source of truth — no server-side passkey database needed.
+- **AAL step-up approve-response** — `stepup.rs` builds the `auth/step-up/approve-response` Trust Task document for both WebAuthn (`build_approve_response_webauthn`) and DID-signed (`build_approve_response_did_signed`) gates. This is the signed approval artefact that ONEVibe's approval cards require.
+- **DIDComm v2 pack/unpack** — `didcomm.rs` wraps the Affinidi DIDComm stack; the mobile agent can receive push-delivered approval requests over DIDComm from the VTA mediator.
+- **Push wake-up** — `push.rs` handles APNs (iOS) / FCM (Android) registration so the VTA can wake the app for a pending approval even when it is backgrounded.
+- **DID resolution** — `resolver.rs` resolves `did:key` / `did:peer` offline; `did:web` / `did:webvh` networked.
+- **VTA session auth** — `session.rs` wraps `vta-sdk::DIDCommSession` (connect + receive_next) for mediator-connected DIDComm sessions.
+
+**This is Okta Verify with a hardware-rooted DID identity, W3C Verifiable Credentials, and a full company intranet on top.**
+
+### P18-A — Mobile app foundation
+- [ ] **P18-01** React Native shell + VTA mobile engine bridge — bootstrap a React Native app that wraps `vta-mobile-core` via the UniFFI-generated Swift/Kotlin bindings. The app is the ONEVibe mobile client: intranet portal on the bottom half, authenticator functions on the top. The bridge exposes: `libraryVersion()`, `initLogging()`, `challengeLenBytes()`, `signChallenge()` (Secure Enclave-backed), `buildApproveResponseWebauthn()`, `buildApproveResponseDidSigned()` — the minimal FFI surface already implemented in slice 1. Write `docs/MOBILE-APP-FOUNDATION.md`.
+
+- [ ] **P18-02** Biometric-gated DID identity setup — on first launch, the app guides the employee through: (1) org QR code scan to join the VTC community; (2) Secure Enclave / StrongBox key generation for their personal `did:key`; (3) Face ID / fingerprint enrolment as the biometric gate on the signing key; (4) passkey registration against the org's VTA (DID document updated with the new WebAuthn `verificationMethod`). After setup, the employee has a hardware-rooted DID identity that is their company identity. No shared secret. No OTP seed. Write `docs/MOBILE-IDENTITY-SETUP.md`.
+
+- [ ] **P18-03** Admin customisation layer — corporate admins can customise the mobile app's look and feel from the ONEVibe portal admin panel (P17-04 brand theming, extended): logo, primary colour, font, background. They can also configure: which mini-apps appear on the mobile home screen, which widgets are visible, whether dark mode is forced, and which features are locked/unlocked per employee group. Changes push to all enrolled devices within 60s via the DIDComm push channel. No app store update needed for layout or branding changes. Write `docs/MOBILE-ADMIN-CONFIG.md`.
+
+### P18-B — Supercharged authenticator (the Okta replacement)
+- [ ] **P18-04** Push approval notifications — when any system (ONEVibe workflow, ONEComputer gateway, connected app) requires step-up authentication or approval, a DIDComm push message arrives on the employee's phone via APNs/FCM. The app wakes, displays the approval request with full context (what is being approved, which agent, which data, risk level), and presents a biometric-gated Approve / Deny action. The signed `auth/step-up/approve-response` Trust Task is sent back to the relying party. This is the mobile approval artefact that P16's `WorkflowAgent` gates are waiting for. Write `docs/MOBILE-PUSH-APPROVAL.md`.
+
+- [ ] **P18-05** Passkey SSO for all org apps — employees use the mobile app as their universal passkey for every org app: ONEVibe, connected OAuth apps (GitHub, Jira, Outlook, Salesforce), and any app that supports FIDO2/WebAuthn. When a browser on any device visits an org app and requires login, the browser shows a QR code or Bluetooth proximity trigger; the mobile app biometrically confirms and returns the signed WebAuthn assertion. No password. No OTP code. No Okta Verify app. This is the app that replaces Okta for the org. Write `docs/MOBILE-PASSKEY-SSO.md`.
+
+- [ ] **P18-06** AAL2 step-up for high-risk actions — certain agent actions and workflow approvals (SAR filing, SOX certification, credit committee vote, court filing certification) require AAL2 authentication — biometric on the enrolled device, not just a session token. The `auth/step-up/approve-request` arrives on the mobile app; the employee performs Face ID / fingerprint; the `approve-response` carries the WebAuthn assertion as evidence. The signed artefact is the legally-defensible proof that the named individual authenticated at AAL2 before approving. This is the "named individual bears personal liability" requirement from P16 solved at the authentication layer. Write `docs/MOBILE-AAL2-STEPUP.md`.
+
+- [ ] **P18-07** Verifiable Credential wallet — the app holds the employee's W3C Verifiable Credentials issued by the org's VTC: employment credential, role credentials, community membership credentials. These are presented automatically when the VTI consent gate requires them (ONEComputer connector calls, agent actions). The employee can see all their credentials, when they were issued, and which services have requested them. This is the identity wallet that makes the VTI governance layer tangible to the end user — not invisible plumbing, but something they can inspect and understand. Write `docs/MOBILE-VC-WALLET.md`.
+
+### P18-C — Mobile intranet portal
+- [ ] **P18-08** Mobile portal canvas — the intranet portal (P17) runs natively in the mobile app, not in a webview. The bottom tab bar follows the task-based navigation model: Do / Find / Connect / Me. The home screen is the employee's role-based default layout (P17-03) rendered as a card stack optimised for mobile — large tap targets, swipeable cards, pull-to-refresh. The same widgets and mini-apps from the desktop portal are available on mobile, rendered in a mobile-appropriate layout. Write `docs/MOBILE-PORTAL.md`.
+
+- [ ] **P18-09** Mobile mini-app runtime — vertical mini-apps (P16) run inside the mobile app via the same `MiniAppShell` contract, but with a mobile-native rendering path. Legal redlining, audit workpaper review, deal approval, SAR decision — all available on mobile. When an approval card arrives (push notification from P18-04), tapping it opens directly to the relevant mini-app with the document pre-loaded and the approval action front and centre. Write `docs/MOBILE-MINI-APPS.md`.
+
+- [ ] **P18-10** Offline-first with secure local storage — critical data (pending approvals, personal credentials, last-synced portal content) is available offline. Sensitive data (VCs, signing keys) is encrypted at rest using the Secure Enclave key. When connectivity is restored, any offline actions (approval decisions recorded offline) sync back to the server with their timestamps preserved. This is important for investment bankers in deal rooms or lawyers in court who cannot always guarantee connectivity. Write `docs/MOBILE-OFFLINE.md`.
+
+### P18-D — Device management and enterprise security
+- [ ] **P18-11** Device enrolment and MDM integration — the app supports enterprise device management (MDM) via standard protocols (Apple Business Manager / Android Enterprise). Corporate-owned devices can be pre-provisioned with the org QR code baked in. MDM can enforce: screen lock requirements, app version pinning, remote wipe of the VTA mobile identity on device loss. The VTA `device disable` call (from `vta-mobile-core`) revokes the device's DID credential on the VTA — all approvals and SSO from that device stop working immediately. Write `docs/MOBILE-MDM.md`.
+
+- [ ] **P18-12** Security audit trail for mobile actions — every approval, SSO event, VC presentation, and step-up authentication on the mobile app emits a structured event to the ONEVibe audit log (P16-01 audit event bus). The CISO console in ONEComputer shows: which employee, which device DID, which action, at what timestamp, with what biometric evidence type. This closes the gap that consumer authenticator apps have — Okta Verify gives you a log of authentications, but not a full audit trail tied to the specific agent actions and workflow approvals that required them. Write `docs/MOBILE-AUDIT.md`.
+
+### P18-E — Sign-off
+- [ ] **P18-13** vs. Okta comparison doc — produce `docs/MOBILE-VS-OKTA.md`: capability table comparing ONEVibe Mobile against Okta Verify, Microsoft Authenticator, and Duo Mobile. For each capability: what the competitor does, what ONEVibe Mobile does, and the structural advantage (hardware-rooted DID vs shared-secret OTP, W3C VC vs proprietary token, DIDComm push vs HTTPS polling, AAL2 artefact vs session flag). This is the document that answers "why replace Okta" for a security-conscious enterprise buyer.
+
+---
+
 ## Ongoing
 
 - [ ] **ONG-01** All 50 UX issues from `plan/00-gap-analysis.md` — track each to resolution

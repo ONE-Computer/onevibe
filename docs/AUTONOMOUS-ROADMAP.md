@@ -36,6 +36,21 @@ The platform is **not** three products. It is one platform with three concerns. 
 
 ---
 
+## Phase 18 — ONEVibe Mobile: supercharged Okta + corporate super-app
+> Added 2026-07-18. Security foundations already real in `verifiable-trust-infrastructure/vta-mobile-core`: UniFFI iOS/Android engine, Secure Enclave/StrongBox key custody, biometric-gated signing, WebAuthn via DID document (no server-side registry), DIDComm v2 push, AAL step-up approve-response Trust Tasks, APNs/FCM wake-up. This is not a greenfield mobile project — the crypto is done.
+
+**North star: every employee carries this app. It is their company identity, their authenticator, their intranet, their approval device, and their VC wallet — all in one. Okta Verify replacement with hardware-rooted DID identity instead of shared-secret OTP.**
+
+| Section | Items | What it unlocks |
+|---|---|---|
+| P18-A Foundation (P18-01/02/03) | 3 items | RN shell + UniFFI bridge, biometric DID setup, admin customisation layer |
+| P18-B Authenticator (P18-04/05/06/07) | 4 items | Push approvals, passkey SSO, AAL2 step-up, VC wallet |
+| P18-C Mobile portal (P18-08/09/10) | 3 items | Mobile canvas, mini-app runtime, offline-first secure storage |
+| P18-D Device management (P18-11/12) | 2 items | MDM integration + remote revocation, CISO audit trail for mobile |
+| P18-E Sign-off (P18-13) | 1 item | vs. Okta/Microsoft Authenticator/Duo comparison doc |
+
+**Total: 13 items. The security crypto is already written — the work is the mobile UX and the ONEVibe integration.**
+
 ## Phase 17 — ONEVibe as the world's best intranet: AI-powered super-app for every employee
 > Added 2026-07-18. Business objective: replace SharePoint/Confluence/fragmented intranets with a single AI-native super-app every employee actually uses. Model: WeChat mini-programs × Salesforce Experience Builder × Framer AI. Key structural fixes over SharePoint: task-based nav (not IT storage hierarchy), semantic search with typo tolerance, role-based defaults with user override, AI vibe-to-build for any widget.
 
