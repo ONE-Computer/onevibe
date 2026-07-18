@@ -678,6 +678,137 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ---
 
+## Phase 21 — The 12 Core ERP Modules (80/20 product stack)
+> Added 2026-07-18. Cross-referenced from docs/ICP-APAC-TOP20.md (20 APAC ICP profiles) and docs/ERP-MODULES-80-20.md (full module spec with ideal user journeys and ICP coverage matrix).
+>
+> **The principle:** ONEVibe ships 12 pre-built modules covering 80% of enterprise workflow pain across all 20 ICPs. Each module is a manifest (entity schema + state machine + form template + permissions + connector bindings) that runs on the Phase 20 ERP Core engine. The customer's 20% is adjusting field labels, approval thresholds, routing rules, and branding — all via the vibe builder, no developer needed. Total admin setup time per module: 30–45 minutes.
+>
+> **Each module must ship with:** default manifest, demo dataset, ideal UJ walkthrough (documented in module spec), mobile push integration (P18-04), Approvals Inbox aggregation (Module 1), and a comparison note vs the incumbent (Concur/Workday/ServiceNow/SAP).
+>
+> **Reference docs:** `docs/ERP-MODULES-80-20.md` (full UJ + ICP matrix), `docs/ICP-APAC-TOP20.md` (customer profiles).
+
+### P21-01 — Module 1: Approvals Inbox
+**Serves:** All 20 ICPs. Every pending decision in one place, with one tap to act.
+**Pain replaced:** Approvers context-switch between Concur, Workday, ServiceNow, SAP, email, and WhatsApp to clear their queue. High-value approvers lose hours per week.
+**Ideal UJ:** Open ONEVibe → card stack shows all pending decisions (expense, leave, PO, contract, IC vote) → tap to approve/reject, AAL2 biometric for above-threshold → queue cleared → audit trail written. 4 minutes to clear 5 decisions.
+- [ ] **P21-01a** Aggregation layer — unified approval card model that accepts events from all other modules (expense, leave, PO, contract, IC approval, compliance decision). Each card carries: what is being approved, who requested it, key decision data, policy context, and required auth level.
+- [ ] **P21-01b** Mobile push integration — when a new approval arrives, the approver receives a push notification (P18-04). The notification deeplinks to the specific card. Approve or reject without opening the app.
+- [ ] **P21-01c** Priority sort + SLA countdown — cards sorted by: deadline (SLA breach first), amount/impact (highest first), module type (configurable). SLA countdown visible on each card. Overdue cards are red.
+- [ ] **P21-01d** Delegation — approver can delegate their queue (full or specific card types) to a named delegate for a date range. Delegate actions are flagged in the audit trail as "approved on behalf of."
+
+### P21-02 — Module 2: Expense & Reimbursement
+**Serves:** 10/20 ICPs. Replaces SAP Concur's 14-step, 23-minute flow.
+**Pain replaced:** Mandatory travel agent, GL code lookup from 40 options, hotel itemisation, no calendar integration, separate system for finance re-entry.
+**Ideal UJ:** Photo receipt → AI extracts merchant/amount/date → AI fills cost centre + GL code + approver → employee confirms in 45 seconds → manager push-approves → queued for next payroll cycle.
+- [ ] **P21-02a** AI receipt extraction — photograph or email-forward receipt, AI extracts: merchant, amount, currency, date, category suggestion. Confidence score shown for each field. Low-confidence fields highlighted for manual confirmation.
+- [ ] **P21-02b** Policy engine — per-category spending limits, per-trip limits, preferred vendor rules, personal vs corporate card rules. Policy check runs at submission time, not at approval time. Violations flagged with plain-language explanation.
+- [ ] **P21-02c** Approval routing — org-chart-aware: routes to direct manager by default. Above-threshold (configurable): routes to Finance Director. Manager OOO: escalates to skip-level automatically after configurable delay.
+- [ ] **P21-02d** Payroll/finance sync — approved expenses queue for the next payroll run. Finance connector (configurable: Xero, QuickBooks, SAP FI, or CSV export). Employee receives push confirmation when reimbursement is queued.
+- [ ] **P21-02e** Customer 20% config layer — category list, per-category limits, approval thresholds, GL code mapping table, payroll cycle day, connected finance system.
+
+### P21-03 — Module 3: Investment / IC Committee Approval
+**Serves:** 8/20 ICPs (GIC, Temasek Trust, Mapletree, CapitaLand, OCBC private banking, Ayala, Tokio Marine reinsurance). Highest AUM per ICP.
+**Pain replaced:** IC memo in PowerPoint, circulated by email, decision in meeting minutes (Word doc), legal chases "who approved this?"
+**Ideal UJ:** Deal card created → routes to correct IC per fund → members pre-vote on mobile → meeting: live tally + comment thread → chairperson seals decision → all IC members AAL2 biometric → signed artefact delivered to legal → next workflow state auto-triggered.
+- [ ] **P21-03a** Deal card with multi-fund routing — entity resolves the correct IC committee from which fund the deal belongs to. Wrong routing is architecturally impossible — the manifest defines fund-to-IC mapping.
+- [ ] **P21-03b** Pre-vote + comment thread — IC members can review and pre-vote before the meeting. Comments thread on the card for questions/concerns. All pre-vote activity is part of the permanent record.
+- [ ] **P21-03c** AAL2 final decision — when the chairperson submits the final decision, all voting members receive an AAL2 biometric prompt. The signed receipts are the legally-defensible evidence of who voted, when, with what authentication level.
+- [ ] **P21-03d** Legal workflow trigger — on approval, auto-creates a Contract & Document Sign-off card (Module 7) pre-populated with the deal terms. Closes the loop between IC approval and legal execution.
+
+### P21-04 — Module 4: Leave & Absence Management
+**Serves:** All 20 ICPs. Replaces Workday's 4-sub-menu leave request flow.
+**Pain replaced:** Opaque balance calculation, no team coverage visibility, manager approves blindly, shift workers manage swaps via WhatsApp.
+**Ideal UJ:** "I want Mon–Tue off" → card shows balance + team calendar overlay → submit → manager push-approves → calendar blocked → HR updated.
+- [ ] **P21-04a** NL + calendar picker — employee enters dates in natural language or calendar. AI resolves: leave type (annual, sick, childcare, NS — configurable per jurisdiction), balance remaining, any conflicts.
+- [ ] **P21-04b** Team coverage check — manager approval card shows: team calendar for the requested period, existing approved leaves, configurable minimum coverage threshold. Conflict alert (not block) if approving would breach threshold.
+- [ ] **P21-04c** Jurisdiction-aware leave types — leave types, balance rules, and accrual logic configurable per country. Singapore defaults: annual, sick, childcare, NS, maternity/paternity (MOM-compliant). Extensible to Malaysia, Indonesia, Thailand, Philippines.
+- [ ] **P21-04d** Shift swap workflow (for hourly workers) — employee A proposes swap with B → B accepts → supervisor approves → both calendars updated → HR record updated. Full trail. No WhatsApp.
+
+### P21-05 — Module 5: Procurement & Purchase Orders
+**Serves:** 8/20 ICPs. Replaces SAP ME21N's 14-minute, 9-field manual PO flow.
+**Pain replaced:** Material number, vendor code, plant code, storage location, purchasing org, GL account, cost centre — all manually entered. Most orgs have a parallel "email procurement" shortcut that bypasses the system.
+**Ideal UJ:** "500 units industrial solvent, preferred Jakarta supplier, end of month" → AI resolves vendor/material code/GL/cost centre → pre-filled PO card → confirm 2 fields → submit → one-tap approval → PO sent to vendor → goods receipt workflow triggered on delivery.
+- [ ] **P21-05a** Preferred vendor catalogue — searchable vendor list with pre-loaded material codes, unit pricing, and delivery lead times. AI matches NL description to catalogue entries.
+- [ ] **P21-05b** Approval threshold matrix — configurable by amount and by requester role. Below threshold: auto-approved. Above threshold: routes to department head, then Finance Director, then CFO (configurable levels).
+- [ ] **P21-05c** Goods receipt confirmation — on expected delivery date, supplier and requester both receive a confirmation card. Requester confirms receipt. PO status updated. Three-way match (PO → goods receipt → invoice) documented for audit.
+- [ ] **P21-05d** ERP connector — optional sync to SAP MM, Oracle Procurement, NetSuite, or Xero. ONEVibe is the workflow layer; the ERP remains the ledger. Connector is configurable, not mandatory.
+
+### P21-06 — Module 6: Compliance & Regulatory Decisions
+**Serves:** 9/20 ICPs. Highest compliance forcing function of all 12 modules.
+**Pain replaced:** SAR filings in PDF + email. EUDR supply chain decisions undocumented. ITAR export checks in email threads. Shariah compliance sign-offs missing named-individual accountability.
+**Ideal UJ (SAR):** Transaction flag → case card pre-populated → officer drafts SAR narrative → MLRO reviews + AAL2 signs → regulator export → 10-year retention enforced. **Ideal UJ (EUDR):** New supplier → satellite deforestation check → decision card → sustainability officer approves/rejects with AAL2 → signed artefact = EUDR compliance evidence.
+- [ ] **P21-06a** Case management state machine — configurable decision types (SAR, EUDR, ITAR, Shariah, policy exception, KYC re-cert). Each type has its own state machine, routing rules, and evidence requirements.
+- [ ] **P21-06b** AAL2 for high-risk decisions — decisions above a configurable risk threshold require AAL2 biometric (P18-06). The authentication evidence is part of the signed artefact.
+- [ ] **P21-06c** Regulator export — sealed decision packages exportable in configurable formats (PDF with signature chain, structured JSON, XBRL for financial regulators). Hash verification ensures export integrity.
+- [ ] **P21-06d** Long-term retention — configurable retention periods (7 years, 10 years, permanent). Records locked after sealing — cannot be edited or deleted. Retention expiry generates a destruction certificate.
+
+### P21-07 — Module 7: Contract & Document Sign-off
+**Serves:** 10/20 ICPs. Adds governed internal approval chain before DocuSign.
+**Pain replaced:** DocuSign sits at the end of a 6-email internal approval chain with no audit trail. Legal reviews in email threads.
+**Ideal UJ:** Upload draft → AI summarises key terms + risk flags → internal review workflow (legal → commercial → board) → each step is a signed card → AAL2 for board members → external e-sign sent only after all internal approvals sealed → full trail: draft → reviewed → approved → signed.
+- [ ] **P21-07a** Document hash on upload — SHA-256 hash recorded on upload. Any modification to the document after upload is detectable. Tamper evidence is part of the audit trail.
+- [ ] **P21-07b** AI contract summary + risk flag — AI reads uploaded contract, produces: key obligations, unusual clauses (non-standard indemnity, uncapped liability, automatic renewal), and a risk rating. Flags are shown to the first reviewer, not suppressed.
+- [ ] **P21-07c** Internal review state machine — configurable review roles and sequence. Legal annotates inline → commercial approves terms → board committee ratifies (for material contracts). Each step is a signed card.
+- [ ] **P21-07d** External e-sign connector — DocuSign, Adobe Sign, or Singpass e-sign (Singapore). Sign link generated only after all internal approvals are sealed. Counterparty signature attached to the internal approval chain as the final state.
+- [ ] **P21-07e** Contract register with expiry alerts — all executed contracts stored in a searchable register. Expiry/renewal dates generate reminder cards at configurable lead times (90 days, 30 days, 7 days).
+
+### P21-08 — Module 8: Shift Scheduling & Workforce Management
+**Serves:** 6/20 ICPs (SIA, Grab, Lazada, Prudential, CIMB, Jardine). Very high employee counts.
+**Pain replaced:** Workday one-at-a-time shift assignment. WhatsApp rosters. Excel Sunday-night builds. HR sees a disconnected record.
+**Ideal UJ:** Scheduling canvas for the week → "Auto-fill based on last week" → AI fills, flags conflicts (rest requirements, certifications) → one-tap publish → all staff receive push schedules → swap requests via app, not WhatsApp.
+- [ ] **P21-08a** Scheduling canvas — week/fortnight view with all staff. Drag-and-drop shift assignment. Role/certification filter. Bulk operations: copy week, auto-fill, clear day.
+- [ ] **P21-08b** Constraint engine — configurable rules: minimum rest between shifts, maximum hours per week, required certifications per shift type. AI enforces on auto-fill. Manual overrides flagged (not blocked) with compliance note.
+- [ ] **P21-08c** Swap request workflow — staff member proposes swap → counterpart accepts → supervisor approves (or auto-approved if both parties consented and no constraint violation) → both calendars updated → HR record updated.
+- [ ] **P21-08d** Push schedule publishing — on publish, all affected staff receive push notifications with their schedule for the period. Changes to published schedule also trigger push notifications to affected staff.
+
+### P21-09 — Module 9: Audit & Workpaper Management
+**Serves:** 8/20 ICPs. Replaces shared drives + email review + PDF certifications.
+**Pain replaced:** Workpaper in shared drive, reviewer comments in email, EQR sign-off in email, SOX cert as a PDF with no authentication evidence.
+**Ideal UJ:** Create workpaper package → preparer completes each section → reviewer annotates inline, raises threaded queries → EQR reviews + AAL2 signs → CFO receives SOX cert card + AAL2 signs → sealed package exported with full signature chain.
+- [ ] **P21-09a** Workpaper package structure — configurable section templates by standard (Singapore Standards on Auditing, PCAOB, ISAE 3000). Preparer assigns sections, tracks completion status, submits for review.
+- [ ] **P21-09b** Inline annotation + query resolution — reviewer comments attach to specific sections. Each comment is a threaded conversation tracked to resolution. Open queries block advancement to next state.
+- [ ] **P21-09c** EQR + SOX certification cards — EQR and CFO/CEO certification are separate workflow steps, each requiring AAL2. The authentication evidence is embedded in the sealed package.
+- [ ] **P21-09d** Sealed export — completed workpaper package exported as a structured PDF with embedded signature chain and document hashes. External auditors receive the export, not ZIP files of individual PDFs.
+
+### P21-10 — Module 10: IT Service & Incident Management
+**Serves:** All 20 ICPs. Replaces ServiceNow's 6-click employee portal and untrained AI chatbot.
+**Pain replaced:** 6 clicks to report a broken laptop. Status updates as email digests. Employees call IT directly, defeating the ticketing system.
+**Ideal UJ:** "My VPN won't connect from Singapore office" → AI classifies + checks known issues → walks employee through fix → fixed in 3 minutes, no ticket → if AI fails: structured ticket with full diagnostic context, routed to correct team → employee gets push updates at each status change.
+- [ ] **P21-10a** AI first-responder — NL incident description classified and matched against knowledge base. Self-service resolution walked through step-by-step. Resolution logged for IT visibility even if no ticket created.
+- [ ] **P21-10b** Structured ticket generation — when AI can't resolve, creates a ticket pre-populated with: device model (from asset register), OS version, error message, steps already tried, priority classification. No "please provide more details" back-and-forth.
+- [ ] **P21-10c** SLA + push updates — SLA timers by priority (P1: 1hr, P2: 4hr, P3: 8hr — configurable). Breach escalates to next tier. Employee gets push notification at each status change (assigned, in progress, resolved).
+- [ ] **P21-10d** Asset register integration — employee's device profile pre-loads from asset register. Reduces diagnostic questions. Connects to CMDB if available; standalone asset register if not.
+
+### P21-11 — Module 11: Performance Reviews & Goals
+**Serves:** 8/20 ICPs. Replaces SuccessFactors' blank-page year-end reviews.
+**Pain replaced:** Goal module built for top-down cascade. Year-end review starts from blank text box. No continuous feedback record. Manager has no structured data.
+**Ideal UJ (goals):** Employee describes goal in NL → AI structures as SMART goal, suggests OKR alignment → manager confirms → mid-year check-in push card with progress prompt. **Ideal UJ (review):** Review card pre-populated with goals + outcomes + feedback received + projects worked on → employee writes 3-sentence narrative → manager rates with same pre-populated card.
+- [ ] **P21-11a** SMART goal vibe builder — NL goal description → AI proposes SMART structure → employee and manager collaboratively refine → goal card visible on employee's home screen.
+- [ ] **P21-11b** Continuous feedback card — manager or peer sends a 2-sentence feedback card attached to a specific project or task. Recipient sees it in their development timeline. Aggregates at year-end.
+- [ ] **P21-11c** Pre-populated review card — at review time, card contains: all goals with tracked outcomes, all feedback received, all tasks/projects from the period (from task history). Employee writes narrative; they are not reconstructing from memory.
+- [ ] **P21-11d** Calibration workflow — after manager reviews are submitted, HR runs a calibration session (group of managers, one view). Ratings and narratives visible side-by-side. Calibration decisions recorded as a separate signed step.
+
+### P21-12 — Module 12: Grant & Fund Disbursement
+**Serves:** 6/20 ICPs (Temasek Trust, EDB, GIC co-investments, MAS AFIN grants, Ayala capital allocation, Mapletree fund capital calls). Highest average transaction value.
+**Pain replaced:** Grant workflow entirely email-based. Approval vs disbursement reconciliation requires tracing 4 inboxes. Post-disbursement monitoring via quarterly email nudges.
+**Ideal UJ:** Structured application card → eligibility check (auto-score) → committee vote + AAL2 → legal agreement auto-drafted + e-signed → disbursement instruction generated → finance confirms → post-disbursement KPI check-ins as scheduled cards.
+- [ ] **P21-12a** Structured application form — configurable fields: organisation profile, project description, budget breakdown, impact KPIs. Application card replaces PDF forms and email attachments.
+- [ ] **P21-12b** Eligibility scoring — configurable criteria with weights. Applications scoring above threshold auto-advance. Borderline applications route to committee. Below threshold auto-declined with explanation.
+- [ ] **P21-12c** Committee vote + AAL2 — committee members vote on application card. Configurable quorum rules. Final decision requires AAL2 from all voting members. Decision sealed.
+- [ ] **P21-12d** Legal agreement auto-generation — approved terms populate a legal agreement template. Sent for e-sign via Module 7 connector. Disbursement instruction unlocked only after signed agreement is sealed.
+- [ ] **P21-12e** Post-disbursement monitoring — KPI check-in cards sent to grantee at configurable intervals (6 months, 12 months, final report). Responses attached to the original grant record. Full lifecycle in one place.
+
+---
+
+## Phase 21 reference docs
+- Full module specs + ideal UJs: `docs/ERP-MODULES-80-20.md`
+- ICP coverage matrix: `docs/ICP-APAC-TOP20.md`
+- Engine underneath all 12 modules: Phase 20 (ERP Core)
+- Mobile push and AAL2: Phase 18 (ONEVibe Mobile)
+- Vibe builder for customer 20%: Phase 17-A (P17-09 vibe builder)
+
+---
+
 ## Phase 20 — ONEVibe ERP Core: the extensible engine all mini-apps are built on
 > Added 2026-07-18. Key insight: every mini-app in P16–P19 needs the same four primitives — a typed entity (Expense, Leave Request, PO, Ticket, Goal), a state machine (Submitted → Approved → Paid), an approval chain (org-chart-aware, threshold-driven, AAL2-capable), and an immutable audit trail. Building them separately means writing that substrate 18 times. Phase 20 extracts those primitives into a single AI-native ERP Core engine. Each mini-app becomes a **manifest** (entity schema + workflow definition + form template + permission rules) that the engine runs. P16–P19 mini-apps retroactively become the first-party reference apps that validate the engine's abstractions. This is the same engine SAP/Oracle built — except theirs was built in the 1970s around database transactions made visible to the user; ours captures intent in NL, resolves structure invisibly, and treats the audit event bus as the primary store (not a side effect).
 

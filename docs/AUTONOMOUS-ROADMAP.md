@@ -36,6 +36,29 @@ The platform is **not** three products. It is one platform with three concerns. 
 
 ---
 
+## Phase 21 — The 12 Core ERP Modules (the 80/20 product stack)
+> Added 2026-07-18. Cross-referenced from APAC Top 20 ICP profiles (docs/ICP-APAC-TOP20.md). Each module is a manifest that runs on the Phase 20 ERP Core engine. ONEVibe ships the default; the customer's 20% is adjusting thresholds, field labels, routing rules, and branding — 30–45 minutes per module, no developer needed.
+> Full module specs, ideal user journeys, and ICP coverage matrix: `docs/ERP-MODULES-80-20.md`.
+
+| Module | ICP coverage | Incumbent replaced | Key UJ |
+|---|---|---|---|
+| M1 — Approvals Inbox | 20/20 | Email + WhatsApp | All decisions in one card stack, one tap to act |
+| M2 — Expense & Reimbursement | 10/20 | SAP Concur | Photo receipt → 45 seconds → paid |
+| M3 — Investment / IC Approval | 8/20 | Email + Word minutes | Deal card → fund-routed IC → AAL2 vote → legal trigger |
+| M4 — Leave & Absence | 20/20 | Workday | NL request → team coverage check → push approve |
+| M5 — Procurement & POs | 8/20 | SAP ME21N | NL description → AI fills PO → one-tap approve |
+| M6 — Compliance & Regulatory | 9/20 | PDF forms + email | SAR / EUDR decision → AAL2 seal → regulator export |
+| M7 — Contract & Document Sign-off | 10/20 | DocuSign + email chain | Internal approval chain → sealed → external e-sign |
+| M8 — Shift Scheduling | 6/20 | WhatsApp + Excel rosters | Auto-fill week → publish → push schedules to staff |
+| M9 — Audit & Workpaper | 8/20 | Shared drive + email | Workpaper → EQR → CFO AAL2 → sealed export |
+| M10 — IT Service & Incident | 20/20 | ServiceNow portal | AI resolves first → structured ticket as fallback |
+| M11 — Performance & Goals | 8/20 | SuccessFactors | SMART goal vibe → continuous feedback → pre-filled review |
+| M12 — Grant & Fund Disbursement | 6/20 | Email + Excel trackers | Application → eligibility score → committee AAL2 → disbursement |
+
+**Total: 12 modules × ~5 tasks each = ~60 items. Delivery sequence starts with M1 (aggregator), then M2/M4/M10 (universal wedges), then M3/M6/M9 (high-compliance Tier 1 ICPs).**
+
+---
+
 ## Phase 20 — ONEVibe ERP Core: the extensible engine all mini-apps are built on
 > Added 2026-07-18. Every mini-app in P16–P19 needs the same four primitives: a typed entity, a state machine, an approval chain, and an immutable audit trail. Building them separately means writing that substrate 18 times. Phase 20 extracts those primitives into a single AI-native ERP Core engine. Each mini-app becomes a manifest (entity schema + workflow definition + form template + permission rules) that the engine runs. SAP/Oracle built the same engine — but in the 1970s around database transactions made visible. ONEVibe's version captures intent in NL, resolves structure invisibly, and treats the audit event bus as the primary store. P16–P19 mini-apps retroactively become the first-party reference apps that validate the engine.
 
