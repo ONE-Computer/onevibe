@@ -16,6 +16,8 @@ const en = {
   greetingLate: 'Working late.',
   composerPlaceholder: 'How can I help you today?',
   activeNow: 'Active now',
+  noAgentsRunning: 'No agents running',
+  viewAllActive: 'View all {count} →',
   // Board
   agentFilter: 'Agent',
   sessionFilter: 'Agent session',
@@ -129,6 +131,22 @@ const en = {
   pause: 'Pause',
   play: 'Play',
   replayScrubber: 'Replay timeline',
+  // Artefacts gallery (P9-20)
+  artefactsEyebrow: 'Output files',
+  artefactsTitle: 'Artefacts',
+  artefactsIntro: 'Files and documents produced by completed tasks, collected in one place.',
+  artefactsEmpty: 'No artefacts yet — complete a task to see your outputs here.',
+  artefactsSearchPlaceholder: 'Search artefacts by title or task',
+  artefactsSearchLabel: 'Search artefacts',
+  artefactsClearSearch: 'Clear search',
+  artefactsNoMatch: 'No matching artefacts',
+  artefactsNoMatchHint: 'Try a different title or task name.',
+  artefactFilterAll: 'All',
+  artefactFilterDocuments: 'Documents',
+  artefactFilterImages: 'Images',
+  artefactFilterCode: 'Code',
+  artefactFilterLinks: 'Links',
+  download: 'Download',
 } as const
 
 const zh: Record<keyof typeof en, string> = {
@@ -145,6 +163,8 @@ const zh: Record<keyof typeof en, string> = {
   greetingLate: '还在加班。',
   composerPlaceholder: '今天有什么我可以帮你的？',
   activeNow: '正在进行',
+  noAgentsRunning: '暂无运行中的代理',
+  viewAllActive: '查看全部 {count} 个 →',
   agentFilter: '代理',
   sessionFilter: '代理会话',
   allAgents: '全部代理',
@@ -247,6 +267,22 @@ const zh: Record<keyof typeof en, string> = {
   pause: '暂停',
   play: '播放',
   replayScrubber: '时间轴',
+  // Artefacts gallery (P9-20)
+  artefactsEyebrow: '产出文件',
+  artefactsTitle: '成果',
+  artefactsIntro: '已完成任务产出的文件与文档，集中展示在这里。',
+  artefactsEmpty: '暂无成果 — 完成一个任务后，你的产出会显示在这里。',
+  artefactsSearchPlaceholder: '按标题或任务搜索成果',
+  artefactsSearchLabel: '搜索成果',
+  artefactsClearSearch: '清除搜索',
+  artefactsNoMatch: '没有匹配的成果',
+  artefactsNoMatchHint: '试试其他标题或任务名称。',
+  artefactFilterAll: '全部',
+  artefactFilterDocuments: '文档',
+  artefactFilterImages: '图片',
+  artefactFilterCode: '代码',
+  artefactFilterLinks: '链接',
+  download: '下载',
 }
 
 const dictionaries: Record<Locale, Record<I18nKey, string>> = { en, zh }

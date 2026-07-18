@@ -1,29 +1,17 @@
 import { Download, FileCode2, FileText, FolderOpen, Image, Link, Search, X } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { useMemo, useState } from 'react'
-import type { LibraryItem, WorkspaceFile } from '../types'
+import { useEffect, useMemo, useState } from 'react'
+import { getFileExcerpt } from '../lib/api'
+import { categoryOf, filterArtifactEntries, type ArtifactEntry, type FileCategory } from '../lib/artefacts'
+import { t, type I18nKey, type Locale } from '../lib/i18n'
+import type { LibraryItem } from '../types'
+import { HighlightedCode } from './HighlightedCode'
 
-type ArtifactEntry = { file: WorkspaceFile; task: LibraryItem['task'] }
-
-type FileCategory = 'all' | 'documents' | 'images' | 'code' | 'links'
-
-const extOf = (path: string) => path.split('.').pop()?.toLowerCase() ?? ''
-
-const categoryOf = (path: string): Exclude<FileCategory, 'all'> => {
-  const ext = extOf(path)
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico'].includes(ext)) return 'images'
-  if (['md', 'txt', 'pdf', 'doc', 'docx', 'csv', 'json', 'yaml', 'yml'].includes(ext)) return 'documents'
-  if (['ts', 'tsx', 'js', 'jsx', 'py', 'rs', 'go', 'sh', 'css', 'html', 'sql'].includes(ext)) return 'code'
-  if (['html', 'url'].includes(ext) || path.startsWith('http')) return 'links'
-  return 'code'
-}
-
-const fileIcon = (path: string) => {
+const fileIcon = (path: string, size = 14) => {
   const cat = categoryOf(path)
-  if (cat === 'images') return <Image size={14} />
-  if (cat === 'documents') return <FileText size={14} />
-  if (cat === 'links') return <Link size={14} />
-  return <FileCode2 size={14} />
+  if (cat === 'images') return <Image size={size} />
+  if (cat === 'documents') return <FileText size={size} />
+  if (cat === 'links') return <Link size={size} />
+  return <FileCode2 size={size} />
 }
 
 const readableBytes = (bytes: number) => {
@@ -32,32 +20,56 @@ const readableBytes = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const categoryLabels: Record<FileCategory, string> = {
-  all: 'All',
-  documents: 'Documents',
-  images: 'Images',
-  code: 'Code',
-  links: 'Links',
+const categoryLabelKey: Record<FileCategory, I18nKey> = {
+  all: 'artefactFilterAll',
+  documents: 'artefactFilterDocuments',
+  images: 'artefactFilterImages',
+  code: 'artefactFilterCode',
+  links: 'artefactFilterLinks',
 }
 
-type Props = { items: LibraryItem[]; onOpenTask: (taskId: string) => void }
+const rawFileUrl = (taskId: string, path: string) => `/api/tasks/${taskId}/file?path=${encodeURIComponent(path)}&raw=1`
+const downloadFileUrl = (taskId: string, path: string) => `/api/tasks/${taskId}/file?path=${encodeURIComponent(path)}&download=1`
 
-export const Artefacts = ({ items, onOpenTask }: Props) => {
+const IconTile = ({ path }: { path: string }) => <span className="artefact-thumb-icon">{fileIcon(path, 20)}</span>
+
+const ArtImage = ({ taskId, path }: { taskId: string; path: string }) => {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <IconTile path={path} />
+  return <img src={rawFileUrl(taskId, path)} alt="" loading="lazy" onError={() => setFailed(true)} />
+}
+
+const CodeThumb = ({ taskId, path }: { taskId: string; path: string }) => {
+  const [content, setContent] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getFileExcerpt(taskId, path)
+      .then((excerpt) => { if (!cancelled) setContent(excerpt.content) })
+      .catch(() => { /* excerpt unavailable — the icon tile stays */ })
+    return () => { cancelled = true }
+  }, [taskId, path])
+  if (!content) return <IconTile path={path} />
+  return <div className="artefact-thumb-snippet"><HighlightedCode content={content.split('\n').slice(0, 8).join('\n')} /></div>
+}
+
+const Thumb = ({ taskId, path }: { taskId: string; path: string }) => {
+  const cat = categoryOf(path)
+  if (cat === 'images') return <ArtImage taskId={taskId} path={path} />
+  if (cat === 'code') return <CodeThumb taskId={taskId} path={path} />
+  return <IconTile path={path} />
+}
+
+type Props = { items: LibraryItem[]; onOpenTask: (taskId: string) => void; locale?: Locale }
+
+export const Artefacts = ({ items, onOpenTask, locale = 'en' }: Props) => {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<FileCategory>('all')
 
   const entries = useMemo<ArtifactEntry[]>(() =>
-    items.flatMap(({ task, files }) => files.map((file) => ({ file, task }))),
+    items.flatMap(({ task, files, versionCount }) => files.map((file) => ({ file, task, versionCount: versionCount ?? 1 }))),
     [items])
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return entries.filter(({ file, task }) => {
-      if (category !== 'all' && categoryOf(file.path) !== category) return false
-      if (!needle) return true
-      return file.path.toLowerCase().includes(needle) || task.title.toLowerCase().includes(needle)
-    })
-  }, [entries, query, category])
+  const filtered = useMemo(() => filterArtifactEntries(entries, query, category), [entries, query, category])
 
   const counts = useMemo(() => {
     const tally: Partial<Record<FileCategory, number>> = {}
@@ -72,16 +84,15 @@ export const Artefacts = ({ items, onOpenTask }: Props) => {
     return <section className="artefacts-view">
       <header>
         <div>
-          <span className="view-eyebrow">Output files</span>
-          <h1>Artefacts</h1>
-          <p>Files and documents produced by completed tasks, collected in one place.</p>
+          <span className="view-eyebrow">{t('artefactsEyebrow', locale)}</span>
+          <h1>{t('artefactsTitle', locale)}</h1>
+          <p>{t('artefactsIntro', locale)}</p>
         </div>
         <FolderOpen size={28} />
       </header>
       <div className="library-empty">
         <FolderOpen size={22} />
-        <strong>No artefacts yet</strong>
-        <span>Files produced by completed tasks will appear here.</span>
+        <strong>{t('artefactsEmpty', locale)}</strong>
       </div>
     </section>
   }
@@ -89,9 +100,9 @@ export const Artefacts = ({ items, onOpenTask }: Props) => {
   return <section className="artefacts-view">
     <header>
       <div>
-        <span className="view-eyebrow">Output files</span>
-        <h1>Artefacts</h1>
-        <p>Files and documents produced by completed tasks, collected in one place.</p>
+        <span className="view-eyebrow">{t('artefactsEyebrow', locale)}</span>
+        <h1>{t('artefactsTitle', locale)}</h1>
+        <p>{t('artefactsIntro', locale)}</p>
       </div>
       <FolderOpen size={28} />
     </header>
@@ -101,10 +112,10 @@ export const Artefacts = ({ items, onOpenTask }: Props) => {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by filename or task name"
-          aria-label="Search artefacts"
+          placeholder={t('artefactsSearchPlaceholder', locale)}
+          aria-label={t('artefactsSearchLabel', locale)}
         />
-        {query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={13} /></button>}
+        {query && <button type="button" onClick={() => setQuery('')} aria-label={t('artefactsClearSearch', locale)}><X size={13} /></button>}
       </label>
       <div>
         {(['all', 'documents', 'images', 'code', 'links'] as const).map((cat) => {
@@ -112,35 +123,48 @@ export const Artefacts = ({ items, onOpenTask }: Props) => {
           if (cat !== 'all' && count === 0) return null
           return <button
             key={cat}
+            type="button"
             className={category === cat ? 'active' : ''}
+            aria-pressed={category === cat}
             onClick={() => setCategory(cat)}
-          >{categoryLabels[cat]} {count}</button>
+          >{t(categoryLabelKey[cat], locale)} {count}</button>
         })}
       </div>
     </div>
     {!filtered.length
       ? <div className="library-empty library-no-results">
           <Search size={22} />
-          <strong>No matching artefacts</strong>
-          <span>Try a different filename or task name.</span>
+          <strong>{t('artefactsNoMatch', locale)}</strong>
+          <span>{t('artefactsNoMatchHint', locale)}</span>
         </div>
-      : <div className="artefacts-grid">
-          {filtered.map(({ file, task }) => <motion.article layout key={`${task.id}:${file.path}`} className="artefact-card">
-            <div className="artefact-icon">{fileIcon(file.path)}</div>
-            <div className="artefact-info">
-              <span className="artefact-filename">{file.path.split('/').pop()}</span>
-              <span className="artefact-path" title={file.path}>{file.path}</span>
-              <span className="artefact-meta">{readableBytes(file.size)} · <button className="artefact-task-link" onClick={() => onOpenTask(task.id)}>{task.title}</button></span>
-            </div>
-            <div className="artefact-actions">
+      : <div className="artefacts-gallery">
+          {filtered.map(({ file, task, versionCount }) => {
+            const filename = file.path.split('/').pop() ?? file.path
+            return <article key={`${task.id}:${file.path}`} className="artefact-gallery-card">
+              <button
+                type="button"
+                className="artefact-gallery-open"
+                onClick={() => onOpenTask(task.id)}
+                aria-label={`${t('openTask', locale)}: ${task.title}`}
+              >
+                <div className="artefact-thumb"><Thumb taskId={task.id} path={file.path} /></div>
+                <div className="artefact-gallery-info">
+                  <span className="artefact-gallery-title">{fileIcon(file.path)} {filename}</span>
+                  <span className="artefact-gallery-task">{task.title}</span>
+                  <span className="artefact-gallery-date">
+                    {new Date(file.updatedAt).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US')} · {readableBytes(file.size)}
+                  </span>
+                </div>
+              </button>
+              {versionCount > 1 && <span className="artefact-version-badge" aria-label={`${t('version', locale)} ${versionCount}`}>v{versionCount}</span>}
               <a
-                href={`/api/tasks/${task.id}/file?path=${encodeURIComponent(file.path)}&download=1`}
-                download={file.path.split('/').pop()}
-                aria-label={`Download ${file.path}`}
-                className="artefact-download"
-              ><Download size={14} /></a>
-            </div>
-          </motion.article>)}
+                className="artefact-gallery-download"
+                href={downloadFileUrl(task.id, file.path)}
+                download={filename}
+                aria-label={`${t('download', locale)} ${filename}`}
+              ><Download size={13} /></a>
+            </article>
+          })}
         </div>}
   </section>
 }

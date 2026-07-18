@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AppWindow, ArrowUpRight, BarChart3, Bot, CheckCircle2, ChevronRight, Clock3, FileText, Gamepad2, Globe2, Info, Loader, Palette, Presentation, Search, Sparkles, TriangleAlert } from 'lucide-react'
 import { useTenantTheme } from '../hooks/useTenantTheme'
-import type { ConversationSummary, TaskMode } from '../types'
+import type { ConversationSummary, Project, Task, TaskMode } from '../types'
 import type { Locale } from '../lib/i18n'
 import { t } from '../lib/i18n'
+import { ActiveNowPanel } from './ActiveNowPanel'
 
 type Props = {
   name?: string
   recentConversations?: ConversationSummary[]
+  tasks?: Task[]
+  projects?: Project[]
   onSelectTask?: (taskId: string) => void
   locale?: Locale
 }
@@ -56,7 +59,7 @@ const relativeShort = (iso: string, now: number): string => {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export const HomeHero = ({ name = 'there', recentConversations = [], onSelectTask, locale = 'en' }: Props) => {
+export const HomeHero = ({ name = 'there', recentConversations = [], tasks = [], projects = [], onSelectTask, locale = 'en' }: Props) => {
   const { config } = useTenantTheme()
   const [now, setNow] = useState(Date.now())
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(id) }, [])
@@ -103,5 +106,6 @@ export const HomeHero = ({ name = 'there', recentConversations = [], onSelectTas
         </div>
       </div>
     </div>}
+    {onSelectTask && <ActiveNowPanel tasks={tasks} projects={projects} locale={locale} variant="home" onOpenTask={onSelectTask} />}
   </div>
 }

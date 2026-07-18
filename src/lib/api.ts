@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationSummary, LibraryItem, McpHealth, ModelInfo, Organization, OrganizationMember, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, TenantThemeConfig, TenantThemeResponse, TenantThemeSummary, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
+import type { BoardStatus, ChatMessage, ConversationSummary, LibraryItem, McpHealth, ModelInfo, Organization, OrganizationMember, Project, ProjectFileVersion, RuntimeDiagnostics, RuntimeHealth, RuntimeMcpConfig, RuntimeReadiness, SkillInstallation, Task, TaskAttachment, TaskMode, TaskPriority, TaskSchedule, TaskSkill, TaskSnapshot, TenantThemeConfig, TenantThemeResponse, TenantThemeSummary, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from '../types'
 
 export type SkillCatalogEntry = SkillInstallation
 export type SkillOption = Pick<SkillCatalogEntry, 'id' | 'title' | 'summary' | 'source' | 'installed' | 'contentUrl'> & { selectable?: boolean }
@@ -153,6 +153,9 @@ export const getFiles = async (taskId: string) =>
 export const getFile = async (taskId: string, filePath: string) =>
   parse<{ path: string; content: string; contentHash: string }>(await fetch(`/api/tasks/${taskId}/file?path=${encodeURIComponent(filePath)}`))
 
+export const getFileExcerpt = async (taskId: string, filePath: string) =>
+  parse<{ path: string; content: string; truncated: boolean }>(await fetch(`/api/tasks/${taskId}/file?path=${encodeURIComponent(filePath)}&excerpt=1`))
+
 export const updateFile = async (taskId: string, filePath: string, content: string, expectedHash: string) =>
   parse<{ path: string; content: string; contentHash: string }>(await fetch(`/api/tasks/${taskId}/file?path=${encodeURIComponent(filePath)}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, expectedHash }),
@@ -180,6 +183,9 @@ export const assignTaskAgent = async (taskId: string, assignedAgent: string | nu
 
 export const updateTaskEpic = async (taskId: string, epic: { epicId: string | null; epicLabel: string | null }) =>
   parse<Task>(await fetch(`/api/tasks/${taskId}/epic`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(epic) }))
+
+export const patchTask = async (taskId: string, patch: { status?: BoardStatus | null; priority?: TaskPriority | null }) =>
+  parse<Task>(await fetch(`/api/tasks/${taskId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }))
 
 export const sendFollowUp = async (taskId: string, prompt: string, attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) =>
   parse<{ status: string; taskId: string }>(await fetch(`/api/tasks/${taskId}/messages`, {

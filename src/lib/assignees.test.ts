@@ -57,7 +57,7 @@ describe('board filter predicates', () => {
 })
 
 describe('activeAgentRuns', () => {
-  const base = { id: 'task_1', title: 'Build report', updatedAt: '2026-07-18T09:00:00.000Z' }
+  const base = { id: 'task_1', title: 'Build report', projectId: 'project_default', updatedAt: '2026-07-18T09:00:00.000Z' }
 
   it('lists running tasks with an agent assignee, oldest run first', () => {
     const tasks = [
@@ -66,7 +66,7 @@ describe('activeAgentRuns', () => {
     ]
     const runs = activeAgentRuns(tasks)
     expect(runs.map((run) => run.taskId)).toEqual(['task_old', 'task_new'])
-    expect(runs[0]).toMatchObject({ title: 'Build report', agents: ['kimi'], startedAt: '2026-07-18T09:01:00.000Z' })
+    expect(runs[0]).toMatchObject({ title: 'Build report', agents: ['kimi'], startedAt: '2026-07-18T09:01:00.000Z', projectId: 'project_default' })
   })
 
   it('excludes settled, unassigned, and human-only tasks', () => {

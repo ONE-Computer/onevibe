@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bot, Kanban, List, User, Zap } from 'lucide-react'
-import type { Project, RunStatus, Task } from '../types'
-import { statusLabel } from '../lib/runtime-labels'
+import type { BoardStatus, Project, Task, TaskPriority } from '../types'
 import { t, type Locale } from '../lib/i18n'
+import { boardStatusFor, boardStatusLabelKey } from '../lib/board-metadata'
+import { StatusChipPicker, PriorityChipPicker } from './ChipPicker'
 import { HUMAN_ASSIGNEE, activeAgentRuns, distinctActiveRuns, distinctAgents, elapsedSeconds, formatElapsed, hasAgentAssignee, matchesAgentFilter, matchesRunFilter, parseAssignees } from '../lib/assignees'
 
-type BoardColumn = { id: string; label: string; statuses: RunStatus[] }
+type BoardColumn = { id: BoardStatus; label: string }
 
 const COLUMNS: BoardColumn[] = [
-  { id: 'todo', label: 'Todo', statuses: ['pending'] },
-  { id: 'in_progress', label: 'In Progress', statuses: ['running', 'waiting_for_approval', 'waiting_for_user_input'] },
-  { id: 'done', label: 'Done', statuses: ['completed'] },
-  { id: 'blocked', label: 'Blocked', statuses: ['failed', 'cancelled'] },
+  { id: 'todo', label: '' },
+  { id: 'in_progress', label: '' },
+  { id: 'done', label: '' },
+  { id: 'blocked', label: '' },
+  { id: 'cancelled', label: '' },
 ]
-
-const columnFor = (status: RunStatus): string => COLUMNS.find((column) => column.statuses.includes(status))?.id ?? 'todo'
 
 const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
 
@@ -25,9 +25,10 @@ type Props = {
   projects?: Project[]
   locale?: Locale
   onOpenTask: (taskId: string) => void
+  onPatchTask: (taskId: string, patch: { status?: BoardStatus | null; priority?: TaskPriority | null }) => void
 }
 
-export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask }: Props) => {
+export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask, onPatchTask }: Props) => {
   const [mode, setMode] = useState<'kanban' | 'list'>('kanban')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortAsc, setSortAsc] = useState(false)
@@ -54,7 +55,7 @@ export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask }: P
   const grouped = useMemo(() => {
     const map: Record<string, Task[]> = Object.fromEntries(COLUMNS.map((column) => [column.id, []]))
     const sorted = [...visibleTasks].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    for (const task of sorted) map[columnFor(task.status)]?.push(task)
+    for (const task of sorted) map[boardStatusFor(task.status, task.boardStatus)]?.push(task)
     return map
   }, [visibleTasks])
 
@@ -64,7 +65,7 @@ export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask }: P
       switch (sortKey) {
         case 'title': return direction * a.title.localeCompare(b.title)
         case 'priority': return direction * ((PRIORITY_ORDER[a.priority ?? ''] ?? 9) - (PRIORITY_ORDER[b.priority ?? ''] ?? 9))
-        case 'status': return direction * a.status.localeCompare(b.status)
+        case 'status': return direction * boardStatusFor(a.status, a.boardStatus).localeCompare(boardStatusFor(b.status, b.boardStatus))
         case 'date': return direction * a.updatedAt.localeCompare(b.updatedAt)
       }
     })
@@ -76,6 +77,14 @@ export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask }: P
   }
 
   const sortMark = (key: SortKey) => (sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : '')
+
+  const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, taskId: string) => {
+    if (event.target !== event.currentTarget) return
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onOpenTask(taskId)
+    }
+  }
 
   return (
     <div className="board-view">
@@ -103,12 +112,19 @@ export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask }: P
             const items = grouped[column.id] ?? []
             return (
               <section key={column.id} className="board-column">
-                <header className="board-column-header"><span>{column.label}</span><span className="board-count">{items.length}</span></header>
+                <header className="board-column-header"><span>{t(boardStatusLabelKey[column.id], locale)}</span><span className="board-count">{items.length}</span></header>
                 {items.map((task) => (
-                  <button key={task.id} type="button" className="board-card" onClick={() => onOpenTask(task.id)}>
+                  <div
+                    key={task.id}
+                    role="button"
+                    tabIndex={0}
+                    className="board-card"
+                    onClick={() => onOpenTask(task.id)}
+                    onKeyDown={(event) => handleCardKeyDown(event, task.id)}
+                  >
                     <span className="board-card-top">
-                      <i className="board-status-dot" data-column={column.id} />
-                      {task.priority && <span className="priority-chip" data-priority={task.priority}>{task.priority}</span>}
+                      <StatusChipPicker value={boardStatusFor(task.status, task.boardStatus)} onSelect={(status) => onPatchTask(task.id, { status })} locale={locale} />
+                      <PriorityChipPicker value={task.priority ?? null} onSelect={(priority) => onPatchTask(task.id, { priority })} locale={locale} />
                       {parseAssignees(task.assignedAgent).map((assignee) => (
                         <span key={assignee} className="agent-chip">{assignee === HUMAN_ASSIGNEE ? <User size={9} /> : <Bot size={9} />} {assignee === HUMAN_ASSIGNEE ? t('humanAssignee', locale) : assignee}</span>
                       ))}
@@ -119,9 +135,9 @@ export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask }: P
                       {projectName(task.projectId) && <span className="label-chip">{projectName(task.projectId)}</span>}
                       {task.labels?.map((label) => <span key={label} className="label-chip">{label}</span>)}
                     </span>
-                  </button>
+                  </div>
                 ))}
-                {items.length === 0 && <p className="board-empty">No tasks</p>}
+                {items.length === 0 && <p className="board-empty">{t('noTasksYet', locale)}</p>}
               </section>
             )
           })}
@@ -139,8 +155,8 @@ export const BoardView = ({ tasks, projects = [], locale = 'en', onOpenTask }: P
             {sortedTasks.map((task) => (
               <tr key={task.id} onClick={() => onOpenTask(task.id)}>
                 <td>{task.title}</td>
-                <td>{task.priority ? <span className="priority-chip" data-priority={task.priority}>{task.priority}</span> : '—'}</td>
-                <td>{statusLabel(task.status)}</td>
+                <td><PriorityChipPicker value={task.priority ?? null} onSelect={(priority) => onPatchTask(task.id, { priority })} locale={locale} /></td>
+                <td><StatusChipPicker value={boardStatusFor(task.status, task.boardStatus)} onSelect={(status) => onPatchTask(task.id, { status })} locale={locale} /></td>
                 <td>{new Date(task.updatedAt).toLocaleDateString()}</td>
               </tr>
             ))}

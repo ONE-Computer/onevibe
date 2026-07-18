@@ -39,13 +39,16 @@ export type MilestoneCompletePayload = { id: string }
 
 export type PlanStep = { id: string; title: string; status: 'pending' | 'running' | 'completed' | 'blocked'; startedAt?: string; completedAt?: string }
 export type WorkspaceFile = { path: string; size: number; updatedAt: string }
-export type LibraryItem = { task: Task; files: WorkspaceFile[] }
+export type LibraryItem = { task: Task; files: WorkspaceFile[]; versionCount?: number }
 export type TaskAttachment = { name: string; path: string; size: number; mimeType: string }
 export type WorkspaceVersion = { id: string; taskId: string; label: string; createdAt: string; fileCount: number; evidenceHash: string }
 export type WorkspaceVersionComparison = { version: WorkspaceVersion; comparedAt: string; summary: { added: number; changed: number; removed: number }; changes: Array<{ path: string; status: 'added' | 'changed' | 'removed'; beforeSize?: number; afterSize?: number; beforeHash?: string; afterHash?: string }>; truncated: boolean }
 export type ChatMessage = { id: string; taskId: string; turnId: string; role: 'user' | 'assistant' | 'system'; content: string; status: 'streaming' | 'completed' | 'failed' | 'cancelled'; provider?: Task['provider']; createdAt: string; updatedAt: string }
 
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low'
+// User-managed board metadata (P12-05). Distinct from the runtime-owned RunStatus:
+// the board groups by boardStatus when set, otherwise derives a column from status.
+export type BoardStatus = 'todo' | 'in_progress' | 'done' | 'blocked' | 'cancelled'
 
 export type ConversationSummary = {
   id: string
@@ -77,6 +80,7 @@ export type Task = {
   skills: TaskSkill[]
   tags: string[]
   priority?: TaskPriority | null
+  boardStatus?: BoardStatus
   labels?: string[]
   assignedAgent?: string
   epicId?: string

@@ -128,6 +128,7 @@ export const task = pgTable('task', {
   skillsJson: jsonb('skills_json').notNull().default([]),
   tagsJson: jsonb('tags_json').notNull().default([]),
   priority: text('priority'),
+  boardStatus: text('board_status'),
   labelsJson: jsonb('labels_json').notNull().default([]),
   assignedAgent: text('assigned_agent'),
   epicId: text('epic_id'),

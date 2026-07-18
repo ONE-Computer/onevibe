@@ -8,6 +8,9 @@ export type RunStatus =
   | 'cancelled'
 
 export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low'
+// User-managed board metadata (P12-05). Distinct from the runtime-owned RunStatus:
+// the board groups by boardStatus when set, otherwise derives a column from status.
+export type BoardStatus = 'todo' | 'in_progress' | 'done' | 'blocked' | 'cancelled'
 
 export type ConversationSummary = {
   id: string
@@ -175,6 +178,7 @@ export type Task = {
   skills: TaskSkill[]
   tags: string[]
   priority?: TaskPriority | null
+  boardStatus?: BoardStatus
   labels?: string[]
   assignedAgent?: string
   epicId?: string

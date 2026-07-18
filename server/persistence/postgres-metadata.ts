@@ -14,7 +14,7 @@ type ProjectRow = { id: string; owner_user_id: string; org_id: string | null; na
 type TaskRow = {
   id: string; owner_user_id: string; org_id: string | null; conversation_id: string | null; project_id: string; title: string; prompt: string;
   provider: Task['provider']; mode: TaskMode; status: Task['status']; skills_json: unknown; tags_json: unknown;
-  priority: string | null; labels_json: unknown; assigned_agent: string | null; epic_id: string | null; epic_label: string | null;
+  priority: string | null; board_status: string | null; labels_json: unknown; assigned_agent: string | null; epic_id: string | null; epic_label: string | null;
   queued_guidance_json: unknown; references_json: unknown; attachments_json: unknown; plan_json: unknown;
   security_context_json: unknown; approval_json: unknown; input_request_json: unknown; share_json: unknown;
   preview_path: string | null; library_hidden_at: Date | null; active_run_id: string | null; schedule_id: string | null;
@@ -62,6 +62,7 @@ const taskFromRow = (row: TaskRow): Task => ({
   skills: jsonArray(row.skills_json),
   tags: jsonArray(row.tags_json),
   ...(row.priority ? { priority: row.priority as Task['priority'] } : {}),
+  ...(row.board_status ? { boardStatus: row.board_status as Task['boardStatus'] } : {}),
   ...(jsonArray<string>(row.labels_json).length ? { labels: jsonArray<string>(row.labels_json) } : {}),
   ...(row.assigned_agent ? { assignedAgent: row.assigned_agent } : {}),
   ...(row.epic_id ? { epicId: row.epic_id } : {}),
@@ -106,7 +107,7 @@ const requireProject = async (sql: PostgresMetadataSql | MetadataTransaction, pr
 const taskValues = (task: Task) => ({
   id: task.id, ownerUserId: task.ownerUserId!, organizationId: task.organizationId ?? null, conversationId: task.id, projectId: task.projectId, title: task.title, prompt: task.prompt,
   provider: task.provider, mode: task.mode, status: task.status, skills: json(task.skills), tags: json(task.tags), queuedGuidance: json(task.queuedGuidance),
-  priority: task.priority ?? null, labels: json(task.labels ?? []), assignedAgent: task.assignedAgent ?? null, epicId: task.epicId ?? null, epicLabel: task.epicLabel ?? null,
+  priority: task.priority ?? null, boardStatus: task.boardStatus ?? null, labels: json(task.labels ?? []), assignedAgent: task.assignedAgent ?? null, epicId: task.epicId ?? null, epicLabel: task.epicLabel ?? null,
   references: json(task.references), attachments: json(task.attachments), plan: json(task.plan), securityContext: json(task.securityContext), approval: json(task.approval),
   inputRequest: json(task.inputRequest), share: json(task.share), previewPath: task.previewPath ?? null, libraryHiddenAt: date(task.libraryHiddenAt),
   activeRunId: task.activeRunId ?? null, scheduleId: task.scheduleId ?? null, parentTaskId: task.parentTaskId ?? null,
@@ -124,7 +125,7 @@ export class PostgresMetadataRepository {
     `
     const tasks = await this.sql<TaskRow[]>`
       SELECT id, owner_user_id, org_id, conversation_id, project_id, title, prompt, provider, mode, status, skills_json, tags_json,
-        priority, labels_json, assigned_agent, epic_id, epic_label,
+        priority, board_status, labels_json, assigned_agent, epic_id, epic_label,
         queued_guidance_json, references_json, attachments_json, plan_json, security_context_json, approval_json, input_request_json,
         share_json, preview_path, library_hidden_at, active_run_id, schedule_id, parent_task_id, forked_from_message_id, forked_at, created_at, updated_at
       FROM task
@@ -174,13 +175,13 @@ export class PostgresMetadataRepository {
       await tx`
         INSERT INTO task (
           id, owner_user_id, org_id, conversation_id, project_id, title, prompt, provider, mode, status, skills_json, tags_json,
-          priority, labels_json, assigned_agent, epic_id, epic_label,
+          priority, board_status, labels_json, assigned_agent, epic_id, epic_label,
           queued_guidance_json, references_json, attachments_json, plan_json, security_context_json, approval_json,
           input_request_json, share_json, preview_path, library_hidden_at, active_run_id, schedule_id, parent_task_id,
           forked_from_message_id, forked_at, created_at, updated_at
         ) VALUES (
           ${values.id}, ${values.ownerUserId}, ${values.organizationId}, ${values.conversationId}, ${values.projectId}, ${values.title}, ${values.prompt}, ${values.provider}, ${values.mode}, ${values.status},
-          ${values.skills}::jsonb, ${values.tags}::jsonb, ${values.priority}, ${values.labels}::jsonb, ${values.assignedAgent}, ${values.epicId}, ${values.epicLabel}, ${values.queuedGuidance}::jsonb, ${values.references}::jsonb, ${values.attachments}::jsonb,
+          ${values.skills}::jsonb, ${values.tags}::jsonb, ${values.priority}, ${values.boardStatus}, ${values.labels}::jsonb, ${values.assignedAgent}, ${values.epicId}, ${values.epicLabel}, ${values.queuedGuidance}::jsonb, ${values.references}::jsonb, ${values.attachments}::jsonb,
           ${values.plan}::jsonb, ${values.securityContext}::jsonb, ${values.approval}::jsonb, ${values.inputRequest}::jsonb, ${values.share}::jsonb,
           ${values.previewPath}, ${values.libraryHiddenAt}, ${values.activeRunId}, ${values.scheduleId}, ${values.parentTaskId}, ${values.forkedFromMessageId}, ${values.forkedAt}, ${values.createdAt}, ${values.updatedAt}
         )
@@ -192,7 +193,7 @@ export class PostgresMetadataRepository {
     const values = taskValues(task)
     const result = await this.sql`
       UPDATE task SET title = ${values.title}, prompt = ${values.prompt}, provider = ${values.provider}, mode = ${values.mode}, status = ${values.status},
-        skills_json = ${values.skills}::jsonb, tags_json = ${values.tags}::jsonb, priority = ${values.priority}, labels_json = ${values.labels}::jsonb, assigned_agent = ${values.assignedAgent}, epic_id = ${values.epicId}, epic_label = ${values.epicLabel}, queued_guidance_json = ${values.queuedGuidance}::jsonb,
+        skills_json = ${values.skills}::jsonb, tags_json = ${values.tags}::jsonb, priority = ${values.priority}, board_status = ${values.boardStatus}, labels_json = ${values.labels}::jsonb, assigned_agent = ${values.assignedAgent}, epic_id = ${values.epicId}, epic_label = ${values.epicLabel}, queued_guidance_json = ${values.queuedGuidance}::jsonb,
         references_json = ${values.references}::jsonb, attachments_json = ${values.attachments}::jsonb, plan_json = ${values.plan}::jsonb,
         security_context_json = ${values.securityContext}::jsonb, approval_json = ${values.approval}::jsonb, input_request_json = ${values.inputRequest}::jsonb,
         share_json = ${values.share}::jsonb, preview_path = ${values.previewPath}, library_hidden_at = ${values.libraryHiddenAt}, active_run_id = ${values.activeRunId},

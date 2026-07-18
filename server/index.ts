@@ -226,6 +226,12 @@ const updateTaskTagsInput = z.object({ tags: z.array(z.string().regex(/^[a-z0-9]
 const assigneeIdSegment = '[a-z0-9][a-z0-9._-]{0,63}'
 const assignTaskAgentInput = z.object({ assignedAgent: z.string().trim().min(1).max(280).regex(new RegExp(`^${assigneeIdSegment}(,${assigneeIdSegment}){0,7}$`)).nullable() })
 const updateTaskEpicInput = z.object({ epicId: z.string().trim().min(1).max(120).nullable(), epicLabel: z.string().trim().min(1).max(120).nullable() })
+// P12-05: user-managed board metadata. `status` is the board column override (stored as boardStatus);
+// the runtime-owned RunStatus is never writable through this route. Null clears the override/value.
+const updateTaskBoardInput = z.object({
+  status: z.enum(['todo', 'in_progress', 'done', 'blocked', 'cancelled']).nullable().optional(),
+  priority: z.enum(['urgent', 'high', 'medium', 'low']).nullable().optional(),
+}).refine((value) => value.status !== undefined || value.priority !== undefined, { message: 'Provide status or priority' })
 const editFileInput = z.object({ content: z.string().max(60_000), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const restoreProjectFileInput = z.object({ expectedHash: z.string().regex(/^[a-f0-9]{64}$/) })
 const inputAnswer = z.object({ answer: z.string().trim().min(1).max(4_000) })
@@ -939,6 +945,10 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'PATCH' && segments[3] === 'epic') {
       const input = updateTaskEpicInput.parse(await readBody(request))
       return json(response, 200, await store.updateTask(taskId, { epicId: input.epicId ?? undefined, epicLabel: input.epicLabel ?? undefined }))
+    }
+    if (request.method === 'PATCH' && segments.length === 3) {
+      const input = updateTaskBoardInput.parse(await readBody(request))
+      return json(response, 200, await store.updateTaskBoardMetadata(taskId, { boardStatus: input.status, priority: input.priority }, actorUserId))
     }
     if (request.method === 'POST' && segments[3] === 'messages' && segments[4] === 'reconcile') {
       const input = followUpReconcileInput.parse(await readBody(request))

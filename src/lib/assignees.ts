@@ -50,9 +50,9 @@ export const matchesAgentFilter = (task: AssigneeCarrier, filter: string): boole
 export const matchesRunFilter = (task: Pick<Task, 'activeRunId'>, filter: string): boolean =>
   filter === 'all' || task.activeRunId === filter
 
-export type ActiveAgentRun = { taskId: string; title: string; agents: string[]; startedAt: string }
+export type ActiveAgentRun = { taskId: string; title: string; agents: string[]; startedAt: string; projectId: string }
 
-type RunCarrier = Pick<Task, 'id' | 'title' | 'status' | 'updatedAt' | 'assignedAgent'>
+type RunCarrier = Pick<Task, 'id' | 'title' | 'status' | 'updatedAt' | 'assignedAgent' | 'projectId'>
 
 /**
  * Concurrent agent runs across all tasks. A run counts while the task is
@@ -63,8 +63,14 @@ type RunCarrier = Pick<Task, 'id' | 'title' | 'status' | 'updatedAt' | 'assigned
 export const activeAgentRuns = (tasks: readonly RunCarrier[]): ActiveAgentRun[] =>
   tasks
     .filter((task) => task.status === 'running' && hasAgentAssignee(task.assignedAgent))
-    .map((task) => ({ taskId: task.id, title: task.title, agents: agentAssignees(task.assignedAgent), startedAt: task.updatedAt }))
+    .map((task) => ({ taskId: task.id, title: task.title, agents: agentAssignees(task.assignedAgent), startedAt: task.updatedAt, projectId: task.projectId }))
     .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+
+/** P12-06: preview cap before the "View all N →" expansion. */
+export const ACTIVE_NOW_PREVIEW_LIMIT = 5
+
+export const visibleActiveRuns = (runs: readonly ActiveAgentRun[], expanded: boolean): ActiveAgentRun[] =>
+  expanded ? [...runs] : runs.slice(0, ACTIVE_NOW_PREVIEW_LIMIT)
 
 export const elapsedSeconds = (startedAt: string, now: number): number => {
   const started = Date.parse(startedAt)

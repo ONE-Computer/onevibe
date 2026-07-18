@@ -4,7 +4,7 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promi
 import path from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import type Database from 'better-sqlite3'
-import type { ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
+import type { BoardStatus, ChatMessage, ConversationSummary, EventInput, Organization, OrganizationMember, PresentationDescriptor, Project, RuntimeEvent, RuntimeMcpConfig, SkillInstallation, Task, TaskAttachment, TaskMode, TaskPriority, TaskSchedule, TaskSkill, TaskSnapshot, WorkspaceFile, WorkspaceVersion, WorkspaceVersionComparison } from './types.js'
 import { nativeEventIdFor, normalizeNativeEvent, type NativeEventInput } from './native-events.js'
 import { atomicWriteJson, LegacyJsonImporter, openDatabase, runMigrations, SqliteUnitOfWork, IdempotencyConflictError, OptimisticConflictError, PostgresStateCoordinator, type FollowUpAttachmentRecord, type FollowUpOperationRecord, type MessageRecord, type NativeEventRecord, type PostgresChatMessage, type RuntimeEventRecord, type RuntimeLeaseFence, type RuntimeLeaseRecord, type Repositories, type SkillInstallationRecord, type TenantThemeConfigRecord, type UnitOfWork } from './persistence/index.js'
 import { isInternalWorkspacePath, isPrivateWorkspacePath, normalizeWorkspacePath, portableArtifactKind } from './artifact-path.js'
@@ -672,6 +672,7 @@ export class TaskStore {
     return Promise.all(completed.map(async (task) => ({
       task,
       files: (await this.listWorkspaceFiles(task.id)).filter((file) => !file.path.startsWith('inputs/') && !file.path.startsWith('evidence/') && !isInternalWorkspacePath(file.path)),
+      versionCount: (await this.listWorkspaceVersions(task.id)).length,
     })))
   }
 
@@ -1063,6 +1064,23 @@ export class TaskStore {
     await this.appendEvent(taskId, {
       type: 'activity_delta', lane: 'control', label: 'Task tags updated',
       content: `${normalized.length} reusable library tag${normalized.length === 1 ? '' : 's'} recorded.`, payload: { tags: normalized },
+    })
+    return this.getTask(taskId)
+  }
+
+  async updateTaskBoardMetadata(taskId: string, patch: { boardStatus?: BoardStatus | null; priority?: TaskPriority | null }, ownerUserId?: string) {
+    const task = this.getTask(taskId, ownerUserId)
+    const nextBoardStatus = patch.boardStatus === undefined ? task.boardStatus : patch.boardStatus ?? undefined
+    const nextPriority = patch.priority === undefined ? task.priority ?? undefined : patch.priority ?? undefined
+    if (nextBoardStatus === task.boardStatus && nextPriority === (task.priority ?? undefined)) return task
+    await this.updateTask(taskId, { boardStatus: nextBoardStatus, priority: nextPriority ?? null })
+    const changes: string[] = []
+    if (nextBoardStatus !== task.boardStatus) changes.push(`board status ${task.boardStatus ?? 'derived'} → ${nextBoardStatus ?? 'derived'}`)
+    if (nextPriority !== (task.priority ?? undefined)) changes.push(`priority ${task.priority ?? 'none'} → ${nextPriority ?? 'none'}`)
+    await this.appendEvent(taskId, {
+      type: 'activity_delta', lane: 'control', label: 'Task board metadata updated',
+      content: `Board metadata changed: ${changes.join('; ')}.`,
+      payload: { boardStatus: nextBoardStatus ?? null, priority: nextPriority ?? null },
     })
     return this.getTask(taskId)
   }
