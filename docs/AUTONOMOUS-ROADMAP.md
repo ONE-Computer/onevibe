@@ -138,4 +138,5 @@ OVERALL: ~73% → ~82%
 | 2026-07-18 P12-02 landed + dual-session QA activated | 60436af P12-02 (priority chips + labels) | ✅ 371/69 | Session A shipped P12-02. User set up Session B (d95dd0b3) as dedicated QA engineer. Two-session architecture locked in: A=coding, B=visual QA. Session B briefed to QA P12-02 now. Skills + memory updated. |
 | 2026-07-18 check-in 8 (30-min cron) | 4b2ece4 P12-01 (kanban board + list toggle) | ✅ 371/69 | Session A busy=true (likely P12-03 agent assignment). Session B busy=true (QA-ing P12-02). P12-01 shipped. No intervention needed. |
 | 2026-07-18 Playwright MCP wired | ea32234 .kimi-code/mcp.json | ✅ 371/69 | User request: give Session B real browser control. @playwright/mcp wired into project. Chromium installed. Session B re-briefed to use mcp__playwright__browser_* tools directly — no more puppeteer scripts. QA queue: P12-01 + P12-02. |
+| 2026-07-18 check-in 9 (30-min cron) | 201f1dd fix(P12-01) icon fix | ✅ 371/69 | Both sessions busy=true. Session A self-fixed P12-01 (LayoutKanban → Kanban icon). Both sessions active — no intervention needed. |
 
