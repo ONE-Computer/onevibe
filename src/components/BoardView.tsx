@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { LayoutKanban, List } from 'lucide-react'
+import { Kanban, List } from 'lucide-react'
 import type { Project, RunStatus, Task } from '../types'
 import { statusLabel } from '../lib/runtime-labels'
 
@@ -61,7 +61,7 @@ export const BoardView = ({ tasks, projects = [], onOpenTask }: Props) => {
       <header className="board-view-header">
         <h1>Board</h1>
         <div className="board-view-toggle">
-          <button type="button" className={mode === 'kanban' ? 'active' : ''} onClick={() => setMode('kanban')}><LayoutKanban size={14} /> Kanban</button>
+          <button type="button" className={mode === 'kanban' ? 'active' : ''} onClick={() => setMode('kanban')}><Kanban size={14} /> Kanban</button>
           <button type="button" className={mode === 'list' ? 'active' : ''} onClick={() => setMode('list')}><List size={14} /> List</button>
         </div>
       </header>

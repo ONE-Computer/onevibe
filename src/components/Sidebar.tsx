@@ -1,4 +1,4 @@
-import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileEdit, FileText, FolderKanban, FolderOpen, Gamepad2, Globe2, LayoutKanban, Library, MonitorCog, Palette, Pencil, Plus, Presentation, Search, Sparkles, X, Zap } from 'lucide-react'
+import { AppWindow, BarChart3, Blocks, Bot, Clock3, FileEdit, FileText, FolderKanban, FolderOpen, Gamepad2, Globe2, Kanban, Library, MonitorCog, Palette, Pencil, Plus, Presentation, Search, Sparkles, X, Zap } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationSummary, Project, ProjectFileVersion, TaskMode } from '../types'
@@ -147,7 +147,7 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
       <button className={`nav-item ${view === 'schedules' ? 'active' : ''}`} onClick={onOpenSchedules}><Clock3 size={16} /> {t('scheduled', locale)}</button>
       <button className={`nav-item ${view === 'library' ? 'active' : ''}`} onClick={onOpenLibrary}><Library size={16} /> {t('library', locale)}</button>
       <button className={`nav-item ${view === 'computers' ? 'active' : ''}`} onClick={onOpenComputers}><MonitorCog size={16} /> {t('computers', locale)}</button>
-      <button className={`nav-item ${view === 'board' ? 'active' : ''}`} onClick={onOpenBoard}><LayoutKanban size={16} /> {t('board', locale)}</button>
+      <button className={`nav-item ${view === 'board' ? 'active' : ''}`} onClick={onOpenBoard}><Kanban size={16} /> {t('board', locale)}</button>
       <button className={`nav-item ${view === 'appearance' ? 'active' : ''}`} onClick={onOpenAppearance}><Palette size={16} /> {t('appearance', locale)}</button>
       <button className={`nav-item ${view === 'homepage' ? 'active' : ''}`} onClick={onOpenHomepage}><FileEdit size={16} /> Homepage</button>
       <button className={`nav-item ${view === 'artefacts' ? 'active' : ''}`} onClick={onOpenArtefacts}><FolderOpen size={16} /> Artefacts</button>
