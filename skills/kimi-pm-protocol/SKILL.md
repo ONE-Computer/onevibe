@@ -41,13 +41,12 @@ Keep it under ~200 words. Kimi loses context in long prompts.
 - Task is well-scoped with clear acceptance criteria
 - Multiple independent items can be parallelised
 
-**Implement directly** (Claude does it) when:
-- Kimi server is unreliable or WebSocket can't be established
-- Gate is broken and blocking further work
-- Task is small (< ~3 files, < 50 lines)
-- Brief failed twice and Kimi produced nothing
+**Claude does NOT implement directly — ever.** If Kimi is blocked:
+- Write a sharper brief with more specific file paths and acceptance criteria
+- Try the browser UI delivery path (only reliable way to get tool execution)
+- Report the blockage to the user and wait for guidance
 
-In this sprint: Claude implemented P9-19, P9-27, P9-20, P9-21 directly because Kimi's tool execution was unreliable outside the browser UI.
+Note: In the 2026-07-18 sprint Claude incorrectly implemented features directly. This violated the PM/implementer split and must not be repeated.
 
 ## Monitoring Kimi progress
 
