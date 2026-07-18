@@ -20,7 +20,9 @@ const contrastRatio = (fg: string, bg: string): number | null => { try { const l
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url))
 const fixturePath = path.resolve(serverDir, '../docs/fixtures/themes/reference-profiles.json')
-const indexCssPath = path.resolve(serverDir, '../src/index.css')
+// The semantic dark/light token layer lives in src/theme/default.css; index.css
+// is reserved for token-consuming component styles and must not hold literals.
+const themeCssPath = path.resolve(serverDir, '../src/theme/default.css')
 
 const profiles = parseReferenceThemeProfiles(JSON.parse(readFileSync(fixturePath, 'utf8')) as unknown)
 
@@ -115,13 +117,12 @@ describe('reference tenant theme profiles: schema and WCAG acceptance', () => {
   })
 })
 
-describe('base theme dark/light token completeness in src/index.css', () => {
-  const css = readFileSync(indexCssPath, 'utf8')
+describe('base theme dark/light token completeness in src/theme/default.css', () => {
+  const css = readFileSync(themeCssPath, 'utf8')
 
-  // Semantic tokens introduced by the "Semantic ONEComputer theme layer"
-  // comment block; both the dark-default :root block and the [data-theme=light]
-  // override must define every one of these so no component silently falls
-  // back to an unstyled value when the mode is switched.
+  // Both the dark-default :root block and the [data-theme="light"] override in
+  // the token layer must define every one of these so no component silently
+  // falls back to an unstyled value when the mode is switched.
   const semanticTokens = [
     'surface-canvas', 'surface-sidebar', 'surface-panel', 'surface-raised', 'surface-hover', 'surface-inset', 'surface-code',
     'border-default', 'border-subtle', 'border-strong',
@@ -155,7 +156,7 @@ describe('base theme dark/light token completeness in src/index.css', () => {
   })
 
   it('every [data-theme=light] block collectively defines all semantic tokens', () => {
-    const lightNames = collectBlockNames(css, /\[data-theme=light\]\s*\{([^}]*)\}/g)
+    const lightNames = collectBlockNames(css, /\[data-theme="?light"?\]\s*\{([^}]*)\}/g)
     const missing = semanticTokens.filter((token) => !lightNames.has(token))
     expect(missing, `missing semantic tokens in [data-theme=light]: ${missing.join(', ')}`).toEqual([])
   })

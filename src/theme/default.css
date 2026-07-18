@@ -1,13 +1,14 @@
 /* ONEVibe canonical presentation tokens. Raw colors, effects, font families, and pixel radii in production CSS are prohibited outside this file. */
 :root {
-  --font-ui: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-display: var(--font-ui);
-  --font-size-xs: 11px;
-  --font-size-sm: 13px;
-  --font-size-base: 15px;
-  --font-size-md: 17px;
-  --font-size-lg: 20px;
-  --font-size-xl: 24px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -331,6 +332,113 @@
   --theme-effect-877fbf82ef4e: rgba(91,156,255,.12);
   --theme-effect-f82652d5e5c5: rgba(91,156,255,.3);
 }
+
+/* v2 semantic layer. Components consume these tokens; literal values live only here. */
+:root {
+  --surface-canvas: #08090a;
+  --surface-sidebar: #0c0d0e;
+  --surface-panel: #101112;
+  --surface-raised: #18191b;
+  --surface-hover: #1e2023;
+  --surface-inset: #050606;
+  --surface-code: #0a0c0e;
+  --surface-base: var(--surface-canvas);
+  --border-subtle: rgba(255,255,255,.05);
+  --border-default: rgba(255,255,255,.08);
+  --border-strong: rgba(255,255,255,.14);
+  --text-primary: #f7f8f8;
+  --text-secondary: #d0d6e0;
+  --text-muted: #8a8f98;
+  --text-faint: #62666d;
+  --accent: #5e6ad2;
+  --accent-strong: #828fff;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(94,106,210,.14);
+  --accent-border: rgba(94,106,210,.32);
+  --status-success: #4cb782;
+  --status-warning: #e5b567;
+  --status-danger: #eb5757;
+  --status-info: #6ea8fe;
+  --status-cancelled: #8a8f98;
+  --success: var(--status-success);
+  --warning: var(--status-warning);
+  --danger: var(--status-danger);
+  --info: var(--status-info);
+  --warning-soft: color-mix(in oklab, var(--status-warning) 12%, transparent);
+  --info-soft: color-mix(in oklab, var(--status-info) 12%, transparent);
+  --green-soft: color-mix(in oklab, var(--status-success) 12%, transparent);
+  --overlay-topbar: color-mix(in srgb, var(--surface-canvas) 86%, transparent);
+  --overlay-composer: color-mix(in srgb, var(--surface-panel) 92%, transparent);
+  --grid-line: color-mix(in srgb, var(--text-primary) 3%, transparent);
+  --elev-raised: 0 2px 4px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.05);
+  --hairline: 0 0 0 0.5px rgba(255,255,255,.12);
+  --shadow: 0 28px 80px rgba(0,0,0,.42);
+  --shadow-soft: 0 22px 70px rgba(0,0,0,.35);
+  --focus-ring: 0 0 0 2px color-mix(in oklab, var(--accent), transparent 30%);
+  /* Legacy aliases — consumed by pre-v2 component CSS, removed with it. */
+  --bg: var(--surface-canvas);
+  --panel: var(--surface-panel);
+  --panel-2: var(--surface-raised);
+  --panel-3: var(--surface-hover);
+  --line: var(--border-default);
+  --line-soft: var(--border-subtle);
+  --text: var(--text-primary);
+  --muted: var(--text-muted);
+  --faint: var(--text-faint);
+  --green: var(--status-success);
+  --green-2: color-mix(in oklab, var(--status-success), white 18%);
+  --amber: var(--status-warning);
+  --red: var(--status-danger);
+}
+[data-theme="light"] {
+  --surface-canvas: #f7f7f8;
+  --surface-sidebar: #f0f0f2;
+  --surface-panel: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #ececee;
+  --surface-inset: #f0f0f2;
+  --surface-code: #f0f1f3;
+  --border-subtle: rgba(0,0,0,.05);
+  --border-default: rgba(0,0,0,.09);
+  --border-strong: rgba(0,0,0,.16);
+  --text-primary: #1b1c1f;
+  --text-secondary: #3c4048;
+  --text-muted: #6e7278;
+  --text-faint: #9ba0a6;
+  --accent: #4f54c4;
+  --accent-strong: #454bb0;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(79,84,196,.1);
+  --accent-border: rgba(79,84,196,.28);
+  --status-success: #1f7a4d;
+  --status-warning: #9a6a00;
+  --status-danger: #c43232;
+  --status-info: #2b6cb8;
+  --status-cancelled: #6e7278;
+  --success: var(--status-success);
+  --warning: var(--status-warning);
+  --danger: var(--status-danger);
+  --info: var(--status-info);
+  --warning-soft: color-mix(in oklab, var(--status-warning) 12%, transparent);
+  --info-soft: color-mix(in oklab, var(--status-info) 12%, transparent);
+  --green-soft: color-mix(in oklab, var(--status-success) 12%, transparent);
+  --overlay-topbar: color-mix(in srgb, var(--surface-canvas) 88%, transparent);
+  --overlay-composer: color-mix(in srgb, var(--surface-panel) 94%, transparent);
+  --grid-line: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  --elev-raised: 0 4px 16px rgba(0,0,0,.1), 0 0 0 1px rgba(0,0,0,.04);
+  --hairline: 0 0 0 0.5px rgba(0,0,0,.1);
+  --shadow: 0 24px 64px rgba(28,45,33,.14);
+  --shadow-soft: 0 18px 48px rgba(28,45,33,.12);
+}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+@keyframes rise-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popover-in{from{opacity:0;transform:scale(.95) translateY(2px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes shimmer-sweep{from{background-position:-100% 0}to{background-position:250% 0}}
+@keyframes shimmer-text{from{background-position:-200% 0}to{background-position:200% 0}}
+@keyframes stream-sweep{from{transform:translateX(-66%)}to{transform:translateX(0)}}
+@keyframes pulse-soft{from{opacity:.75;transform:scale(1)}to{opacity:0;transform:scale(2)}}
+@keyframes dot-blink{50%{opacity:.5}}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 :root, [data-theme="light"], [data-theme="dark"] {
   /* Tenant theming may override semantic aliases later, never the security contract. */
