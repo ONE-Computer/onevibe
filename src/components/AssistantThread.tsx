@@ -93,7 +93,15 @@ const WorkingTrace = () => {
   return <details className="aui-working-trace" open={running || undefined}><summary><span><ChevronDown className="aui-trace-chevron" size={12} /><ShieldCheck size={12} /> {running ? 'Working' : `Review working trace (${trace.length} step${trace.length === 1 ? '' : 's'})`}</span>{running && <em>live</em>}</summary><p className="aui-working-trace-note">Operational summaries and tool evidence from the provider stream. Hidden chain-of-thought is not exposed.</p><ol>{trace.map((item) => <li key={item.id} className={item.status}><span>{item.status === 'running' ? <LoaderCircle className="spin" size={12} /> : item.status === 'failed' ? <TriangleAlert size={12} /> : <CheckCircle2 size={12} />}</span><div><strong>{item.label}</strong>{item.detail && <TraceDetail detail={item.detail} />}</div><em>{item.status === 'running' ? 'Working' : item.status === 'failed' ? 'Failed' : 'Done'}</em></li>)}</ol></details>
 }
 
-const ToolGroup = ({ children, count, active }: { children: ReactNode; count: number; active: boolean }) => <details className="aui-tool-group" open={active || undefined}><summary><span><ShieldCheck size={11} /> Tool activity</span><em>{count} call{count === 1 ? '' : 's'}</em></summary><div className="aui-tool-group-content">{children}</div></details>
+// Consecutive tool-call parts consolidate into one collapsible group (P9-16).
+// The body animates via grid-template-rows — never a max-height hack — and its
+// content stays inert while collapsed. The group follows the run state (open
+// while any call runs, closed once all settle) and remains manually toggleable.
+const ToolGroup = ({ children, count, active, locale }: { children: ReactNode; count: number; active: boolean; locale: Locale }) => {
+  const [open, setOpen] = useState(active)
+  useEffect(() => { setOpen(active) }, [active])
+  return <div className={`aui-tool-group${open ? ' open' : ''}`}><button type="button" className="aui-tool-group-header" onClick={() => setOpen((current) => !current)} aria-expanded={open}><i className={`aui-tool-group-dot${active ? ' running' : ''}`} /><span>{t('toolCalls', locale).replace('{count}', String(count))}</span><ChevronDown size={11} /></button><div className="aui-tool-group-window"><div className="aui-tool-group-window-inner" inert={!open || undefined}><div className="aui-tool-group-content">{children}</div></div></div></div>
+}
 
 // Provider reasoning streams into a five-line live window; once the message
 // settles, the window collapses into a teaser that opens the full trace in
@@ -113,7 +121,7 @@ const AssistantMessage = ({ locale = 'en' }: { locale?: Locale }) => {
   const { stalled } = unstable_useMessageStallDetection({ thresholdMs: 15_000 })
   const artifacts = useAuiState((state) => (state.message.metadata.custom as { artifacts?: AssistantArtifact[] } | undefined)?.artifacts ?? [])
   return <MessagePrimitive.Root className="aui-assistant-message"><div className="assistant-orb" aria-hidden="true">O</div><div className="aui-assistant-message-body"><header><small>{running ? 'Writing…' : timestamp(createdAt)}</small>{running && <span className="aui-live-label"><i /> Live</span>}</header>{stalled && <div className="aui-stall-warning"><Clock size={11} /> Taking longer than expected…</div>}<WorkingTrace /><MessagePrimitive.GroupedParts groupBy={groupPartByType({ 'tool-call': ['group-tool'] })}>{({ part, children }) => {
-    if (part.type === 'group-tool') return <ToolGroup count={part.indices.length} active={part.status.type === 'running'}>{children}</ToolGroup>
+    if (part.type === 'group-tool') return <ToolGroup count={part.indices.length} active={part.status.type === 'running'} locale={locale}>{children}</ToolGroup>
     if (part.type === 'tool-call') return <ToolCallCard {...part} />
     if (part.type === 'text') return <><MarkdownText />{part.status?.type === 'running' && <span className="streaming-cursor" aria-hidden="true" />}</>
     if (part.type === 'reasoning') return <ThinkingBlock text={part.text} streaming={running} locale={locale} />

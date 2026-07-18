@@ -100,6 +100,8 @@ const en = {
   reasoningTrace: 'Reasoning trace',
   openReasoningTrace: 'Open reasoning trace',
   closePanel: 'Close panel',
+  // Tool group
+  toolCalls: '{count} tool calls',
   // Shared
   cancel: 'Cancel',
   close: 'Close',
@@ -198,6 +200,7 @@ const zh: Record<keyof typeof en, string> = {
   reasoningTrace: '推理轨迹',
   openReasoningTrace: '打开推理轨迹',
   closePanel: '关闭面板',
+  toolCalls: '{count} 次工具调用',
   cancel: '取消',
   close: '关闭',
   version: '版本',
