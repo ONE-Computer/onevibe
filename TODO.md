@@ -422,6 +422,47 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ---
 
+## Phase 13 — Wild exploration: agent intelligence, memory, and agent spawning
+**Target: before we harden the sandbox, understand the ceiling. What's actually possible? Push the boundary. Prototype fast, learn hard, document everything. All exploration runs on Azure VM (23.102.117.5) — not the local Mac.**
+**Key insight: we want ONEVibe to be a platform where you can summon any agent — Hermes, NanoClaw, a custom fine-tune — by name, give it a task, and it runs. That's the vision. This phase proves whether it's real.**
+
+### P13-A — GBrain: TypeScript-native agent memory + knowledge graph
+**What it is:** GBrain (github.com/garrytan/gbrain) is a pure TypeScript brain layer for AI agents. Self-wiring knowledge graph that extracts typed relationships (`works_at`, `invested_in`, `founded`) on every write with zero extra LLM calls. Stack: pgvector HNSW + BM25 + reciprocal-rank fusion. 43 built-in skills. +31.4 points P@5 over vector-only RAG. Includes a Minions job queue for durable multi-agent execution.**
+**Why this matters for ONEVibe:** it's Postgres-native, TypeScript, MIT, and designed for exactly the multi-agent + multi-user scenario we're building. This could become the memory layer behind every ONEVibe agent.**
+
+- [ ] **P13-01** GBrain spike on Azure — SSH into Azure VM. Clone GBrain. Get it running against the existing Postgres instance. Ingest 5 sample investment research documents. Query: "what companies has analyst X researched?" Verify the relationship graph is populated. Write `docs/GBRAIN-SPIKE.md`: setup steps, what worked, what didn't, latency, memory overhead.
+
+- [ ] **P13-02** GBrain × ONEVibe memory prototype — wire GBrain as an optional memory backend for ONEVibe. When a task completes, auto-ingest the conversation + artefacts into GBrain. New task composer shows "Remembered context" chips (entities GBrain surfaced from prior sessions). Server endpoint: `POST /api/memory/ingest`, `GET /api/memory/context?q=...`. Write `docs/GBRAIN-INTEGRATION.md`.
+
+- [ ] **P13-03** GBrain Minions for durable subagent jobs — use GBrain's Minions queue to dispatch durable background tasks from ONEVibe. A task marked "delegate" spawns a Minion that runs to completion even if the browser closes. Minion status streams back via SSE. This is the first step toward true async agent execution without a sandbox. Write `docs/GBRAIN-MINIONS.md`.
+
+### P13-B — Graphiti: temporal knowledge graph (the "what did the agent used to know?" layer)
+**What it is:** Graphiti (github.com/getzep/graphiti, 28,900 stars) stores facts as triplets with temporal validity windows — when a fact changes, the old one is invalidated but preserved. Sub-second hybrid retrieval: semantic + BM25 + graph traversal. Python service (no TS SDK), call via Zep managed API or local proxy. Requires Neo4j or FalkorDB.**
+**Why this matters:** investment research context changes. A company's CEO changes. A fund's thesis shifts. Graphiti tracks what was true when — critical for audit and for agents that need to reason about stale vs current context.**
+
+- [ ] **P13-04** Graphiti spike on Azure — install Graphiti + FalkorDB on Azure VM. Ingest 10 episodes of simulated investment research (company updates over 6 months). Query: "what was the thesis on Company X in Q1 vs Q3?" Verify temporal invalidation works. Write `docs/GRAPHITI-SPIKE.md`: setup, latency, storage requirements, FalkorDB vs Neo4j comparison.
+
+- [ ] **P13-05** Graphiti MCP server — Graphiti ships an MCP server. Wire it into ONEVibe's MCP config so agents can call `graphiti_search`, `graphiti_add_episode`, `graphiti_get_entity` as tools during a task run. Test: ask an agent "what do we know about SoftBank's portfolio?" — watch it query the temporal graph. Write `docs/GRAPHITI-MCP.md`.
+
+### P13-C — Agent spawning: summon any agent by name
+**What it is:** the A2A Protocol (google/A2A, 24,800 stars, Linux Foundation, Apache 2.0) defines Agent Cards — JSON capability declarations that let you discover and invoke any agent over HTTP. Bedrock AgentCore Runtime is the AWS implementation. Together they sketch what a vendor-neutral agent registry looks like.**
+**The wild vision: ONEVibe has a "Summon Agent" button. You pick Hermes (NousResearch Llama fine-tune, great at tool use), NanoClaw (Claude-based, your existing agent), GPT-4o-mini (cheap, fast), or a custom fine-tune. ONEVibe spins it up on Azure via the AgentCore runtime or a self-rolled A2A container, gives it the task brief + GBrain memory context, and streams the result back. Multiple agents can run in parallel on the same task (agent debate / ensemble). This is the multi-agent future.**
+
+- [ ] **P13-06** A2A protocol spike — implement a minimal A2A Agent Card server in TypeScript (express + JSON-RPC 2.0). Register two agents: `claude-sonnet` and `kimi-k3`. ONEVibe's task runner calls the A2A endpoint instead of hitting the runtime adapter directly. Verify: task dispatch, streaming response, capability discovery. Write `docs/A2A-SPIKE.md`.
+
+- [ ] **P13-07** Hermes agent on Azure — deploy NousResearch Hermes-3 (Llama-3.1 fine-tune, strong function calling) via vLLM on Azure VM. Register it as an A2A agent in ONEVibe. Test: assign a task to "hermes" from the project board (P12-03 agent picker). Watch it run via the same runtime adapter interface. Write `docs/HERMES-AGENT.md`.
+
+- [ ] **P13-08** NanoClaw agent card — NanoClaw (your existing Claude-based agent in `~/nanoclaw-v2`) already exists. Give it an A2A Agent Card. Register it in ONEVibe's agent registry. From the project board, you can now assign a task to "nanoclaw" and it routes to the real NanoClaw agent. Write `docs/NANOCLAW-A2A.md`.
+
+- [ ] **P13-09** Agent ensemble / debate mode — on a task, allow assigning 2–3 agents simultaneously. Each runs independently. Their outputs appear as parallel branches in the task view (think: "Agent A says X, Agent B says Y"). A synthesis agent (or the user) picks the best answer. This is the wild one — real multi-agent debate from a single ONEVibe task. Write `docs/AGENT-ENSEMBLE.md`.
+
+- [ ] **P13-10** Agent marketplace page in ONEVibe — a "Summon Agent" page showing all registered A2A agents: name, model, capabilities, latency, cost/token. Click to make it available for task assignment in the project board. One-click deploy from a curated registry (Hermes, NanoClaw, Claude, Kimi, Codex, custom). This is the ONEVibe equivalent of the Hugging Face model hub — but for runnable agents, not weights. Write `docs/AGENT-MARKETPLACE.md`.
+
+### P13-D — Synthesis: what did we learn?
+- [ ] **P13-11** Phase 13 synthesis doc — after all spikes complete, write `docs/P13-EXPLORATION-SYNTHESIS.md`: what worked, what didn't, what's production-viable, what needs sandbox hardening first (feeds Phase 8 scoping), and the recommended architecture for the ONEVibe agent intelligence layer going forward. This is the input to Phase 8 — we learn first, harden second.
+
+---
+
 ## Ongoing
 
 - [ ] **ONG-01** All 50 UX issues from `plan/00-gap-analysis.md` — track each to resolution

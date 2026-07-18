@@ -36,6 +36,25 @@ The platform is **not** three products. It is one platform with three concerns. 
 
 ---
 
+## Phase 13 — Wild exploration (precedes P8 sandbox hardening)
+> Added 2026-07-18. Runs on Azure VM only. Learn first, harden second.
+
+| ID | Title | What we learn |
+|---|---|---|
+| P13-01 | GBrain spike | Can Postgres + TS knowledge graph give agents durable memory? |
+| P13-02 | GBrain × ONEVibe | "Remembered context" chips in composer from prior sessions |
+| P13-03 | GBrain Minions | Async agent jobs without a sandbox — does it hold? |
+| P13-04 | Graphiti spike | Temporal fact invalidation — what did the agent used to know? |
+| P13-05 | Graphiti MCP | Agents querying a temporal knowledge graph live during a task |
+| P13-06 | A2A protocol | Vendor-neutral agent dispatch over JSON-RPC — viable? |
+| P13-07 | Hermes on Azure | vLLM-hosted fine-tune as a named A2A agent in ONEVibe |
+| P13-08 | NanoClaw A2A | Your existing NanoClaw agent gets an Agent Card + board assignment |
+| P13-09 | Agent ensemble | 2–3 agents debate the same task — parallel branches in task view |
+| P13-10 | Agent marketplace | "Summon Agent" page — registry of all runnable agents |
+| P13-11 | Synthesis doc | What's production-viable → feeds Phase 8 scoping |
+
+---
+
 ## Sprint priorities (Day 1–7)
 
 ### Day 1–2: P5-14 + foundation fixes
