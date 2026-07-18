@@ -95,19 +95,21 @@ This is a persistent single session. The PM sends broad multi-outcome briefs. Us
 
 ## Two-session architecture
 
-**Session A** (`session_c90ce2bb`) — this session. Tech lead / implementer. Writes code, runs gate, commits.
+**Session A** (`session_c90ce2bb`) — this session. Tech lead / implementer. Writes code, self-QA, gate, commits.
 
-**Session B** (`session_d95dd0b3`) — QA engineer. Uses the `playwright` MCP server (wired via `.kimi-code/mcp.json`) to control a real Chromium browser. Session B never writes production code.
+**Session C** (`session_560510e2`) — iOS tech lead (P18). Works in `/Users/gini/Desktop/Project ONEComputer/openvtc/vta-mobile-agent-ios`. Independent codebase. Never receives web briefs.
 
-### Session B QA workflow (Playwright MCP tools)
-1. `mcp__playwright__browser_navigate` → `http://localhost:5173`
-2. `mcp__playwright__browser_snapshot` — get accessibility tree (use for element targeting, NOT screenshot)
-3. `mcp__playwright__browser_click` / `browser_fill` / `browser_select_option` to exercise interactions
-4. `mcp__playwright__browser_take_screenshot` — visual evidence, save to `docs/browser-screenshots/`
-5. `mcp__playwright__browser_verify_element_visible` / `browser_verify_text_visible` — assertion tools
-6. Report verdict: PASS or FAIL with screenshot path
-7. Commit: `git add docs/ && git commit -m "qa(P{x}-{y}): visual verification [PASS/FAIL]"`
+Session B (dedicated QA) has been retired — Session A self-QAs every feature before committing.
 
-Dev server must be running before Session B opens the browser. Session B checks with:
-`curl -sf http://localhost:5173 > /dev/null && echo up || echo down`
-If down: `npm run dev:all &` then wait 5 seconds.
+## Self-QA workflow (mandatory before every commit)
+After implementing a feature:
+1. Start dev server: `npm run dev:all &` — wait 5 seconds
+2. Verify the feature renders: `curl -sf http://localhost:5173 > /dev/null && echo up`
+3. Use Playwright MCP tools to exercise the feature in a real browser:
+   - `mcp__playwright__browser_navigate` → `http://localhost:5173`
+   - `mcp__playwright__browser_snapshot` — confirm element is present
+   - `mcp__playwright__browser_click` / `browser_fill` — test key interactions
+   - `mcp__playwright__browser_take_screenshot` — save to `docs/browser-screenshots/`
+4. Kill dev server: `pkill -f "vite\|tsx.*server"`
+5. Run gate: `npm run check` — must pass ≥ 385 tests / 70 files
+6. Commit only after all above pass
