@@ -24,6 +24,10 @@
 - `server/theme-package.test.ts`: added slot-fallback, no-package-selected null, missing-manifest throw, and caller-catch rollback simulation tests. Gate: 315 tests / 63 files ✓
 - `src/components/ComputerTimeline.test.ts`: replaced `virtualRailRange` coverage with `virtualRailRows` mixed-row windowing plus a checkpoint-rail suite — approval/tool/live status derivation (pending, completed, failed, skipped), LLM-turn grouping aggregates and split rules, and `railRowsFor` run-divider/depth/collapse flattening. Gate: 343 tests / 66 files ✓
 
+### Docs
+- `docs/AUTONOMOUS-ROADMAP.md`: autonomous 7-day sprint roadmap (ONEVibe × ONEComputer × OpenVTI platform vision, honest what-is-real audit, sprint sequencing) — source of truth for autonomous planning while the product owner is away
+- `.kimi-code/`: Kimi Code standing instructions (`AGENTS.md`) and sprint-resume skill now versioned with the repo
+
 ---
 
 All notable changes to ONEVibe are documented here.
