@@ -374,6 +374,8 @@ export class TaskStore {
         id: task.id, title: task.title, status: task.status, provider: task.provider, mode: task.mode, projectId: task.projectId,
         ...(task.priority ? { priority: task.priority } : {}),
         ...(task.labels?.length ? { labels: task.labels } : {}),
+        ...(task.epicId ? { epicId: task.epicId } : {}),
+        ...(task.epicLabel ? { epicLabel: task.epicLabel } : {}),
         ...(task.parentTaskId ? { parentTaskId: task.parentTaskId } : {}),
         ...(task.forkedFromMessageId ? { forkedFromMessageId: task.forkedFromMessageId } : {}),
         messageCount: messages.length,

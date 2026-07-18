@@ -86,6 +86,31 @@ describe('TaskStore', () => {
     expect(reopened.getTask(task.id).assignedAgent).toBeUndefined()
   })
 
+  it('sets and clears an epic on a task across restarts', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'onevibe-task-epic-'))
+    temporaryRoots.push(root)
+    const { TaskStore } = await import('./store.js')
+    const store = new TaskStore(root)
+    await store.initialize()
+    const task = await store.createTask('Epic-scoped task', 'demo')
+
+    const scoped = await store.updateTask(task.id, { epicId: 'epic_platform', epicLabel: 'Platform' })
+    expect(scoped.epicId).toBe('epic_platform')
+    expect(scoped.epicLabel).toBe('Platform')
+    expect(store.getTask(task.id).epicLabel).toBe('Platform')
+
+    const reopened = new TaskStore(root)
+    await reopened.initialize()
+    expect(reopened.getTask(task.id).epicId).toBe('epic_platform')
+    expect(reopened.getTask(task.id).epicLabel).toBe('Platform')
+    const summaries = reopened.listConversations({}).conversations
+    expect(summaries.find((summary) => summary.id === task.id)?.epicLabel).toBe('Platform')
+
+    const cleared = await reopened.updateTask(task.id, { epicId: undefined, epicLabel: undefined })
+    expect(cleared.epicId).toBeUndefined()
+    expect(cleared.epicLabel).toBeUndefined()
+  })
+
   it('persists governed MCP declarations without accepting secret material', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'onevibe-mcp-config-'))
     temporaryRoots.push(root)

@@ -20,6 +20,8 @@ const en = {
   agentFilter: 'Agent',
   sessionFilter: 'Agent session',
   allAgents: 'All agents',
+  allEpics: 'All epics',
+  epicFilter: 'Epic',
   allSessions: 'All sessions',
   humanAssignee: 'Human',
   // Actions
@@ -146,6 +148,8 @@ const zh: Record<keyof typeof en, string> = {
   agentFilter: '代理',
   sessionFilter: '代理会话',
   allAgents: '全部代理',
+  allEpics: '全部 Epic',
+  epicFilter: 'Epic',
   allSessions: '全部会话',
   humanAssignee: '人工',
   startTask: '开始任务',

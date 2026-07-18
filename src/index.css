@@ -1136,6 +1136,13 @@ button.model-selector *{color:inherit}
 .priority-chip[data-priority=low]{color:var(--text-faint);background:var(--surface-hover)}
 .label-chip{font-size:9px;padding:1px 6px;border-radius:var(--radius-4px);background:var(--surface-hover);color:var(--text-muted);line-height:1.4}
 
+/* P12-04: epic breadcrumb chip + epic filter pills */
+.epic-chip{justify-self:start;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:var(--radius-4px);line-height:1.4;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.epic-filter-row{display:flex;flex-wrap:wrap;gap:4px;padding:0 9px;margin:0 0 6px}
+.epic-filter-pill{border:1px solid var(--border-subtle);border-radius:var(--radius-9px);background:transparent;color:var(--text-muted);font-size:10px;padding:2px 8px;cursor:pointer;line-height:1.4}
+.epic-filter-pill:hover{border-color:var(--accent-border);color:var(--text)}
+.epic-filter-pill.active{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent)}
+
 /* P12-03: agent assignment */
 .agent-chip{display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:1px 6px;border-radius:var(--radius-4px);background:var(--surface-hover);color:var(--text-muted);line-height:1.4;text-transform:none}
 .agent-live{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:600;color:var(--red)}

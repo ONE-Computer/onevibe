@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationSummary, Project, ProjectFileVersion, TaskMode } from '../types'
 import type { AuthUser } from '../lib/auth'
 import { getProjectFile, listConversations, listProjectFileVersions } from '../lib/api'
+import { distinctEpics, matchesEpicFilter, type EpicFilter } from '../lib/epics'
 import { providerLabel } from '../lib/runtime-labels'
 import { BrandMark } from './BrandMark'
 import { useTenantTheme } from '../hooks/useTenantTheme'
@@ -87,6 +88,7 @@ const bucketFor = (iso: string, now: number): 'Today' | 'Yesterday' | 'This week
 export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose, onSelectTask, hasMoreConversations, loadingMoreConversations, onLoadMoreConversations, projects, activeProjectId, onSelectProject, onCreateProject, onAttachProjectFile, onRemoveProjectFile, onUpdateProjectFile, onRestoreProjectFile, onUpdateProjectContext, onOpenSkills, onOpenLibrary, onOpenSchedules, onOpenComputers, onOpenBoard, onOpenAppearance, onOpenHomepage, onOpenArtefacts, onOpenCapabilities, skillCount, user, onSignOut, locale = 'en' }: Props) => {
   const { config } = useTenantTheme()
   const [query, setQuery] = useState('')
+  const [epicFilter, setEpicFilter] = useState<EpicFilter>('all')
   const [creatingProject, setCreatingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [projectContext, setProjectContext] = useState('')
@@ -118,12 +120,15 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
     const timer = window.setTimeout(() => { void listConversations(undefined, 50, query.trim()).then((result) => { if (active) setSearchResults(result.conversations) }) }, 180)
     return () => { active = false; window.clearTimeout(timer) }
   }, [query])
+  const epicOptions = useMemo(() => distinctEpics(conversations), [conversations])
+  const activeEpicFilter: EpicFilter = epicFilter !== 'all' && !epicOptions.includes(epicFilter) ? 'all' : epicFilter
   const visibleConversations = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase()
-    if (!normalized) return conversations
-    if (normalized.length >= 2) return searchResults
-    return conversations.filter((conversation) => conversation.title.toLocaleLowerCase().includes(normalized) || conversation.lastMessage?.preview.toLocaleLowerCase().includes(normalized))
-  }, [query, conversations, searchResults])
+    const base = !normalized ? conversations
+      : normalized.length >= 2 ? searchResults
+        : conversations.filter((conversation) => conversation.title.toLocaleLowerCase().includes(normalized) || conversation.lastMessage?.preview.toLocaleLowerCase().includes(normalized))
+    return activeEpicFilter === 'all' ? base : base.filter((conversation) => matchesEpicFilter(conversation, activeEpicFilter))
+  }, [query, conversations, searchResults, activeEpicFilter])
   const [now, setNow] = useState(Date.now())
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(id) }, [])
   const groupedConversations = useMemo(() => {
@@ -159,6 +164,12 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
     {projects.map((project) => <button key={project.id} className={`project-row ${project.id === activeProjectId ? 'selected' : ''}`} onClick={() => onSelectProject(project.id)}><FolderKanban size={14} /> <span>{project.name}</span></button>)}
     {activeProject && <><div className="project-knowledge"><input ref={projectFileInput} type="file" className="file-input" multiple onChange={(event) => { const files = event.target.files; if (files) void attachKnowledgeFiles(files); event.currentTarget.value = '' }} /><input ref={projectFolderInput} type="file" className="file-input" multiple onChange={(event) => { const files = event.target.files; if (files) void attachKnowledgeFiles(files); event.currentTarget.value = '' }} /><div><strong>Project knowledge</strong><span>{activeProject.files?.length ?? 0}/12 reusable files</span></div><aside><button type="button" onClick={() => projectFileInput.current?.click()}>Attach</button><button type="button" onClick={() => projectFolderInput.current?.click()}>Folder</button></aside></div>{activeProject.files.length > 0 && <div className="project-file-list">{activeProject.files.map((file) => <div key={file.path}><span title={file.path}>{file.name}</span><aside><button type="button" title={`Edit ${file.name}`} aria-label={`Edit ${file.name} in project knowledge`} onClick={() => { setProjectFileError(''); setProjectFileVersions([]); setProjectFileHistoryOpen(false); void getProjectFile(activeProject.id, file.path).then((result) => setEditingProjectFile({ name: file.name, ...result })).catch((error: unknown) => setProjectFileError(error instanceof Error ? error.message : 'Unable to open project knowledge')) }}><Pencil size={11} /></button><button type="button" title={`Remove ${file.name} from future task context`} aria-label={`Remove ${file.name} from project knowledge`} onClick={() => void onRemoveProjectFile(activeProject.id, file.path)}><X size={11} /></button></aside></div>)}</div>}{editingProjectFile && <form className="project-file-editor" onSubmit={(event) => { event.preventDefault(); setProjectFileError(''); void onUpdateProjectFile(activeProject.id, editingProjectFile.path, editingProjectFile.content, editingProjectFile.contentHash).then(() => setEditingProjectFile(undefined)).catch((error: unknown) => setProjectFileError(error instanceof Error ? error.message : 'Unable to save project knowledge')) }}><header><strong>Edit {editingProjectFile.name}</strong><button type="button" onClick={() => setEditingProjectFile(undefined)} aria-label="Close project knowledge editor"><X size={11} /></button></header><textarea value={editingProjectFile.content} onChange={(event) => setEditingProjectFile((current) => current ? { ...current, content: event.target.value } : current)} maxLength={60000} rows={6} /><small>Text-only · changes apply to future tasks. Revisions are local to this project.</small>{projectFileError && <em>{projectFileError}</em>}<footer><button type="button" onClick={() => { const nextOpen = !projectFileHistoryOpen; setProjectFileHistoryOpen(nextOpen); if (nextOpen) void listProjectFileVersions(activeProject.id, editingProjectFile.path).then((result) => setProjectFileVersions(result.versions)).catch((error: unknown) => setProjectFileError(error instanceof Error ? error.message : 'Unable to load revisions')) }}>History</button><button type="submit">Save knowledge</button></footer>{projectFileHistoryOpen && <div className="project-file-history">{projectFileVersions.length ? projectFileVersions.map((version) => <button type="button" key={version.id} onClick={() => { setProjectFileError(''); void onRestoreProjectFile(activeProject.id, editingProjectFile.path, version.id, editingProjectFile.contentHash).then((result) => { setEditingProjectFile((current) => current ? { ...current, ...result } : current); setProjectFileHistoryOpen(false) }).catch((error: unknown) => setProjectFileError(error instanceof Error ? error.message : 'Unable to restore revision')) }}><span>Restore</span><small>{new Date(version.createdAt).toLocaleString()} · {Math.ceil(version.size / 1024)} KB</small></button>) : <p>No prior revisions.</p>}</div>}</form>}{projectFileError && !editingProjectFile && <p className="project-file-error">{projectFileError}</p>}<div className="project-brief"><button type="button" onClick={() => { setProjectContextDraft(activeProject.context); setEditingProjectContext((value) => !value) }}>{editingProjectContext ? 'Close brief' : 'Edit brief'}</button>{editingProjectContext && <form onSubmit={(event) => { event.preventDefault(); void onUpdateProjectContext(activeProject.id, projectContextDraft.trim()).then(() => setEditingProjectContext(false)) }}><textarea value={projectContextDraft} onChange={(event) => setProjectContextDraft(event.target.value)} maxLength={8000} rows={3} placeholder="Governed background for future tasks" /><button type="submit">Save brief</button></form>}</div></>}
     <div className="nav-section-label"><span>Conversations</span></div>
+    {epicOptions.length > 0 && (
+      <div className="epic-filter-row" role="group" aria-label={t('epicFilter', locale)}>
+        <button type="button" className={`epic-filter-pill ${activeEpicFilter === 'all' ? 'active' : ''}`} onClick={() => setEpicFilter('all')}>{t('allEpics', locale)}</button>
+        {epicOptions.map((epic) => <button key={epic} type="button" className={`epic-filter-pill ${activeEpicFilter === epic ? 'active' : ''}`} onClick={() => setEpicFilter(epic)}>{epic}</button>)}
+      </div>
+    )}
     <div className="task-list">
       {visibleConversations.length === 0 && <p className="empty-sidebar">{query ? 'No matching conversations.' : 'Your work will appear here.'}</p>}
       {groupedConversations.map((group) => (
@@ -176,7 +187,7 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
               >
                 <span className={`task-status ${conversation.status}`} aria-hidden="true" />
                 <span className="task-row-icon" aria-hidden="true"><ModeIcon size={13} /></span>
-                <span className="task-row-body"><strong>{conversation.title}</strong>{conversation.lastMessage && <small>{conversation.lastMessage.role === 'user' ? 'You' : 'ONEVibe'} · {conversation.lastMessage.preview}</small>}
+                <span className="task-row-body">{conversation.epicLabel && <span className="epic-chip">{conversation.epicLabel}</span>}<strong>{conversation.title}</strong>{conversation.lastMessage && <small>{conversation.lastMessage.role === 'user' ? 'You' : 'ONEVibe'} · {conversation.lastMessage.preview}</small>}
                   {(conversation.priority || (conversation.labels?.length ?? 0) > 0) && (
                     <span className="task-row-chips">
                       {conversation.priority && <span className="priority-chip" data-priority={conversation.priority}>{conversation.priority}</span>}

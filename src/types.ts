@@ -56,6 +56,8 @@ export type ConversationSummary = {
   projectId: string
   priority?: TaskPriority | null
   labels?: string[]
+  epicId?: string
+  epicLabel?: string
   parentTaskId?: string
   forkedFromMessageId?: string
   messageCount: number
@@ -77,6 +79,8 @@ export type Task = {
   priority?: TaskPriority | null
   labels?: string[]
   assignedAgent?: string
+  epicId?: string
+  epicLabel?: string
   queuedGuidance: Array<{ id: string; prompt: string; attachmentPaths: string[]; createdAt: string }>
   projectId: string
   parentTaskId?: string

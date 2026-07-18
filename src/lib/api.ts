@@ -178,6 +178,9 @@ export const updateTaskTags = async (taskId: string, tags: string[]) =>
 export const assignTaskAgent = async (taskId: string, assignedAgent: string | null) =>
   parse<Task>(await fetch(`/api/tasks/${taskId}/agent`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedAgent }) }))
 
+export const updateTaskEpic = async (taskId: string, epic: { epicId: string | null; epicLabel: string | null }) =>
+  parse<Task>(await fetch(`/api/tasks/${taskId}/epic`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(epic) }))
+
 export const sendFollowUp = async (taskId: string, prompt: string, attachments: Array<Pick<TaskAttachment, 'name' | 'mimeType'> & { dataBase64: string }> = []) =>
   parse<{ status: string; taskId: string }>(await fetch(`/api/tasks/${taskId}/messages`, {
     method: 'POST',
