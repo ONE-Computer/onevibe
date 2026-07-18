@@ -174,7 +174,14 @@ export const Sidebar = ({ view, conversations, activeTaskId, onNewTask, onClose,
               >
                 <span className={`task-status ${conversation.status}`} aria-hidden="true" />
                 <span className="task-row-icon" aria-hidden="true"><ModeIcon size={13} /></span>
-                <span className="task-row-body"><strong>{conversation.title}</strong>{conversation.lastMessage && <small>{conversation.lastMessage.role === 'user' ? 'You' : 'ONEVibe'} · {conversation.lastMessage.preview}</small>}</span>
+                <span className="task-row-body"><strong>{conversation.title}</strong>{conversation.lastMessage && <small>{conversation.lastMessage.role === 'user' ? 'You' : 'ONEVibe'} · {conversation.lastMessage.preview}</small>}
+                  {(conversation.priority || (conversation.labels?.length ?? 0) > 0) && (
+                    <span className="task-row-chips">
+                      {conversation.priority && <span className="priority-chip" data-priority={conversation.priority}>{conversation.priority}</span>}
+                      {conversation.labels?.map((label) => <span key={label} className="label-chip">{label}</span>)}
+                    </span>
+                  )}
+                </span>
                 <time className="task-row-time" dateTime={conversation.updatedAt}>{relativeShort(conversation.updatedAt, now)}</time>
               </motion.button>
             )

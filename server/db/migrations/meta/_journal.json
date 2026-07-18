@@ -99,6 +99,13 @@
       "when": 1784267627792,
       "tag": "0013_perfect_namorita",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784351107571,
+      "tag": "0014_friendly_phantom_reporter",
+      "breakpoints": true
     }
   ]
 }

@@ -127,6 +127,8 @@ export const task = pgTable('task', {
   status: text('status').notNull(),
   skillsJson: jsonb('skills_json').notNull().default([]),
   tagsJson: jsonb('tags_json').notNull().default([]),
+  priority: text('priority'),
+  labelsJson: jsonb('labels_json').notNull().default([]),
   queuedGuidanceJson: jsonb('queued_guidance_json').notNull().default([]),
   referencesJson: jsonb('references_json').notNull().default([]),
   attachmentsJson: jsonb('attachments_json').notNull().default([]),

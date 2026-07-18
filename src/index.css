@@ -1126,3 +1126,12 @@ button.model-selector *{color:inherit}
 .capability-card-footer{margin-top:8px}
 .capability-run-btn{padding:4px 12px;border-radius:var(--radius-6px);background:var(--accent);color:var(--accent-ink);border:none;font:500 12px var(--font-ui);cursor:not-allowed;opacity:.45}
 .capabilities-empty{font-size:13px;color:var(--text-muted);grid-column:1/-1}
+
+/* P12-02: task priority + label chips */
+.task-row-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.priority-chip{font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:var(--radius-4px);line-height:1.4}
+.priority-chip[data-priority=urgent]{color:var(--red);background:color-mix(in srgb,var(--red) 12%,transparent)}
+.priority-chip[data-priority=high]{color:var(--amber);background:color-mix(in srgb,var(--amber) 12%,transparent)}
+.priority-chip[data-priority=medium]{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.priority-chip[data-priority=low]{color:var(--text-faint);background:var(--surface-hover)}
+.label-chip{font-size:9px;padding:1px 6px;border-radius:var(--radius-4px);background:var(--surface-hover);color:var(--text-muted);line-height:1.4}

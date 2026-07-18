@@ -7,6 +7,8 @@ export type RunStatus =
   | 'failed'
   | 'cancelled'
 
+export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low'
+
 export type ConversationSummary = {
   id: string
   title: string
@@ -14,6 +16,8 @@ export type ConversationSummary = {
   provider: Task['provider']
   mode: TaskMode
   projectId: string
+  priority?: TaskPriority | null
+  labels?: string[]
   parentTaskId?: string
   forkedFromMessageId?: string
   messageCount: number
@@ -168,6 +172,8 @@ export type Task = {
   mode: TaskMode
   skills: TaskSkill[]
   tags: string[]
+  priority?: TaskPriority | null
+  labels?: string[]
   queuedGuidance: Array<{ id: string; prompt: string; attachmentPaths: string[]; createdAt: string; operationId?: string; operationKey?: string }>
   projectId: string
   parentTaskId?: string

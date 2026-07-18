@@ -45,6 +45,8 @@ export type WorkspaceVersion = { id: string; taskId: string; label: string; crea
 export type WorkspaceVersionComparison = { version: WorkspaceVersion; comparedAt: string; summary: { added: number; changed: number; removed: number }; changes: Array<{ path: string; status: 'added' | 'changed' | 'removed'; beforeSize?: number; afterSize?: number; beforeHash?: string; afterHash?: string }>; truncated: boolean }
 export type ChatMessage = { id: string; taskId: string; turnId: string; role: 'user' | 'assistant' | 'system'; content: string; status: 'streaming' | 'completed' | 'failed' | 'cancelled'; provider?: Task['provider']; createdAt: string; updatedAt: string }
 
+export type TaskPriority = 'urgent' | 'high' | 'medium' | 'low'
+
 export type ConversationSummary = {
   id: string
   title: string
@@ -52,6 +54,8 @@ export type ConversationSummary = {
   provider: Task['provider']
   mode: TaskMode
   projectId: string
+  priority?: TaskPriority | null
+  labels?: string[]
   parentTaskId?: string
   forkedFromMessageId?: string
   messageCount: number
@@ -70,6 +74,8 @@ export type Task = {
   mode: TaskMode
   skills: TaskSkill[]
   tags: string[]
+  priority?: TaskPriority | null
+  labels?: string[]
   queuedGuidance: Array<{ id: string; prompt: string; attachmentPaths: string[]; createdAt: string }>
   projectId: string
   parentTaskId?: string

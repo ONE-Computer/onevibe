@@ -372,6 +372,8 @@ export class TaskStore {
       const updatedAt = last && last.updatedAt > task.updatedAt ? last.updatedAt : task.updatedAt
       return {
         id: task.id, title: task.title, status: task.status, provider: task.provider, mode: task.mode, projectId: task.projectId,
+        ...(task.priority ? { priority: task.priority } : {}),
+        ...(task.labels?.length ? { labels: task.labels } : {}),
         ...(task.parentTaskId ? { parentTaskId: task.parentTaskId } : {}),
         ...(task.forkedFromMessageId ? { forkedFromMessageId: task.forkedFromMessageId } : {}),
         messageCount: messages.length,
