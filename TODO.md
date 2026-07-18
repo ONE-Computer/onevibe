@@ -678,6 +678,67 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ---
 
+## Phase 19 — Enterprise app replacement: ONEVibe vs SAP / Workday / Concur / ServiceNow
+> Added 2026-07-18. Root-cause analysis of six dominant enterprise platforms (SAP S/4HANA, Workday, SAP SuccessFactors, SAP Concur, ServiceNow, Oracle HCM) reveals six structural failures shared across all of them: (1) buyer-user divorce — procurement evaluates features, not usability; (2) database-first design — T-codes, form-per-table, component hierarchies expose the data model to the user instead of the job-to-be-done; (3) compliance-owned workflows — every step exists for an auditor, not the employee; (4) acquisition archipelagos — six different data models stitched by SSO sold as a "platform"; (5) customisation as design strategy — implementation partners bespoke-configure what the base product couldn't handle; (6) mobile and async were never design constraints. The result: employees escape to Excel, WhatsApp, and shadow SaaS for every real workflow. ONEVibe's answer: mini-apps built for the job-to-be-done, AI executes compliance invisibly, vibe-to-build so employees self-serve, and push approvals on mobile so the audit trail is never the bottleneck.
+
+### P19-0 — Foundation
+- [ ] **P19-00** Enterprise pain-point audit doc — produce `docs/ENTERPRISE-PAIN-POINTS.md`: six-platform gap table (each platform → top 3 user complaints → structural root cause → shadow IT escape hatch → how ONEVibe solves it). This is the internal reference for every P19 mini-app design decision and the sales comparison foundation.
+
+### P19-A — Expense reporting (Concur → ONEVibe)
+> Concur forces employees through 14 steps for a $12 lunch because it is a compliance tool for auditors, not a submission tool for employees. ONEVibe collapses it to: capture → confirm → done.
+
+- [ ] **P19-01** Receipt capture + AI expense mini-app — employee photographs a receipt (or forwards an email receipt); AI extracts merchant, amount, date, and suggests expense category from company policy. Employee confirms or edits in a single card view. No manual GL coding. No "expense type from 40 options." GL code is resolved by the AI from policy rules; if ambiguous, the card shows the two most likely options. Reimbursable vs non-reimbursable is surfaced immediately, not at approval time. Write `docs/EXPENSE-MINI-APP.md`.
+
+- [ ] **P19-02** Smart approval routing — after employee confirms, the expense routes to the correct approver (resolved from org chart + policy, not a manually-configured email chain). Approver receives a push notification (P18-04 mobile push) showing: amount, merchant, category, policy status (compliant/flagged), employee name. One-tap approve or reject. No email thread. No logging into Concur to see a queue. If the approver is out of office, the system escalates automatically after 24h — no employee needs to chase. Write `docs/EXPENSE-APPROVAL.md`.
+
+- [ ] **P19-03** Direct payroll sync — approved expenses queue for reimbursement in the next payroll cycle. Finance sees a daily reconciliation report (structured export matching GL codes) without touching the original expense cards. Employee gets a push confirmation when the reimbursement is queued. No re-entry into a finance portal. The audit trail (receipt, AI extraction confidence, employee confirmation, approver identity + timestamp, AAL2 evidence if above threshold) is written automatically to the ONEVibe audit event bus. Write `docs/EXPENSE-PAYROLL-SYNC.md`.
+
+### P19-B — HR self-service (Workday → ONEVibe)
+> Workday requires employees to submit requests to HR who processes them on behalf of employees. ONEVibe makes every HR transaction self-service in under 60 seconds.
+
+- [ ] **P19-04** Leave request mini-app — employee says "I want 3 days off next week" (NL or calendar picker); AI checks leave balance, flags public holidays or team conflicts, and surfaces the result before submission. One-tap submit. Manager receives a push card showing: dates, balance impact, team coverage. One-tap approve. Calendar event created on approval. No training required. No navigating HR module sub-menus. Write `docs/LEAVE-MINI-APP.md`.
+
+- [ ] **P19-05** Team scheduling and shift management — for managers of hourly workers (manufacturing, retail, operations): a single scheduling canvas shows the full team for the week. Drag-and-drop shift assignment. AI detects conflicts (double-booked, insufficient rest, skill mismatch against shift requirements). Bulk operations: copy last week's schedule, auto-fill gaps, swap two employees. Publish in one action — all affected employees receive push notifications. This is the feature Workday cannot do (one person at a time), which drives managers to WhatsApp. Write `docs/SCHEDULING-MINI-APP.md`.
+
+- [ ] **P19-06** Payslip + benefits self-service — employee views current and historical payslips, tax documents, benefits elections, and total compensation breakdown in a mobile-native card view. Benefits enrolment (open enrolment period) walks through choices in plain language with AI explanations ("if you choose Plan B, your monthly cost is X and your family deductible is Y — here is how it compares to Plan A"). No benefits-broker portal login. No PDF hunt. Write `docs/PAYSLIP-BENEFITS.md`.
+
+### P19-C — IT service desk (ServiceNow → ONEVibe)
+> ServiceNow's employee portal is a read-only consumer layer grafted onto an IT-operations platform. ONEVibe makes the agent the first-responder, with a human ticket as the fallback, not the default.
+
+- [ ] **P19-07** Natural language incident submission — employee types "my laptop screen has dead pixels" or "I can't connect to the VPN from the Singapore office". The AI classifies the incident (hardware fault / connectivity / access / software), checks the knowledge base for a self-service fix, and either (a) walks the employee through the fix with step-by-step instructions, or (b) creates a structured ticket routed to the correct IT queue with all diagnostic context pre-filled. No form. No drop-down classification. No "priority" field the employee has to guess. Write `docs/IT-INCIDENT.md`.
+
+- [ ] **P19-08** AI first-responder — for the 90% of IT incidents that have a known resolution (password reset, VPN config, printer driver, account unlock), the agent resolves the issue directly without creating a human ticket: it initiates the password reset flow, pushes the correct VPN profile, links the correct driver download with installation steps. Human ticket created only when AI resolution fails or the employee explicitly requests it. This inverts the ServiceNow model (every request is a ticket) to: most requests are resolved before a ticket exists. Write `docs/IT-AI-FIRSTRESPONDER.md`.
+
+- [ ] **P19-09** Transparent ticket status with push updates — when a human ticket is created, the employee receives push notifications at each status transition (assigned → in progress → resolved), not a daily email digest. The status card shows: assigned technician, expected resolution time, current step. Employee can add context or mark resolved from the push card — no login to a portal required. Notification volume is controlled: one push per status change, not 12 emails per ticket. Write `docs/IT-TICKET-STATUS.md`.
+
+### P19-D — Performance and learning (SuccessFactors → ONEVibe)
+> SuccessFactors is six acquisitions stitched by SSO. Each module has a different data model. Goals don't connect to learning. Learning doesn't connect to performance. Performance doesn't connect to career. ONEVibe treats them as one continuous employee development loop.
+
+- [ ] **P19-10** Goal vibe builder — employee describes their work goals in plain language ("I want to become a team lead by end of year" or "reduce my team's incident response time by 30%"). AI structures them into SMART goals, suggests alignment with team OKRs (pulled from project board), and flags goals that are too vague to measure. Manager reviews a card — not a form with 12 fields — and confirms or suggests refinement. Mid-year check-in is a push card with the original goals and a "how is this tracking?" prompt. Write `docs/GOAL-VIBE-BUILDER.md`.
+
+- [ ] **P19-11** Continuous feedback widget — micro-feedback between formal review cycles: employee or manager sends a 2-sentence feedback card ("great work on the client presentation — next time, lead with the data") attached to a specific project or task. Recipient sees it in their development timeline, not buried in an email thread. At year-end, the structured feedback history is available in the performance review — not "what did you achieve this year?" starting from a blank text box. Write `docs/CONTINUOUS-FEEDBACK.md`.
+
+- [ ] **P19-12** Personalised learning path mini-app — AI recommends courses, articles, and skills based on the employee's role, stated goals (P19-10), recent feedback (P19-11), and skill gaps relative to their target role. Learning content is aggregated from the org's LMS plus curated external sources (Coursera, LinkedIn Learning, internal video library). Employee sees a prioritised "3 things to learn this week" card, not a static catalogue of 10,000 items. Completion syncs to the performance record automatically. Write `docs/LEARNING-PATH.md`.
+
+### P19-E — Procurement and approvals (SAP → ONEVibe)
+> SAP forces employees to think in data structures (material master, cost centre, plant code, GL code) for tasks that are conceptually simple. ONEVibe captures intent and resolves structure invisibly.
+
+- [ ] **P19-13** Intent-to-purchase mini-app — employee types "I need a standing desk for the Singapore office, budget around $800." AI drafts the purchase request: suggests vendor(s) from preferred vendor list, fills in GL code from cost centre policy, sets the approval threshold check, and presents a single confirmation card. Employee confirms. Manager (or finance, if above threshold) receives a push approval card. On approval, the structured PO is generated and sent to procurement — employee never touches a SAP form. Write `docs/PURCHASE-MINI-APP.md`.
+
+- [ ] **P19-14** Unified approval card stack — every pending approval (expense, leave, purchase, document sign-off, agent action, access request) surfaces in a single card inbox — mobile-native, with push notifications. Cards are sorted by urgency and deadline. Each card shows: what is being approved, who requested it, the key decision data, and the policy context ("this is within budget policy" / "this requires AAL2 step-up"). Approve or reject with a single tap (AAL2 biometric where required by P18-06). No context-switching between five separate portals to clear an approval queue. Write `docs/APPROVAL-INBOX.md`.
+
+### P19-F — Platform engine (AI-in-loop)
+> The above mini-apps share two reusable engine components: an intent-to-workflow interpreter (NL → structured process) and a shadow-IT migration kit (existing Excel/email workflows → ONEVibe mini-apps). These are platform primitives, not vertical features.
+
+- [ ] **P19-15** Intent-to-workflow engine — NL task description from an employee ("submit my travel expenses for the Singapore trip") is parsed into a structured workflow: identify workflow type → select mini-app template → pre-fill context from available data (calendar events, email receipts, org chart) → present to employee for confirmation. Employee sees a pre-filled card, not a blank form. This engine generalises across all P19 mini-apps and is the foundational capability that makes self-service possible without training. Write `docs/INTENT-TO-WORKFLOW.md`.
+
+- [ ] **P19-16** Shadow IT migration kit — when an employee uploads an Excel file or shares a Google Sheet that is clearly acting as a workflow tracker (expense log, shift rota, leave tracker, purchase log), the AI offers to convert it to an ONEVibe mini-app: "This looks like an expense tracker. Want me to create a proper expense submission flow for your team?" Migration preserves existing data, maps columns to mini-app fields, and sets up the approval chain from the org chart. This converts shadow SaaS back to governed ONEVibe workflows without IT involvement. Write `docs/SHADOW-IT-MIGRATION.md`.
+
+### P19-G — Sign-off
+- [ ] **P19-17** vs. SAP Concur / Workday / ServiceNow / SuccessFactors comparison doc — produce `docs/ENTERPRISE-VS-COMPARISON.md`: for each of the five platforms (SAP S/4HANA, Workday, SAP SuccessFactors, SAP Concur, ServiceNow), a capability table: what each platform does, what ONEVibe does, and the structural advantage. Key claim to substantiate per platform: (Concur) 14 steps → 3 steps + AI; (Workday) one-at-a-time bulk ops → single scheduling canvas; (ServiceNow) every request is a ticket → agent resolves before ticket exists; (SuccessFactors) six-acquisition data silos → one connected employee development loop; (SAP) T-code data model exposed → intent captured, structure resolved invisibly. This is the document that answers "why replace SAP" for an enterprise CIO.
+
+---
+
 ## Ongoing
 
 - [ ] **ONG-01** All 50 UX issues from `plan/00-gap-analysis.md` — track each to resolution

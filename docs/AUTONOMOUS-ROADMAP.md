@@ -36,6 +36,26 @@ The platform is **not** three products. It is one platform with three concerns. 
 
 ---
 
+## Phase 19 — Enterprise app replacement: ONEVibe vs SAP / Workday / Concur / ServiceNow
+> Added 2026-07-18. Root cause: six dominant enterprise platforms (SAP S/4HANA, Workday, SuccessFactors, Concur, ServiceNow, Oracle HCM) share six structural failures — buyer-user divorce, database-first design (T-codes, form-per-table, component hierarchies), compliance-owned workflows, acquisition archipelagos with incompatible data models, bespoke-customisation-as-strategy, and mobile/async never designed in. Result: employees escape to Excel, WhatsApp, and shadow SaaS for every real workflow. ONEVibe answers with mini-apps built for the job-to-be-done: intent captured, compliance executed invisibly by AI, push approvals on mobile, vibe-to-build for self-service.
+
+**North star: an employee submits expenses, requests leave, reports an IT issue, and sets their goals without training, without a portal login, and without touching a form.**
+
+| Section | Items | Enterprise target |
+|---|---|---|
+| P19-0 Foundation (P19-00) | 1 item | Enterprise pain-point audit doc — six-platform gap table |
+| P19-A Expense (P19-01/02/03) | 3 items | SAP Concur: 14 steps → 3 steps + AI |
+| P19-B HR self-service (P19-04/05/06) | 3 items | Workday: one-at-a-time bulk ops → scheduling canvas + self-service |
+| P19-C IT service desk (P19-07/08/09) | 3 items | ServiceNow: every request is a ticket → agent resolves before ticket exists |
+| P19-D Performance + learning (P19-10/11/12) | 3 items | SuccessFactors: 6-acquisition data silos → one connected development loop |
+| P19-E Procurement (P19-13/14) | 2 items | SAP: T-code data model exposed → intent captured, structure resolved invisibly |
+| P19-F Platform engine (P19-15/16) | 2 items | Intent-to-workflow engine + shadow IT migration kit |
+| P19-G Sign-off (P19-17) | 1 item | vs. SAP/Workday/ServiceNow/SuccessFactors/Concur comparison doc |
+
+**Total: 18 items. The six root causes apply to all five platforms — fixing them once in ONEVibe's mini-app engine fixes all five.**
+
+---
+
 ## Phase 18 — ONEVibe Mobile: supercharged Okta + corporate super-app
 > Added 2026-07-18. Security foundations already real in `verifiable-trust-infrastructure/vta-mobile-core`: UniFFI iOS/Android engine, Secure Enclave/StrongBox key custody, biometric-gated signing, WebAuthn via DID document (no server-side registry), DIDComm v2 push, AAL step-up approve-response Trust Tasks, APNs/FCM wake-up. This is not a greenfield mobile project — the crypto is done.
 
