@@ -40,6 +40,18 @@ git push private main
 Never push to `origin` — that is the public repo, only the PM pushes there.
 Push frequency: after every outcome commit. Do not batch multiple commits before pushing.
 
+## Model inference — HARD RULE
+
+**Never install or use local model inference.** No ollama, llama.cpp, llamafile, LM Studio, GGUF weights, or any tool that runs model weights locally.
+
+**Why:** We have no GPU. The Azure VM is CPU-only. Local inference is too slow to be useful and produces misleading benchmarks.
+
+**All model calls — including Hermes, Kimi, Claude, or any other model used in spikes or production — must go through the LiteLLM router:**
+- Local Mac: `http://127.0.0.1:4100/v1`
+- Azure VM: `http://127.0.0.1:47821/v1`
+
+If a specific model is not registered, check available routes via `GET /v1/models` and use what is available. Do not pull weights locally as a workaround.
+
 ## Architecture invariants
 - `server/runtime-adapter.ts` is the sacred provider-neutral boundary. Never leak harness concepts above it.
 - All model traffic must traverse LiteLLM at `http://127.0.0.1:4100`. No direct provider calls.
