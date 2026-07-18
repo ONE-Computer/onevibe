@@ -479,6 +479,48 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ---
 
+## Phase 15 — OpenCowork feature parity
+**Target: rigorous study of AIDotNet/OpenCowork (`github.com/AIDotNet/OpenCowork`, 563 stars, Apache-2.0, Electron + React 19) and systematic port of every capability that ONEVibe lacks or does partially. OpenCowork is the most feature-complete open-source AI cowork desktop runtime. ONEVibe's advantage is web-first, multi-user, cloud-connected, and governed — but OpenCowork has deep agent UX patterns worth learning from and matching.**
+**Method: study → gap-list → implement in priority order → verify feature parity per item. No shortcuts. Each item gets a screenshot comparison: OpenCowork vs ONEVibe.**
+
+### P15-A — Study and gap analysis
+- [ ] **P15-01** Deep feature audit — clone `AIDotNet/OpenCowork`, run it locally (Electron), and produce `docs/OPENCOWORK-AUDIT.md`: full feature inventory with screenshot evidence, mapped against ONEVibe's current state. Column per feature: OpenCowork behaviour → ONEVibe current state → gap size (none / partial / missing). Also reference `Safphere/opencowork` (332 stars) and `opencowork-ai/opencowork` (64 stars, VM-level sandboxing) for any features the AIDotNet version lacks.
+
+### P15-B — Agent modes and plan mode
+- [ ] **P15-02** Agent modes — OpenCowork has 4 modes: `clarify` (ask clarifying questions before acting), `cowork` (collaborative, human in the loop), `code` (pure coding agent), `acp` (architecture lead, plans before implementing). Add a mode selector to ONEVibe's task creation flow. Each mode sets the agent's system prompt posture and controls when it pauses for user input vs runs autonomously.
+
+- [ ] **P15-03** Plan Mode — before executing a non-trivial task, the agent enters Plan Mode: writes out its intended approach as a reviewable plan, pauses, and waits for user approval (`EnterPlanMode` / `ExitPlanMode` pattern from OpenCowork). User can edit the plan inline. Only after approval does the agent execute. This is the most important UX safety gate for professional users who need to review before the agent touches anything.
+
+### P15-C — Memory system
+- [ ] **P15-04** Global agent memory (SOUL/USER/MEMORY) — implement the OpenCowork memory model: `SOUL.md` (agent's personality/values, operator-set), `USER.md` (what the agent has learned about this user, auto-updated), `MEMORY.md` (indexed knowledge store with per-entry recall score). Expose `USER.md` and `MEMORY.md` in the ONEVibe Memory page (P9-22) as editable entries with "Learned on" timestamps. `SOUL.md` is admin-only.
+
+- [ ] **P15-05** Per-project memory override — each ONEVibe project can have a `.agents/` folder with project-scoped memory that overrides global memory for tasks within that project. Useful for investment research: project "TSMC Q3 Research" has its own context that doesn't bleed into "Portfolio Review."
+
+### P15-D — Team tools and multi-agent messaging
+- [ ] **P15-06** Team tools (`TeamCreate`, `SendMessage`, `TeamStatus`) — agents can spawn named sub-agent teams for parallel work within a single task. The task view shows a "Team" panel with each active sub-agent, their current status, and their output stream. Sub-agents report back to the lead agent. This closes the gap with OpenCowork's parallel delegation pattern.
+
+- [ ] **P15-07** Messaging integrations — OpenCowork supports 8 messaging channels (Feishu, DingTalk, Discord, Telegram, WeCom, WhatsApp, WeChat Official, QQ). ONEVibe should support at minimum: **Slack** (most relevant for investment/banking), **Teams** (enterprise), and **Telegram** (personal). Wire these as notification + command channels: agent sends a task completion summary to Slack; user can reply to continue the task from Slack.
+
+### P15-E — Built-in browser and SSH remote
+- [ ] **P15-08** Built-in browser tool — OpenCowork's browser tool (`navigate`, `snapshot`, `click`, `type`, `content extract`) runs inside the agent loop as a native tool, not via MCP. ONEVibe should expose the same capability: a `browser` tool that agents can call directly (backed by Playwright headless, which we've already installed). Snapshot returns the accessibility tree; click/type interact with live pages. This enables agents to do web research, form submission, and scraping inline.
+
+- [ ] **P15-09** SSH remote host management — OpenCowork allows registering remote SSH hosts; agents can run `Bash` commands on them directly. Wire this into ONEVibe: a "Remote Hosts" section in Computers view where users can register SSH credentials. The Azure VM (23.102.117.5) is the first entry. Agent tasks can specify `remoteHost: azure` to run bash commands on the registered server instead of local.
+
+### P15-F — Cron agent and goal tracking
+- [ ] **P15-10** Cron agent — ONEVibe has scheduled tasks, but OpenCowork's Cron Agent runs persistent background agents on a schedule with full tool access. Wire a `CronAgent` mode into the scheduler: tasks scheduled with this mode get a full agent runtime on each trigger (not just a prompt — a real agentic run with tools, memory access, and artefact output).
+
+- [ ] **P15-11** Goal tracking with token budget — OpenCowork tracks agent goals and token consumption per run. Add a goal statement field to tasks (`goal: "Summarise all Q3 earnings calls for the portfolio"`) and a token budget cap per run. The task view shows goal progress, tokens used vs budget, and a "Goal achieved?" verdict from the agent at completion.
+
+### P15-G — Custom plugins and i18n
+- [ ] **P15-12** Custom plugin tools — OpenCowork supports declarative HTTP tools (define a REST endpoint as an agent tool via JSON), sandboxed JS handlers, and custom HTML renderers. Port this as ONEVibe's "Custom Tool" builder: a UI where users define HTTP tools (URL, method, headers, body template) that become available to agents as callable tools. No code required. Investment use case: wire a Bloomberg terminal API as a custom tool.
+
+- [ ] **P15-13** Full i18n parity — OpenCowork supports 13+ languages. ONEVibe has `en` and `zh` in `src/lib/i18n.ts`. Extend to at least: `ja` (Japanese), `ko` (Korean), `de` (German), `fr` (French), `es` (Spanish), `ar` (Arabic, RTL). Wire a language picker in settings. Investment/banking users are global.
+
+### P15-H — Feature parity sign-off
+- [ ] **P15-14** Parity sign-off doc — after all items complete, produce `docs/OPENCOWORK-PARITY.md`: side-by-side feature table, screenshot evidence for each item, and a clear statement of where ONEVibe exceeds OpenCowork (web-first, multi-user, OAuth connectors, VTI governance, Univer sheets, A2A agent spawning) and where parity was achieved. This is the document that says "we studied the best open-source reference and matched it."
+
+---
+
 ## Ongoing
 
 - [ ] **ONG-01** All 50 UX issues from `plan/00-gap-analysis.md` — track each to resolution

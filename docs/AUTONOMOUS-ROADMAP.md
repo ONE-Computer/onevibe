@@ -36,6 +36,26 @@ The platform is **not** three products. It is one platform with three concerns. 
 
 ---
 
+## Phase 15 — OpenCowork feature parity
+> Added 2026-07-18. Reference: AIDotNet/OpenCowork (563★, Apache-2.0, Electron+React19). Study → gap → implement → screenshot evidence per item.
+
+| ID | Title | Gap vs ONEVibe |
+|---|---|---|
+| P15-01 | Deep feature audit | Full gap list with screenshots |
+| P15-02 | Agent modes (clarify/cowork/code/acp) | Missing — ONEVibe has no mode selector |
+| P15-03 | Plan Mode | Missing — agents execute without review step |
+| P15-04 | Global memory (SOUL/USER/MEMORY) | Partial — memory page not wired to agent |
+| P15-05 | Per-project memory override | Missing |
+| P15-06 | Team tools (sub-agent delegation) | Missing |
+| P15-07 | Messaging integrations (Slack/Teams/Telegram) | Missing |
+| P15-08 | Built-in browser tool for agents | Partial — MCP only, not native tool |
+| P15-09 | SSH remote host management | Missing |
+| P15-10 | Cron agent (full agent runtime on schedule) | Partial — scheduler exists, no agentic run |
+| P15-11 | Goal tracking + token budget | Missing |
+| P15-12 | Custom plugin tools (declarative HTTP) | Missing |
+| P15-13 | i18n parity (13+ languages) | Partial — en/zh only |
+| P15-14 | Parity sign-off doc | Deliverable |
+
 ## Phase 14 — Univer SDK: agent-native spreadsheets and slides
 > Added 2026-07-18. Apache-2.0, React 18, `@univerjs/*`. `univer-mcp` for natural-language sheet control. Headless Node.js runtime for server-side agent workflows. Slides OSS tier still maturing — spike first.
 
