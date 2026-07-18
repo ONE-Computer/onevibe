@@ -403,6 +403,25 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ---
 
+## Phase 12 — Project board: humans + AI agents sharing a task queue
+**Target: ONEVibe becomes a workspace for managing multiple concurrent agent runs, not just a single-chat interface.**
+**Design reference: `docs/SYMPHONY-IDEAS-DESIGN-STUDY.md` (Linear/Symphony screenshots)**
+**Key insight from screenshots: AI agents are first-class assignees in Linear — tasks can be assigned to agents, and the board filters by agent/agent-session. ONEVibe should do the same.**
+
+- [ ] **P12-01** Project board view — Kanban + List toggle. Tasks grouped by status columns (Todo / In Progress / Done / Blocked). Each column has a count badge and `+` add button. Cards show: priority icon, task ID, truncated title, project tag chip, date, agent-assigned indicator if running. Toggle between Kanban columns and flat list view. Route: `/projects/:id/board`. The board is the primary entry point for investment professionals managing multiple parallel research tasks.
+
+- [ ] **P12-02** Task metadata enrichment — add structured metadata fields to tasks: `priority` (Urgent / High / Medium / Low), `labels` (string array), `projectId` (existing), and `brief` (a structured Scope + Acceptance block replacing the unstructured first message). Expose these in the task creation form and task detail panel. Store in the task record (SQLite + Postgres-compatible). Priority and labels show as chips in the task card and list row.
+
+- [ ] **P12-03** Agent assignment on tasks — tasks can be assigned to: (a) an AI agent (claude / codex / kimi-k3 / etc.), (b) a human user, or (c) both (human reviews agent output). When a task is assigned to an agent and the agent starts running, the card auto-moves to In Progress. When the run completes, the card moves to Done. The board's In Progress column shows all currently-running agent tasks live, with a `● live` indicator. An "Active now" cross-project panel (below the project board) shows all concurrent agent runs at a glance. Filter on the board: `Agent` (which agent) and `Agent Session` (specific run) — matching the Linear filter pattern in `symphony-C-board-agent-filter.png`.
+
+- [ ] **P12-04** Epic / project hierarchy breadcrumbs — when a task belongs to a project (already exists), show the project name as a breadcrumb in the task list and task detail header: `ONEVibe › Q3 Research › Task title`. For tasks nested under an epic (sprint group), show: `Project › Epic › Task`. Low visual weight — small text, no bold.
+
+- [ ] **P12-05** Inline status and priority chip pickers — in the task card (board view) and task list row, the status and priority are clickable chips that open an inline dropdown picker (no modal, no page navigation). Status: Todo → In Progress → Done → Blocked → Cancelled. Priority: Urgent / High / Medium / Low. Update via `PATCH /api/tasks/:id` (status and priority fields). Matching the frictionless Linear interaction model.
+
+- [ ] **P12-06** "Active now" cross-project panel — a persistent section in the ONEVibe home and sidebar showing all currently-running agent tasks across all projects. Each entry: `● live` indicator, agent name, truncated task title, project tag, elapsed time. Clicking opens the task in the board/detail view. Maximum 5 entries visible; "View all" expands. This is how an investment professional sees "what are my agents doing right now" without opening each project individually.
+
+---
+
 ## Ongoing
 
 - [ ] **ONG-01** All 50 UX issues from `plan/00-gap-analysis.md` — track each to resolution
