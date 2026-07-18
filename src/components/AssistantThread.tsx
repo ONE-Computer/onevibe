@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FC, type ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy, Download, Eye, FileText, LoaderCircle, Paperclip, Pencil, Presentation, ShieldCheck, Square, TriangleAlert, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy, Download, Eye, FileCode2, FileText, LoaderCircle, Image, Paperclip, Pencil, Presentation, ShieldCheck, Square, TriangleAlert, X } from 'lucide-react'
 import {
   AssistantRuntimeProvider,
   ActionBarPrimitive,
@@ -91,6 +91,59 @@ const WorkingTrace = () => {
   // traces collapse to a single review link so the calm assistant narrative
   // is not competing with an operational checklist by default.
   return <details className="aui-working-trace" open={running || undefined}><summary><span><ChevronDown className="aui-trace-chevron" size={12} /><ShieldCheck size={12} /> {running ? 'Working' : `Review working trace (${trace.length} step${trace.length === 1 ? '' : 's'})`}</span>{running && <em>live</em>}</summary><p className="aui-working-trace-note">Operational summaries and tool evidence from the provider stream. Hidden chain-of-thought is not exposed.</p><ol>{trace.map((item) => <li key={item.id} className={item.status}><span>{item.status === 'running' ? <LoaderCircle className="spin" size={12} /> : item.status === 'failed' ? <TriangleAlert size={12} /> : <CheckCircle2 size={12} />}</span><div><strong>{item.label}</strong>{item.detail && <TraceDetail detail={item.detail} />}</div><em>{item.status === 'running' ? 'Working' : item.status === 'failed' ? 'Failed' : 'Done'}</em></li>)}</ol></details>
+}
+
+const FILE_SUGGESTIONS = [
+  'Ask a follow-up question about this output',
+  'Save this as a reusable workflow',
+  'Share this as a PDF',
+  'Refine or extend this further',
+]
+
+type FileTabFilter = 'all' | 'documents' | 'images' | 'code' | 'links'
+const FILE_EXTS: Record<Exclude<FileTabFilter, 'all' | 'links'>, string[]> = {
+  documents: ['pdf', 'doc', 'docx', 'txt', 'md', 'csv', 'xlsx', 'pptx'],
+  images: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'],
+  code: ['ts', 'tsx', 'js', 'jsx', 'py', 'rs', 'go', 'json', 'yaml', 'yml', 'toml', 'sh', 'html', 'css'],
+}
+
+const fileExt = (path: string) => path.split('.').pop()?.toLowerCase() ?? ''
+const fileTabFor = (path: string): Exclude<FileTabFilter, 'all'> => {
+  const ext = fileExt(path)
+  if (FILE_EXTS.images.includes(ext)) return 'images'
+  if (FILE_EXTS.code.includes(ext)) return 'code'
+  if (FILE_EXTS.documents.includes(ext)) return 'documents'
+  return 'links'
+}
+const fileIcon = (path: string) => {
+  const tab = fileTabFor(path)
+  if (tab === 'images') return <Image size={14} />
+  if (tab === 'code') return <FileCode2 size={14} />
+  return <FileText size={14} />
+}
+
+const FilesModal = ({ files, onClose }: { files: { path: string; size: number }[]; onClose: () => void }) => {
+  const [tab, setTab] = useState<FileTabFilter>('all')
+  const visible = tab === 'all' ? files : files.filter((f) => fileTabFor(f.path) === tab)
+  const tabs: FileTabFilter[] = ['all', 'documents', 'images', 'code', 'links']
+  return <div className="aui-files-modal-backdrop" role="dialog" aria-modal onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="aui-files-modal">
+      <div className="aui-files-modal-header"><strong>Files from this task</strong><button type="button" onClick={onClose} aria-label="Close"><X size={14} /></button></div>
+      <div className="aui-files-modal-tabs">{tabs.map((t) => <button key={t} type="button" className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}</div>
+      <ul className="aui-files-modal-list">{visible.length ? visible.map((f) => <li key={f.path}><span>{fileIcon(f.path)}</span><span className="aui-file-name">{f.path.split('/').pop()}</span><small>{readableBytes(f.size) ?? '—'}</small></li>) : <li className="aui-files-empty">No {tab} files</li>}</ul>
+    </div>
+  </div>
+}
+
+const TaskCompletionBanner = ({ files, onSuggestion }: { files: { path: string; size: number }[]; onSuggestion: (text: string) => void }) => {
+  const [showModal, setShowModal] = useState(false)
+  const topFiles = files.slice(0, 3)
+  return <div className="aui-task-complete">
+    <div className="aui-task-complete-header"><CheckCircle2 size={16} /><strong>Task completed</strong></div>
+    {topFiles.length > 0 && <div className="aui-task-files">{topFiles.map((f) => <div key={f.path} className="aui-task-file-card"><span>{fileIcon(f.path)}</span><span>{f.path.split('/').pop()}</span><small>{readableBytes(f.size) ?? '—'}</small></div>)}{files.length > 0 && <button type="button" className="aui-task-files-link" onClick={() => setShowModal(true)}>View all files ({files.length})</button>}</div>}
+    <div className="aui-task-suggestions">{FILE_SUGGESTIONS.slice(0, 3).map((s) => <button key={s} type="button" className="aui-task-suggestion" onClick={() => onSuggestion(s)}>{s}</button>)}</div>
+    {showModal && <FilesModal files={files} onClose={() => setShowModal(false)} />}
+  </div>
 }
 
 // Consecutive tool-call parts consolidate into one collapsible group (P9-16).
@@ -239,5 +292,7 @@ export const AssistantThread = ({ task, busy, onSubmit, onSwitchRuntime, onEditM
     isSendDisabled: busy || Boolean(task.inputRequest),
   })
 
-  return <AssistantRuntimeProvider runtime={runtime}><ThreadPrimitive.Root className="aui-thread"><VirtualizedMessages taskId={task.id} components={messageComponents} />{fallbackProvider && task.status === 'failed' && <div className="aui-runtime-fallback" role="alert"><div><TriangleAlert size={14} /><span><strong>Try another runtime?</strong><small>The selected runtime failed. Switching is explicit and starts a new retry on a different execution boundary.</small></span></div><button type="button" onClick={() => void onSwitchRuntime(fallbackProvider)}>Switch to {providerLabel(fallbackProvider)} and retry</button></div>}<ThreadPrimitive.ViewportFooter className="aui-thread-footer"><ComposerPrimitive.Root className="aui-composer"><input ref={fileInput} className="file-input" type="file" multiple onChange={(event) => { void chooseFiles(event.target.files); event.currentTarget.value = '' }} />{attachments.length > 0 && <div className="aui-composer-files">{attachments.map((file) => <span key={`${file.name}-${file.size}`}><Paperclip size={10} />{file.name}<small>{Math.ceil(file.size / 1024)} KB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== file))}><X size={10} /></button></span>)}</div>}{attachmentError && <p className="aui-attachment-error">{attachmentError}</p>}<ComposerInput aria-label="Continue this task" placeholder={task.inputRequest ? 'Choose an answer above to resume…' : task.status === 'running' ? 'Add guidance for the next provider turn…' : 'Continue this task…'} rows={1} /><div className="aui-composer-meta"><span><ShieldCheck size={11} /> {task.inputRequest ? 'Waiting for your answer' : task.status === 'running' ? 'Durably queued while this turn runs' : 'Bound to this conversation workspace'}</span><div><button type="button" className="aui-attach" aria-label="Attach files to this turn" title="Attach files to this turn" disabled={attachments.length >= 4 || busy || Boolean(task.inputRequest)} onClick={() => fileInput.current?.click()}><Paperclip size={14} /></button><AuiIf condition={(state) => state.thread.isRunning}><ComposerPrimitive.Cancel className="aui-cancel" aria-label="Stop generation" title="Stop generation"><Square size={13} /></ComposerPrimitive.Cancel></AuiIf><ComposerPrimitive.Send className="aui-send" aria-label="Send message"><ArrowUp size={15} /></ComposerPrimitive.Send></div></div></ComposerPrimitive.Root></ThreadPrimitive.ViewportFooter></ThreadPrimitive.Root></AssistantRuntimeProvider>
+  const sendSuggestion = useCallback(async (text: string) => { await onSubmit(text, []) }, [onSubmit])
+
+  return <AssistantRuntimeProvider runtime={runtime}><ThreadPrimitive.Root className="aui-thread"><VirtualizedMessages taskId={task.id} components={messageComponents} />{task.status === 'completed' && task.files.length >= 0 && <TaskCompletionBanner files={task.files} onSuggestion={sendSuggestion} />}{fallbackProvider && task.status === 'failed' && <div className="aui-runtime-fallback" role="alert"><div><TriangleAlert size={14} /><span><strong>Try another runtime?</strong><small>The selected runtime failed. Switching is explicit and starts a new retry on a different execution boundary.</small></span></div><button type="button" onClick={() => void onSwitchRuntime(fallbackProvider)}>Switch to {providerLabel(fallbackProvider)} and retry</button></div>}<ThreadPrimitive.ViewportFooter className="aui-thread-footer"><ComposerPrimitive.Root className="aui-composer"><input ref={fileInput} className="file-input" type="file" multiple onChange={(event) => { void chooseFiles(event.target.files); event.currentTarget.value = '' }} />{attachments.length > 0 && <div className="aui-composer-files">{attachments.map((file) => <span key={`${file.name}-${file.size}`}><Paperclip size={10} />{file.name}<small>{Math.ceil(file.size / 1024)} KB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setAttachments((current) => current.filter((item) => item !== file))}><X size={10} /></button></span>)}</div>}{attachmentError && <p className="aui-attachment-error">{attachmentError}</p>}<ComposerInput aria-label="Continue this task" placeholder={task.inputRequest ? 'Choose an answer above to resume…' : task.status === 'running' ? 'Add guidance for the next provider turn…' : 'Continue this task…'} rows={1} /><div className="aui-composer-meta"><span><ShieldCheck size={11} /> {task.inputRequest ? 'Waiting for your answer' : task.status === 'running' ? 'Durably queued while this turn runs' : 'Bound to this conversation workspace'}</span><div><button type="button" className="aui-attach" aria-label="Attach files to this turn" title="Attach files to this turn" disabled={attachments.length >= 4 || busy || Boolean(task.inputRequest)} onClick={() => fileInput.current?.click()}><Paperclip size={14} /></button><AuiIf condition={(state) => state.thread.isRunning}><ComposerPrimitive.Cancel className="aui-cancel" aria-label="Stop generation" title="Stop generation"><Square size={13} /></ComposerPrimitive.Cancel></AuiIf><ComposerPrimitive.Send className="aui-send" aria-label="Send message"><ArrowUp size={15} /></ComposerPrimitive.Send></div></div></ComposerPrimitive.Root></ThreadPrimitive.ViewportFooter></ThreadPrimitive.Root></AssistantRuntimeProvider>
 }
