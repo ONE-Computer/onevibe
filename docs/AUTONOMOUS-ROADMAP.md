@@ -36,6 +36,23 @@ The platform is **not** three products. It is one platform with three concerns. 
 
 ---
 
+## Phase 20 — ONEVibe ERP Core: the extensible engine all mini-apps are built on
+> Added 2026-07-18. Every mini-app in P16–P19 needs the same four primitives: a typed entity, a state machine, an approval chain, and an immutable audit trail. Building them separately means writing that substrate 18 times. Phase 20 extracts those primitives into a single AI-native ERP Core engine. Each mini-app becomes a manifest (entity schema + workflow definition + form template + permission rules) that the engine runs. SAP/Oracle built the same engine — but in the 1970s around database transactions made visible. ONEVibe's version captures intent in NL, resolves structure invisibly, and treats the audit event bus as the primary store. P16–P19 mini-apps retroactively become the first-party reference apps that validate the engine.
+
+**North star: an admin describes a new workflow in plain language. The engine generates the entity schema, state machine, form cards, and approval routing. No developer. No IT ticket.**
+
+| Section | Items | What it unlocks |
+|---|---|---|
+| P20-0 Entity registry (P20-01/02/03) | 3 items | Typed entities, relationships, permissions — the data model primitive |
+| P20-1 Workflow engine (P20-04/05/06) | 3 items | State machine, org-chart approval routing, SLA + escalation |
+| P20-2 Form + card generator (P20-07/08/09) | 3 items | Auto-generated UI from schema, AI pre-fill, vibe-to-manifest builder |
+| P20-3 Audit + connector layer (P20-10/11/12) | 3 items | Immutable event bus (primary store), connector bindings, NL query |
+| P20-4 Manifest + marketplace (P20-13/14/15) | 3 items | Manifest format, migrate P16–P19 to manifests, vs SAP architecture doc |
+
+**Total: 15 items. This phase makes P16–P19 mini-apps configuration, not code — and makes the marketplace (P17-15) technically meaningful.**
+
+---
+
 ## Phase 19 — Enterprise app replacement: ONEVibe vs SAP / Workday / Concur / ServiceNow
 > Added 2026-07-18. Root cause: six dominant enterprise platforms (SAP S/4HANA, Workday, SuccessFactors, Concur, ServiceNow, Oracle HCM) share six structural failures — buyer-user divorce, database-first design (T-codes, form-per-table, component hierarchies), compliance-owned workflows, acquisition archipelagos with incompatible data models, bespoke-customisation-as-strategy, and mobile/async never designed in. Result: employees escape to Excel, WhatsApp, and shadow SaaS for every real workflow. ONEVibe answers with mini-apps built for the job-to-be-done: intent captured, compliance executed invisibly by AI, push approvals on mobile, vibe-to-build for self-service.
 
