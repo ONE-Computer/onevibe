@@ -23,6 +23,20 @@ cat docs/AUTONOMOUS-ROADMAP.md | tail -40  # current sprint status and check-in 
 
 Current baseline: 371 tests / 69 files. Never ship below this.
 
+## Visual QA — required before every feature commit
+
+`npm run check` verifies compilation only. It does NOT confirm the UI actually works.
+
+Before committing any visual or interactive feature:
+1. `npm run dev &` — start the dev server in background (Vite on :5173, API on :4311)
+2. Use your browser tool to open `http://localhost:5173`
+3. Navigate to the feature and confirm it renders correctly
+4. Test the critical interactions (clicks, toggles, filters)
+5. Kill the dev server (`pkill -f "vite"` or `kill %1`)
+6. Only then commit
+
+You own QA on your own output. Do not commit features you have not visually verified.
+
 ## CSS token rules (enforced by gate test `scripts/theme-literals.test.ts`)
 
 - No hex colors (`#xxx`, `#xxxxxx`) — use `var(--token-name)`

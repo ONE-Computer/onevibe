@@ -76,6 +76,14 @@ Before committing any code:
 
 If Kimi ships a commit that breaks the gate, Claude fixes it immediately and notes the fix in the roadmap log.
 
+## Visual QA — required in every feature brief
+
+Every brief for a visual/interactive feature must include this explicit requirement:
+
+> **QA before commit:** Run `npm run dev &`, open `http://localhost:5173` in your browser, navigate to the feature, confirm it renders and works correctly, then kill the dev server. Only commit after visual verification. `npm run check` passing is not sufficient — it only verifies compilation.
+
+Kimi will not do this unless told explicitly. It is the PM's responsibility to include this instruction in every brief.
+
 ## Roadmap log
 
 After every significant event, append a row to `docs/AUTONOMOUS-ROADMAP.md` → `## Scheduled check-in log`:

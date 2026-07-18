@@ -16,8 +16,9 @@ whenToUse: When you receive a new brief from Claude acting as PM, or when starti
 2. Run `git log --oneline -5` to understand current state.
 3. Run `npm run check` to confirm the gate is green before starting.
 4. Implement in the order specified. Each item = one commit.
-5. After each commit: run `npm run check`. If it fails, fix before continuing.
-6. When all items are done, report: "Done. Gate: X tests / Y files ✅. Commits: [list]."
+5. After implementing a visual/interactive feature: **run `npm run dev &`, open `http://localhost:5173` in your browser, verify the feature renders and works, then kill the dev server** (`pkill -f "vite"`). `npm run check` passing is NOT sufficient — it only verifies compilation, not that the UI works.
+6. After gate passes and visual verification is complete: commit.
+7. When all items are done, report: "Done. Gate: X tests / Y files ✅. Commits: [list]. Visual QA: confirmed [what you checked]."
 
 ## Gate (`npm run check`)
 
