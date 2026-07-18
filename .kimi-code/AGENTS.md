@@ -27,6 +27,20 @@ git commit -m "subject\n\nBody. Gate: N tests / M files ✓"
 - Never commit: `.env`, `*.sqlite`, `.onevibe/`, `node_modules/`, `/tmp/`, `.kimi-code/`
 - Append entry to `CHANGELOG.md` `[Unreleased]` section after each commit
 
+## Push discipline (mandatory after every commit)
+After each commit, push to the private Gitea remote:
+```bash
+git push gitea main
+```
+If the `gitea` remote is not yet configured, add it once:
+```bash
+git remote add gitea <GITEA_REPO_URL>
+git push gitea main
+```
+Ask the PM (Claude) for the Gitea URL if it is not in `.env` or `.git/config`.
+Never push to `origin` (GitHub) — that is read-only from the PM's side.
+Push frequency: after every outcome commit. Do not batch multiple commits before pushing.
+
 ## Architecture invariants
 - `server/runtime-adapter.ts` is the sacred provider-neutral boundary. Never leak harness concepts above it.
 - All model traffic must traverse LiteLLM at `http://127.0.0.1:4100`. No direct provider calls.
