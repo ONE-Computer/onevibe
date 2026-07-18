@@ -23,7 +23,7 @@ The platform is **not** three products. It is one platform with three concerns. 
 |---|---|
 | Rust MITM gateway (TLS, forward, rule eval) | ✅ Production quality |
 | `vti_signer.rs` — Ed25519 sign/verify via Affinidi TDK | ✅ Real, tested, fail-closed |
-| `condition_match::matches()` | ❌ Always returns `true` — the single biggest security gap |
+| `condition_match::matches()` | ⚠️ Partially real — body_json, mcp_tool, method/host/path evaluated; unknown condition targets fail-open (not closed). P10-03 = add VC eval via `verify_trust_task_proof` + fail closed on unknown |
 | Cloud overlay (budget, partner, cloud_apps, KMS) | ❌ All 13 files are one-line stubs |
 | `vta-mcp` MCP server (sign, vault, issue_vp, etc.) | ✅ All 10 tools implemented, stdio transport |
 | `vti-consent-service.ts` — consent envelope builder | ✅ Real, fail-closed, but never called live |
@@ -63,11 +63,15 @@ After that lands:
 - P8-10: Gateway VC injection for sandbox traffic
 - P8-11: `vta-mcp` sidecar for sandbox agents
 
-### Day 6–7: P9 ONEVibe governance surfaces
+### Day 6–7: P9 ONEVibe governance surfaces + UX uplift
 - P9-08: Approval notifications in ONEVibe
 - P9-10: Live activity feed (governance events in task view)
 - P9-12: VTI identity badge per task
-- P10-10: Connector consent history
+- P9-19: StepTrace — collapse execution trace + plain-English step labels (highest impact for non-technical users)
+- P9-20: Artefacts gallery page
+- P9-21: Capabilities/Skills discovery page (ties to P11-05)
+- P9-22: Memory management page
+- P9-23: Light mode as default
 
 ---
 
@@ -116,4 +120,8 @@ OVERALL: ~73% → ~82%
 |---|---|---|---|
 | 2026-07-18 (sprint start) | cb7abc5 (CHANGELOG) | ✅ 334 | P5-14 scrubber overhaul (in progress) |
 | 2026-07-18 check-in 1 | 55dbf13 (P5-14 checkpoint rail) | ✅ 343 | P11-12 middleware contract + P10-01 VTI audit |
+| 2026-07-18 check-in 2 (post-reboot) | 143af93 (roadmap + Kimi config) | ✅ 343 | P11-12 middleware contract (next brief) |
+| 2026-07-18 swarm activated | ad20cae P11-12, e650b9d P11-11, 53ee665 AGENTS, 3ab4ba8 design study | ✅ 343 | Swarm+auto enabled via prompts API — 5 sub-agents dispatched (P10-03, P11-05, P4-04, P9-15, P9-16) |
+| 2026-07-18 check-in 3 (context resumed) | LiteLLM 27 routes confirmed incl kimi-for-coding direct | ✅ 343 | Kimi swarm active: 4 sub-agents (3 running, 1 completed). Audit correction: condition_match is partial, not always-true. P10-03 scope updated. |
+| 2026-07-18 design study: Perplexity Computer | PERPLEXITY-COMPUTER-DESIGN-STUDY.md created + 6 screenshots saved | ✅ 343 | Correction: Perplexity DOES have a right rail (narrow, persistent: artefacts+usage). Manus right rail = Manus-style live workspace panel is the gold standard for P9-15. P9-19 (StepTrace) confirmed as #1 priority. |
 

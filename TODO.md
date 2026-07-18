@@ -288,6 +288,24 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 - [ ] **P9-15** Contextual right panel (thinking trace / diff / subagent detail) — Add a slide-in right panel to the task view (alongside the existing stage/computer panel). The panel opens contextually: thinking blocks expand into it (keeping the chat stream clean), file diffs from edit tool calls open in it, subagent drilldown navigates into it. During streaming, show a live 5-line scrolling window in the chat; after completion auto-collapse to a teaser paragraph with "Open in panel" affordance. Inspired by Kimi Code Web's SidePanel pattern (source: https://github.com/MoonshotAI/kimi-code/tree/main/apps/kimi-web/src). Implementation notes: use CSS `grid-template-rows: 0fr/1fr` for collapse (not max-height), use `inert` attribute on collapsed content (removes from a11y tree automatically), panel width ~360px, 0.26s ease-out open/close.
 
+- [ ] **P9-16** Tool group consolidation in AssistantThread — consecutive tool call events in the chat stream should group under a single collapsible `ToolGroup` wrapper (aggregate status dot + "N tool calls" label + chevron). Individual tool cards remain accessible on expand. CSS: `grid-template-rows: 0fr/1fr` collapse + `inert` on collapsed body. Inspired by Kimi Web ToolGroup pattern. See `docs/KIMI-WEB-DESIGN-STUDY.md`.
+
+- [ ] **P9-17** Thinking block UX: live window + auto-collapse — during streaming show a 5-line scrolling window pinned to bottom; after completion auto-collapse to last paragraph teaser with "View full reasoning" → opens in right panel (P9-15). CSS: `grid-template-rows` collapse. See `docs/KIMI-WEB-DESIGN-STUDY.md`.
+
+- [ ] **P9-18** ContextRing token usage in composer toolbar — compact arc showing context fill (0–100%). At ≥80%: show `/compact` chip. At ≥95%: ring turns warning color. Tooltip: "X / Y tokens · K% context used". Inspired by Kimi Web. See `docs/KIMI-WEB-DESIGN-STUDY.md`.
+
+- [ ] **P9-19** StepTrace: "Completed N steps" collapse with plain-English labels — replace raw tool name + JSON display in the execution trace with human-readable step labels (lookup table + model-provided label override). Default: collapsed behind "✓ Completed N steps" chip. During live run: "Working… step N of ~M" with progress ring. Icons per step type: globe=web, doc=file read, pencil=write, sparkle=think. This is the single most important change for non-technical users. Inspired by Perplexity Computer. See `docs/PERPLEXITY-COMPUTER-DESIGN-STUDY.md`.
+
+- [ ] **P9-20** Artefacts gallery page — promote artefacts to a top-level navigation destination (thumbnail grid, version badge, filter tabs: All / Mine / Shared, search). Artefact cards show: thumbnail preview (renders actual content), title, type icon, version. Inspired by Perplexity Computer Artefacts page. See `docs/PERPLEXITY-COMPUTER-DESIGN-STUDY.md`.
+
+- [ ] **P9-21** Capabilities / Skills discovery page — a page listing what the agent can do for this user. Cards are task-oriented (not system-oriented): title = task the user can ask for; description starts "Use this when you want to…". Tied to ONEComputer's `/onevibe/capabilities` endpoint (P11-05). Filter by category. "+ Create" for custom skills. Inspired by Perplexity Computer Skills page. See `docs/PERPLEXITY-COMPUTER-DESIGN-STUDY.md`.
+
+- [ ] **P9-22** Memory management page — show what the agent knows about the user's context (firm, role, preferences, watched entities). Editable entries. "Learned on: date" per entry. Clear all. Audit trail. Especially important for investment/banking users who need to verify the agent's understanding of their client context before it acts. Inspired by Perplexity Computer Memory. See `docs/PERPLEXITY-COMPUTER-DESIGN-STUDY.md`.
+
+- [ ] **P9-23** Light mode as default — professional audience (bankers, government) expects a clean white interface, not a dark IDE. Add a proper light mode with card-based layout and make it the default for new users. Dark mode remains as an option. Design reference: `docs/PERPLEXITY-COMPUTER-DESIGN-STUDY.md`.
+
+- [ ] **P9-24** Persistent composer everywhere — the composer bar should be accessible from the artefacts page, skills page, and memory page — not just the chat/task view. The mental model: the agent is always listening, wherever you are in the app. See `docs/PERPLEXITY-COMPUTER-DESIGN-STUDY.md`.
+
 ### ONEComputer as cyber governance engine
 
 - [ ] **P9-10** Live activity feed in ONEVibe — ONEVibe subscribes to ONEComputer's audit event stream for the current user's sandboxes. The execution trace panel shows not just agent steps but also governed gateway events: "Jira read · allowed", "Outlook send · held for approval", "SharePoint delete · blocked by policy". This is the end-user view of the CISO console.
