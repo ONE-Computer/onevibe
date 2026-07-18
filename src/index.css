@@ -196,7 +196,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 /* P9-25: DVR scrubber transport + live indicator */
 .computer-stage{position:relative}
 .computer-transport{display:flex;align-items:center;gap:4px;flex-shrink:0}
-.computer-transport>button{width:25px;height:25px;border-radius:6px;background:var(--surface-raised);color:var(--text-muted);display:grid;place-items:center;cursor:pointer}
+.computer-transport>button{width:25px;height:25px;border-radius:var(--radius-6px);background:var(--surface-raised);color:var(--text-muted);display:grid;place-items:center;cursor:pointer}
 .computer-transport>button:hover:not(:disabled){color:var(--text-primary);background:var(--surface-hover)}
 .computer-transport>button:disabled{opacity:.35;cursor:default}
 .computer-transport input[type=range]{width:72px;accent-color:var(--accent);cursor:pointer}
@@ -204,8 +204,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .computer-live[data-active="true"]{color:var(--red)}
 .computer-live-dot{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block;flex-shrink:0}
 .computer-live[data-active="true"] .computer-live-dot{background:var(--red);box-shadow:0 0 6px var(--red)}
-.computer-jump-live{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:5;padding:5px 12px;border:1px solid var(--accent-border);border-radius:99px;background:var(--accent-soft);color:var(--accent);font:600 10px var(--font-ui);cursor:pointer;box-shadow:var(--shadow-soft)}
-.computer-jump-live:hover{background:var(--accent);color:#fff}
+.computer-jump-live{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:5;padding:5px 12px;border:1px solid var(--accent-border);border-radius:var(--radius-99px);background:var(--accent-soft);color:var(--accent);font:600 10px var(--font-ui);cursor:pointer;box-shadow:var(--shadow-soft)}
+.computer-jump-live:hover{background:var(--accent);color:var(--accent-ink)}
 @media(max-width:640px){.computer-transport input[type=range]{width:44px}}
 @media(prefers-reduced-motion:no-preference){.computer-live[data-active="true"] .computer-live-dot{animation:pulse-dot 2s ease-in-out infinite}.computer-jump-live{transition:background .15s var(--ease-standard),color .15s var(--ease-standard)}}
 .computer-timeline{grid-template-columns:248px minmax(0,1fr)}@media(max-width:900px){.computer-timeline{grid-template-columns:186px minmax(0,1fr)}}@media(max-width:640px){.computer-timeline{grid-template-columns:1fr;grid-template-rows:minmax(214px,43%) minmax(0,1fr)}.computer-history{border-right:0;border-bottom:1px solid var(--border-subtle)}.computer-history-heading{padding-bottom:6px}.computer-filters{padding-bottom:5px}.computer-rail-scroll{max-height:150px}.computer-stage>header{gap:4px;padding:0 7px}.computer-stage>header em{max-width:86px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.computer-terminal{padding:12px}.computer-checkpoint-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}}
