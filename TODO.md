@@ -463,6 +463,22 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ---
 
+## Phase 14 — Univer SDK: agent-native spreadsheets and slides
+**Target: agents in ONEVibe can produce, edit, and stream live spreadsheets and presentations as first-class artefacts — not static file downloads. An agent researching a company outputs a live, editable sheet directly in the task view. Git-style commit history means every agent edit is diffable and reversible.**
+**Univer:** `github.com/dream-num/univer` · 13k stars · Apache-2.0 core · React 18 · `@univerjs/*` packages · `univer-mcp` for natural-language sheet control · headless Node.js runtime for server-side agent workflows.**
+
+- [ ] **P14-01** Univer Sheets integration spike — install `@univerjs/preset-sheets-core` and render a basic spreadsheet in the ONEVibe artefact panel (where files currently show). Goal: an agent can produce a `.xlsx`-equivalent workbook as a task artefact and the user sees a live interactive sheet, not a download link. Wire the Univer headless engine on the server side (`@univerjs/core` + Node.js) so agents can manipulate workbooks programmatically. Write `docs/UNIVER-SPIKE.md`.
+
+- [ ] **P14-02** Agent → sheet output — extend the `RuntimeEvent` artefact type to include `univer_sheet` as a workbook payload (JSON snapshot of a Univer workbook). When an agent emits a `univer_sheet` event, the task artefact panel renders it as a live Univer Sheet component instead of a file card. Agents can push incremental updates (row inserts, formula changes) as follow-up events — the sheet updates live without a full reload.
+
+- [ ] **P14-03** `univer-mcp` wiring — wire the `univer-mcp` MCP server into ONEVibe's MCP config so agents can control sheets via natural language tool calls (`create_sheet`, `write_range`, `apply_formula`, `add_chart`). Test: give an agent a research task and watch it produce a formatted comparison table via MCP tool calls. Screenshot evidence. Write `docs/UNIVER-MCP.md`.
+
+- [ ] **P14-04** Univer Slides integration spike — Slides is still maturing in the OSS tier. Evaluate current state: can we render a basic presentation? Can an agent write slides programmatically? If the OSS tier is sufficient: wire `@univerjs/slides` into the artefact panel alongside Sheets. If not: document what's missing and set a revisit date. Write `docs/UNIVER-SLIDES-SPIKE.md` with honest verdict.
+
+- [ ] **P14-05** Git-style sheet history in task artefacts — Univer's collaborative model tracks every edit as a reversible operation. Expose this in the ONEVibe task artefact panel: a "Sheet history" timeline showing each agent edit (timestamp, description, diff summary). User can click any point to restore. This is the artefact audit trail for investment professionals — "show me exactly what the agent changed in this model."
+
+---
+
 ## Ongoing
 
 - [ ] **ONG-01** All 50 UX issues from `plan/00-gap-analysis.md` — track each to resolution

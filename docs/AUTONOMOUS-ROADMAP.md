@@ -36,6 +36,17 @@ The platform is **not** three products. It is one platform with three concerns. 
 
 ---
 
+## Phase 14 — Univer SDK: agent-native spreadsheets and slides
+> Added 2026-07-18. Apache-2.0, React 18, `@univerjs/*`. `univer-mcp` for natural-language sheet control. Headless Node.js runtime for server-side agent workflows. Slides OSS tier still maturing — spike first.
+
+| ID | Title | What we learn |
+|---|---|---|
+| P14-01 | Sheets spike | Live interactive sheet as a task artefact (not a download) |
+| P14-02 | Agent → sheet output | Agents emit `univer_sheet` events; panel renders live |
+| P14-03 | univer-mcp wiring | Agents write sheets via natural language MCP tool calls |
+| P14-04 | Slides spike | Is the OSS slides tier usable yet? Honest verdict. |
+| P14-05 | Git-style sheet history | Every agent edit diffable + reversible in the artefact panel |
+
 ## Phase 13 — Wild exploration (precedes P8 sandbox hardening)
 > Added 2026-07-18. Runs on Azure VM only. Learn first, harden second.
 
