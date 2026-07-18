@@ -31,6 +31,9 @@
 - All motion wrapped in `@media (prefers-reduced-motion: no-preference)` — degrades gracefully
 - Execution trace checkpoint UX (P5-14) (`src/components/ComputerTimeline.tsx`, `src/components/computer-timeline-activity.ts`, `src/index.css`): the `.computer-rail-scrubber` range input and "Scrub evidence" label are removed; the artifact rail is now a virtualized checkpoint list of 44px rows with a colour-coded status dot (completed / failed / approval-pending / skipped), type icon, label, timestamp, and latency badge, plus a `← n / m →` stepper for step-through navigation. Consecutive tool calls group under a collapsible LLM-turn header with failed/pending/duration aggregates, and the right-hand stage panel is the detail pane for the selected step. Filter bar, run comparison, search, and Replay/Live are unchanged
 
+### Fixed
+- Follow-up composer refresh (`src/App.tsx`): `followUpMutation` now mirrors `retryMutation` with an `onSuccess` that awaits `Promise.all([refreshSnapshot(), refreshTasks()])` — after sending a follow-up the conversation snapshot and task list update immediately instead of waiting for the next poll interval
+
 ### Tests
 - `server/theme-package.test.ts`: added slot-fallback, no-package-selected null, missing-manifest throw, and caller-catch rollback simulation tests. Gate: 315 tests / 63 files ✓
 - `src/components/ComputerTimeline.test.ts`: replaced `virtualRailRange` coverage with `virtualRailRows` mixed-row windowing plus a checkpoint-rail suite — approval/tool/live status derivation (pending, completed, failed, skipped), LLM-turn grouping aggregates and split rules, and `railRowsFor` run-divider/depth/collapse flattening. Gate: 343 tests / 66 files ✓
