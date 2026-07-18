@@ -28,17 +28,16 @@ git commit -m "subject\n\nBody. Gate: N tests / M files ✓"
 - Append entry to `CHANGELOG.md` `[Unreleased]` section after each commit
 
 ## Push discipline (mandatory after every commit)
-After each commit, push to the private Gitea remote:
+After each commit, push to the private GitHub remote:
 ```bash
-git push gitea main
+git push private main
 ```
-If the `gitea` remote is not yet configured, add it once:
+If the `private` remote is not yet configured, add it once:
 ```bash
-git remote add gitea <GITEA_REPO_URL>
-git push gitea main
+git remote add private https://github.com/ONE-Computer/onevibe-private.git
+git push private main
 ```
-Ask the PM (Claude) for the Gitea URL if it is not in `.env` or `.git/config`.
-Never push to `origin` (GitHub) — that is read-only from the PM's side.
+Never push to `origin` — that is the public repo, only the PM pushes there.
 Push frequency: after every outcome commit. Do not batch multiple commits before pushing.
 
 ## Architecture invariants
