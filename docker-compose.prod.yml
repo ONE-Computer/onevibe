@@ -1,0 +1,73 @@
+# Docker-first production stack for ONEVibe (P4-04).
+#
+# Services:
+#   app      - ONEVibe API + web bundle, built from the repo Dockerfile.
+#   postgres - reviewed Postgres runtime (postgres:16-alpine).
+#
+# The app container never runs migrations implicitly. Apply the reviewed
+# Drizzle ledger before traffic and after upgrades (see SELF-HOSTING.md):
+#   docker compose -f docker-compose.prod.yml run --rm app node --import=tsx/esm scripts/postgres-ops.ts migrate
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    ports:
+      - "${ONEVIBE_PUBLISH_PORT:-4311}:4311"
+    environment:
+      # env_file (.env) carries local-development values; these pins keep the
+      # container contract intact (environment takes precedence over env_file).
+      NODE_ENV: production
+      ONEVIBE_API_HOST: 0.0.0.0
+      ONEVIBE_API_PORT: 4311
+      ONEVIBE_DATA_DIR: /var/lib/onevibe
+      # The production stack is Postgres-backed. The reviewed Drizzle ledger
+      # is operator-applied; /api/health/ready fails closed (503) until the
+      # ledger is current.
+      ONEVIBE_PERSISTENCE_DRIVER: postgres
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (see .env.example)}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - onevibe-data:/var/lib/onevibe
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    healthcheck:
+      # node:22-bookworm-slim ships neither curl nor wget; use the same node
+      # fetch probe as the Dockerfile HEALTHCHECK. Liveness and readiness must
+      # both pass; readiness stays 503 on a missing/stale migration ledger.
+      test: ["CMD", "node", "-e", "Promise.all([fetch('http://127.0.0.1:4311/api/health/live'), fetch('http://127.0.0.1:4311/api/health/ready')]).then((responses) => process.exit(responses.every((response) => response.ok) ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-onevibe}
+      POSTGRES_DB: ${POSTGRES_DB:-onevibe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-onevibe} -d $${POSTGRES_DB:-onevibe}"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+
+volumes:
+  onevibe-data:
+  postgres-data:
