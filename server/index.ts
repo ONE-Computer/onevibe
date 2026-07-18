@@ -585,6 +585,20 @@ const route = async (request: IncomingMessage, response: ServerResponse) => {
     const readiness = await store.readiness()
     return json(response, applicationReady && readiness.ready ? 200 : 503, { status: readiness.ready && applicationReady ? 'ready' : 'not_ready', applicationReady, ...readiness })
   }
+  // ONEComputer middleware contract path (outside /api); Bearer-guarded like the wallet routes, before the session gate.
+  if (request.method === 'GET' && url.pathname === '/onevibe/capabilities') {
+    if (!walletService) return json(response, 503, { error: 'External wallet resolution is not configured' })
+    walletService.authorize(request.headers.authorization)
+    return json(response, 200, {
+      version: '1',
+      sandboxBackends: [
+        { id: 'kasm', name: 'Kasm Workspaces', status: 'available' },
+        { id: 'daytona', name: 'Daytona', status: 'unavailable' },
+      ],
+      connectors: [],
+      features: { vtiConsentGate: false, approvalWebhook: false },
+    })
+  }
   const publicReadOnly = request.method === 'GET' && (url.pathname === '/api/runtime' || url.pathname.startsWith('/api/shares/'))
   const actorUserId = authService?.isEnabled && !publicReadOnly ? (await authService.getSession(request))?.user.id : undefined
   if (authService?.isEnabled && !publicReadOnly && !actorUserId) return json(response, 401, { error: 'Authentication required', code: 'unauthorized' })
