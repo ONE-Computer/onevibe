@@ -169,9 +169,81 @@ without 1px `--border-subtle` separation.
 - Flat surfaces have **no shadow** — containment is the 1px border.
 - Hover = background step (`--surface-raised` fill or `color-mix` 4–8% white),
   never `translateY`, never scale, never glow.
-- Motion only for: popover fade/rise (fast), sidebar width, panel collapse,
-  streaming cursor blink. All gated by `prefers-reduced-motion`.
 - `:focus-visible` applies `--focus-ring` on every interactive element.
+
+### 4.1 Motion system (v2 — token-only, research-derived)
+
+Sources: assistant-ui `examples/with-tanstack/src/styles.css`, Codex desktop
+`register` chunk, Linear/Raycast DESIGN.md. Every animation in the app must
+compose these tokens; no ad-hoc durations or easings.
+
+```css
+/* Easings */
+--ease-spring:     cubic-bezier(0.32, 0.72, 0, 1);  /* collapsibles, popovers, modals, underlines */
+--ease-crossfade:  cubic-bezier(0.2, 0, 0, 1);      /* icon/text swaps */
+--ease-out-expo:   cubic-bezier(0.16, 1, 0.3, 1);   /* entrances, message mount */
+--ease-exit:       cubic-bezier(0.8, 0, 0.4, 1);    /* exits only */
+--ease-pulse:      cubic-bezier(0.4, 0, 0.6, 1);    /* infinite pulses only */
+
+/* Durations */
+--duration-press: 80ms;    /* press scale */
+--duration-fast: 120ms;    /* hover bg/border steps */
+--duration-base: 150ms;    /* message mount, chip mount, crossfades */
+--duration-slow: 200ms;    /* collapsibles, action-bar fade, sidebar width */
+--duration-modal: 320ms;   /* modal/popover entrance */
+
+/* Stagger step for grouped children (tool blocks, suggestion chips) */
+--stagger-step: 40ms;      /* applied to nth-child 2–5, capped */
+
+/* Keyframes (defined once in default.css) */
+/* fade-in:        opacity 0→1 */
+/* rise-in:        opacity 0→1 + translateY(4px→0) */
+/* popover-in:     opacity 0→1 + scale(.95→1) + translateY(2px→0) */
+/* shimmer-sweep:  background-position -100%→250% (skeletons) */
+/* shimmer-text:   background-clip:text highlight sweep, 3s linear infinite;
+                   highlight = color-mix(currentColor 20%, transparent);
+                   bg-size 50% 200% */
+/* stream-sweep:   300%-wide gradient strip translate(-66%)→0, .5s linear
+                   forwards — the ONLY streaming reveal (Codex pattern);
+                   gradient = transparent → color-mix(fg 6%, transparent) → transparent */
+/* pulse-soft:     sonar ring scale 1→2, opacity .75→0, 2s (live status dots) */
+/* dot-blink:      streaming ● cursor, opacity 1→.5, 2s var(--ease-pulse) infinite */
+/* spin:           360° .8s linear infinite (spinners, rare) */
+
+/* Component-scoped */
+--hairline: 0 0 0 0.5px rgba(255,255,255,0.12);   /* dark floating surfaces */
+--hairline: 0 0 0 0.5px rgba(0,0,0,0.10);         /* light floating surfaces */
+```
+
+**Usage rules**
+
+- Message mount: `rise-in` at `--duration-base` with `--ease-out-expo`.
+- Hover on rows/cards: background/border color transition `--duration-fast`
+  linear. Ghost buttons may hover via `opacity: 0.6` (Raycast) instead.
+- Press feedback: `scale(0.98)` or `translate-y-px` at `--duration-press`.
+- Collapse/expand: height 0→auto at `--duration-slow` `--ease-spring`;
+  chevron rotates −90°→0 same timing; content enters fade + rise-4px +
+  blur(2px→0).
+- Popovers/dropdowns: `popover-in` at `--duration-modal` `--ease-spring`,
+  `backdrop-filter: blur(8px)`, `--hairline` ring, background
+  `color-mix(panel 95%, transparent)`.
+- Live status: `pulse-soft` sonar dot; transient labels use `shimmer-text`,
+  never a spinner beside gray text.
+- Exits: elements exiting a layout get `position: absolute` during the exit
+  so siblings don't jump (Codex TransitionGroup pattern).
+- Floating pills over content: `backdrop-filter: blur(8px)` +
+  `color-mix(input-bg 70%, transparent)` + `--hairline`.
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  /* streaming renders instantly: no sweep, no cursor pulse */
+}
+```
 
 ---
 
