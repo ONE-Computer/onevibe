@@ -678,6 +678,192 @@ Reference: `THEMING_EXTENSIBILITY.md`.
 
 ---
 
+## Phase 22 — Government ERP Modules (Singapore / ASEAN public sector)
+> Added 2026-07-18. Source: analysis of 18,464 GeBIZ tender awards (SGD 123.8B, 2021–2026) — see `docs/GEBIZ-GOVERNMENT-ERP-ANALYSIS.md`.
+>
+> **The insight:** Singapore government agencies each independently procure the same set of administrative workflows — 911 training tenders, 842 scheduling tenders, 830 BI/reporting tenders, 718 compliance tenders — because there is no reusable shared platform. Every procurement is a bespoke project, every integration is a silo, and every 3-year renewal is a maintenance contract that enriches the SI and locks the agency in. ONEVibe Government ERP modules collapse this fragmentation: 12 modules, each pre-integrated with Singpass/NDI (AAL2), CorpPass, and the SGTS stack, deployable on GovCloud or on-premise.
+>
+> **The AGO forcing function:** Government audit findings are public, and named officers have personal liability. Every approval decision must have a named officer, a delegation schedule reference, and a timestamp. ONEVibe's audit-first architecture (VTI-signed approval receipts, immutable event bus) is a direct answer to the AGO finding pattern "decisions made without documented authority." No incumbent offers this.
+>
+> **GTM entry sequence:** GovTech pilot (WOG endorsement) → statutory board ITQ deployment → expand to ITT above SGD 1M with GovTech reference. Target first accounts: GovTech, CPF Board, LTA, HDB, NEA.
+>
+> **Conservative market size:** 800 agencies × SGD 200k annual modules = SGD 160M ARR (Singapore only). At Phase 22 maturity, SGD 1B+ ARR before ASEAN expansion.
+>
+> **Government-specific requirements (all Phase 22 modules must satisfy):**
+> - Singpass/NDI integration for AAL2 authentication (not Facetec/generic biometric)
+> - CorpPass for agency officer identity resolution
+> - GovCloud (AWS Singapore GCC) deployment option
+> - IM8 security classification handling (OFFICIAL, RESTRICTED) — no data mixing across classifications
+> - AGO-defensible audit trail: named officer + delegation schedule reference + Financial Procedures Act authority level in every approval receipt
+> - GeBIZ-compatible procurement reference number on every approved spend card
+>
+> **Reference docs:** `docs/GEBIZ-GOVERNMENT-ERP-ANALYSIS.md` (full data analysis + GTM strategy), Phase 20 (ERP Core engine), Phase 21 (private-sector modules same engine).
+
+### P22-0 — Government platform foundation
+
+- [ ] **P22-00** Government ERP requirements doc — produce `docs/GOVT-ERP-REQUIREMENTS.md`: full specification of Singapore government-specific requirements: IM8 compliance checklist, AGO audit trail requirements (named officer, delegation schedule, Financial Procedures Act citation), Singpass/NDI AAL2 integration architecture, CorpPass agency identity model, GovCloud deployment topology, data classification handling (OFFICIAL vs RESTRICTED). This document gates all subsequent Phase 22 work — no module ships without meeting these requirements. Cross-reference: `docs/GEBIZ-GOVERNMENT-ERP-ANALYSIS.md`.
+
+- [ ] **P22-01** Singpass/NDI AAL2 connector — integrate Singpass MyInfo and NDI Digital Identity for AAL2 approval authentication. Government officers authenticate with their Singpass (equivalent to AAL2 biometric) rather than the private-sector face ID flow from P18-06. The approval receipt must include: NRIC hash (not raw NRIC), AAL level achieved, Singpass authentication timestamp. This is the government-grade identity signal that makes approval receipts AGO-defensible. Write `docs/SINGPASS-NDI-CONNECTOR.md`.
+
+- [ ] **P22-02** CorpPass agency identity model — CorpPass identifies which government agency an officer belongs to and their designated authority level within that agency. Map CorpPass entity types to ONEVibe roles: Authorised Officer → standard approver, Senior Officer → second-level approver, Permanent Secretary equivalent → final authority for above-threshold decisions. Agency financial authority schedule (published by MOF) is the source of truth for approval thresholds — not internally configured. Write `docs/CORPPASS-IDENTITY.md`.
+
+- [ ] **P22-03** AGO audit trail format — extend the Phase 20 ERP audit event bus with government-specific fields: agency code (e.g. `MFA`, `LTA`, `NEA`), officer's delegation schedule reference, Financial Procedures Act authority level, GeBIZ procurement reference number (for spending decisions), IM8 data classification of the record. Produce `docs/AGO-AUDIT-FORMAT.md`. The AGO format must be exportable as a structured report that an Auditor-General examiner can read without assistance — not a JSON dump, a formatted evidence report.
+
+---
+
+### P22-1 — Inspection & Field Operations (Gov-M2)
+> **GeBIZ signal:** 267 tenders, SGD 874M. Agencies: NEA (vector control, food hygiene, hawker), BCA (building safety, energy efficiency), AVS (animal & veterinary), PUB (water utility inspection), LTA (road safety, vehicle inspection), MOH (clinic licensing, food establishments).
+>
+> **Pain today:** Inspection officers carry paper forms or disconnected field apps. Findings are transcribed into a central system back at the office (same day or the next day). The audit trail between field observation and formal regulatory decision is often a gap. Enforcement officers issuing fines or closure orders have no way to prove — in real time — that the decision was made by an officer with the correct delegated authority and the correct evidence.
+>
+> **Target UJ:** Inspector (NEA hawker centre hygiene, daily)
+> 1. Opens ONEVibe field app. Day's inspection assignment loaded: address, establishment name, previous findings, outstanding follow-up items.
+> 2. Conducts inspection. Each finding logged: category (pest evidence, food temperature, cross-contamination), severity (observation / advisory / warning / summons), photo attached.
+> 3. Summary auto-drafted from logged findings. Inspector reviews, confirms, signs with Singpass (AAL2 for any enforcement action above advisory level).
+> 4. Establishment owner receives the official notice immediately via email/SMS — no paperwork lag.
+> 5. Follow-up inspection auto-scheduled if findings require re-check. Outstanding items visible on inspector's next-visit assignment.
+> 6. Supervisor sees real-time dashboard: inspections completed today, outstanding follow-ups, enforcement actions issued this week, by inspector.
+>
+> **TCO story:** Each agency runs a separate inspection system (NEA has one, BCA has another, AVS has a third). All do the same thing. One module, deployed across all — GovTech CIO can justify the TCO reduction in the next budget exercise.
+
+- [ ] **P22-04** Field inspection assignment + scheduling — inspection assignments created centrally, pushed to inspector's mobile device. Each assignment: establishment details, previous inspection history, outstanding follow-up items, inspection checklist template (configurable per establishment type). Assignment list is the inspector's daily workflow — no spreadsheet, no briefing printout. Write `docs/GOVT-FIELD-INSPECTION.md`.
+
+- [ ] **P22-05** Mobile-native finding logging — inspector logs each finding inline: category picker (from agency-configured checklist), severity selector, photo attachment, free-text observations. Findings auto-populate the inspection report draft. No transcription at the end — findings are the report. Write `docs/GOVT-INSPECTION-MOBILE.md`.
+
+- [ ] **P22-06** Enforcement action with Singpass sign-off — advisory notices (low severity) auto-issued on submission. Enforcement actions (summons, stop-work orders, closure orders) require Singpass AAL2 sign-off by an officer with the correct delegated authority (resolved from CorpPass model). Signed enforcement notice generated immediately, served electronically, stored in the establishment's record with the AGO audit trail. Write `docs/GOVT-ENFORCEMENT-NOTICE.md`.
+
+---
+
+### P22-2 — Permit & Licensing Management (Gov-M3)
+> **GeBIZ signal:** ~180 licensing/permit tenders (undercounted — permit workflows are embedded in broader system tenders). Key agencies: BCA (building permits), LTA (road access, vehicle permits), ACRA (business registration), SLA (land, property subdivision permits), NEA (food establishment licences), MOH (medical facility licensing), MOM (work passes, foreign worker permits).
+>
+> **Pain today:** Permit applications are submitted via separate agency portals (CorpPass-authenticated, but each agency has its own). Applicant has no unified view of outstanding permits across agencies. Agencies have no shared data — BCA's building permit system cannot see LTA's road access permit, so a developer submits two separate applications for the same project with no automatic coordination. Renewal reminders are email-only, and lapse (with associated penalties) is common.
+>
+> **Target UJ:** Developer / project coordinator (BCA building permit + LTA road access):
+> 1. Opens ONEVibe. Creates a project: "Proposed A&A works at 123 Orchard Road."
+> 2. ONEVibe identifies required permits: BCA (structural), LTA (road access during construction), NEA (noise/dust management plan). All in one list.
+> 3. Application cards created for each permit. Shared project details auto-filled into each application — applicant fills once, not three times.
+> 4. Each agency processes independently via their internal workflow. Applicant sees the status of all three in one view.
+> 5. BCA approves. LTA requires additional information (access plan drawing). Applicant responds in the card. LTA processes and approves.
+> 6. Renewal reminders sent 90, 60, 30 days before expiry. Lapse protected.
+
+- [ ] **P22-07** Permit application lifecycle — structured permit application cards: applicant submits required fields, documents, and declarations. Agency reviewer processes in ONEVibe with the same card interface (not a separate back-end system). Approval → permit number generated → permit certificate issued as a verifiable digital document. Denial → reason stated → applicant can appeal (new card created). Write `docs/GOVT-PERMIT-LIFECYCLE.md`.
+
+- [ ] **P22-08** Multi-agency permit coordination — when a development project or business activity requires permits from more than one agency, all applications are linked to a single project record. Cross-agency dependencies are visible: "LTA road access permit depends on BCA structural approval." The project-level status board shows all linked applications and their current states. Write `docs/GOVT-MULTI-AGENCY-PERMITS.md`.
+
+- [ ] **P22-09** Permit renewal lifecycle management — every active permit has an expiry date tracked in the system. Automated renewal reminders at configurable intervals (90/60/30/7 days). Renewal application pre-filled from the previous application. Lapse history visible to agency (counts against applicant's compliance record). Write `docs/GOVT-PERMIT-RENEWAL.md`.
+
+---
+
+### P22-3 — Survey & Assessment Platform (Gov-M4)
+> **GeBIZ signal:** 245 tenders, SGD 491M. Universal across agencies. Used for: resident satisfaction surveys (HDB, town councils), public consultation on policies (REACH), employee engagement (every agency HR), service quality measurement (SingHealth, CPF, ICA), capability assessments (CSC, VITAL), needs assessments (MSF, MOE).
+>
+> **Pain today:** Each agency procures a separate survey tool or runs a custom SurveyMonkey/Microsoft Forms deployment. Results are not comparable across agencies. MOF cannot run a WOG employee engagement survey because each agency's data is in a different system. The survey data is almost never linked to the approval or action workflow that should follow — "we surveyed residents and 72% said the lift maintenance was poor" sits in a PowerPoint, not connected to the maintenance work order.
+>
+> **The key insight:** A survey is not the end of the workflow — it is the beginning. The survey result should trigger a workflow: below a threshold → create an improvement task → assign to the responsible team → track to resolution. ONEVibe's ERP Core engine connects survey outcomes to action workflows automatically.
+
+- [ ] **P22-10** Survey builder — configurable survey templates: Likert scale, multiple choice, ranking, open text, NPS. Logic branching: show question B only if question A score < 3. Government-specific question types: service counter rating (queue wait + officer attitude + resolution quality), policy preference (binary/ranked), capability self-assessment. Surveys are accessible via Singpass-authenticated link (resident/citizen) or CorpPass (officer). Write `docs/GOVT-SURVEY-BUILDER.md`.
+
+- [ ] **P22-11** Results dashboard + threshold triggers — survey results displayed in real-time: response rate, score distribution, NPS trend over time, free-text sentiment summary (AI-synthesised). Threshold triggers: when a service counter's rating falls below a configurable threshold for 3 consecutive weeks, an improvement task is automatically created and assigned to the service manager. Survey-to-action loop closed. Write `docs/GOVT-SURVEY-RESULTS.md`.
+
+- [ ] **P22-12** WOG benchmark capability — aggregate survey results across agencies for WOG benchmarking (e.g., employee engagement index). Each agency sees their own data + their rank within the peer group + the WOG average. Benchmarking data is anonymised at agency level for external publication. MOF/PSB can run WOG surveys from a single interface. Write `docs/GOVT-WOG-SURVEY.md`.
+
+---
+
+### P22-4 — Scheduling & Duty Roster (Gov-M5)
+> **GeBIZ signal:** 842 tenders, SGD 2.0B — highest volume in the entire dataset. Universal across uniformed services (SPF, SCDF, SAF civilian employees), healthcare (nursing, medical, pharmacy, radiography at all public hospitals), public transport operations (LTA, SBS Transit, SMRT, SIA ground staff), and regulatory enforcement officers.
+>
+> **Pain today:** The same Excel-WhatsApp cycle described in Phase 21 Module 8 — but with government-specific constraints: MOM regulations, Ministry of Manpower guidelines on rest periods for healthcare workers, Public Service Division shift allowances, Security Industry Authority licensing requirements for uniformed deployments. The supervisor builds the roster in Excel, screenshots it into a WhatsApp group, then manages swap requests by DM. The official HR system is updated days later, or not at all.
+>
+> **Government-specific differentiators:** NSF (National Service) integration for SAF civilian contexts; SHR (Singapore Healthcare Roster) format for MOH cluster hospitals; Emergency Resource Management System (ERMS) compatibility for SCDF/SPF.
+
+- [ ] **P22-13** Government-specific scheduling constraints — pre-configured constraint sets for key uniformed service contexts: SPF (Police Act rest requirements), SCDF (Civil Defence Act), SAF Civilian (SAF Act), and Singapore Healthcare (MOH guidelines on maximum consecutive shifts for clinical staff, minimum rest between shifts). Constraint violations flagged at roster-build time, not at approval time. Write `docs/GOVT-SCHEDULING-CONSTRAINTS.md`.
+
+- [ ] **P22-14** Certification and qualification-aware assignment — for clinical and regulated roles: the scheduling canvas only shows officers/staff who hold the required certification for the shift (e.g., only registered nurses can be assigned as shift-in-charge, only officers with CPR + AED certification can cover the clinic counter). Certification expiry tracked — staff approaching expiry flagged to HR for renewal before they are removed from the eligible pool. Write `docs/GOVT-SCHEDULING-QUALIFICATIONS.md`.
+
+- [ ] **P22-15** Shift swap + recall workflow — officer A requests swap with officer B via the app. B accepts. Supervisor approves (or auto-approved below threshold per policy). Both HR records updated. Emergency recall: supervisor broadcasts a fill-a-shift notice to all qualified available staff; first response gets the shift. The entire flow documented in the audit trail — no WhatsApp. Write `docs/GOVT-SHIFT-SWAP-RECALL.md`.
+
+---
+
+### P22-5 — Training & Learning Management (Gov-M6)
+> **GeBIZ signal:** 911 tenders, SGD 784M — highest tender count in the entire dataset. Average ACV is low (SGD 860k per tender) because each agency procures small, department-specific tools. 911 separate procurement processes for tools that all do the same thing: manage course calendars, track attendance, issue completion certificates, submit to HR records.
+>
+> **Pain today:** Most agencies use Learning Management Systems (LMS) from vendors like SumTotal, Cornerstone, or custom-built SkillsFuture-integrated portals. Each agency's system is a silo — a training completed at CSC (Civil Service College) does not automatically appear in the officer's HR record at their home agency. Training nominations are managed by email. Course calendars are published as PDFs. Completion certificates are PDFs emailed to participants.
+>
+> **The WOG opportunity:** CSC (Civil Service College) trains all government officers. If ONEVibe is adopted by CSC as the LMS for WOG training, every government officer's training record is in one place, and every agency's HR module sees the same data. This is a WOG platform play, not just an agency-by-agency sale.
+
+- [ ] **P22-16** Course catalogue and nomination — structured course catalogue with: course title, description, prerequisites, certification awarded, training hours, provider (CSC / agency-internal / external vendor), available dates. Officer nominates via a card workflow. Supervisor approves or declines (with a reason). Course coordinator receives the confirmed list. All via push cards — no email. Write `docs/GOVT-TRAINING-CATALOGUE.md`.
+
+- [ ] **P22-17** Attendance, completion, and CPE tracking — QR code check-in at training sessions (mobile). Completion criteria: minimum attendance threshold + assessment pass (if required). Completion certificate generated automatically as a verifiable digital artefact. CPE (Continuing Professional Education) hours accumulated in the officer's profile. Expiry tracking for time-limited certifications. Write `docs/GOVT-TRAINING-COMPLETION.md`.
+
+- [ ] **P22-18** WOG training record integration — completion records sync automatically to the officer's HR profile at their home agency (via CorpPass identity resolution). CSC and agency HR both see the same record. No re-entry. No PDF-to-HR manual upload. Officers can share their training record with a new agency on transfer without requesting it from the previous agency. Write `docs/GOVT-TRAINING-WOG-SYNC.md`.
+
+---
+
+### P22-6 — Reporting & Decision Intelligence (Gov-M7)
+> **GeBIZ signal:** 830 tenders, SGD 2.2B. One of the highest-spend categories. Agencies procure dashboards, analytics platforms, and custom BI tools repeatedly and in parallel. Every ministry has a "Management Information System" budget that funds bespoke reporting — most of which is feeding reports into PowerPoint decks for weekly management meetings.
+>
+> **Pain today:** Data is in operational systems (HR, finance, inspection, grants). Reports are extracted manually (Excel or Crystal Reports), formatted in PowerPoint, and presented at meetings. By the time the report is in the meeting deck, the data is 3–7 days old. Decisions are made on stale data. When the Permanent Secretary asks "how many open inspection cases are overdue?", the answer comes 24 hours later, not in 30 seconds.
+>
+> **ONEVibe's advantage:** Because ONEVibe ERP modules are the operational systems, all reports are real-time by default. The reporting module is not an integration challenge — it is a query over the same entity store that runs the workflows.
+
+- [ ] **P22-19** NL query to report — officer asks "show me all compliance cases opened in Q2 where the final decision was made more than 30 days after the case was flagged" and gets a formatted table with drill-down. AI translates NL to a structured query against the entity store. No IT involvement. No BI tool license. No "data extraction request to IT." Write `docs/GOVT-REPORTING-NL-QUERY.md`.
+
+- [ ] **P22-20** Scheduled management reports — configurable report cards pushed to the right people on a schedule: weekly inspection summary to the Director, monthly procurement spend to the CFO, quarterly training completion to HR Director. Each report card is interactive — click any number to drill down to the underlying records. Write `docs/GOVT-REPORTING-SCHEDULED.md`.
+
+- [ ] **P22-21** AGO-ready evidence report — for any approval decision in the system, generate an AGO-format evidence report in one click: named officer, delegation schedule reference, financial authority level, timeline of the decision (submitted → reviewed → approved, with timestamps), attached evidence documents, Singpass authentication receipt. The audit examiner receives a formatted PDF + a structured JSON export. Replaces the "compile evidence package" exercise at the start of every audit. Write `docs/GOVT-AGO-EVIDENCE-REPORT.md`.
+
+---
+
+### P22-7 — Compliance & Case Management (Gov-M8)
+> **GeBIZ signal:** 718 tenders, SGD 1.0B. MAS, AGC, PDPC, MOM, ACRA, BCA, NEA — all run compliance case management on email + bespoke legacy tools.
+>
+> This is the same as Phase 21 Module 6 (Compliance & Regulatory Decisions) but with government-specific requirements: PDPA case management (PDPC), AML/CFT for MAS-regulated entities, building safety enforcement for BCA, environmental enforcement for NEA, labour enforcement for MOM.
+
+- [ ] **P22-22** Government compliance case types — extend the Phase 21 Module 6 manifest with government-specific decision types: PDPA breach investigation (PDPC), building safety stop-work order (BCA), environmental enforcement summons (NEA), labour law infringement notice (MOM), fit and proper assessment (MAS). Each type has a pre-configured state machine with the correct routing rules, evidence requirements, and AGO audit trail fields. Write `docs/GOVT-COMPLIANCE-CASES.md`.
+
+- [ ] **P22-23** Cross-agency referral workflow — when a compliance case involves multiple agencies (e.g., a money laundering case where MAS investigates the FI and CAD investigates the individual), structured referral cards are issued between agencies. Each agency sees the portion of the case relevant to their mandate. Inter-agency sharing is governed by the IM8 data classification of the referring record — RESTRICTED records require Permanent Secretary-level authorisation before inter-agency disclosure. Write `docs/GOVT-INTER-AGENCY-REFERRAL.md`.
+
+---
+
+### P22-8 — HR & Workforce Management (Gov-M10)
+> **GeBIZ signal:** 417 tenders, SGD 834M. Every ministry and statutory board has an HR system, most on SAP HCM or a bespoke system maintained by a government-appointed SI. PSD (Public Service Division) sets WOG HR policy; agencies implement locally. A WOG HR platform that PSD endorses would collapse the 417 independent deployments.
+
+- [ ] **P22-24** Government leave types (MOM + PSD compliant) — leave types, balance rules, and accrual logic pre-configured for Singapore public service: annual leave (based on years of service per PSD schedule), sick leave (Government Instruction Manual entitlement), childcare leave (Childcare Leave Act), NS leave (Enlistment Act), marriage leave, paternity/maternity leave (Child Development Co-savings Act). Configuration layer for agencies that deviate from PSD defaults (e.g., SAF, Police — separate leave schedules). Write `docs/GOVT-LEAVE-TYPES.md`.
+
+- [ ] **P22-25** PSD policy integration — HR decisions (promotion recommendations, performance band allocation, long-service awards) follow PSD's Revised HR Framework. Approval routing pre-configured: Head of Department recommendation → Divisional Director endorsement → CEO/PS sign-off for senior positions. PSD bulk HR exercise (annual variable payment, annual salary increment) as a batch approval workflow: Finance generates the recommended amounts, approving officers review and sign in batch. Write `docs/GOVT-PSD-POLICY.md`.
+
+---
+
+### P22-9 — Procurement & Budget Tracking (Gov-M8a)
+> **GeBIZ signal:** 249 tenders, SGD 738M. Government procurement follows WOG rules: Waiver of Competition above SGD 6k requires documented justification; ITQ above SGD 6k; ITT above SGD 1M. Every procurement decision is a compliance decision — the approver must have the correct financial authority, and the decision must reference the correct WOG procurement procedure.
+
+- [ ] **P22-26** WOG procurement workflow — purchase requests flow through the correct WOG procurement procedure automatically based on value: below SGD 6k (waiver with approver sign-off), SGD 6k–1M (ITQ workflow, minimum 3 quotations), above SGD 1M (ITT workflow, GeBIZ mandatory). Each threshold triggers the correct workflow and routing — officers cannot skip a procedure, but the system does the routing so they don't have to know the procurement manual. Write `docs/GOVT-PROCUREMENT-WOG.md`.
+
+- [ ] **P22-27** Budget commitment tracking — when a procurement card is approved, the amount is committed against the department's budget head. The budget dashboard shows: approved budget, committed (approved but not yet spent), actual (invoices received), and available. Finance Officer can see the full picture without extracting from IFAS (Integrated Financial and Administrative System). Overspend alerts before approval — not as a surprise at year-end. Write `docs/GOVT-BUDGET-TRACKING.md`.
+
+---
+
+### P22-10 — Records & Document Management (Gov-M12)
+> **GeBIZ signal:** ~60 direct records management tenders + embedded in every other category. NAS (National Archives Singapore) requires all government records to comply with the Government Records Management Framework (GRMF). Most agencies use a Records Management System (RMS) that is separate from the systems that create the records — creating a double-entry problem and a gap between the "work" record and the "official" record.
+
+- [ ] **P22-28** GRMF-compliant record classification — every document created in ONEVibe is classified at creation time: OFFICIAL, RESTRICTED, CONFIDENTIAL, SECRET. Classification is suggested by AI based on content and document type (enforcement notice → RESTRICTED by default, training certificate → OFFICIAL by default). Officer can override classification with a documented reason. Classification is immutable once set (only a Records Officer with GRMF authority can re-classify). Write `docs/GOVT-RECORDS-CLASSIFICATION.md`.
+
+- [ ] **P22-29** Retention schedule automation — each document type has a configurable retention schedule per NAS guidelines (enforcement records: 10 years, financial records: 7 years, HR records: 5 years after leaving service). On expiry, the system generates a destruction notice (for non-permanent records) or flags for transfer to NAS (for permanent records). Destruction is the officer's decision — the system prevents both premature deletion and accidental retention past the schedule. Write `docs/GOVT-RECORDS-RETENTION.md`.
+
+---
+
+### P22-ref — Phase 22 reference docs
+
+- Full GeBIZ analysis + GTM strategy: `docs/GEBIZ-GOVERNMENT-ERP-ANALYSIS.md`
+- Government-specific requirements gate: `docs/GOVT-ERP-REQUIREMENTS.md` (created by P22-00)
+- Engine underneath all Phase 22 modules: Phase 20 (ERP Core)
+- Private-sector modules (same engine): Phase 21 (12 Core ERP Modules)
+- Singpass/NDI AAL2: `docs/SINGPASS-NDI-CONNECTOR.md` (created by P22-01)
+- AGO audit trail format: `docs/AGO-AUDIT-FORMAT.md` (created by P22-03)
+
+---
+
 ## Phase 21 — The 12 Core ERP Modules (80/20 product stack)
 > Added 2026-07-18. Cross-referenced from docs/ICP-APAC-TOP20.md (20 APAC ICP profiles) and docs/ERP-MODULES-80-20.md (full module spec with ideal user journeys and ICP coverage matrix).
 >
