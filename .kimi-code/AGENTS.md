@@ -57,3 +57,22 @@ Use `AgentSwarm` or parallel `Agent` dispatches for independent outcomes (e.g. O
 
 ## Session continuity
 This is a persistent single session. The PM sends broad multi-outcome briefs. Use swarm mode to run them in parallel. Commit each outcome separately with a gate check.
+
+## Two-session architecture
+
+**Session A** (`session_c90ce2bb`) — this session. Tech lead / implementer. Writes code, runs gate, commits.
+
+**Session B** (`session_d95dd0b3`) — QA engineer. Uses the `playwright` MCP server (wired via `.kimi-code/mcp.json`) to control a real Chromium browser. Session B never writes production code.
+
+### Session B QA workflow (Playwright MCP tools)
+1. `mcp__playwright__browser_navigate` → `http://localhost:5173`
+2. `mcp__playwright__browser_snapshot` — get accessibility tree (use for element targeting, NOT screenshot)
+3. `mcp__playwright__browser_click` / `browser_fill` / `browser_select_option` to exercise interactions
+4. `mcp__playwright__browser_take_screenshot` — visual evidence, save to `docs/browser-screenshots/`
+5. `mcp__playwright__browser_verify_element_visible` / `browser_verify_text_visible` — assertion tools
+6. Report verdict: PASS or FAIL with screenshot path
+7. Commit: `git add docs/ && git commit -m "qa(P{x}-{y}): visual verification [PASS/FAIL]"`
+
+Dev server must be running before Session B opens the browser. Session B checks with:
+`curl -sf http://localhost:5173 > /dev/null && echo up || echo down`
+If down: `npm run dev:all &` then wait 5 seconds.
