@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import type { EventInput, RunStatus, Task } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
@@ -6,12 +7,16 @@ import { sanitizeNativePayload } from './native-events.js'
  * A2A (Agent-to-Agent) JSON-RPC 2.0 runtime adapter.
  *
  * Discovery: GET {baseUrl}/.well-known/agent.json (Agent Card) backs health().
- * Execution: POST {baseUrl} with tasks/sendSubscribe, consuming the SSE stream
- * of TaskStatusUpdateEvent / TaskArtifactUpdateEvent frames and projecting them
+ * Execution: POST {baseUrl} with message/stream, consuming the SSE stream of
+ * TaskStatusUpdateEvent / TaskArtifactUpdateEvent frames and projecting them
  * into the durable RuntimeEvent ledger. input-required is routed through the
- * existing UserInputBroker and the task is continued with the same A2A task id.
+ * existing UserInputBroker and the task is continued with the server-assigned
+ * A2A task id carried in message.taskId.
  *
- * This adapter is contract-tested only: no live A2A endpoint proof exists yet.
+ * Wire format source of truth: docs/A2A-SPIKE.md (P13-03 live captures against
+ * a2a-sdk 0.2.16). Every published a2a-sdk dispatches message/send +
+ * message/stream; the draft-era tasks/sendSubscribe with a client-supplied
+ * params.id does not exist on real servers (JSON-RPC -32601).
  */
 
 type A2aMapped = {
@@ -24,6 +29,8 @@ type A2aMapped = {
   inputPrompt?: string
   /** JSON-RPC error message when the frame is an error response. */
   error?: string
+  /** Server-assigned A2A task id, when the frame carries one. */
+  taskId?: string
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
@@ -55,6 +62,8 @@ export const mapA2aStreamEvent = (value: unknown): A2aMapped => {
   }
   const result = isRecord(value.result) ? value.result : value
   const kind = typeof result.kind === 'string' ? result.kind : undefined
+  // The server assigns the A2A task id: Task frames carry it as `id`, event frames as `taskId`.
+  const taskId = typeof result.taskId === 'string' ? result.taskId : kind === 'task' && typeof result.id === 'string' ? result.id : undefined
 
   if (kind === 'artifact-update') {
     const artifact = isRecord(result.artifact) ? result.artifact : undefined
@@ -64,12 +73,12 @@ export const mapA2aStreamEvent = (value: unknown): A2aMapped => {
     if (name && result.lastChunk === true) {
       events.push({ type: 'artifact_created', lane: 'artifact', label: name, payload: { a2aArtifact: name } })
     }
-    return { events }
+    return { events, taskId }
   }
 
-  // TaskStatusUpdateEvent, or the initial Task object returned by sendSubscribe.
+  // TaskStatusUpdateEvent, or the initial Task object returned by message/stream.
   const status = isRecord(result.status) ? result.status : undefined
-  if (!status || (kind !== undefined && kind !== 'status-update' && kind !== 'task')) return { events: [] }
+  if (!status || (kind !== undefined && kind !== 'status-update' && kind !== 'task')) return { events: [], taskId }
   const state = typeof status.state === 'string' ? status.state : 'unknown'
   const final = result.final === true
   const messageText = isRecord(status.message) ? textFromA2aParts(status.message.parts) : ''
@@ -78,17 +87,17 @@ export const mapA2aStreamEvent = (value: unknown): A2aMapped => {
   switch (state) {
     case 'submitted':
     case 'working':
-      return { events: deltas, state, final }
+      return { events: deltas, state, final, taskId }
     case 'input-required':
-      return { events: [], state, final: true, inputPrompt: messageText || 'The A2A agent requested additional input.' }
+      return { events: [], state, final: true, inputPrompt: messageText || 'The A2A agent requested additional input.', taskId }
     case 'completed':
-      return { events: [...deltas, { type: 'run_completed', lane: 'control', status: 'completed', label: 'A2A task completed', payload: {} }], state, final: true }
+      return { events: [...deltas, { type: 'run_completed', lane: 'control', status: 'completed', label: 'A2A task completed', payload: {} }], state, final: true, taskId }
     case 'canceled':
-      return { events: [...deltas, { type: 'run_cancelled', lane: 'control', status: 'cancelled', label: 'A2A task canceled', content: messageText || undefined, payload: {} }], state, final: true }
+      return { events: [...deltas, { type: 'run_cancelled', lane: 'control', status: 'cancelled', label: 'A2A task canceled', content: messageText || undefined, payload: {} }], state, final: true, taskId }
     case 'failed':
-      return { events: [{ type: 'run_failed', lane: 'control', status: 'failed', label: 'A2A task failed', content: messageText || 'The A2A agent reported a failed task state.', payload: {} }], state, final: true }
+      return { events: [{ type: 'run_failed', lane: 'control', status: 'failed', label: 'A2A task failed', content: messageText || 'The A2A agent reported a failed task state.', payload: {} }], state, final: true, taskId }
     default:
-      return { events: [{ type: 'run_failed', lane: 'control', status: 'failed', label: 'A2A task failed', content: `The A2A agent reported an unhandled task state: ${state}.`, payload: {} }], state, final: true }
+      return { events: [{ type: 'run_failed', lane: 'control', status: 'failed', label: 'A2A task failed', content: `The A2A agent reported an unhandled task state: ${state}.`, payload: {} }], state, final: true, taskId }
   }
 }
 
@@ -146,9 +155,11 @@ export class A2aRuntimeAdapter extends RuntimeAdapterBase {
     await store.updateTask(task.id, { status: 'running' })
     let message = prompt
     let sourceSequence = 0
+    let a2aTaskId: string | undefined
     for (let round = 0; round < MAX_INPUT_ROUNDS; round += 1) {
-      const outcome = await this.pump({ a2aTaskId: task.id, message, taskId: task.id, store, signal, providerRequestId, sourceSequence })
+      const outcome = await this.pump({ a2aTaskId, message, taskId: task.id, store, signal, providerRequestId, sourceSequence })
       sourceSequence = outcome.sourceSequence
+      a2aTaskId = outcome.taskId ?? a2aTaskId
       if (outcome.inputPrompt !== undefined) {
         await store.appendEvent(task.id, {
           type: 'user_input_requested', lane: 'approval', label: 'A2A input required',
@@ -173,9 +184,10 @@ export class A2aRuntimeAdapter extends RuntimeAdapterBase {
     await store.updateTask(task.id, { status: taskStatus })
   }
 
-  /** Opens one tasks/sendSubscribe stream and pumps it until a terminal state, an input-required pause, or stream end. */
-  private async pump(args: { a2aTaskId: string; message: string; taskId: string; store: LegacyRuntimeContext['store']; signal: AbortSignal; providerRequestId: string; sourceSequence: number }): Promise<{ inputPrompt?: string; sourceSequence: number }> {
-    const { a2aTaskId, message, taskId, store, signal, providerRequestId } = args
+  /** Opens one message/stream stream and pumps it until a terminal state, an input-required pause, or stream end. */
+  private async pump(args: { a2aTaskId?: string; message: string; taskId: string; store: LegacyRuntimeContext['store']; signal: AbortSignal; providerRequestId: string; sourceSequence: number }): Promise<{ inputPrompt?: string; sourceSequence: number; taskId?: string }> {
+    const { message, taskId, store, signal, providerRequestId } = args
+    let a2aTaskId = args.a2aTaskId
     let sourceSequence = args.sourceSequence
     const response = await fetch(this.baseUrl, {
       method: 'POST',
@@ -183,8 +195,17 @@ export class A2aRuntimeAdapter extends RuntimeAdapterBase {
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: providerRequestId,
-        method: 'tasks/sendSubscribe',
-        params: { id: a2aTaskId, message: { role: 'user', parts: [{ kind: 'text', text: message }] } },
+        method: 'message/stream',
+        // No client-supplied task id: the server assigns it (first kind:"task"
+        // frame) and continuations reference it via message.taskId.
+        params: {
+          message: {
+            messageId: randomUUID(),
+            role: 'user',
+            parts: [{ kind: 'text', text: message }],
+            ...(a2aTaskId ? { taskId: a2aTaskId } : {}),
+          },
+        },
       }),
       signal: AbortSignal.any([signal, AbortSignal.timeout(15 * 60_000)]),
     })
@@ -202,18 +223,19 @@ export class A2aRuntimeAdapter extends RuntimeAdapterBase {
         const frame = parseSseBlock(block)
         if (!frame) continue
         const mapped = mapA2aStreamEvent(frame.data)
+        if (mapped.taskId) a2aTaskId = mapped.taskId
         for (const event of mapped.events) {
           await store.ingestNativeEvent(taskId, {
-            source: 'a2a_jsonrpc', sourceEventId: `a2a:${a2aTaskId}:${sourceSequence}`, sourceSequence, nativeType: event.type,
+            source: 'a2a_jsonrpc', sourceEventId: `a2a:${a2aTaskId ?? 'unassigned'}:${sourceSequence}`, sourceSequence, nativeType: event.type,
             payload: sanitizeNativePayload(frame.data), projections: [event],
           })
           sourceSequence += 1
         }
-        if (mapped.state === 'input-required') return { inputPrompt: mapped.inputPrompt, sourceSequence }
-        if (mapped.final) return { sourceSequence }
+        if (mapped.state === 'input-required') return { inputPrompt: mapped.inputPrompt, sourceSequence, taskId: a2aTaskId }
+        if (mapped.final) return { sourceSequence, taskId: a2aTaskId }
       }
       if (done) break
     }
-    return { sourceSequence }
+    return { sourceSequence, taskId: a2aTaskId }
   }
 }

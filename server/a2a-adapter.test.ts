@@ -67,7 +67,7 @@ describe('A2A stream mapping', () => {
 })
 
 describe('A2aRuntimeAdapter', () => {
-  it('runs a task through tasks/sendSubscribe and projects the native stream', async () => {
+  it('runs a task through message/stream and projects the native stream', async () => {
     const bodies: Record<string, unknown>[] = []
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
@@ -86,9 +86,12 @@ describe('A2aRuntimeAdapter', () => {
     await consumeStream(adapter.run(task.prompt, runtimeContextFor(task, store, task.prompt, false), new AbortController().signal))
 
     expect(bodies).toHaveLength(1)
-    expect(bodies[0]?.method).toBe('tasks/sendSubscribe')
-    const params = bodies[0]?.params as Record<string, unknown>
-    expect(params?.id).toBe(task.id)
+    expect(bodies[0]?.method).toBe('message/stream')
+    const params = bodies[0]?.params as { id?: string; message?: { messageId?: string; role?: string; taskId?: string } }
+    expect(params?.id).toBeUndefined()
+    expect(params?.message?.role).toBe('user')
+    expect(typeof params?.message?.messageId).toBe('string')
+    expect(params?.message?.taskId).toBeUndefined()
     const events = store.listEvents(task.id)
     expect(events.some((event) => event.content === 'A2A answer')).toBe(true)
     expect(events.some((event) => event.type === 'run_completed')).toBe(true)
@@ -119,10 +122,9 @@ describe('A2aRuntimeAdapter', () => {
     await consumeStream(adapter.run(task.prompt, context, new AbortController().signal))
 
     expect(bodies).toHaveLength(2)
-    const continuation = bodies[1]?.params as Record<string, unknown>
-    expect(continuation?.id).toBe(task.id)
-    const message = continuation?.message as { parts: { text: string }[] }
-    expect(message.parts[0]?.text).toBe('eu-west')
+    const continuation = bodies[1]?.params as { message?: { taskId?: string; parts: { text: string }[] } }
+    expect(continuation?.message?.taskId).toBe('task-1')
+    expect(continuation?.message?.parts[0]?.text).toBe('eu-west')
     const events = store.listEvents(task.id)
     expect(events.some((event) => event.type === 'user_input_requested')).toBe(true)
     expect(events.some((event) => event.type === 'run_completed')).toBe(true)
