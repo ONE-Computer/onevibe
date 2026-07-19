@@ -395,6 +395,8 @@
   --overlay-scrim: rgba(0,0,0,.45);
   --grid-line: color-mix(in srgb, var(--text-primary) 3%, transparent);
   --elev-raised: 0 2px 4px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.05);
+  --elev-composer: 0 4px 16px -8px rgba(0,0,0,.5);
+  --elev-composer-focus: 0 6px 24px -8px rgba(0,0,0,.5);
   --hairline: 0 0 0 0.5px rgba(255,255,255,.12);
   --shadow: 0 28px 80px rgba(0,0,0,.42);
   --shadow-soft: 0 22px 70px rgba(0,0,0,.35);
@@ -451,6 +453,8 @@
   --overlay-scrim: rgba(30,30,36,.28);
   --grid-line: color-mix(in srgb, var(--text-primary) 4%, transparent);
   --elev-raised: 0 4px 16px rgba(0,0,0,.1), 0 0 0 1px rgba(0,0,0,.04);
+  --elev-composer: 0 4px 16px -8px rgba(0,0,0,.12);
+  --elev-composer-focus: 0 6px 24px -8px rgba(0,0,0,.14);
   --hairline: 0 0 0 0.5px rgba(0,0,0,.1);
   --shadow: 0 24px 64px rgba(28,45,33,.14);
   --shadow-soft: 0 18px 48px rgba(28,45,33,.12);
