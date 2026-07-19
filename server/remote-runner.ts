@@ -2,27 +2,8 @@ import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter
 import type { EventInput, EventLane, EventType, RunStatus } from './types.js'
 import type { Task } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
-
-type SseFrame = { event: string; data: unknown }
-
-const parseBlock = (block: string): SseFrame | null => {
-  const lines = block.split('\n')
-  let event = 'message'
-  const data: string[] = []
-  for (const line of lines) {
-    if (line.startsWith('event:')) event = line.slice(6).trim()
-    if (line.startsWith('data:')) data.push(line.slice(5).trimStart())
-  }
-  if (!data.length) return null
-  const raw = data.join('\n')
-  try {
-    return { event, data: JSON.parse(raw) as unknown }
-  } catch {
-    return { event, data: raw }
-  }
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+import { isRecord } from './util/is-record.js'
+import { parseSseBlock } from './util/sse.js'
 
 const normalize = (value: unknown): EventInput | null => {
   if (!isRecord(value) || typeof value.type !== 'string') return null
@@ -92,7 +73,7 @@ export class RemoteRuntimeAdapter extends RuntimeAdapterBase {
       const blocks = buffer.split('\n\n')
       buffer = blocks.pop() ?? ''
       for (const block of blocks) {
-        const frame = parseBlock(block)
+        const frame = parseSseBlock(block)
         if (!frame || frame.event !== 'runtime_event') continue
         const event = normalize(frame.data)
         if (event) {

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { EventInput } from './types.js'
+import { isRecord } from './util/is-record.js'
 
 export type NativeEventSource = 'claude_agent_sdk' | 'codex_litellm' | 'agentcore_runtime' | 'onecomputer_sandbox' | 'remote_runtime' | 'a2a_jsonrpc' | 'kimi_cli'
 
@@ -12,7 +13,6 @@ export type NativeEventInput = {
   projections: EventInput[]
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 const secretKey = /authorization|cookie|token|secret|api[_-]?key|password|credential/i
 const hiddenReasoningKey = /^(thinking|redacted_thinking|reasoning|reasoning_content|encrypted_content)$/i
 const hostPath = /\/(?:Users|home|private\/tmp|tmp)\/[^\s'"`]+/g

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import type { EventInput, RunStatus, Task } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
+import { isRecord } from './util/is-record.js'
 
 /**
  * A2A (Agent-to-Agent) JSON-RPC 2.0 runtime adapter.
@@ -32,8 +33,6 @@ type A2aMapped = {
   /** Server-assigned A2A task id, when the frame carries one. */
   taskId?: string
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 /** Concatenates the text of A2A message/artifact parts; non-text parts are skipped. */
 export const textFromA2aParts = (parts: unknown): string => {

@@ -1,6 +1,7 @@
 import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import type { EventInput, Task } from './types.js'
 import { sanitizeNativePayload } from './native-events.js'
+import { isRecord } from './util/is-record.js'
 
 /**
  * Kimi Code CLI runtime adapter.
@@ -15,8 +16,6 @@ import { sanitizeNativePayload } from './native-events.js'
  * Registered only when KIMI_SERVER_URL is set. Contract-tested against a
  * stubbed fetch — no live Kimi server proof is claimed here.
  */
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 type KimiEnvelope<T> = { code: number; msg?: string; data: T }
 

@@ -3,6 +3,9 @@ import path from 'node:path'
 import { RuntimeAdapterBase, type LegacyRuntimeContext } from './runtime-adapter.js'
 import type { RuntimeHealth } from './types.js'
 import { claudeProviderConfig } from './claude-provider-config.js'
+import { isRecord } from './util/is-record.js'
+import { relativePathWithin } from './util/path-confinement.js'
+import { sseFrames } from './util/sse.js'
 
 type ChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -32,13 +35,11 @@ const tools = [
   },
 ] as const
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
-
 const safeWorkspacePath = (root: string, candidate: unknown) => {
   if (typeof candidate !== 'string' || !candidate.trim() || candidate.length > 240 || path.isAbsolute(candidate) || candidate.split(/[\\/]/).includes('..')) throw new Error('Workspace path must be relative and confined to the task workspace.')
   const resolved = path.resolve(root, candidate)
-  const relative = path.relative(root, resolved)
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Workspace path is outside the task workspace.')
+  const relative = relativePathWithin(root, resolved)
+  if (!relative) throw new Error('Workspace path is outside the task workspace.')
   return resolved
 }
 
@@ -49,29 +50,6 @@ const parseToolArguments = (value: string) => {
     return parsed
   } catch {
     throw new Error('The model returned invalid workspace tool arguments.')
-  }
-}
-
-const sseFrames = async function* (body: ReadableStream<Uint8Array>) {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      buffer += decoder.decode(value, { stream: !done })
-      const lines = buffer.split(/\r?\n/)
-      buffer = lines.pop() ?? ''
-      for (const line of lines) {
-        if (!line.startsWith('data:')) continue
-        const data = line.slice(5).trim()
-        if (!data || data === '[DONE]') continue
-        try { yield JSON.parse(data) as unknown } catch { /* Ignore non-JSON provider keepalives. */ }
-      }
-      if (done) break
-    }
-  } finally {
-    reader.releaseLock()
   }
 }
 

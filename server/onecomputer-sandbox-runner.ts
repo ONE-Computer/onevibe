@@ -13,6 +13,7 @@ import { SANDBOX_SLIDE_RENDERER, sandboxSlideSeed } from './sandbox-slide-render
 import { portableArtifactKind as portableArtifactPathKind } from './artifact-path.js'
 import { ONEVIBE_SANDBOX_AGENT_SDK_WORKER } from './onecomputer-agent-sdk-worker.js'
 import { writeArtifactManifest } from './mode-artifacts.js'
+import { isRecord } from './util/is-record.js'
 
 export const portableArtifactKind = (artifactPath: string) => {
   const normalized = path.posix.normalize(artifactPath)
@@ -73,8 +74,6 @@ const wait = (milliseconds: number, signal: AbortSignal) => new Promise<void>((r
   const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve() }, milliseconds)
   signal.addEventListener('abort', abort, { once: true })
 })
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 const redactUrl = (value: string) => {
   try {

@@ -13,11 +13,11 @@ import { writeArtifactManifest, writeDocumentReviewArtifacts, writeStructuredSli
 import { portableArtifactKind } from './artifact-path.js'
 import { resolveClaudeRunLimits } from './claude-run-limits.js'
 import { McpCapabilityFacade } from './mcp-facade.js'
+import { isRecord } from './util/is-record.js'
+import { relativePathWithin } from './util/path-confinement.js'
 
 const ARTIFACT_MANIFEST_PATH = 'artifact-manifest.json'
 const RUNTIME_REPORT_PATHS = new Set(['validation-report.json', 'sandbox-build-report.json'])
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 const getContent = (message: SDKMessage) => {
   if (!('message' in message) || !isRecord(message.message)) return []
@@ -64,8 +64,8 @@ export const isSafeBashCommand = safeBashCommand
 export const normalizeWorkspaceToolPath = (workspace: string, candidate: string): string | undefined => {
   if (!candidate || candidate.length > 2_000 || candidate.includes('\0')) return undefined
   const inside = (root: string, target: string) => {
-    const relative = path.relative(root, target)
-    return !relative.startsWith('..') && !path.isAbsolute(relative) ? relative || '.' : undefined
+    const relative = relativePathWithin(root, target)
+    return relative === undefined ? undefined : relative || '.'
   }
   const direct = inside(workspace, path.resolve(workspace, candidate))
   if (direct) return direct
